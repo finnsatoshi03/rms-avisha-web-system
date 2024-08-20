@@ -1,20 +1,53 @@
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
-// import Header from "../components/header";
 import { useUser } from "../components/auth/useUser";
+import { useState, useEffect } from "react";
+import { Menu } from "lucide-react";
 
 export default function AppLayout() {
   const { isUser } = useUser();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   return (
-    <div className="grid h-screen grid-cols-[0.15fr_1fr] w-screen gap-8 ">
-      <Sidebar className="p-8 h-screen row-span-2" isUser={isUser} />
-      {/* <div className="pt-8 px-8">
-        <Header />
-      </div> */}
-      <main className="pt-8 pb-8 px-8 h-screen overflow-auto">
-        <Outlet />
-      </main>
+    <div className="relative h-screen w-screen">
+      <div
+        className={`grid h-screen ${
+          sidebarOpen ? "grid-cols-[1fr]" : "lg:grid-cols-[0.15fr_1fr]"
+        }`}
+      >
+        <Sidebar
+          className={`fixed lg:relative lg:translate-x-0 transition-transform transform-gpu z-40 lg:z-auto p-8 h-screen ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+          isUser={isUser}
+          onClose={() => setSidebarOpen(false)}
+        />
+        <button
+          className="lg:hidden mt-4 mx-8"
+          onClick={() => setSidebarOpen(true)}
+        >
+          <Menu size={24} />
+        </button>
+        <main
+          className="pt-2 lg:pt-8 pb-8 px-8 h-screen overflow-auto"
+          onClick={() => sidebarOpen && setSidebarOpen(false)}
+        >
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

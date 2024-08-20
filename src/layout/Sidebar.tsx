@@ -10,7 +10,6 @@ import {
   WalletMinimal,
   Wrench,
 } from "lucide-react";
-
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import {
   Popover,
@@ -25,9 +24,11 @@ import { useState } from "react";
 export default function Sidebar({
   className,
   isUser,
+  onClose, // New prop to handle sidebar close
 }: {
   className?: string;
   isUser?: boolean;
+  onClose?: () => void;
 }) {
   const { user } = useUser();
   const [open, setOpen] = useState(false);
@@ -35,47 +36,71 @@ export default function Sidebar({
   return (
     <nav
       className={cn(
-        "flex flex-col justify-between min-h-screen relative w-full",
+        "flex flex-col justify-between min-h-screen w-[25%] lg:w-full bg-white xl:shadow-none md:shadow-lg",
         className
       )}
     >
-      <img src="./RMS-Logo.png" />
-      <ul className="flex flex-col justify-between h-[calc(100%-20%-2rem)] absolute top-[20%] w-full">
+      <img src="./RMS-Logo.png" alt="RMS Logo" />
+      <ul className="flex flex-col justify-between h-[calc(100%-20%-2rem)] w-full">
         <div className="flex flex-col space-y-1">
           {!isUser ? (
             <>
               <li>
-                <NavLink to="dashboard" className="flex items-center gap-4">
+                <NavLink
+                  to="dashboard"
+                  className="flex items-center gap-4"
+                  onClick={onClose}
+                >
                   <Home size={20} />
                   Home
                 </NavLink>
               </li>
               <li>
-                <NavLink to="job-orders" className="flex items-center gap-4">
+                <NavLink
+                  to="job-orders"
+                  className="flex items-center gap-4"
+                  onClick={onClose}
+                >
                   <Printer size={20} />
                   Job Orders
                 </NavLink>
               </li>
               <li>
-                <NavLink to="materials" className="flex items-center gap-4">
+                <NavLink
+                  to="materials"
+                  className="flex items-center gap-4"
+                  onClick={onClose}
+                >
                   <Archive size={20} />
                   Materials
                 </NavLink>
               </li>
               <li>
-                <NavLink to="expenses" className="flex items-center gap-4">
+                <NavLink
+                  to="expenses"
+                  className="flex items-center gap-4"
+                  onClick={onClose}
+                >
                   <WalletMinimal size={20} />
                   Expenses
                 </NavLink>
               </li>
               <li>
-                <NavLink to="clients" className="flex items-center gap-4">
+                <NavLink
+                  to="clients"
+                  className="flex items-center gap-4"
+                  onClick={onClose}
+                >
                   <UsersRound size={20} />
                   Clients
                 </NavLink>
               </li>
               <li>
-                <NavLink to="technicians" className="flex items-center gap-4">
+                <NavLink
+                  to="technicians"
+                  className="flex items-center gap-4"
+                  onClick={onClose}
+                >
                   <Wrench size={20} />
                   Technicians
                 </NavLink>
@@ -83,7 +108,11 @@ export default function Sidebar({
             </>
           ) : (
             <li>
-              <NavLink to="job-orders" className="flex items-center gap-4">
+              <NavLink
+                to="job-orders"
+                className="flex items-center gap-4"
+                onClick={onClose}
+              >
                 <Printer size={20} />
                 Job Orders
               </NavLink>
@@ -93,7 +122,11 @@ export default function Sidebar({
         <div className={`${!isUser && "pt-4 border-t"}`}>
           {!isUser && (
             <li>
-              <NavLink to="settings" className="flex items-center gap-4">
+              <NavLink
+                to="settings"
+                className="flex items-center gap-4"
+                onClick={onClose}
+              >
                 <Settings size={20} />
                 Settings
               </NavLink>
@@ -139,7 +172,10 @@ export default function Sidebar({
                   <NavLink
                     to="account"
                     className="flex gap-2"
-                    onClick={() => setOpen(false)}
+                    onClick={() => {
+                      setOpen(false);
+                      onClose?.();
+                    }}
                   >
                     <UserRoundCog size={20} />
                     Account
