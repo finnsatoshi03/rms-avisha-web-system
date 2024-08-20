@@ -123,7 +123,7 @@ const ReportCard = ({
                 <ArrowRight size={14} />
               </button>
             </DialogTrigger>
-            <DialogContent className="w-[400px]">
+            <DialogContent className="md:w-[400px] w-1/2">
               <DialogHeader>
                 <DialogTitle>
                   {nameKey
@@ -193,7 +193,7 @@ const ReportCard = ({
                     })}
                 </div>
               </div>
-              <div className="grid grid-cols-3 w-full gap-1 mt-1">
+              <div className="grid md:grid-cols-3 grid-cols-1 w-full gap-1 mt-1">
                 {weeklyMetrics &&
                   weeklyMetrics.map((weekValue: number, index: number) => {
                     return (

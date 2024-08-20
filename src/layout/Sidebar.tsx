@@ -36,7 +36,7 @@ export default function Sidebar({
   return (
     <nav
       className={cn(
-        "flex flex-col justify-between min-h-screen w-[25%] lg:w-full bg-white xl:shadow-none md:shadow-lg",
+        "flex flex-col justify-between min-h-screen w-[250px] lg:w-full bg-white lg:shadow-none shadow-lg",
         className
       )}
     >

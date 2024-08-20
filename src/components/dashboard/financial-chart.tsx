@@ -11,7 +11,7 @@ import {
   CartesianGrid,
   XAxis,
   Cell,
-  Legend,
+  // Legend,
   YAxis,
 } from "recharts";
 
@@ -29,10 +29,10 @@ export default function FinancialChart({
     // },
   } satisfies ChartConfig;
 
-  const legendData = [
-    { value: "Gain", color: "#5bbe80" }, // Color for positive profit
-    { value: "Loss", color: "#d64846" }, // Color for negative profit
-  ];
+  // const legendData = [
+  //   { value: "Gain", color: "#5bbe80" }, // Color for positive profit
+  //   { value: "Loss", color: "#d64846" }, // Color for negative profit
+  // ];
 
   return (
     <div className="border border-slate-300 py-4 px-5 rounded-xl">
@@ -45,7 +45,7 @@ export default function FinancialChart({
             top: 20,
             left: -20,
             right: 12,
-            bottom: -40,
+            // bottom: -40,
           }}
         >
           <CartesianGrid vertical={false} />
@@ -57,7 +57,7 @@ export default function FinancialChart({
             tickFormatter={(value) => value.slice(0, 3)}
           />
           <YAxis tickLine={false} axisLine={false} />
-          <Legend
+          {/* <Legend
             verticalAlign="bottom"
             iconType="circle"
             iconSize={8}
@@ -74,7 +74,7 @@ export default function FinancialChart({
                 ))}
               </div>
             )}
-          />
+          /> */}
           <ChartTooltip content={<ChartTooltipContent />} />
           <Bar dataKey="profit" radius={4}>
             {data.map((entry, index) => (

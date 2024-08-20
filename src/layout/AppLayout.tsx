@@ -30,7 +30,7 @@ export default function AppLayout() {
       >
         <Sidebar
           className={`fixed lg:relative lg:translate-x-0 transition-transform transform-gpu z-40 lg:z-auto p-8 h-screen ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+            sidebarOpen ? "translate-x-0" : "-translate-x-[200%]"
           }`}
           isUser={isUser}
           onClose={() => setSidebarOpen(false)}

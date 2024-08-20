@@ -22,7 +22,7 @@ const DashboardTabs: React.FC<DashboardTabsProps> = ({
       className="w-full h-[calc(100%-1rem-0.5rem-2rem)] mt-4 mb-2"
       onValueChange={setCurrentTab}
     >
-      <div className="flex gap-6">
+      <div className="flex xl:flex-row flex-col xl:gap-6 gap-3">
         <TabsList className="grid w-fit grid-cols-3 gap-2">
           <TabsTrigger value="overview" className="font-bold">
             Overview
@@ -35,7 +35,7 @@ const DashboardTabs: React.FC<DashboardTabsProps> = ({
           </TabsTrigger>
         </TabsList>
         {currentTab === "overview" && (
-          <div className="flex gap-2 self-end opacity-100">
+          <div className="flex gap-2 xl:self-end opacity-100">
             {Object.entries(statusCounts)
               .filter(([_, count]) => count > 0)
               .map(([status, count]) => (

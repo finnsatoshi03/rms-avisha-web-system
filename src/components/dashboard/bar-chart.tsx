@@ -96,10 +96,10 @@ export default function BarChartSection({
           </SelectContent>
         </Select>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center xl:gap-2 gap-1">
         <div>
           <p className="opacity-60 text-xs">Sales this month</p>
-          <h1 className="font-bold text-4xl">
+          <h1 className="font-bold xl:text-4xl text-3xl">
             ₱
             <span className="text-primaryRed">
               {currentMonthTotal.toLocaleString()}

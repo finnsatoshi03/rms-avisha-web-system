@@ -406,7 +406,7 @@ export default function Dashboard() {
 
   return (
     <div className="h-full">
-      <div className="flex justify-between">
+      <div className="flex sm:flex-row flex-col justify-between">
         <HeaderText>Dashboard</HeaderText>
         {job_orders && job_orders.length > 0 ? (
           <DateRangePickerWithExport
@@ -447,22 +447,22 @@ export default function Dashboard() {
           <>
             <TabsContent value="overview" className="w-full pb-8">
               <div className="h-[calc(100%-1rem-0.5rem-2rem)] mt-4 flex flex-col gap-4">
-                <div className="grid grid-cols-[0.7fr_1fr] gap-4">
+                <div className="grid xl:grid-cols-[0.7fr_1fr] lg:grid-cols-1 gap-4">
                   <OverviewSection overviewData={overviewData} />
                   <BarChartSection
                     data={aggregatedDataArray}
                     orders={completedOrders}
                   />
                 </div>
-                <div className="grid grid-cols-[1fr_0.5fr] gap-4">
+                <div className="grid xl:grid-cols-[1fr_0.5fr] grid-cols-1 gap-4">
                   <RecentSalesSection completedOrders={completedOrders} />
                   <RevenuePerTechnicianPieChart orders={completedOrders} />
                 </div>
               </div>
             </TabsContent>
             <TabsContent value="report" className="mt-4 w-full pb-8 space-y-4">
-              <div className="grid grid-cols-[1fr_0.8fr] gap-4">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="grid xl:grid-cols-[1fr_0.8fr] grid-cols-1 gap-4">
+                <div className="grid sm:grid-cols-2 grid-cols-1 gap-4">
                   <OverviewCard data={reportsData[0]} />
                   {reportsData &&
                     reportsData
@@ -488,7 +488,7 @@ export default function Dashboard() {
             </TabsContent>
             <TabsContent value="analytics" className="mt-4">
               <h2 className="font-bold text-lg">Sales and Revenue Insights</h2>
-              <div className="grid grid-cols-[1fr_0.5fr_0.5fr] gap-2 mt-2">
+              <div className="grid lg:grid-cols-[1fr_0.5fr_0.5fr] grid-cols-2 gap-2 mt-2">
                 <SalesGrowthChart
                   data={filteredOrders}
                   metrics={filteredMetrics}
@@ -505,7 +505,7 @@ export default function Dashboard() {
               <h2 className="font-bold text-lg mt-8">
                 Technician Performance Analytics
               </h2>
-              <div className="grid grid-cols-[0.5fr_1fr] gap-2 mt-2">
+              <div className="grid lg:grid-cols-[0.5fr_1fr] grid-cols-1 gap-2 mt-2">
                 <RevenuePerTechnicianPieChart
                   orders={filteredOrders}
                   isAnalytics
