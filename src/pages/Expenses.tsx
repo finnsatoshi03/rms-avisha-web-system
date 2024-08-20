@@ -300,7 +300,7 @@ export default function Expenses() {
 
   return (
     <div className="h-full">
-      <div className="flex justify-between">
+      <div className="flex sm:flex-row flex-col sm:gap-0 gap-2 justify-between">
         <HeaderText>Expenses</HeaderText>
         <DatePickerWithRange
           isAnalytics
@@ -371,7 +371,7 @@ export default function Expenses() {
           </DialogContent>
         </Dialog>
       </div>
-      <div className="grid grid-cols-[1fr_0.3fr] gap-8 overflow-hidden">
+      <div className="grid md:grid-cols-[1fr_0.3fr] grid-cols-1 gap-8 overflow-hidden">
         <Table
           data={paginatedData}
           currentPage={currentPage}
@@ -387,7 +387,7 @@ export default function Expenses() {
             setCurrentEditId(expense ? expense.id : null);
           }}
         />
-        <div className="space-y-4 flex flex-col h-full overflow-y-auto">
+        <div className="space-y-4 md:flex hidden flex-col h-full overflow-y-auto">
           <TotalExpense
             filteredData={filteredData}
             percentageChange={percentageChange}

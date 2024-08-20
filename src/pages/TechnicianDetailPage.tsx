@@ -77,7 +77,7 @@ export default function TechnicianDetailPage() {
   );
 
   return (
-    <div className="h-[90vh] space-y-8 overflow-hidden">
+    <div className="h-screen space-y-8 overflow-hidden">
       <header className="flex items-center space-x-4">
         <button onClick={handleGoBack}>
           <ChevronLeft size={20} />
@@ -85,7 +85,7 @@ export default function TechnicianDetailPage() {
         <h1 className="font-bold">Technician Profile</h1>
       </header>
       {technician ? (
-        <div className="grid grid-cols-[0.3fr_1fr] gap-6 h-full">
+        <div className="grid md:grid-cols-[0.3fr_1fr] grid-cols-1 gap-6 h-full">
           <div className="flex flex-col gap-4">
             <Avatar className="h-56 w-full self-center rounded-lg">
               <AvatarImage
