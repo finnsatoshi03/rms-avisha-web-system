@@ -659,9 +659,7 @@ export default function Table({
                       )}
                       {visibleColumns.includes("users.fullname") && (
                         <TableCell>
-                          {order.users?.fullname ??
-                            ("" || order.users?.email) ??
-                            ""}
+                          {order.users?.fullname ?? order.users?.email ?? ""}
                         </TableCell>
                       )}
                       <TableCell className="font-bold text-black">

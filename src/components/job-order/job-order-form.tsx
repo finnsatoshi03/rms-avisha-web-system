@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
-import { nullable, z } from "zod";
+import { z } from "zod";
 import { pdf } from "@react-pdf/renderer";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { saveAs } from "file-saver";
@@ -275,7 +275,7 @@ export default function JobOrderForm({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job_order"] });
       toast.success("Job order successfully edited!");
-      onClose && onClose();
+      if (onClose) onClose();
     },
     onError: (error) => {
       toast.error("An error occurred. Please try again.");
@@ -394,7 +394,7 @@ export default function JobOrderForm({
       setIsPrinting(false);
       setPrintDialogOpen(false);
       saveAs(asBlob, `job-order-${type || "both"}.pdf`);
-      onClose && onClose();
+      if (onClose) onClose();
       URL.revokeObjectURL(src);
     };
 
@@ -622,7 +622,7 @@ export default function JobOrderForm({
     <>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          <div className="flex gap-2 mb-2">
+          <div className="flex flex-wrap gap-2 mb-2">
             <div className="px-3 py-1 bg-gray-200 rounded-full text-gray-600 text-xs w-fit flex items-center gap-1">
               <Clock size={12} strokeWidth={1.5} />
               {editSession ? formatReadableDate(editValues.created_at) : date}
@@ -664,7 +664,7 @@ export default function JobOrderForm({
             <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">
               Basic Information
             </h2>
-            <div className="grid grid-cols-3 gap-2 px-4 py-2 border rounded-xl">
+            <div className="grid md:grid-cols-3 grid-cols-1 gap-2 px-4 py-2 border rounded-xl">
               <FormField
                 control={form.control}
                 name="contact_number"
@@ -761,7 +761,7 @@ export default function JobOrderForm({
             </div>
           </div>
           <div>
-            <div className="grid grid-cols-2 gap-10">
+            <div className="grid lg:grid-cols-2 grid-cols-1 lg:gap-10 gap-2">
               <div>
                 <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
                   Order Details
@@ -932,7 +932,7 @@ export default function JobOrderForm({
                 />
               </div>
               <div>
-                <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
+                <h2 className="text-xs mb-1 lg:mt-4 mt-0 font-bold opacity-40">
                   Labor Details
                 </h2>
                 <FormField
@@ -1435,7 +1435,9 @@ export default function JobOrderForm({
         open={printDialogOpen}
         onClose={() => {
           setPrintDialogOpen(false);
-          onClose && onClose();
+          if (onClose) {
+            onClose();
+          }
         }}
         onSelectOption={(option) => {
           if (jobOrderDataForPrinting) {

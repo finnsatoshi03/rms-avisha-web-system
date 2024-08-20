@@ -222,7 +222,7 @@ export default function JobOrders() {
   return (
     <div className="h-full">
       <HeaderText>Job Orders</HeaderText>
-      <div className="my-4 flex justify-between">
+      <div className="my-4 flex sm:flex-row flex-col sm:gap-0 gap-2 justify-between">
         <div className="flex items-center gap-3">
           <div className="relative">
             <Input
