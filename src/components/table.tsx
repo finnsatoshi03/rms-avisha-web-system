@@ -42,6 +42,7 @@ import {
   duplicateJobOrder,
   updateJobOrderStatus,
 } from "../services/apiJobOrders";
+import { useUser } from "./auth/useUser";
 
 import toast from "react-hot-toast";
 import { pdf } from "@react-pdf/renderer";
@@ -79,6 +80,7 @@ export default function Table({
   currentSort: { key: string; direction: "asc" | "desc" }[];
 }) {
   const queryClient = useQueryClient();
+  const { isUser } = useUser();
   const { isPending: isDeleting, mutate } = useMutation({
     mutationFn: (ids: number[]) => deleteJobOrder(ids),
   });
@@ -449,7 +451,7 @@ export default function Table({
           {showNotification && (
             <div className="w-full flex items-center justify-center h-0">
               <div
-                className={`w-fit text-sm bg-slate-800 py-3 px-5 text-white rounded-full absolute bottom-4 flex items-center justify-between ${animationClass} z-50`}
+                className={`w-fit text-sm bg-slate-800 md:py-3 py-5 md:px-5 px-8 text-white rounded-full absolute bottom-4 flex  md:flex-row flex-col md:gap-0 gap-4 items-center justify-between ${animationClass} z-50`}
                 style={{
                   animation: `${animationClass} 0.2s ease-out forwards`,
                 }}
@@ -468,7 +470,7 @@ export default function Table({
                     row(s) selected
                   </p>
                 </div>
-                <div className="flex gap-2 ml-24">
+                <div className="flex gap-2 md:ml-24 ml-0">
                   {selectedRows.length === 1 && (
                     <>
                       <Button
@@ -498,7 +500,7 @@ export default function Table({
                     </>
                   )}
                   <StatusChanger onChangeStatus={handleBulkStatusChange} />
-                  {selectedRows.length > 0 && (
+                  {selectedRows.length > 0 && !isUser && (
                     <Button
                       className="rounded-full bg-red-700 gap-1"
                       onClick={handleDeleteSelectedRows}

@@ -239,7 +239,15 @@ export default function JobOrderForm({
     editValues.discount
   );
 
-  const { isTaytay, isPasig, isAdmin } = useUser();
+  const { isTaytay, isPasig, isAdmin, user } = useUser();
+  const isTechnician = user?.user_metadata.role?.includes("technician");
+  const currentTechnicianId = user?.id;
+
+  // Determine branch based on the user's roles
+  const userIsPasig =
+    isTechnician && user?.user_metadata.role?.includes("pasig");
+  const userIsTaytay =
+    isTechnician && user?.user_metadata.role?.includes("taytay");
 
   const { data: materialStocks, isLoading: materialStocksLoading } = useQuery({
     queryKey: ["materialStocks", { fetchAll: true }],
@@ -311,13 +319,23 @@ export default function JobOrderForm({
           amount: undefined,
           materials: [],
           accessories: [],
-          technician_id: "",
+          technician_id: isTechnician ? currentTechnicianId : "",
           technical_report: "",
         },
   });
   const materials = form.watch("materials");
 
-  const branchId = isAdmin ? form.watch("branch_id") : isTaytay ? 1 : 2;
+  const branchId = isAdmin
+    ? form.watch("branch_id")
+    : userIsTaytay
+    ? 1
+    : userIsPasig
+    ? 2
+    : isTaytay
+    ? 1
+    : isPasig
+    ? 2
+    : 0;
   const date = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -436,13 +454,14 @@ export default function JobOrderForm({
         : new Date().toISOString(),
       discount: selectedDiscount ?? 0,
       ...values,
-      branch_id: isTaytay
-        ? 1
-        : isPasig
-        ? 2
-        : isAdmin
-        ? values.branch_id || 0
-        : 0,
+      branch_id:
+        isTaytay || userIsTaytay
+          ? 1
+          : isPasig || userIsPasig
+          ? 2
+          : isAdmin
+          ? values.branch_id || 0
+          : 0,
       order_received: orderReceivedDate,
       materials:
         values?.materials &&
@@ -945,8 +964,10 @@ export default function JobOrderForm({
                         <FormControl>
                           <Select
                             onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            disabled={readonly}
+                            defaultValue={
+                              isTechnician ? currentTechnicianId : field.value
+                            }
+                            disabled={readonly || isTechnician}
                           >
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
                               <SelectValue placeholder="Select a Technician" />

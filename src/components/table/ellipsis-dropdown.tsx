@@ -15,6 +15,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "../ui/command";
+import { useUser } from "../auth/useUser";
 
 export function EllipsisDropdown({
   onViewClick,
@@ -31,6 +32,8 @@ export function EllipsisDropdown({
   isDuplicating?: boolean;
   isDeleting?: boolean;
 }) {
+  const { isUser } = useUser();
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -66,7 +69,7 @@ export function EllipsisDropdown({
                   </CommandItem>
                 </span>
               )}
-              {onDuplicateClick && (
+              {onDuplicateClick && !isUser && (
                 <span onClick={(e) => e.stopPropagation()}>
                   <CommandItem
                     onSelect={onDuplicateClick}
@@ -87,7 +90,7 @@ export function EllipsisDropdown({
                 </span>
               )}
             </CommandGroup>
-            {onDeleteClick && (
+            {onDeleteClick && !isUser && (
               <>
                 <CommandSeparator />
                 <CommandGroup>

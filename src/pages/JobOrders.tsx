@@ -25,52 +25,49 @@ import { Input } from "../components/ui/input";
 import { renderWarrantyInfo } from "../lib/helpers";
 import { useUser } from "../components/auth/useUser";
 
-// Default view columns
 const viewColumns = [
-  {
-    key: "created_at",
-    title: "Date",
-  },
-  {
-    key: "machine_type",
-    title: "Machine Type",
-  },
-  {
-    key: "status",
-    title: "Status",
-  },
-  {
-    key: "warranty",
-    title: "Warranty",
-  },
-  {
-    key: "users.fullname",
-    title: "Technician Name",
-  },
+  { key: "created_at", title: "Date" },
+  { key: "machine_type", title: "Machine Type" },
+  { key: "status", title: "Status" },
+  { key: "warranty", title: "Warranty" },
+  { key: "users.fullname", title: "Technician Name" },
 ];
 
 export default function JobOrders() {
-  const { isTaytay, isPasig } = useUser();
+  const { isTaytay, isPasig, isUser, user } = useUser();
+
   const { data: orders, isLoading } = useQuery({
     queryKey: ["job_order"],
     queryFn: getJobOrders,
   });
+
   orders?.sort(
     (a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
+
   const job_orders = useMemo(() => {
     if (!orders) return [];
-    return orders.filter((order: JobOrderData) =>
+
+    let filteredOrders = orders.filter((order: JobOrderData) =>
       isTaytay
         ? order.branches.location === "Taytay"
         : isPasig
         ? order.branches.location === "Pasig"
         : true
     );
-  }, [orders, isTaytay, isPasig]);
 
-  // Get Technicians
+    // If the user is a technician, filter by the user's job orders
+    if (isUser) {
+      filteredOrders = filteredOrders.filter(
+        (order) => order.users?.id === user?.id
+      );
+    }
+
+    return filteredOrders;
+  }, [orders, isTaytay, isPasig, isUser, user]);
+
+  // Fetch Technicians
   const { data: technicians } = useQuery({
     queryKey: ["technicians", { fetchAll: false }],
     queryFn: () => getTechnicians({ fetchAll: false }),
@@ -102,9 +99,7 @@ export default function JobOrders() {
     setPaginatedData(filteredData.slice(startIndex, endIndex));
   }, [filteredData, currentPage, itemsPerPage]);
 
-  const applySorts = (newSorts: Sort[]) => {
-    setSorts(newSorts);
-  };
+  const applySorts = (newSorts: Sort[]) => setSorts(newSorts);
 
   const statusPriority: Record<string, number> = {
     completed: 1,
@@ -120,7 +115,6 @@ export default function JobOrders() {
     if (!data) return [];
 
     const searchFilteredData = data.filter((item: JobOrderData) => {
-      // Convert relevant fields to a single string and then perform the search
       const searchableStr = [
         item.brand_model,
         item.clients?.name,
@@ -163,22 +157,22 @@ export default function JobOrders() {
             : Number(bValue) - Number(aValue);
         }
 
-        if (aValue < bValue) {
-          return sort.direction === "asc" ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sort.direction === "asc" ? 1 : -1;
-        }
-        return 0;
+        return aValue < bValue
+          ? sort.direction === "asc"
+            ? -1
+            : 1
+          : aValue > bValue
+          ? sort.direction === "asc"
+            ? 1
+            : -1
+          : 0;
       });
     });
 
     return sortedData;
   };
 
-  const resetFilters = () => {
-    setSearchTerm("");
-  };
+  const resetFilters = () => setSearchTerm("");
 
   const resetFiltersAndSort = () => {
     setSearchTerm("");
@@ -191,9 +185,8 @@ export default function JobOrders() {
     );
   };
 
-  const handleSortChange = (column: string, direction: any) => {
+  const handleSortChange = (column: string, direction: any) =>
     applySorts([{ key: column, direction }]);
-  };
 
   const handleColumnVisibilityChange = (column: string, isVisible: boolean) => {
     setVisibleColumns((prevVisibleColumns) =>
@@ -203,13 +196,11 @@ export default function JobOrders() {
     );
   };
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
+  const handlePageChange = (page: number) => setCurrentPage(page);
 
   const handleItemsPerPageChange = (items: number) => {
     setItemsPerPage(items);
-    setCurrentPage(1); // Reset to first page when items per page changes
+    setCurrentPage(1);
   };
 
   if (isLoading)

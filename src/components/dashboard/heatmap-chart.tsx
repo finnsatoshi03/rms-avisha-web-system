@@ -105,7 +105,7 @@ const TechnicianPerformanceAnalytics = ({
   return (
     <div
       className={`tech-performance-chart border p-5 rounded-xl ${
-        !techPage ? "h-[50vh] border-slate-300" : ""
+        !techPage ? "lg:h-[50vh] h-fit border-slate-300" : ""
       }`}
     >
       {!techPage && (
