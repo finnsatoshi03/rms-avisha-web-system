@@ -1435,11 +1435,13 @@ export default function JobOrderForm({
                       ? `₱${formatNumberWithCommas(adjustedGrandTotal)}`
                       : "---"}
                   </p>
-                  {selectedDiscount !== null && selectedDiscount !== 0 && (
-                    <p className="line-through text-xs text-right text-slate-500">
-                      ₱{formatNumberWithCommas(grandTotal)}
-                    </p>
-                  )}
+                  {selectedDiscount !== null &&
+                    selectedDiscount !== undefined &&
+                    selectedDiscount !== 0 && (
+                      <p className="line-through text-xs text-right text-slate-500">
+                        ₱{formatNumberWithCommas(grandTotal)}
+                      </p>
+                    )}
                 </div>
               </div>
             </div>
