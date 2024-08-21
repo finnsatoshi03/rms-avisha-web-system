@@ -40,7 +40,7 @@ export default function Sidebar({
         className
       )}
     >
-      <img src="./RMS-Logo.png" alt="RMS Logo" />
+      <img src="./RMS-Logo.png" alt="RMS Logo" className="w-3/4" />
       <ul className="flex flex-col justify-between h-[calc(100%-20%-2rem)] w-full">
         <div className="flex flex-col space-y-1">
           {!isUser ? (
