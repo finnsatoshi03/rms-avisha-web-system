@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -15,6 +16,7 @@ import { Button } from "../ui/button";
 import { useUser } from "./useUser";
 import { useUpdatedUser } from "./useUpdatedUser";
 import { Loader2 } from "lucide-react";
+// import { TechnicianWithJobOrders } from "../../lib/types";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -26,15 +28,22 @@ const formSchema = z.object({
   avatar: z
     .any()
     .optional()
-    .refine((file) => file?.size <= MAX_FILE_SIZE, `Max image size is 5MB.`),
+    .nullable()
+    .refine(
+      (file) => !file || file.size <= MAX_FILE_SIZE,
+      `Max image size is 5MB.`
+    ),
 });
 
-export default function UpdateUserDataForm() {
+export default function UpdateUserDataForm(technician?: any) {
   const { user } = useUser();
   const { updateUser, isLoading } = useUpdatedUser();
+  const technicianData = technician ? technician.technician : null;
 
-  const email = user?.email;
-  const currentFullname = user?.user_metadata?.fullname;
+  const email = technician ? technicianData?.email : user?.email;
+  const currentFullname = technician
+    ? technicianData?.fullname
+    : user?.user_metadata?.fullname;
   //   const avatar = user?.user_metadata?.avatar;
 
   const form = useForm<z.infer<typeof formSchema>>({

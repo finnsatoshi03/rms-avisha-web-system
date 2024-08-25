@@ -60,7 +60,7 @@ function Content({ data }: { data: CreateJobOrderData }) {
             Order Number
           </Text>
           <Text style={[styles.tableClientInfo, { color: "#f12924" }]}>
-            02-00100
+            {data.order_no}
           </Text>
         </View>
         <View style={styles.tableRow}>
@@ -96,14 +96,7 @@ function Content({ data }: { data: CreateJobOrderData }) {
           <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
             Order Received
           </Text>
-          <Text style={styles.tableClientInfo}>
-            {new Date(data.order_received).toLocaleDateString("en-US", {
-              weekday: "short", // "Wed"
-              year: "numeric", // "2024"
-              month: "short", // "Jul"
-              day: "numeric", // "10"
-            })}
-          </Text>
+          <Text style={styles.tableClientInfo}>{data.order_received}</Text>
         </View>
         <View style={styles.tableRow}>
           <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
@@ -376,15 +369,10 @@ function Content({ data }: { data: CreateJobOrderData }) {
         </View>
         <View style={styles.tableRow}>
           <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
-            Unit received by
+            Unit labored by
           </Text>
           <Text style={[styles.tableCol17, { borderRight: "1px solid black" }]}>
-            {data.order_received.toLocaleDateString("en-US", {
-              weekday: "short", // "Wed"
-              year: "numeric", // "2024"
-              month: "short", // "Jul"
-              day: "numeric", // "10"
-            })}
+            {data.technician_id}
           </Text>
           <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
             Receiver's Signature

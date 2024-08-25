@@ -7,9 +7,8 @@ import { z } from "zod";
 import { pdf } from "@react-pdf/renderer";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { saveAs } from "file-saver";
-import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { CalendarIcon, Clock, Loader2, Plus, Trash, X } from "lucide-react";
+import { Clock, Loader2, Plus, Trash, X } from "lucide-react";
 
 import {
   Form,
@@ -31,8 +30,6 @@ import {
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { Calendar } from "../ui/calendar";
 import { Separator } from "../ui/separator";
 import { TagInput } from "../tag-input";
 import AccessoriesSection from "./accessories-section";
@@ -49,7 +46,6 @@ import {
   formatReadableDate,
   renderWarrantyInfo,
 } from "../../lib/helpers";
-import { cn } from "../../lib/utils";
 import { createEditJobOrder } from "../../services/apiJobOrders";
 import { getMaterialStocks } from "../../services/apiMaterials";
 import { useUser } from "../auth/useUser";
@@ -64,7 +60,7 @@ const materialSchema = z.object({
   unitPrice: z.number().min(0, "Unit price must be non-negative"),
 });
 
-const baseFormSchema = z.object({
+const baseSchema = z.object({
   branch_id: z.number().optional(),
   name: z
     .string()
@@ -95,10 +91,7 @@ const baseFormSchema = z.object({
       (val) => val === undefined || val === "" || /.+@.+\..+/.test(val),
       "Must be a valid email address."
     ),
-  order_received: z.union([
-    z.string().regex(/^\d{2}\/\d{2}\/\d{4}$/, "Select a date"),
-    z.date(),
-  ]),
+  order_received: z.string().optional().nullable(),
   materials: z.array(materialSchema).optional(),
   brand_model: z.string().min(1, "Brand Model is required"),
   serial_number: z
@@ -133,7 +126,7 @@ const baseFormSchema = z.object({
       message: "Amount must be non-negative",
     }),
   accessories: z.array(z.string()).optional(),
-  technician_id: z.string().min(1, "Technician is required"),
+  technician_id: z.string().optional().nullable(),
   technical_report: z
     .string()
     .optional()
@@ -193,9 +186,6 @@ export default function JobOrderForm({
     materials: materialsJobOrder,
     ...editValues,
     ...restClient,
-    order_received: editValues.order_received
-      ? new Date(editValues.order_received)
-      : "",
     rate: Number(editValues.rate) || 0,
     brand_model: editValues.brand_model || "",
     serial_number: editValues.serial_number || "",
@@ -259,15 +249,6 @@ export default function JobOrderForm({
   const { mutate: createJobOrder, isPending: isCreating } = useMutation({
     mutationFn: (newJobOrder: CreateJobOrderData) =>
       createEditJobOrder(newJobOrder, null, null, null),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["job_order"] });
-      toast.success("Job order created successfully!");
-      setPrintDialogOpen(true);
-    },
-    onError: (error) => {
-      toast.error("An error occurred. Please try again.");
-      console.error(error);
-    },
   });
 
   // Edit
@@ -295,11 +276,27 @@ export default function JobOrderForm({
 
   const isPending = isCreating || isEditing || materialStocksLoading;
 
-  const formSchema = isAdmin
-    ? baseFormSchema.extend({
+  const extendedBaseSchema = isAdmin
+    ? baseSchema.extend({
         branch_id: z.number().min(1, "Branch is required"),
       })
-    : baseFormSchema;
+    : baseSchema;
+
+  const formSchema = extendedBaseSchema.superRefine((data, ctx) => {
+    if (!data.technician_id && !data.order_received) {
+      ctx.addIssue({
+        path: ["technician_id"],
+        message: "Either technician ID or order received must be provided.",
+        code: z.ZodIssueCode.custom,
+      });
+      ctx.addIssue({
+        path: ["order_received"],
+        message: "Either technician ID or order received must be provided.",
+        code: z.ZodIssueCode.custom,
+      });
+    }
+  });
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: editSession
@@ -324,8 +321,8 @@ export default function JobOrderForm({
           technical_report: "",
         },
   });
-  const materials = form.watch("materials");
 
+  const materials = form.watch("materials");
   const branchId =
     isAdmin || userIsGeneral
       ? form.watch("branch_id")
@@ -404,7 +401,28 @@ export default function JobOrderForm({
     type?: "company" | "client" | "both" | null
   ) => {
     setIsPrinting(true);
-    const doc = <JobOrderPDF data={data} type={type} />;
+
+    // Find the technician by order_received ID
+    const orderReceivedTechnician = technicians.find(
+      (tech) => tech.id === data.order_received
+    );
+    const orderReceivedTechnicianName = orderReceivedTechnician
+      ? orderReceivedTechnician.fullname
+      : "---";
+
+    // Find the technician by technician_id
+    const technician = technicians.find(
+      (tech) => tech.id === data.technician_id
+    );
+    const technicianName = technician ? technician.fullname : "---";
+
+    const pdfData = {
+      ...data,
+      order_received: orderReceivedTechnicianName,
+      technician_id: technicianName,
+    };
+
+    const doc = <JobOrderPDF data={pdfData} type={type} />;
     const asBlob = await pdf(doc).toBlob();
 
     const src = URL.createObjectURL(asBlob);
@@ -452,9 +470,12 @@ export default function JobOrderForm({
       return;
     }
 
-    const orderReceivedDate = new Date(values.order_received);
-
     const submittedValues: CreateJobOrderData = {
+      ...values,
+      order_received:
+        values.order_received?.trim() === "" ? null : values.order_received,
+      technician_id:
+        values.technician_id?.trim() === "" ? null : values.technician_id,
       labor_total: laborTotal,
       material_total: totalMaterialsPrice ?? 0,
       materials_expense: totalMaterialsCost ?? 0,
@@ -464,8 +485,6 @@ export default function JobOrderForm({
       date: editSession
         ? String(jobOrderToEdit.created_at)
         : new Date().toISOString(),
-      discount: selectedDiscount ?? 0,
-      ...values,
       branch_id:
         isTaytay || userIsTaytay
           ? 1
@@ -474,7 +493,6 @@ export default function JobOrderForm({
           : isAdmin || userIsGeneral
           ? values.branch_id || 0
           : 0,
-      order_received: orderReceivedDate,
       materials:
         values?.materials &&
         values.materials.map((material) => ({
@@ -483,7 +501,6 @@ export default function JobOrderForm({
         })),
     };
 
-    // console.log(submittedValues);
     if (editSession) {
       editJobOrder({
         newJobOrder: submittedValues,
@@ -491,8 +508,25 @@ export default function JobOrderForm({
         clientId,
       });
     } else {
-      createJobOrder(submittedValues);
-      setJobOrderDataForPrinting(submittedValues);
+      createJobOrder(submittedValues, {
+        onSuccess: (response) => {
+          queryClient.invalidateQueries({ queryKey: ["job_order"] });
+          toast.success("Job order created successfully!");
+
+          console.log(response);
+
+          setJobOrderDataForPrinting({
+            ...submittedValues,
+            order_no: response.order_no,
+          });
+
+          setPrintDialogOpen(true);
+        },
+        onError: (error) => {
+          toast.error("An error occurred. Please try again.");
+          console.error(error);
+        },
+      });
     }
   }
 
@@ -748,43 +782,48 @@ export default function JobOrderForm({
                 name="order_received"
                 render={({ field }) => (
                   <FormItem className="space-y-0">
-                    <FormLabel>Order Received</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="link"
-                            className={cn(
-                              "flex items-center gap-2 pl-3 text-left font-normal border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit",
-                              !field.value && "text-muted-foreground"
-                            )}
-                            disabled={readonly}
-                          >
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            {field.value ? (
-                              format(field.value, "PPP")
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        className="w-auto p-0 z-50"
-                        align="center"
-                      >
-                        <Calendar
-                          mode="single"
-                          selected={
-                            field.value ? new Date(field.value) : undefined
+                    <div className="space-y-0">
+                      <FormLabel>Order Received By</FormLabel>
+                      <FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value ?? undefined}
+                          disabled={
+                            readonly ||
+                            ((isAdmin || userIsGeneral) &&
+                              !form.watch("branch_id"))
                           }
-                          onSelect={field.onChange}
-                          disabled={(date) =>
-                            date > new Date() || date < new Date("1900-01-01")
-                          }
-                        />
-                      </PopoverContent>
-                    </Popover>
+                        >
+                          <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0">
+                            <SelectValue
+                              placeholder={
+                                isAdmin && !form.watch("branch_id")
+                                  ? "Select a branch first"
+                                  : "Select Receiver"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent align="end">
+                            <SelectGroup>
+                              <SelectLabel>Technicians</SelectLabel>
+                              {filteredTechnicians.map((technician) => (
+                                <SelectItem
+                                  key={technician.id}
+                                  value={technician.id}
+                                >
+                                  {technician.fullname || technician.email}
+                                  <span className="font-bold">
+                                    {technician.id === currentTechnicianId
+                                      ? " - (Me)"
+                                      : ""}
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -976,7 +1015,7 @@ export default function JobOrderForm({
                         <FormControl>
                           <Select
                             onValueChange={field.onChange}
-                            defaultValue={field.value}
+                            defaultValue={field.value ?? undefined}
                             disabled={readonly}
                           >
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">

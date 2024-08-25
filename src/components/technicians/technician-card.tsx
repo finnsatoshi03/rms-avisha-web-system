@@ -1,10 +1,12 @@
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
-import { Trash } from "lucide-react";
+import { Edit, EllipsisVertical, Trash } from "lucide-react";
 import { TechnicianWithJobOrders } from "../../lib/types";
 import { formatTimeAgo } from "../../lib/helpers";
 import { useNavigate } from "react-router-dom";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { Dialog, DialogTrigger } from "../ui/dialog";
 
 interface TechnicianCardProps {
   technician: TechnicianWithJobOrders;
@@ -48,13 +50,31 @@ export default function TechnicianCard({
           />
           <AvatarFallback>{technician.fullname?.[0]}</AvatarFallback>
         </Avatar>
-        <Button
-          className="flex gap-1 items-center px-3 h-fit text-xs"
-          variant={"outline"}
-          onClick={onRemove}
-        >
-          Remove <Trash size={12} />
-        </Button>
+        <Popover>
+          <PopoverTrigger>
+            <EllipsisVertical size={14} />
+          </PopoverTrigger>
+          <PopoverContent className="w-fit h-fit p-2" align="end">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button
+                  className="flex gap-1 items-center justify-between px-3 w-full h-fit text-xs"
+                  variant={"ghost"}
+                  // onClick={handleEditTechnician}
+                >
+                  Edit <Edit size={12} />
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+            <Button
+              className="flex gap-1 items-center justify-between px-3 h-fit text-xs"
+              variant={"ghost"}
+              onClick={onRemove}
+            >
+              Remove <Trash size={12} />
+            </Button>
+          </PopoverContent>
+        </Popover>
       </div>
       <div className="mt-4">
         <p className="text-sm font-bold">
