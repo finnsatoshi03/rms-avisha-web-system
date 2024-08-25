@@ -314,8 +314,6 @@ export async function createEditJobOrder(
       finalJobOrderId
     );
 
-    console.log(finalJobOrderId, order_no, newJobOrder);
-
     return { jobOrder: finalJobOrderId, order_no, materials: materialData };
   } catch (error) {
     console.error("Error creating or updating Job Order with details:", error);

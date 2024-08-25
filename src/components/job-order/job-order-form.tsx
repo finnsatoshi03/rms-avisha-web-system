@@ -363,12 +363,20 @@ export default function JobOrderForm({
       return technicians;
     }
     if (branchId === 1 || userIsTaytay) {
-      return technicians.filter((technician) =>
-        technician.role?.includes("taytay")
+      return technicians.filter(
+        (technician) =>
+          technician.role?.includes("taytay") ||
+          technician.email?.includes("taytay") ||
+          technician.role?.includes("general") ||
+          technician.email === "avisha@email.com"
       );
     } else if (branchId === 2 || userIsPasig) {
-      return technicians.filter((technician) =>
-        technician.role?.includes("pasig")
+      return technicians.filter(
+        (technician) =>
+          technician.role?.includes("pasig") ||
+          technician.email?.includes("pasig") ||
+          technician.role?.includes("general") ||
+          technician.email === "avisha@email.com"
       );
     } else {
       return technicians;
