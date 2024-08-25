@@ -248,6 +248,7 @@ export default function JobOrderForm({
     isTechnician && user?.user_metadata.role?.includes("pasig");
   const userIsTaytay =
     isTechnician && user?.user_metadata.role?.includes("taytay");
+  const userIsGeneral = isTechnician && !userIsPasig && !userIsTaytay;
 
   const { data: materialStocks, isLoading: materialStocksLoading } = useQuery({
     queryKey: ["materialStocks", { fetchAll: true }],
@@ -319,23 +320,24 @@ export default function JobOrderForm({
           amount: undefined,
           materials: [],
           accessories: [],
-          technician_id: isTechnician ? currentTechnicianId : "",
+          technician_id: "",
           technical_report: "",
         },
   });
   const materials = form.watch("materials");
 
-  const branchId = isAdmin
-    ? form.watch("branch_id")
-    : userIsTaytay
-    ? 1
-    : userIsPasig
-    ? 2
-    : isTaytay
-    ? 1
-    : isPasig
-    ? 2
-    : 0;
+  const branchId =
+    isAdmin || userIsGeneral
+      ? form.watch("branch_id")
+      : userIsTaytay
+      ? 1
+      : userIsPasig
+      ? 2
+      : isTaytay
+      ? 1
+      : isPasig
+      ? 2
+      : 0;
   const date = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -360,18 +362,28 @@ export default function JobOrderForm({
   const grandTotal = (totalMaterialsPrice ?? 0) + laborTotal;
 
   const filteredTechnicians = useMemo(() => {
-    if (branchId === 1) {
+    if (userIsGeneral || readonly) {
+      return technicians;
+    }
+    if (branchId === 1 || userIsTaytay) {
       return technicians.filter((technician) =>
         technician.role?.includes("taytay")
       );
-    } else if (branchId === 2) {
+    } else if (branchId === 2 || userIsPasig) {
       return technicians.filter((technician) =>
         technician.role?.includes("pasig")
       );
     } else {
       return technicians;
     }
-  }, [technicians, branchId]);
+  }, [
+    technicians,
+    branchId,
+    userIsPasig,
+    userIsTaytay,
+    userIsGeneral,
+    readonly,
+  ]);
 
   const adjustedGrandTotal = selectedDiscount
     ? grandTotal - selectedDiscount
@@ -459,7 +471,7 @@ export default function JobOrderForm({
           ? 1
           : isPasig || userIsPasig
           ? 2
-          : isAdmin
+          : isAdmin || userIsGeneral
           ? values.branch_id || 0
           : 0,
       order_received: orderReceivedDate,
@@ -785,7 +797,7 @@ export default function JobOrderForm({
                 <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
                   Order Details
                 </h2>
-                {isAdmin && (
+                {(isAdmin || userIsGeneral) && (
                   <FormField
                     control={form.control}
                     name="branch_id"
@@ -964,10 +976,8 @@ export default function JobOrderForm({
                         <FormControl>
                           <Select
                             onValueChange={field.onChange}
-                            defaultValue={
-                              isTechnician ? currentTechnicianId : field.value
-                            }
-                            disabled={readonly || isTechnician}
+                            defaultValue={field.value}
+                            disabled={readonly}
                           >
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
                               <SelectValue placeholder="Select a Technician" />
@@ -981,6 +991,11 @@ export default function JobOrderForm({
                                     value={technician.id}
                                   >
                                     {technician.fullname || technician.email}
+                                    <span className="font-bold">
+                                      {technician.id === currentTechnicianId
+                                        ? " - (Me)"
+                                        : ""}
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </SelectGroup>

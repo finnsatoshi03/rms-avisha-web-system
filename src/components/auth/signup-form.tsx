@@ -111,6 +111,7 @@ export default function SignupForm() {
                   <SelectContent>
                     <SelectItem value="taytay">Taytay</SelectItem>
                     <SelectItem value="pasig">Pasig</SelectItem>
+                    <SelectItem value="general">All Branch</SelectItem>
                   </SelectContent>
                 </Select>
               </FormControl>

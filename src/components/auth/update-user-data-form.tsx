@@ -117,7 +117,15 @@ export default function UpdateUserDataForm() {
           )}
         />
         <div className="mt-6 flex w-full justify-end gap-4">
-          <Button variant="secondary">Cancel</Button>
+          <Button
+            variant="secondary"
+            onClick={(e) => {
+              e.preventDefault();
+              form.reset();
+            }}
+          >
+            Cancel
+          </Button>
           <Button type="submit" className="bg-primaryRed hover:bg-hoveredRed">
             {isLoading ? (
               <>

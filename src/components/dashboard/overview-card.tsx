@@ -38,7 +38,7 @@ export default function OverviewCard({
       )}
       <div>
         <h1 className="text-xs font-bold">{data.header}</h1>
-        <p className="font-bold text-3xl">
+        <p className="font-bold lg:text-3xl text-xl">
           <CountUp
             start={0}
             end={data.value as number}

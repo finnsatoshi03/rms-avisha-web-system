@@ -180,7 +180,7 @@ export default function TechnicianDetailPage() {
               </div>
             </div>
 
-            <div>
+            <div className="sm:block hidden">
               <TechnicianPerformanceAnalytics
                 completedOrders={completedOrders}
                 selectedYear={selectedYear}
