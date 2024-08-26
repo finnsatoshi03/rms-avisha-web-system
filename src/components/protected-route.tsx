@@ -15,15 +15,19 @@ export default function ProtectedRoute({
   useEffect(() => {
     if (isLoading) return; // Don't do anything if we're still loading
 
+    // Redirect to login if no valid role is found
     if (!isUser && !isAdmin && !isTaytay && !isPasig) {
-      // Redirect to login if no valid role is found
       navigate("/login");
     } else if (isUser) {
-      // If user is authenticated but not allowed to access the current path
+      // Allow only specific paths for `isUser`
       const allowedPaths = ["/job-orders", "/account"];
       if (!allowedPaths.includes(location.pathname)) {
-        // Redirect to job-orders if trying to access any other path
         navigate("/job-orders");
+      }
+    } else if (isTaytay || isPasig) {
+      // Restrict access to `/dashboard` for `isTaytay` and `isPasig`
+      if (location.pathname === "/dashboard") {
+        navigate("/job-orders"); // or redirect to a different allowed route
       }
     }
   }, [isUser, isAdmin, isTaytay, isPasig, isLoading, navigate, location]);

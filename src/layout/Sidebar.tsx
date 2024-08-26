@@ -30,7 +30,7 @@ export default function Sidebar({
   isUser?: boolean;
   onClose?: () => void;
 }) {
-  const { user } = useUser();
+  const { user, isTaytay, isPasig } = useUser();
   const [open, setOpen] = useState(false);
 
   return (
@@ -45,16 +45,18 @@ export default function Sidebar({
         <div className="flex flex-col space-y-1">
           {!isUser ? (
             <>
-              <li>
-                <NavLink
-                  to="dashboard"
-                  className="flex items-center gap-4"
-                  onClick={onClose}
-                >
-                  <Home size={20} />
-                  Home
-                </NavLink>
-              </li>
+              {!isPasig && !isTaytay ? (
+                <li>
+                  <NavLink
+                    to="dashboard"
+                    className="flex items-center gap-4"
+                    onClick={onClose}
+                  >
+                    <Home size={20} />
+                    Home
+                  </NavLink>
+                </li>
+              ) : null}
               <li>
                 <NavLink
                   to="job-orders"
