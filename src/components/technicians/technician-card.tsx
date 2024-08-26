@@ -24,6 +24,9 @@ export default function TechnicianCard({
     });
   };
 
+  const isTechnician = technician.role?.includes("technician");
+  const isManager = technician.email?.includes("manager");
+
   // Calculate the last repair date
   const lastRepairDate = technician.joborders.reduce((latestDate, jobOrder) => {
     const jobDate = new Date(jobOrder.created_at);
@@ -46,10 +49,12 @@ export default function TechnicianCard({
             src={`${technician.avatar}`}
             alt={`@${technician.fullname?.replace(/\s+/g, "")}`}
           />
-          <AvatarFallback>{technician.fullname?.[0]}</AvatarFallback>
+          <AvatarFallback>
+            {technician.fullname?.[0] || technician.email?.[0].toUpperCase()}
+          </AvatarFallback>
         </Avatar>
         <Button
-          className="flex gap-1 items-center px-3 h-fit text-xs"
+          className="flex gap-1 items-center justify-between px-3 h-fit text-xs"
           variant={"outline"}
           onClick={onRemove}
         >
@@ -58,14 +63,16 @@ export default function TechnicianCard({
       </div>
       <div className="mt-4">
         <p className="text-sm font-bold">
-          Technician{" "}
+          {isTechnician ? "Technician" : isManager ? "Manager" : "CEO"}
           <span className="text-xs opacity-60 font-normal ml-1">
             {lastRepairDate.getTime() === 0
               ? "No repairs yet"
               : formatTimeAgo(lastRepairDate)}
           </span>
         </p>
-        <p className="text-lg font-bold my-0.5">{technician.fullname}</p>
+        <p className="text-lg font-bold my-0.5 whitespace-nowrap overflow-hidden overflow-ellipsis">
+          {technician.fullname || technician.email}
+        </p>
         <div className="flex gap-2 items-center">
           <p className="px-2 py-1 text-xs rounded-lg bg-gray-200">Full-Time</p>
         </div>

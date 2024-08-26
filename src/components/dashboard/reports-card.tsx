@@ -76,7 +76,7 @@ const ReportCard = ({
       <div className="py-4 px-5 space-y-2 flex-grow">
         <h1 className="text-xs font-bold">{header}</h1>
         <div>
-          <p className="font-bold text-3xl">
+          <p className="font-bold lg:text-3xl text-xl">
             {prefix}
             {formatNumberWithCommas(Number(value))}
           </p>

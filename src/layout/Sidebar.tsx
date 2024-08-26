@@ -168,6 +168,7 @@ export default function Sidebar({
                   className="p-3 max-w-[200px] flex flex-col gap-1"
                   side="right"
                   align="end"
+                  usePortal
                 >
                   <NavLink
                     to="account"

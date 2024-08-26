@@ -103,8 +103,7 @@ async function upsertJobOrder(
   jobOrder: Omit<CreateJobOrderData, "materials"> & { is_copy?: boolean },
   jobOrderId: number | null,
   clientId: number
-): Promise<number> {
-  // Initialize the job order data without the status field
+): Promise<{ id: number; order_no: string }> {
   const jobOrderData: any = {
     accessories: jobOrder.accessories,
     additional_comments: jobOrder.additional_comments,
@@ -136,10 +135,9 @@ async function upsertJobOrder(
   };
 
   if (jobOrderId) {
-    // Fetch the existing job order
     const { data: existingJobOrder, error: fetchError } = await supabase
       .from("joborders")
-      .select("status")
+      .select("status, order_no")
       .eq("id", jobOrderId)
       .single();
 
@@ -148,18 +146,13 @@ async function upsertJobOrder(
       throw new Error("Existing Job Order could not be fetched");
     }
 
-    // If status is not provided in the jobOrder object, retain the current status
-    if (!jobOrder.status) {
-      jobOrderData.status = existingJobOrder.status;
-    } else {
-      jobOrderData.status = jobOrder.status;
-    }
+    jobOrderData.status = jobOrder.status || existingJobOrder.status;
 
     const { data, error } = await supabase
       .from("joborders")
       .update(jobOrderData)
       .eq("id", jobOrderId)
-      .select()
+      .select("id, order_no")
       .single();
 
     if (error) {
@@ -167,14 +160,14 @@ async function upsertJobOrder(
       throw new Error("Job Order could not be updated");
     }
 
-    return data.id;
+    return { id: data.id, order_no: data.order_no };
   } else {
     jobOrderData.status = jobOrder.status ?? "Pending";
 
     const { data, error } = await supabase
       .from("joborders")
       .insert([jobOrderData])
-      .select()
+      .select("id, order_no")
       .single();
 
     if (error) {
@@ -182,7 +175,7 @@ async function upsertJobOrder(
       throw new Error("Job Order could not be created");
     }
 
-    return data.id;
+    return { id: data.id, order_no: data.order_no };
   }
 }
 
@@ -300,28 +293,28 @@ export async function createEditJobOrder(
       date: newJobOrder.date,
     };
 
-    // If the name is changed and it's not a copy anymore
     let finalClientId;
     if (clientId && clientData.name !== originalClientName) {
-      finalClientId = await upsertClient(supabase, clientData, null); // Create new client
-      newJobOrder.is_copy = false; // Set is_copy to false
+      finalClientId = await upsertClient(supabase, clientData, null);
+      newJobOrder.is_copy = false;
     } else {
       finalClientId = await upsertClient(supabase, clientData, clientId);
     }
 
-    const finalJobOrderId = await upsertJobOrder(
+    const { id: finalJobOrderId, order_no } = await upsertJobOrder(
       supabase,
       newJobOrder,
       jobOrderId,
       finalClientId
     );
+
     const materialData = await upsertMaterials(
       supabase,
       newJobOrder.materials,
       finalJobOrderId
     );
 
-    return { jobOrder: finalJobOrderId, materials: materialData };
+    return { jobOrder: finalJobOrderId, order_no, materials: materialData };
   } catch (error) {
     console.error("Error creating or updating Job Order with details:", error);
     throw error;

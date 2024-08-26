@@ -33,13 +33,23 @@ function Content({ data }: { data: CreateJobOrderData }) {
       <View style={styles.header}>
         <Image style={styles.headerLogo} src="./RMS-Logo.png" />
         <View style={styles.headerText}>
-          <Text>ACM BUILDING ORTIGAS AVE., BRGY</Text>
-          <Text>STA LUCIA DE CASTRO PASIG CITY</Text>
-          <Text style={{ color: "#f12924" }}>
-            Call (02) 8245-4828 Text 0943-6064129
+          <Text>
+            {data.branch_id === 1
+              ? "EVERLASTING BLDG, 172"
+              : "ACM BUILDING ORTIGAS AVE., BRGY"}
+          </Text>
+          <Text>
+            {data.branch_id === 1
+              ? "Rizal Ave, Taytay, 1920 Rizal"
+              : "STA LUCIA DE CASTRO PASIG CITY"}
           </Text>
           <Text style={{ color: "#f12924" }}>
-            CUSTOMER SERVICE: (02) 8254-9823
+            Call {data.branch_id === 1 ? "(02) 8983-3684" : "(02) 8254-9823"}{" "}
+            Text {data.branch_id === 1 ? "(09)43-606-4129" : "(09)94-880-8918"}
+          </Text>
+          <Text style={{ color: "#f12924" }}>
+            CUSTOMER SERVICE:{" "}
+            {data.branch_id === 1 ? "(02) 8254-4828" : "(02) 8254-9823"}
           </Text>
         </View>
       </View>
@@ -60,7 +70,7 @@ function Content({ data }: { data: CreateJobOrderData }) {
             Order Number
           </Text>
           <Text style={[styles.tableClientInfo, { color: "#f12924" }]}>
-            02-00100
+            {data.order_no}
           </Text>
         </View>
         <View style={styles.tableRow}>
@@ -96,14 +106,7 @@ function Content({ data }: { data: CreateJobOrderData }) {
           <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
             Order Received
           </Text>
-          <Text style={styles.tableClientInfo}>
-            {new Date(data.order_received).toLocaleDateString("en-US", {
-              weekday: "short", // "Wed"
-              year: "numeric", // "2024"
-              month: "short", // "Jul"
-              day: "numeric", // "10"
-            })}
-          </Text>
+          <Text style={styles.tableClientInfo}>{data.order_received}</Text>
         </View>
         <View style={styles.tableRow}>
           <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
@@ -376,15 +379,10 @@ function Content({ data }: { data: CreateJobOrderData }) {
         </View>
         <View style={styles.tableRow}>
           <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
-            Unit received by
+            Unit labored by
           </Text>
           <Text style={[styles.tableCol17, { borderRight: "1px solid black" }]}>
-            {data.order_received.toLocaleDateString("en-US", {
-              weekday: "short", // "Wed"
-              year: "numeric", // "2024"
-              month: "short", // "Jul"
-              day: "numeric", // "10"
-            })}
+            {data.technician_id}
           </Text>
           <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
             Receiver's Signature

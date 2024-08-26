@@ -183,7 +183,7 @@ export type JobOrderData = {
   materials: MaterialItem[];
   order_no: string;
   status: string;
-  order_received: Date;
+  order_received: string;
   problem_statement: null | string;
   rate: null | number;
   serial_number: null | string;
@@ -218,6 +218,7 @@ export type CreateMaterial = {
 };
 
 export type CreateJobOrderData = {
+  order_no?: string;
   accessories?: string[];
   additional_comments?: string;
   amount?: number;
@@ -236,12 +237,12 @@ export type CreateJobOrderData = {
   material_total: number;
   materials?: Partial<CreateMaterial>[];
   name: string;
-  order_received: Date;
+  order_received?: null | string;
   problem_statement: string;
   rate: number;
   serial_number?: string;
   sub_total: number;
-  technician_id?: string;
+  technician_id?: null | string;
   status?: string;
   warranty?: string;
   is_copy?: boolean;

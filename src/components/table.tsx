@@ -370,7 +370,22 @@ export default function Table({
       }
     }
 
+    // Find the technician by order_received ID
+    const orderReceivedTechnician = technicians.find(
+      (tech) => tech.id === currentOrder.order_received
+    );
+    const orderReceivedTechnicianName = orderReceivedTechnician
+      ? orderReceivedTechnician.fullname
+      : "---";
+
+    // Find the technician by technician_id
+    const technician = technicians.find(
+      (tech) => tech.id === currentOrder.technician_id
+    );
+    const technicianName = technician ? technician.fullname : "---";
+
     const jobOrderData: CreateJobOrderData = {
+      order_no: currentOrder.order_no || "",
       accessories: parsedAccessories,
       additional_comments: currentOrder.additional_comments || "",
       amount: currentOrder.amount ?? 0,
@@ -393,9 +408,8 @@ export default function Table({
           unitPrice: material.unit_price ?? 0,
         })) || [],
       name: currentOrder.clients?.name || "",
-      order_received: currentOrder.order_received
-        ? new Date(currentOrder.order_received)
-        : new Date(),
+      order_received: orderReceivedTechnicianName,
+      technician_id: technicianName,
       problem_statement: currentOrder.problem_statement || "",
       rate: currentOrder.rate ? currentOrder.rate : 0,
       serial_number: currentOrder.serial_number || "",
@@ -660,8 +674,14 @@ export default function Table({
                         </TableCell>
                       )}
                       {visibleColumns.includes("users.fullname") && (
-                        <TableCell>
-                          {order.users?.fullname ?? order.users?.email ?? ""}
+                        <TableCell
+                          className={`${
+                            !order.users && "text-red-600 font-bold"
+                          }`}
+                        >
+                          {order.users?.fullname ??
+                            order.users?.email ??
+                            "Not Assigned"}
                         </TableCell>
                       )}
                       <TableCell className="font-bold text-black">

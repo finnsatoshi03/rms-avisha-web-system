@@ -25,11 +25,11 @@ export default function AppLayout() {
     <div className="relative h-screen w-screen">
       <div
         className={`grid h-screen ${
-          sidebarOpen ? "grid-cols-[1fr]" : "lg:grid-cols-[0.15fr_1fr]"
+          sidebarOpen ? "grid-cols-[1fr]" : "lg:grid-cols-[260px_1fr]"
         }`}
       >
         <Sidebar
-          className={`fixed lg:relative lg:translate-x-0 transition-transform transform-gpu z-40 lg:z-auto p-8 h-screen ${
+          className={`fixed lg:relative lg:translate-x-0 transition-transform transform-gpu z-40 lg:z-auto pl-8 py-8 pr-4 h-screen ${
             sidebarOpen ? "translate-x-0" : "-translate-x-[200%]"
           }`}
           isUser={isUser}
