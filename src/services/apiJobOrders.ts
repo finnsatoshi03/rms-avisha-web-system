@@ -184,76 +184,42 @@ async function upsertMaterials(
   materials: CreateJobOrderData["materials"],
   jobOrderId: number
 ) {
-  // Step 1: Fetch existing materials from the database
-  const { data: existingMaterials, error: fetchExistingError } = await supabase
+  // Step 1: Delete all existing materials for the job order
+  const { error: deleteError } = await supabase
     .from("materials")
-    .select("id, material_id")
+    .delete()
     .eq("job_order_id", jobOrderId);
 
-  if (fetchExistingError) {
-    console.log(fetchExistingError);
-    throw new Error("Could not fetch existing materials");
+  if (deleteError) {
+    console.log(deleteError);
+    throw new Error("Could not delete existing materials");
   }
 
-  const existingMaterialIds = new Set(
-    existingMaterials.map((material) => material.material_id)
-  );
+  // Step 2: Prepare materials for insert
+  const materialsToInsert = materials?.map((material) => ({
+    used: material.used,
+    material_id: material.material_id,
+    material_description: material.material,
+    quantity: material.quantity,
+    unit_price: material.unitPrice,
+    total_amount: (material.quantity ?? 0) * (material.unitPrice ?? 0),
+    job_order_id: jobOrderId,
+  }));
 
-  // Step 2: Identify materials to be deleted (existing but not in the new list)
-  const newMaterialIds =
-    materials && new Set(materials.map((material) => material.material_id));
-  const materialsToDelete = Array.from(existingMaterialIds).filter(
-    (materialId) => !newMaterialIds?.has(materialId)
-  );
-
-  // Step 3: Delete the materials that are no longer present
-  if (materialsToDelete.length > 0) {
-    const { error: deleteMaterialsError } = await supabase
+  // Step 3: Insert all materials
+  if (materialsToInsert && materialsToInsert.length > 0) {
+    const { error: insertError } = await supabase
       .from("materials")
-      .delete()
-      .in("material_id", materialsToDelete)
-      .eq("job_order_id", jobOrderId);
+      .insert(materialsToInsert);
 
-    if (deleteMaterialsError) {
-      console.log(deleteMaterialsError);
-      throw new Error("Failed to delete old materials");
+    if (insertError) {
+      console.log(insertError);
+      throw new Error("Materials could not be inserted");
     }
   }
 
-  // Step 4: Insert or update new materials
-  const materialsWithJobOrderId =
-    materials &&
-    materials.map((material) => {
-      if (!material.material_id) {
-        throw new Error(
-          `Material ID is undefined for material ${material.material}`
-        );
-      }
-
-      return {
-        used: material.used,
-        material_id: material.material_id,
-        material_description: material.material,
-        quantity: material.quantity,
-        unit_price: material.unitPrice,
-        total_amount: (material.quantity ?? 0) * (material.unitPrice ?? 0),
-        job_order_id: jobOrderId,
-      };
-    });
-
-  const { data: materialData, error: materialError } = await supabase
-    .from("materials")
-    .upsert(materialsWithJobOrderId)
-    .select();
-
-  if (materialError) {
-    console.log(materialError);
-    throw new Error("Materials could not be created or updated");
-  }
-
-  // Step 5: Update stock levels
-  const materialIds =
-    materials && materials.map((material) => material.material_id);
+  // Step 4: Update stock levels
+  const materialIds = materials?.map((material) => material.material_id);
   const { data: materialStocks, error: fetchStocksError } = await supabase
     .from("material_stocks")
     .select("id, stocks")
@@ -269,9 +235,9 @@ async function upsertMaterials(
     return acc;
   }, {} as { [key: number]: number });
 
-  for (const material of materialsWithJobOrderId!) {
+  for (const material of materials!) {
     const newQuantity =
-      materialStocksMap[material.material_id] - (material.quantity ?? 0);
+      materialStocksMap[material.material_id!] - (material.quantity ?? 0);
     if (newQuantity < 0) {
       throw new Error(
         `Not enough stock for material ID ${material.material_id}`
@@ -291,7 +257,7 @@ async function upsertMaterials(
     }
   }
 
-  return materialData;
+  return materialsToInsert;
 }
 
 export async function createEditJobOrder(
