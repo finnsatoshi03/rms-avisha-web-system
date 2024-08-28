@@ -467,7 +467,7 @@ export default function JobOrderForm({
       }));
 
     const exceededStock = filteredMaterials?.some((material) => {
-      const currentStock = getStockForMaterial(Number(material.material_id));
+      const currentStock = getStockForMaterial(material.material_id);
       return material.quantity > currentStock;
     });
 
@@ -511,6 +511,8 @@ export default function JobOrderForm({
           : 0,
     };
 
+    console.log("SUBMITTED VALUES", submittedValues);
+
     if (editSession) {
       editJobOrder({
         newJobOrder: submittedValues,
@@ -522,14 +524,11 @@ export default function JobOrderForm({
         onSuccess: (response) => {
           queryClient.invalidateQueries({ queryKey: ["job_order"] });
           toast.success("Job order created successfully!");
-
           console.log(response);
-
           setJobOrderDataForPrinting({
             ...submittedValues,
             order_no: response.order_no,
           });
-
           setPrintDialogOpen(true);
         },
         onError: (error) => {
