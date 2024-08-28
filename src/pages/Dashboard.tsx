@@ -395,7 +395,7 @@ export default function Dashboard() {
         ? Array.from(
             new Set(
               job_orders.map((order: JobOrderData) =>
-                getYear(new Date(order.completed_at!))
+                getYear(new Date(order.created_at))
               )
             )
           )
