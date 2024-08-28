@@ -31,6 +31,7 @@ const viewColumns = [
   { key: "status", title: "Status" },
   { key: "warranty", title: "Warranty" },
   { key: "users.fullname", title: "Technician Name" },
+  { key: "completed_at", title: "Completed Date" },
 ];
 
 export default function JobOrders() {
@@ -79,7 +80,9 @@ export default function JobOrders() {
     job_orders || []
   );
   const [visibleColumns, setVisibleColumns] = useState<string[]>(
-    viewColumns.map((col) => col.key)
+    viewColumns
+      .filter((col) => col.key !== "completed_at")
+      .map((col) => col.key)
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -124,6 +127,12 @@ export default function JobOrders() {
         item.status,
         item.grand_total,
         renderWarrantyInfo(item.warranty),
+        new Date(item.completed_at ?? "").toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          timeZone: "Asia/Singapore",
+        }),
         new Date(item.created_at).toLocaleDateString("en-US", {
           year: "numeric",
           month: "long",

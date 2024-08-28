@@ -610,6 +610,18 @@ export default function Table({
                       }
                     />
                   </TableHead>
+                  {visibleColumns.includes("completed_at") && (
+                    <TableHead className="w-[13%]">
+                      <SortableHeader
+                        column="completed_at"
+                        sortStates={sortStates}
+                        handleSort={handleSort}
+                        handleColumnVisibilityChange={
+                          handleColumnVisibilityChange
+                        }
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="w-[3%]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -687,6 +699,21 @@ export default function Table({
                       <TableCell className="font-bold text-black">
                         ₱{formatNumberWithCommas(Number(order.grand_total))}
                       </TableCell>
+                      {visibleColumns.includes("completed_at") && (
+                        <TableCell>
+                          {order.completed_at
+                            ? new Date(order.completed_at).toLocaleDateString(
+                                "en-US",
+                                {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                  timeZone: "Asia/Singapore",
+                                }
+                              )
+                            : "N/A"}
+                        </TableCell>
+                      )}
                       <TableCell>
                         <EllipsisDropdown
                           onViewClick={() => handleRowClick(order)}
