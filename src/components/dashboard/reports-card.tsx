@@ -150,65 +150,83 @@ const ReportCard = ({
               <div className="flex flex-col items-center -mt-2">
                 <div className="flex w-full space-x-2">
                   {weeklyMetrics &&
-                    weeklyMetrics.map((weekValue: number, index: number) => {
-                      if (weekValue === 0) return null;
+                    weeklyMetrics.map(
+                      (
+                        week: { value: number; weekRange: string },
+                        index: number
+                      ) => {
+                        if (week.value === 0) return null;
 
-                      const totalValue = weeklyMetrics.reduce(
-                        (sum: number, val: number) => sum + val,
-                        0
-                      );
-                      const percentage = (weekValue / totalValue) * 100;
+                        const totalValue = weeklyMetrics.reduce(
+                          (sum: number, week: { value: number }) =>
+                            sum + week.value,
+                          0
+                        );
+                        const percentage = (week.value / totalValue) * 100;
 
-                      // Assign different colors for each week (up to 5)
-                      const weekColors = [
-                        "bg-red-500",
-                        "bg-yellow-500",
-                        "bg-green-500",
-                        "bg-blue-500",
-                        "bg-purple-500",
-                      ];
+                        // Assign different colors for each week (up to 5)
+                        const weekColors = [
+                          "bg-red-500",
+                          "bg-yellow-500",
+                          "bg-green-500",
+                          "bg-blue-500",
+                          "bg-purple-500",
+                        ];
 
-                      return (
-                        <div
-                          key={index}
-                          // className="text-center"
-                          style={{ flex: `${percentage} 0 0` }}
-                        >
-                          {/* Individual week bar */}
+                        return (
                           <div
-                            // style={{ height: "100%" }}
-                            className={`h-2 rounded-full ${
-                              weekColors[index % weekColors.length]
-                            }`}
-                            title={`Week ${index + 1}: ${formatNumberWithCommas(
-                              weekValue
-                            )} (${percentage.toFixed(1)}%)`}
-                          ></div>
-                          {/* Label underneath the bar */}
-                          <p className="text-xs mt-1">
-                            {formatNumberWithCommas(weekValue)}
-                          </p>
-                        </div>
-                      );
-                    })}
+                            key={index}
+                            // className="text-center"
+                            style={{ flex: `${percentage} 0 0` }}
+                          >
+                            {/* Individual week bar */}
+                            <div
+                              // style={{ height: "100%" }}
+                              className={`h-2 rounded-full ${
+                                weekColors[index % weekColors.length]
+                              }`}
+                              title={`Week ${
+                                index + 1
+                              }: ${formatNumberWithCommas(
+                                week.value
+                              )} (${percentage.toFixed(1)}%)`}
+                            ></div>
+                            {/* Label underneath the bar */}
+                            <p className="text-xs mt-1">
+                              {formatNumberWithCommas(week.value)}
+                            </p>
+                          </div>
+                        );
+                      }
+                    )}
                 </div>
               </div>
               <div className="grid md:grid-cols-3 grid-cols-1 w-full gap-1 mt-1">
                 {weeklyMetrics &&
-                  weeklyMetrics.map((weekValue: number, index: number) => {
-                    return (
-                      <div
-                        className="px-2 py-3 rounded-xl bg-slate-200 flex flex-col items-center justify-center"
-                        key={index}
-                      >
-                        <p className="font-bold text-xl">
-                          {prefix}
-                          {formatNumberWithCommas(weekValue)}
-                        </p>
-                        <h1 className="text-xs opacity-80">Week {index + 1}</h1>
-                      </div>
-                    );
-                  })}
+                  weeklyMetrics.map(
+                    (
+                      week: { value: number; weekRange: string },
+                      index: number
+                    ) => {
+                      return (
+                        <div
+                          className="px-2 py-3 rounded-xl bg-slate-200 flex flex-col items-center justify-center"
+                          key={index}
+                        >
+                          <p className="font-bold text-xl">
+                            {prefix}
+                            {formatNumberWithCommas(week.value)}
+                          </p>
+                          <h1 className="text-xs opacity-80">
+                            Week {index + 1}
+                          </h1>
+                          <h1 className="text-xs opacity-80">
+                            {week.weekRange}
+                          </h1>
+                        </div>
+                      );
+                    }
+                  )}
               </div>
             </DialogContent>
           </Dialog>

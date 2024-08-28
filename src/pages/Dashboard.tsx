@@ -244,7 +244,10 @@ export default function Dashboard() {
               : `${metrics.pcpGross.toFixed(2)}%`,
           icon: null,
           monthlyMetrics: metrics.monthlyMetrics.gross,
-          weeklyMetrics: metrics.weeklyMetrics.map((week) => week?.gross),
+          weeklyMetrics: metrics.weeklyMetrics.map((week) => ({
+            value: week?.gross,
+            weekRange: week?.weekRange,
+          })),
           nameKey: "gross",
         },
         {
@@ -257,7 +260,10 @@ export default function Dashboard() {
               : `${metrics.pcpNet.toFixed(2)}%`,
           icon: null,
           monthlyMetrics: metrics.monthlyMetrics.net,
-          weeklyMetrics: metrics.weeklyMetrics.map((week) => week?.net),
+          weeklyMetrics: metrics.weeklyMetrics.map((week) => ({
+            value: week?.net,
+            weekRange: week?.weekRange,
+          })),
           nameKey: "net",
         },
         {
@@ -270,7 +276,10 @@ export default function Dashboard() {
               : `${metrics.pcpExpenses.toFixed(2)}%`,
           icon: null,
           monthlyMetrics: metrics.monthlyMetrics.expenses,
-          weeklyMetrics: metrics.weeklyMetrics.map((week) => week?.expenses),
+          weeklyMetrics: metrics.weeklyMetrics.map((week) => ({
+            value: week?.expenses,
+            weekRange: week?.weekRange,
+          })),
           nameKey: "expenses",
         },
       ]);
