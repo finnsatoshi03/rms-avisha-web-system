@@ -458,12 +458,18 @@ export default function JobOrderForm({
   };
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const exceededStock =
-      values?.materials &&
-      values.materials.some((material) => {
-        const currentStock = getStockForMaterial(Number(material.material_id));
-        return material.quantity > currentStock;
-      });
+    // Filter out any undefined or null material entries
+    const filteredMaterials = values.materials
+      ?.filter((material) => material.material && material.material_id)
+      .map((material) => ({
+        ...material,
+        material_id: Number(material.material_id),
+      }));
+
+    const exceededStock = filteredMaterials?.some((material) => {
+      const currentStock = getStockForMaterial(Number(material.material_id));
+      return material.quantity > currentStock;
+    });
 
     if (exceededStock) {
       toast.error("One or more materials exceed the available stock.");
@@ -478,8 +484,10 @@ export default function JobOrderForm({
       return;
     }
 
+    // Update the materials field with the filtered materials
     const submittedValues: CreateJobOrderData = {
       ...values,
+      materials: filteredMaterials, // Ensure correct state is passed
       order_received:
         values.order_received?.trim() === "" ? null : values.order_received,
       technician_id:
@@ -501,12 +509,6 @@ export default function JobOrderForm({
           : isAdmin || userIsGeneral
           ? values.branch_id || 0
           : 0,
-      materials:
-        values?.materials &&
-        values.materials.map((material) => ({
-          ...material,
-          material_id: Number(material.material_id),
-        })),
     };
 
     if (editSession) {

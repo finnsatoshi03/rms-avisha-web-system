@@ -94,40 +94,37 @@ export function calculateMetrics(
 
   const getWeeklyMetrics = (
     weekNumber: number,
-    month: number,
     year: number,
-    // allOrders: JobOrderData[],
     allExpenses: Expenses[],
     dateRange?: DateRange
   ) => {
-    const startOfMonth = new Date(year, month - 1, 1);
-    const endOfMonth = new Date(year, month, 0);
-    const startOfWeek = new Date(startOfMonth.getTime());
-    startOfWeek.setDate(startOfMonth.getDate() + (weekNumber - 1) * 7);
+    const firstDayOfYear = new Date(year, 0, 1);
+    const startOfFirstWeek = new Date(firstDayOfYear);
+    startOfFirstWeek.setDate(
+      startOfFirstWeek.getDate() - startOfFirstWeek.getDay()
+    );
 
-    const endOfWeek = new Date(startOfWeek.getTime());
-    endOfWeek.setDate(startOfWeek.getDate() + 7);
+    const startOfWeek = new Date(startOfFirstWeek);
+    startOfWeek.setDate(startOfFirstWeek.getDate() + (weekNumber - 1) * 7);
 
-    if (endOfWeek > endOfMonth) {
-      endOfWeek.setTime(endOfMonth.getTime());
-    }
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-    // Filter weeks based on the selected date range
     if (
       dateRange &&
-      (startOfWeek < dateRange.from! || endOfWeek > dateRange.to!)
+      (endOfWeek < dateRange.from! || startOfWeek > dateRange.to!)
     ) {
-      return null; // Exclude weeks outside the date range
+      return null;
     }
 
     const weeklyCompletedOrders = completedOrders.filter((order) => {
-      const orderDate = new Date(order.created_at);
-      return orderDate >= startOfWeek && orderDate < endOfWeek;
+      const orderDate = new Date(order.completed_at!);
+      return orderDate >= startOfWeek && orderDate <= endOfWeek;
     });
 
     const weeklyExpenses = allExpenses.filter((expense) => {
       const expenseDate = new Date(expense.created_at);
-      return expenseDate >= startOfWeek && expenseDate < endOfWeek;
+      return expenseDate >= startOfWeek && expenseDate <= endOfWeek;
     });
 
     const weeklyGross = weeklyCompletedOrders.reduce(
@@ -157,24 +154,32 @@ export function calculateMetrics(
       0
     );
 
+    // Format weekRange as "Aug 28 - Sept 4"
+    const options: Intl.DateTimeFormatOptions = {
+      month: "short",
+      day: "numeric",
+    };
+    const startOfWeekFormatted = new Intl.DateTimeFormat(
+      "en-US",
+      options
+    ).format(startOfWeek);
+    const endOfWeekFormatted = new Intl.DateTimeFormat("en-US", options).format(
+      endOfWeek
+    );
+    const weekRange = `${startOfWeekFormatted} - ${endOfWeekFormatted}`;
+
     return {
       weekNumber,
+      weekRange,
       gross: weeklyGross,
       net: weeklyNet,
       expenses: weeklyExpensesTotal,
     };
   };
 
-  const weeklyMetrics = Array.from({ length: 5 }, (_, index) => {
+  const weeklyMetrics = Array.from({ length: 52 }, (_, index) => {
     const weekNumber = index + 1;
-    return getWeeklyMetrics(
-      weekNumber,
-      currentMonth,
-      currentYear,
-      // orders,
-      expenses,
-      dateRange
-    );
+    return getWeeklyMetrics(weekNumber, currentYear, expenses, dateRange);
   }).filter(Boolean); // Filter out null values
 
   const getMonthlyMetrics = (
@@ -184,7 +189,7 @@ export function calculateMetrics(
     allExpenses: Expenses[]
   ) => {
     const monthlyCompletedOrders = completedOrders.filter((order) => {
-      const orderDate = new Date(order.created_at);
+      const orderDate = new Date(order.completed_at!);
       return (
         orderDate.getMonth() + 1 === month && orderDate.getFullYear() === year
       );
@@ -405,7 +410,7 @@ export function generateMonochromaticColors(
 export const aggregateByWeek = (orders: JobOrderData[]) => {
   const aggregatedData = orders.reduce((acc: any, order: JobOrderData) => {
     const weekStart = format(
-      startOfWeek(new Date(order.created_at)),
+      startOfWeek(new Date(order.completed_at!)),
       "yyyy-MM-dd"
     );
     if (!acc[weekStart]) {
@@ -423,7 +428,7 @@ export const aggregateByWeek = (orders: JobOrderData[]) => {
 export const aggregateByMonth = (orders: JobOrderData[]) => {
   const aggregatedData = orders.reduce((acc: any, order: JobOrderData) => {
     const monthStart = format(
-      startOfMonth(new Date(order.created_at)),
+      startOfMonth(new Date(order.completed_at!)),
       "yyyy-MM-dd"
     );
     if (!acc[monthStart]) {

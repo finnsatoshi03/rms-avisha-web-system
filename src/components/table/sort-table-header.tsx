@@ -36,6 +36,7 @@ export const SortableHeader = ({
     price: "Price",
     bill_name: "Bill Name",
     amount: "Amount",
+    completed_at: "Completed Date",
   };
 
   return (

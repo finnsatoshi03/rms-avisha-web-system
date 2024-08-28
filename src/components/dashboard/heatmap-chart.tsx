@@ -64,7 +64,7 @@ const TechnicianPerformanceAnalytics = ({
             (order.users.fullname || order.users.email) === selectedTechnician
         )
         .reduce((acc: Record<string, number>, order) => {
-          const orderDate = new Date(order.created_at);
+          const orderDate = new Date(order.completed_at!);
           if (!isNaN(orderDate.getTime())) {
             const date = format(orderDate, "yyyy-MM-dd");
             acc[date] = (acc[date] || 0) + 1;

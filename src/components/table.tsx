@@ -541,7 +541,7 @@ export default function Table({
                   <TableHead className="w-[10%]">Order No.</TableHead>
                   <TableHead className="w-[18%]">Client Name</TableHead>
                   {visibleColumns.includes("created_at") && (
-                    <TableHead className="w-[15%]">
+                    <TableHead className="w-[13%]">
                       <SortableHeader
                         column="created_at"
                         sortStates={sortStates}
@@ -610,6 +610,18 @@ export default function Table({
                       }
                     />
                   </TableHead>
+                  {visibleColumns.includes("completed_at") && (
+                    <TableHead className="w-[13%]">
+                      <SortableHeader
+                        column="completed_at"
+                        sortStates={sortStates}
+                        handleSort={handleSort}
+                        handleColumnVisibilityChange={
+                          handleColumnVisibilityChange
+                        }
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="w-[3%]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -646,7 +658,7 @@ export default function Table({
                             "en-US",
                             {
                               year: "numeric",
-                              month: "long",
+                              month: "short",
                               day: "numeric",
                               timeZone: "Asia/Singapore",
                             }
@@ -687,6 +699,21 @@ export default function Table({
                       <TableCell className="font-bold text-black">
                         ₱{formatNumberWithCommas(Number(order.grand_total))}
                       </TableCell>
+                      {visibleColumns.includes("completed_at") && (
+                        <TableCell>
+                          {order.completed_at
+                            ? new Date(order.completed_at).toLocaleDateString(
+                                "en-US",
+                                {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                  timeZone: "Asia/Singapore",
+                                }
+                              )
+                            : "N/A"}
+                        </TableCell>
+                      )}
                       <TableCell>
                         <EllipsisDropdown
                           onViewClick={() => handleRowClick(order)}

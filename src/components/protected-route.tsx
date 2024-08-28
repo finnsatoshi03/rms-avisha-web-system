@@ -24,11 +24,6 @@ export default function ProtectedRoute({
       if (!allowedPaths.includes(location.pathname)) {
         navigate("/job-orders");
       }
-    } else if (isTaytay || isPasig) {
-      // Restrict access to `/dashboard` for `isTaytay` and `isPasig`
-      if (location.pathname === "/dashboard") {
-        navigate("/job-orders"); // or redirect to a different allowed route
-      }
     }
   }, [isUser, isAdmin, isTaytay, isPasig, isLoading, navigate, location]);
 

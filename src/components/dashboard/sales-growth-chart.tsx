@@ -46,7 +46,7 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
     const result: { [key: string]: number } = {};
 
     data.forEach((order) => {
-      const date = new Date(order.created_at).toISOString().split("T")[0];
+      const date = new Date(order.completed_at!).toISOString().split("T")[0];
       if (!result[date]) {
         result[date] = 0;
       }

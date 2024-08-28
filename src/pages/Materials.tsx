@@ -23,16 +23,18 @@ import {
   DialogTrigger,
 } from "../components/ui/dialog";
 import { useUser } from "../components/auth/useUser";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
 
 const viewColumns = [
   {
     key: "sku",
     title: "SKU",
   },
-  // {
-  //   key: "category",
-  //   title: "Category",
-  // },
   {
     key: "last_in",
     title: "Last In",
@@ -40,59 +42,65 @@ const viewColumns = [
 ];
 
 export default function Materials() {
-  const { isTaytay, isPasig } = useUser();
+  const { isTaytay, isAdmin } = useUser();
 
   const { data: stocks, isLoading } = useQuery({
     queryKey: ["materialStocks", { fetchAll: false }],
     queryFn: () => getMaterialStocks({ fetchAll: false }),
   });
-  const materials = useMemo(() => {
+
+  const taytayMaterials = useMemo(() => {
     if (!stocks) return [];
+    return stocks.filter((stock: MaterialStocks) => stock.branch_id === 1);
+  }, [stocks]);
 
-    return stocks.filter((stock: MaterialStocks) => {
-      // If no branch_id is set, show in both branches
-      if (!stock.branch_id) return true;
-
-      // Otherwise, filter by branch
-      return isTaytay
-        ? stock.branches?.location === "Taytay"
-        : isPasig
-        ? stock.branches?.location === "Pasig"
-        : true;
-    });
-  }, [stocks, isTaytay, isPasig]);
+  const pasigMaterials = useMemo(() => {
+    if (!stocks) return [];
+    return stocks.filter((stock: MaterialStocks) => stock.branch_id === 2);
+  }, [stocks]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [sorts, setSorts] = useState<Sort[]>([]);
-  const [filteredData, setFilteredData] = useState<MaterialStocks[]>(
-    materials || []
+  const [filteredTaytayData, setFilteredTaytayData] = useState<
+    MaterialStocks[]
+  >(taytayMaterials || []);
+  const [filteredPasigData, setFilteredPasigData] = useState<MaterialStocks[]>(
+    pasigMaterials || []
   );
   const [visibleColumns, setVisibleColumns] = useState<string[]>(
     viewColumns.map((col) => col.key)
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [paginatedData, setPaginatedData] = useState<MaterialStocks[]>([]);
+  const [paginatedTaytayData, setPaginatedTaytayData] = useState<
+    MaterialStocks[]
+  >([]);
+  const [paginatedPasigData, setPaginatedPasigData] = useState<
+    MaterialStocks[]
+  >([]);
 
   const [openModal, setOpenModal] = useState(false);
 
   useEffect(() => {
-    if (materials) {
-      setFilteredData(filterAndSortData(materials));
+    if (taytayMaterials) {
+      setFilteredTaytayData(filterAndSortData(taytayMaterials));
     }
-  }, [materials, searchTerm, sorts]);
+    if (pasigMaterials) {
+      setFilteredPasigData(filterAndSortData(pasigMaterials));
+    }
+  }, [taytayMaterials, pasigMaterials, searchTerm, sorts]);
 
   useEffect(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    setPaginatedData(filteredData.slice(startIndex, endIndex));
-  }, [filteredData, currentPage, itemsPerPage]);
+    setPaginatedTaytayData(filteredTaytayData.slice(startIndex, endIndex));
+    setPaginatedPasigData(filteredPasigData.slice(startIndex, endIndex));
+  }, [filteredTaytayData, filteredPasigData, currentPage, itemsPerPage]);
 
   const filterAndSortData = (data: MaterialStocks[] | undefined) => {
     if (!data) return [];
 
     const searchFilteredData = data.filter((item: MaterialStocks) => {
-      // Convert relevant fields to a single string and then perform the search
       const searchableStr = [
         item.sku,
         item.material_name,
@@ -186,6 +194,7 @@ export default function Materials() {
   return (
     <div className="h-full">
       <HeaderText>Materials</HeaderText>
+
       <div className="my-4 flex sm:flex-row flex-col sm:gap-0 gap-2 justify-between">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -227,7 +236,6 @@ export default function Materials() {
             </DialogTrigger>
             <DialogContent className="h-fit">
               <DialogTitle className="font-bold">Add New Materials</DialogTitle>
-              {/* <Separator className="my-2" /> */}
               <DialogDescription className="hidden"></DialogDescription>
               <MaterialForm onClose={() => setOpenModal(false)} />
             </DialogContent>
@@ -239,18 +247,57 @@ export default function Materials() {
           handleToggleColumn={handleToggleColumn}
         />
       </div>
-      <MaterialsTable
-        data={paginatedData}
-        visibleColumns={visibleColumns}
-        currentPage={currentPage}
-        itemsPerPage={itemsPerPage}
-        totalItems={filteredData.length}
-        handlePageChange={handlePageChange}
-        handleItemsPerPageChange={handleItemsPerPageChange}
-        handleSortChange={handleSortChange}
-        handleColumnVisibilityChange={handleColumnVisibilityChange}
-        currentSort={sorts}
-      />
+      {isAdmin ? (
+        <Tabs defaultValue="taytay" className="h-[calc(100%-4.5rem)]">
+          <TabsList className="rounded-b-none">
+            <TabsTrigger value="taytay">Taytay</TabsTrigger>
+            <TabsTrigger value="pasig">Pasig</TabsTrigger>
+          </TabsList>
+          <TabsContent value="taytay" asChild>
+            <MaterialsTable
+              data={paginatedTaytayData}
+              visibleColumns={visibleColumns}
+              currentPage={currentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredTaytayData.length}
+              handlePageChange={handlePageChange}
+              handleItemsPerPageChange={handleItemsPerPageChange}
+              handleSortChange={handleSortChange}
+              handleColumnVisibilityChange={handleColumnVisibilityChange}
+              currentSort={sorts}
+            />
+          </TabsContent>
+          <TabsContent value="pasig" asChild>
+            <MaterialsTable
+              data={paginatedPasigData}
+              visibleColumns={visibleColumns}
+              currentPage={currentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredPasigData.length}
+              handlePageChange={handlePageChange}
+              handleItemsPerPageChange={handleItemsPerPageChange}
+              handleSortChange={handleSortChange}
+              handleColumnVisibilityChange={handleColumnVisibilityChange}
+              currentSort={sorts}
+            />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <MaterialsTable
+          data={isTaytay ? paginatedTaytayData : paginatedPasigData}
+          visibleColumns={visibleColumns}
+          currentPage={currentPage}
+          itemsPerPage={itemsPerPage}
+          totalItems={
+            isTaytay ? filteredTaytayData.length : filteredPasigData.length
+          }
+          handlePageChange={handlePageChange}
+          handleItemsPerPageChange={handleItemsPerPageChange}
+          handleSortChange={handleSortChange}
+          handleColumnVisibilityChange={handleColumnVisibilityChange}
+          currentSort={sorts}
+        />
+      )}
     </div>
   );
 }
