@@ -511,8 +511,6 @@ export default function JobOrderForm({
           : 0,
     };
 
-    console.log("SUBMITTED VALUES", submittedValues);
-
     if (editSession) {
       editJobOrder({
         newJobOrder: submittedValues,
