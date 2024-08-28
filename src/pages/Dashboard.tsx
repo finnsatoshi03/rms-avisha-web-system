@@ -52,6 +52,7 @@ export default function Dashboard() {
       }));
     },
   });
+
   const job_orders = useMemo(() => {
     if (!orders) return [];
     return orders.filter((order: JobOrderData) =>
@@ -199,7 +200,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (job_orders && job_orders.length > 0) {
       const filteredOrders = job_orders.filter((order: JobOrderData) => {
-        const orderDate = new Date(order.created_at);
+        const orderDate = new Date(order.completed_at!);
         return (
           (!dateRange?.from || orderDate >= dateRange.from) &&
           (!dateRange?.to || orderDate <= dateRange.to)
@@ -316,7 +317,7 @@ export default function Dashboard() {
     return job_orders
       ? job_orders
           .filter((order: JobOrderData) => {
-            const orderDate = new Date(order.created_at);
+            const orderDate = new Date(order.completed_at!);
             return (
               order.status === "Completed" &&
               (!dateRange?.from || orderDate >= dateRange.from) &&
@@ -355,7 +356,7 @@ export default function Dashboard() {
   const dataWithMonthNames = useMemo(
     () =>
       completedOrders.map((order: JobOrderData) => {
-        const date = new Date(order.created_at);
+        const date = new Date(order.completed_at!);
         const monthName = date.toLocaleString("default", { month: "short" });
         return { ...order, monthName };
       }),
@@ -394,7 +395,7 @@ export default function Dashboard() {
         ? Array.from(
             new Set(
               job_orders.map((order: JobOrderData) =>
-                getYear(new Date(order.created_at))
+                getYear(new Date(order.completed_at!))
               )
             )
           )

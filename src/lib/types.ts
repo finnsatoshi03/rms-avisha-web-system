@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { LucideIcon } from "lucide-react";
 
@@ -195,6 +196,7 @@ export type JobOrderData = {
   net_sales: null | number;
   adjustedGrandTotal: null | number;
   technical_report: null | string;
+  completed_at: null | string;
   [key: string]:
     | boolean
     | string

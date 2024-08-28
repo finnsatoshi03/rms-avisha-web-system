@@ -427,9 +427,11 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
       ? new Date(new Date().setDate(new Date().getDate() + 29))
       : null;
 
+  const completedAt = status.toLowerCase() === "completed" ? new Date() : null;
+
   const { data, error } = await supabase
     .from("joborders")
-    .update({ status, warranty })
+    .update({ status, warranty, completed_at: completedAt })
     .in("id", ids)
     .select();
 

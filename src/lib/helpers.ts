@@ -118,7 +118,7 @@ export function calculateMetrics(
     }
 
     const weeklyCompletedOrders = completedOrders.filter((order) => {
-      const orderDate = new Date(order.created_at);
+      const orderDate = new Date(order.completed_at!);
       return orderDate >= startOfWeek && orderDate <= endOfWeek;
     });
 
@@ -189,7 +189,7 @@ export function calculateMetrics(
     allExpenses: Expenses[]
   ) => {
     const monthlyCompletedOrders = completedOrders.filter((order) => {
-      const orderDate = new Date(order.created_at);
+      const orderDate = new Date(order.completed_at!);
       return (
         orderDate.getMonth() + 1 === month && orderDate.getFullYear() === year
       );
@@ -410,7 +410,7 @@ export function generateMonochromaticColors(
 export const aggregateByWeek = (orders: JobOrderData[]) => {
   const aggregatedData = orders.reduce((acc: any, order: JobOrderData) => {
     const weekStart = format(
-      startOfWeek(new Date(order.created_at)),
+      startOfWeek(new Date(order.completed_at!)),
       "yyyy-MM-dd"
     );
     if (!acc[weekStart]) {
@@ -428,7 +428,7 @@ export const aggregateByWeek = (orders: JobOrderData[]) => {
 export const aggregateByMonth = (orders: JobOrderData[]) => {
   const aggregatedData = orders.reduce((acc: any, order: JobOrderData) => {
     const monthStart = format(
-      startOfMonth(new Date(order.created_at)),
+      startOfMonth(new Date(order.completed_at!)),
       "yyyy-MM-dd"
     );
     if (!acc[monthStart]) {
