@@ -133,6 +133,7 @@ const baseSchema = z.object({
     .refine((val) => !val || val.length >= 10, {
       message: "Technical report must be at least 10 characters long",
     }),
+  downpayment: z.number().optional().nullable(),
 });
 
 const rateOptions = [
@@ -228,6 +229,11 @@ export default function JobOrderForm({
   const [selectedDiscount, setSelectedDiscount] = useState<number | null>(
     editValues.discount
   );
+  const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(false);
+  const [downpaymentValue, setDownpaymentValue] = useState<number | null>(
+    editValues.downpayment || null
+  );
+  const [downpaymentError, setDownpaymentError] = useState<string | null>(null);
 
   const { isTaytay, isPasig, isAdmin, user } = useUser();
   const isTechnician = user?.user_metadata.role?.includes("technician");
@@ -319,6 +325,7 @@ export default function JobOrderForm({
           accessories: [],
           technician_id: "",
           technical_report: "",
+          downpayment: undefined,
         },
   });
 
@@ -357,6 +364,8 @@ export default function JobOrderForm({
   const laborTotal =
     Number(form.watch("rate") || 0) + Number(form.watch("amount") || 0);
   const grandTotal = (totalMaterialsPrice ?? 0) + laborTotal;
+  const adjustedGrandTotal =
+    grandTotal - (selectedDiscount ?? 0) - (downpaymentValue ?? 0);
 
   const filteredTechnicians = useMemo(() => {
     if (userIsGeneral || readonly) {
@@ -390,10 +399,19 @@ export default function JobOrderForm({
     readonly,
   ]);
 
-  const adjustedGrandTotal = selectedDiscount
-    ? grandTotal - selectedDiscount
-    : grandTotal;
+  const handleAddDownpayment = () => {
+    setDownpaymentInputVisible(true);
+  };
 
+  const handleDownpaymentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    if (value > grandTotal) {
+      setDownpaymentError("Downpayment cannot exceed the grand total.");
+    } else {
+      setDownpaymentError(null);
+      setDownpaymentValue(value >= 0 ? value : 0);
+    }
+  };
   const handleSelectDiscount = (discount: number) => {
     setSelectedDiscount(discount);
     setDiscountDialogOpen(false);
@@ -495,6 +513,7 @@ export default function JobOrderForm({
       labor_total: laborTotal,
       material_total: totalMaterialsPrice ?? 0,
       materials_expense: totalMaterialsCost ?? 0,
+      downpayment: downpaymentValue ?? 0,
       sub_total: grandTotal,
       grand_total: adjustedGrandTotal,
       net_sales: adjustedGrandTotal - (totalMaterialsCost ?? 0),
@@ -1402,7 +1421,7 @@ export default function JobOrderForm({
               />
             </>
           )}
-          <div className="flex justify-between mt-2">
+          <div className="flex md:flex-row flex-col md:justify-between mt-2">
             {!readonly && (
               <Button type="submit" disabled={isPending}>
                 {isPending ? (
@@ -1478,14 +1497,38 @@ export default function JobOrderForm({
                     </Button>
                   )}
                 </div>
-                <div className="flex justify-between">
-                  <p className="opacity-60 flex items-center gap-1">
-                    VAT{" "}
-                    <span className="font-mono text-xs p-1 flex items-center justify-center size-4 rounded-full bg-gray-500 text-white">
-                      i
-                    </span>
-                  </p>
-                  <p>---</p>
+                <div className="flex justify-between items-start gap-4">
+                  <p className="opacity-60 gap-1">Downpayment</p>
+                  {downpaymentValue || downpaymentInputVisible ? (
+                    <div className="flex-col items-end justify-end w-[115px]">
+                      <input
+                        type="number"
+                        value={downpaymentValue ?? ""}
+                        onChange={handleDownpaymentChange}
+                        className="w-full text-right placeholder:right bg-transparent focus:outline-none"
+                        placeholder="Enter amount"
+                        min="0"
+                        disabled={readonly || isPending}
+                      />
+                      {downpaymentError && (
+                        <p className="text-red-500 text-xs mt-1 text-right">
+                          {downpaymentError}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <Button
+                      className="h-fit w-fit p-0"
+                      variant={"link"}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleAddDownpayment();
+                      }}
+                      disabled={readonly || isPending || !grandTotal}
+                    >
+                      Add downpayment
+                    </Button>
+                  )}
                 </div>
               </div>
               <div className="flex justify-between gap-4">

@@ -114,6 +114,7 @@ async function upsertJobOrder(
     created_at: jobOrder.date,
     materials_expense: jobOrder.materials_expense,
     discount: jobOrder.discount,
+    downpayment: jobOrder.downpayment,
     grand_total: jobOrder.grand_total,
     net_sales: jobOrder.net_sales,
     labor_description: jobOrder.labor_description,

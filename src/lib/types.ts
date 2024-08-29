@@ -197,6 +197,7 @@ export type JobOrderData = {
   adjustedGrandTotal: null | number;
   technical_report: null | string;
   completed_at: null | string;
+  downpayment: null | number;
   [key: string]:
     | boolean
     | string
@@ -249,6 +250,7 @@ export type CreateJobOrderData = {
   warranty?: string;
   is_copy?: boolean;
   technical_report?: string;
+  downpayment?: number;
 };
 
 export type MaterialStocks = {

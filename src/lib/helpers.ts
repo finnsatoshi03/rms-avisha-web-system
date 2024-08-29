@@ -38,53 +38,68 @@ export function calculateMetrics(
     (order) => order.status === "Completed"
   );
 
-  // Aggregated metrics
-  const totalRevenue = completedOrders.reduce((sum, order) => {
-    let adjustedGrandTotal = order.grand_total ?? 0;
+  const ordersWithDownpayment = orders.filter(
+    (order) => order.downpayment && order.downpayment > 0
+  );
 
-    if (order.materials) {
-      const usedMaterialsTotal = order.materials.reduce((total, material) => {
-        if (material.used) {
-          return total + material.quantity * material.unit_price;
-        }
-        return total;
-      }, 0);
+  const totalRevenueIncludingDownpayments =
+    completedOrders.reduce((sum, order) => {
+      let adjustedGrandTotal = order.grand_total ?? 0;
 
-      adjustedGrandTotal -= usedMaterialsTotal;
-    }
+      if (order.materials) {
+        const usedMaterialsTotal = order.materials.reduce((total, material) => {
+          if (material.used) {
+            return total + material.quantity * material.unit_price;
+          }
+          return total;
+        }, 0);
 
-    return sum + adjustedGrandTotal;
-  }, 0);
+        adjustedGrandTotal -= usedMaterialsTotal;
+      }
 
-  const totalNet = completedOrders.reduce((sum, order) => {
-    let adjustedNetSales: number =
-      typeof order.net_sales === "number" ? order.net_sales : 0;
+      return sum + adjustedGrandTotal;
+    }, 0) +
+    ordersWithDownpayment.reduce(
+      (sum, order) => sum + (order.downpayment ?? 0),
+      0
+    );
 
-    if (order.materials) {
-      const usedMaterialsTotal = order.materials.reduce((total, material) => {
-        if (material.used) {
-          return total + material.quantity * material.unit_price;
-        }
-        return total;
-      }, 0);
+  const totalNetIncludingDownpayments =
+    completedOrders.reduce((sum, order) => {
+      let adjustedNetSales: number =
+        typeof order.net_sales === "number" ? order.net_sales : 0;
 
-      adjustedNetSales -= usedMaterialsTotal;
-    }
+      if (order.materials) {
+        const usedMaterialsTotal = order.materials.reduce((total, material) => {
+          if (material.used) {
+            return total + material.quantity * material.unit_price;
+          }
+          return total;
+        }, 0);
 
-    return sum + adjustedNetSales;
-  }, 0);
+        adjustedNetSales -= usedMaterialsTotal;
+      }
+
+      return sum + adjustedNetSales;
+    }, 0) +
+    ordersWithDownpayment.reduce(
+      (sum, order) => sum + (order.downpayment ?? 0),
+      0
+    );
 
   const totalExpenses = expenses.reduce(
     (sum, expense) => sum + (expense.amount ?? 0),
     0
   );
 
-  const totalProfit = totalNet - totalExpenses;
+  const totalProfit = totalNetIncludingDownpayments - totalExpenses;
 
   const numberOfClients = new Set(orders.map((order) => order.clients.name))
     .size;
   const numberOfSales = completedOrders.length;
-  const averageOrderValue = numberOfSales ? totalNet / numberOfSales : 0;
+  const averageOrderValue = numberOfSales
+    ? totalNetIncludingDownpayments / numberOfSales
+    : 0;
 
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth() + 1;
@@ -127,27 +142,47 @@ export function calculateMetrics(
       return expenseDate >= startOfWeek && expenseDate <= endOfWeek;
     });
 
-    const weeklyGross = weeklyCompletedOrders.reduce(
-      (sum, order) => sum + (order.grand_total ?? 0),
-      0
+    const weeklyOrdersWithDownpayment = ordersWithDownpayment.filter(
+      (order) => {
+        const orderDate = new Date(order.created_at);
+        return orderDate >= startOfWeek && orderDate <= endOfWeek;
+      }
     );
 
-    const weeklyNet = weeklyCompletedOrders.reduce((sum, order) => {
-      let adjustedNetSales = order.net_sales ?? 0;
+    const weeklyGross =
+      weeklyCompletedOrders.reduce(
+        (sum, order) => sum + (order.grand_total ?? 0),
+        0
+      ) +
+      weeklyOrdersWithDownpayment.reduce(
+        (sum, order) => sum + (order.downpayment ?? 0),
+        0
+      );
 
-      if (order.materials) {
-        const usedMaterialsTotal = order.materials.reduce((total, material) => {
-          if (material.used) {
-            return total + material.quantity * material.unit_price;
-          }
-          return total;
-        }, 0);
+    const weeklyNet =
+      weeklyCompletedOrders.reduce((sum, order) => {
+        let adjustedNetSales = order.net_sales ?? 0;
 
-        adjustedNetSales -= usedMaterialsTotal;
-      }
+        if (order.materials) {
+          const usedMaterialsTotal = order.materials.reduce(
+            (total, material) => {
+              if (material.used) {
+                return total + material.quantity * material.unit_price;
+              }
+              return total;
+            },
+            0
+          );
 
-      return sum + adjustedNetSales;
-    }, 0);
+          adjustedNetSales -= usedMaterialsTotal;
+        }
+
+        return sum + adjustedNetSales;
+      }, 0) +
+      weeklyOrdersWithDownpayment.reduce(
+        (sum, order) => sum + (order.downpayment ?? 0),
+        0
+      );
 
     const weeklyExpensesTotal = weeklyExpenses.reduce(
       (sum, expense) => sum + (expense.amount ?? 0),
@@ -195,6 +230,15 @@ export function calculateMetrics(
       );
     });
 
+    const monthlyOrdersWithDownpayment = ordersWithDownpayment.filter(
+      (order) => {
+        const orderDate = new Date(order.completed_at!);
+        return (
+          orderDate.getMonth() + 1 === month && orderDate.getFullYear() === year
+        );
+      }
+    );
+
     const monthlyExpenses = allExpenses.filter((expense) => {
       const expenseDate = new Date(expense.created_at);
       return (
@@ -203,27 +247,40 @@ export function calculateMetrics(
       );
     });
 
-    const monthlyGross = monthlyCompletedOrders.reduce(
-      (sum, order) => sum + (order.grand_total ?? 0),
-      0
-    );
+    const monthlyGross =
+      monthlyCompletedOrders.reduce(
+        (sum, order) => sum + (order.grand_total ?? 0),
+        0
+      ) +
+      monthlyOrdersWithDownpayment.reduce(
+        (sum, order) => sum + (order.downpayment ?? 0),
+        0
+      );
 
-    const monthlyNet = monthlyCompletedOrders.reduce((sum, order) => {
-      let adjustedNetSales = order.net_sales ?? 0;
+    const monthlyNet =
+      monthlyCompletedOrders.reduce((sum, order) => {
+        let adjustedNetSales = order.net_sales ?? 0;
 
-      if (order.materials) {
-        const usedMaterialsTotal = order.materials.reduce((total, material) => {
-          if (material.used) {
-            return total + material.quantity * material.unit_price;
-          }
-          return total;
-        }, 0);
+        if (order.materials) {
+          const usedMaterialsTotal = order.materials.reduce(
+            (total, material) => {
+              if (material.used) {
+                return total + material.quantity * material.unit_price;
+              }
+              return total;
+            },
+            0
+          );
 
-        adjustedNetSales -= usedMaterialsTotal;
-      }
+          adjustedNetSales -= usedMaterialsTotal;
+        }
 
-      return sum + adjustedNetSales;
-    }, 0);
+        return sum + adjustedNetSales;
+      }, 0) +
+      monthlyOrdersWithDownpayment.reduce(
+        (sum, order) => sum + (order.downpayment ?? 0),
+        0
+      );
 
     const monthlyExpensesTotal = monthlyExpenses.reduce(
       (sum, expense) => sum + (expense.amount ?? 0),
@@ -343,9 +400,9 @@ export function calculateMetrics(
   };
 
   return {
-    totalRevenue,
-    totalGross: totalRevenue,
-    totalNet: totalNet,
+    totalRevenue: totalRevenueIncludingDownpayments,
+    totalGross: totalRevenueIncludingDownpayments,
+    totalNet: totalNetIncludingDownpayments,
     totalExpenses: totalExpenses,
     totalProfit: totalProfit,
     numberOfClients: numberOfClients,
