@@ -24,6 +24,10 @@ export default function OverviewCard({
   //     : data.value.toString();
   // const formattedValue = formatNumberWithCommas(Number(valueAsString));
 
+  if (!data) {
+    return null;
+  }
+
   return (
     <div
       className={cn(

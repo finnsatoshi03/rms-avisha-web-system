@@ -41,7 +41,7 @@ import SalesReportLineChart from "../components/dashboard/sales-report-line-char
 import FinancialChart from "../components/dashboard/financial-chart";
 
 export default function Dashboard() {
-  const { isTaytay, isPasig } = useUser();
+  const { isTaytay, isPasig, isUser } = useUser();
   const { data: orders, isLoading } = useQuery({
     queryKey: ["job_orders"],
     queryFn: async () => {
@@ -239,7 +239,7 @@ export default function Dashboard() {
             metrics.pcpProfit >= 0
               ? `+${metrics.pcpProfit.toFixed(2)}%`
               : `${metrics.pcpProfit.toFixed(2)}%`,
-          icon: Wallet,
+          icon: Wallet || null,
           monthlyMetrics: metrics.monthlyMetrics.profit,
           nameKey: "profit",
         },
@@ -433,6 +433,8 @@ export default function Dashboard() {
   const statusCounts = useMemo(() => {
     return job_orders ? countJobOrdersByStatus(job_orders) : {};
   }, [job_orders]);
+
+  console.log(isUser, !isTaytay && !isPasig, isTaytay || isPasig);
 
   const salesReport = (
     <>
