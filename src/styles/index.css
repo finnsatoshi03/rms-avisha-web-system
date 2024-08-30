@@ -105,31 +105,31 @@ td:last-of-type {
 
 .status-pending {
   background-color: #ffc1073f;
-  color: #ffc107;
+  color: #5e4703;
 }
 .status-repairing {
   background-color: #007bff4b;
-  color: #007bff;
+  color: #002144;
 }
 .status-ready-for-pickup {
   background-color: #4caf4f3f;
-  color: #4caf50;
+  color: #1c411d;
 }
 .status-completed {
   background-color: #9e9e9e2c;
-  color: #9e9e9e;
+  color: #414040;
 }
 .status-canceled {
   background-color: #f4433643;
-  color: #f44336;
+  color: #41120f;
 }
 .status-for-approval {
   background-color: #ffa5003f;
-  color: #ffa500;
+  color: #5c3c00;
 }
 .status-waiting-parts {
   background-color: #8000803f;
-  color: #800080;
+  color: #490149;
 }
 
 @keyframes slideUp {

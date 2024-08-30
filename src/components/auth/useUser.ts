@@ -14,6 +14,8 @@ export function useUser() {
       user?.email === "avisha@email.com" || user?.email === "admin@admin.com",
     isTaytay: user?.email === "manager.taytay@rmsavisha.com",
     isPasig: user?.email === "manager.pasig@rmsavisha.com",
-    isUser: user?.user_metadata?.role?.includes("technician") ?? false,
+    isUser:
+      (user?.user_metadata?.role?.includes("technician") ?? false) ||
+      user?.email === "tech1@tech.com",
   };
 }

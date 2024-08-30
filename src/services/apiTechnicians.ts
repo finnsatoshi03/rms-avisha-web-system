@@ -18,6 +18,12 @@ export async function getTechnicians({
         job_order_id,
         material_id,
         used
+      ),
+      order_received_user:order_received (
+        id,
+        fullname,
+        email,
+        avatar
       )
     )
   `);
