@@ -43,21 +43,37 @@ export default function BarChartSection({
 
   useEffect(() => {
     if (selectedYear) {
-      const filteredOrders = orders.filter((order) => {
-        const orderYear = new Date(order.created_at).getFullYear();
+      const filteredOrders = orders.filter((order: JobOrderData) => {
+        const orderYear =
+          order.status === "Completed"
+            ? new Date(order.completed_at!).getFullYear()
+            : order.downpayment && order.downpayment > 0
+            ? new Date(order.created_at).getFullYear()
+            : null;
+
         return orderYear === selectedYear;
       });
 
       const aggregatedData = allMonths.map((month) => {
         const monthOrders = filteredOrders.filter((order) => {
-          const orderMonth = new Date(order.created_at).getMonth();
+          const orderMonth =
+            order.status === "Completed"
+              ? new Date(order.completed_at!).getMonth()
+              : order.downpayment && order.downpayment > 0
+              ? new Date(order.created_at).getMonth()
+              : null;
+
           return orderMonth === allMonths.indexOf(month);
         });
 
-        const monthTotalPrice = monthOrders.reduce(
-          (total, order) => total + (order.adjustedGrandTotal ?? 0),
-          0
-        );
+        const monthTotalPrice = monthOrders.reduce((total, order) => {
+          if (order.status === "Completed") {
+            return total + (order.adjustedGrandTotal ?? 0);
+          } else if (order.downpayment && order.downpayment > 0) {
+            return total + (order.downpayment ?? 0);
+          }
+          return total;
+        }, 0);
 
         return {
           monthName: month,
@@ -69,6 +85,7 @@ export default function BarChartSection({
 
       // Calculate metrics for the current month and previous month
       const metrics = calculateMetrics(filteredOrders);
+      // console.log(filteredOrders);
       setCurrentMonthTotal(metrics.metricsThisMonth.revenue);
       setComparisonPCP(metrics.pcpRevenue);
     } else {

@@ -46,11 +46,34 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
     const result: { [key: string]: number } = {};
 
     data.forEach((order) => {
-      const date = new Date(order.completed_at!).toISOString().split("T")[0];
-      if (!result[date]) {
-        result[date] = 0;
+      let date: string | null = null;
+
+      if (order.status === "Completed") {
+        if (order.completed_at) {
+          date = new Date(order.completed_at).toISOString().split("T")[0];
+        } else {
+          console.error(`Completed order missing completed_at date: ${order}`);
+        }
+      } else if (order.downpayment && order.downpayment > 0) {
+        if (order.created_at) {
+          date = new Date(order.created_at).toISOString().split("T")[0];
+        } else {
+          console.error(`Downpayment order missing created_at date: ${order}`);
+        }
       }
-      result[date] += order.adjustedGrandTotal ?? 0;
+
+      if (date) {
+        if (!result[date]) {
+          result[date] = 0;
+        }
+        const revenueAmount =
+          order.status === "Completed"
+            ? order.adjustedGrandTotal ?? 0
+            : order.downpayment ?? 0;
+        result[date] += revenueAmount;
+      } else {
+        console.warn(`Invalid date encountered: ${order}`);
+      }
     });
 
     return Object.keys(result).map((date) => ({

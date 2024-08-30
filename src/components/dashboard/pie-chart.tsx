@@ -60,13 +60,17 @@ export default function RevenuePerTechnicianPieChart({
     const revenueByTechnician: { [key: string]: number } = {};
 
     orders.forEach((order) => {
-      if (order.status === "Completed") {
-        const technicianName = order.users.fullname || order.users.email;
-        if (revenueByTechnician[technicianName]) {
-          revenueByTechnician[technicianName] += order.adjustedGrandTotal ?? 0;
-        } else {
-          revenueByTechnician[technicianName] = order.adjustedGrandTotal ?? 0;
-        }
+      const technicianName = order.users.fullname || order.users.email;
+
+      const revenueAmount =
+        order.status === "Completed"
+          ? order.adjustedGrandTotal ?? 0
+          : order.downpayment ?? 0;
+
+      if (revenueByTechnician[technicianName]) {
+        revenueByTechnician[technicianName] += revenueAmount;
+      } else {
+        revenueByTechnician[technicianName] = revenueAmount;
       }
     });
 
