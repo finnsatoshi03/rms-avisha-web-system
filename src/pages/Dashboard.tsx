@@ -200,7 +200,15 @@ export default function Dashboard() {
   useEffect(() => {
     if (job_orders && job_orders.length > 0) {
       const filteredOrders = job_orders.filter((order: JobOrderData) => {
-        const orderDate = new Date(order.completed_at!);
+        const orderDate =
+          order.status === "Completed"
+            ? new Date(order.completed_at!)
+            : order.downpayment && order.downpayment > 0
+            ? new Date(order.created_at)
+            : null;
+
+        if (!orderDate) return false;
+
         return (
           (!dateRange?.from || orderDate >= dateRange.from) &&
           (!dateRange?.to || orderDate <= dateRange.to)
@@ -290,11 +298,7 @@ export default function Dashboard() {
   const completedOrders = useMemo(() => {
     return job_orders
       ? job_orders
-          .filter(
-            (order: JobOrderData) =>
-              order.status === "Completed" ||
-              (order.downpayment && order.downpayment > 0)
-          )
+          .filter((order: JobOrderData) => order.status === "Completed")
           .map((order: JobOrderData) => {
             let adjustedGrandTotal = order.grand_total ?? 0;
 
@@ -312,9 +316,9 @@ export default function Dashboard() {
               adjustedGrandTotal -= usedMaterialsTotal;
             }
 
-            if (order.downpayment) {
-              adjustedGrandTotal += order.downpayment;
-            }
+            // if (order.downpayment) {
+            //   adjustedGrandTotal += order.downpayment;
+            // }
 
             return { ...order, adjustedGrandTotal };
           })
@@ -327,8 +331,7 @@ export default function Dashboard() {
           .filter((order: JobOrderData) => {
             const orderDate = new Date(order.completed_at!);
             return (
-              (order.status === "Completed" ||
-                (order.downpayment && order.downpayment > 0)) &&
+              order.status === "Completed" &&
               (!dateRange?.from || orderDate >= dateRange.from) &&
               (!dateRange?.to || orderDate <= dateRange.to)
             );
@@ -350,9 +353,9 @@ export default function Dashboard() {
               adjustedGrandTotal -= usedMaterialsTotal;
             }
 
-            if (order.downpayment) {
-              adjustedGrandTotal += order.downpayment;
-            }
+            // if (order.downpayment) {
+            //   adjustedGrandTotal += order.downpayment;
+            // }
 
             return { ...order, adjustedGrandTotal };
           })
