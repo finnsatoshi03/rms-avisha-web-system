@@ -514,6 +514,7 @@ export default function JobOrderForm({
       material_total: totalMaterialsPrice ?? 0,
       materials_expense: totalMaterialsCost ?? 0,
       downpayment: downpaymentValue ?? 0,
+      discount: selectedDiscount ?? 0,
       sub_total: grandTotal,
       grand_total: adjustedGrandTotal,
       net_sales: adjustedGrandTotal - (totalMaterialsCost ?? 0),
@@ -529,6 +530,8 @@ export default function JobOrderForm({
           ? values.branch_id || 0
           : 0,
     };
+
+    // console.log(submittedValues);
 
     if (editSession) {
       editJobOrder({
