@@ -529,6 +529,7 @@ export default function JobOrderForm({
           : isAdmin || userIsGeneral
           ? values.branch_id || 0
           : 0,
+      warranty: editValues.warranty || undefined,
     };
 
     // console.log(submittedValues);

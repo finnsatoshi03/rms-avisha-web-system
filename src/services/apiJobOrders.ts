@@ -127,10 +127,11 @@ async function upsertJobOrder(
     serial_number: jobOrder.serial_number,
     sub_total: jobOrder.sub_total,
     technician_id: jobOrder.technician_id,
-    warranty:
-      jobOrder.status?.toLowerCase() === "completed"
-        ? new Date(new Date().setDate(new Date().getDate() + 29))
-        : null,
+    warranty: jobOrder.warranty
+      ? jobOrder.warranty
+      : jobOrder.status?.toLowerCase() === "completed"
+      ? new Date(new Date().setDate(new Date().getDate() + 29))
+      : null,
     is_copy: jobOrder.is_copy ?? false,
     technical_report: jobOrder.technical_report,
   };
