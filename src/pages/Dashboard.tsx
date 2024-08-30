@@ -333,10 +333,16 @@ export default function Dashboard() {
     return job_orders
       ? job_orders
           .filter((order: JobOrderData) => {
-            const orderDate = new Date(order.completed_at!);
+            const orderDate =
+              order.status === "Completed"
+                ? new Date(order.completed_at!)
+                : order.downpayment && order.downpayment > 0
+                ? new Date(order.created_at)
+                : null;
+
+            if (!orderDate) return false;
+
             return (
-              (order.status === "Completed" ||
-                (order.downpayment && order.downpayment > 0)) &&
               (!dateRange?.from || orderDate >= dateRange.from) &&
               (!dateRange?.to || orderDate <= dateRange.to)
             );
