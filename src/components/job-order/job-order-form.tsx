@@ -329,6 +329,9 @@ export default function JobOrderForm({
         },
   });
 
+  const [initialFormValues, setInitialFormValues] = useState(form.getValues());
+  const [isFormChanged, setIsFormChanged] = useState(false);
+
   const materials = form.watch("materials");
   const branchId =
     isAdmin || userIsGeneral
@@ -514,6 +517,7 @@ export default function JobOrderForm({
       material_total: totalMaterialsPrice ?? 0,
       materials_expense: totalMaterialsCost ?? 0,
       downpayment: downpaymentValue ?? 0,
+      discount: selectedDiscount ?? 0,
       sub_total: grandTotal,
       grand_total: adjustedGrandTotal,
       net_sales: adjustedGrandTotal - (totalMaterialsCost ?? 0),
@@ -528,7 +532,10 @@ export default function JobOrderForm({
           : isAdmin || userIsGeneral
           ? values.branch_id || 0
           : 0,
+      warranty: editValues.warranty || undefined,
     };
+
+    // console.log(submittedValues);
 
     if (editSession) {
       editJobOrder({
@@ -708,6 +715,20 @@ export default function JobOrderForm({
       form.setValue("contact_number", editValuesWithClient.contact_number);
     }
   }, [editSession, editValuesWithClient.contact_number, form]);
+
+  useEffect(() => {
+    setInitialFormValues(form.getValues());
+  }, [editSession]);
+
+  useEffect(() => {
+    const subscription = form.watch((values) => {
+      const isChanged =
+        JSON.stringify(values) !== JSON.stringify(initialFormValues);
+      setIsFormChanged(isChanged);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form, initialFormValues]);
 
   return (
     <>
@@ -1423,7 +1444,7 @@ export default function JobOrderForm({
           )}
           <div className="flex md:flex-row flex-col md:justify-between mt-2">
             {!readonly && (
-              <Button type="submit" disabled={isPending}>
+              <Button type="submit" disabled={isPending || !isFormChanged}>
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
