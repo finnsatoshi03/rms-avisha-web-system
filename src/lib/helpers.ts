@@ -232,7 +232,7 @@ export function calculateMetrics(
 
     const monthlyOrdersWithDownpayment = ordersWithDownpayment.filter(
       (order) => {
-        const orderDate = new Date(order.completed_at!);
+        const orderDate = new Date(order.created_at);
         return (
           orderDate.getMonth() + 1 === month && orderDate.getFullYear() === year
         );

@@ -298,7 +298,11 @@ export default function Dashboard() {
   const completedOrders = useMemo(() => {
     return job_orders
       ? job_orders
-          .filter((order: JobOrderData) => order.status === "Completed")
+          .filter(
+            (order: JobOrderData) =>
+              order.status === "Completed" ||
+              (order.downpayment && order.downpayment > 0)
+          )
           .map((order: JobOrderData) => {
             let adjustedGrandTotal = order.grand_total ?? 0;
 
@@ -316,9 +320,9 @@ export default function Dashboard() {
               adjustedGrandTotal -= usedMaterialsTotal;
             }
 
-            // if (order.downpayment) {
-            //   adjustedGrandTotal += order.downpayment;
-            // }
+            if (order.downpayment) {
+              adjustedGrandTotal += order.downpayment;
+            }
 
             return { ...order, adjustedGrandTotal };
           })
@@ -331,7 +335,8 @@ export default function Dashboard() {
           .filter((order: JobOrderData) => {
             const orderDate = new Date(order.completed_at!);
             return (
-              order.status === "Completed" &&
+              (order.status === "Completed" ||
+                (order.downpayment && order.downpayment > 0)) &&
               (!dateRange?.from || orderDate >= dateRange.from) &&
               (!dateRange?.to || orderDate <= dateRange.to)
             );
@@ -353,9 +358,9 @@ export default function Dashboard() {
               adjustedGrandTotal -= usedMaterialsTotal;
             }
 
-            // if (order.downpayment) {
-            //   adjustedGrandTotal += order.downpayment;
-            // }
+            if (order.downpayment) {
+              adjustedGrandTotal += order.downpayment;
+            }
 
             return { ...order, adjustedGrandTotal };
           })
