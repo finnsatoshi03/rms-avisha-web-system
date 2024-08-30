@@ -197,8 +197,10 @@ export type JobOrderData = {
   adjustedGrandTotal: null | number;
   technical_report: null | string;
   completed_at: null | string;
+  order_received_user?: User;
   downpayment: null | number;
   [key: string]:
+    | undefined
     | boolean
     | string
     | number
@@ -288,4 +290,5 @@ export interface FinancialChartProps {
 
 export type TechnicianWithJobOrders = User & {
   joborders: JobOrderData[];
+  order_received_user?: User;
 };

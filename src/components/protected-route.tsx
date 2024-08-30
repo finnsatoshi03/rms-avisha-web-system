@@ -20,7 +20,7 @@ export default function ProtectedRoute({
       navigate("/login");
     } else if (isUser) {
       // Allow only specific paths for `isUser`
-      const allowedPaths = ["/job-orders", "/account"];
+      const allowedPaths = ["/dashboard", "/job-orders", "/account"];
       if (!allowedPaths.includes(location.pathname)) {
         navigate("/job-orders");
       }

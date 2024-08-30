@@ -39,9 +39,11 @@ import OverviewCard from "../components/dashboard/overview-card";
 import { DatePickerWithRange } from "../components/date-range-picker";
 import SalesReportLineChart from "../components/dashboard/sales-report-line-chart";
 import FinancialChart from "../components/dashboard/financial-chart";
+import TechnicianDashboard from "../components/dashboard/technician-page";
+import { getTechnicians } from "../services/apiTechnicians";
 
 export default function Dashboard() {
-  const { isTaytay, isPasig, isUser } = useUser();
+  const { isTaytay, isPasig, isUser, user } = useUser();
   const { data: orders, isLoading } = useQuery({
     queryKey: ["job_orders"],
     queryFn: async () => {
@@ -63,6 +65,17 @@ export default function Dashboard() {
         : true
     );
   }, [orders, isTaytay, isPasig]);
+
+  const { data: technicians, isLoading: isTechniciansLoading } = useQuery({
+    queryKey: ["technicians", { fetchAll: true }],
+    queryFn: () => getTechnicians({ fetchAll: true }),
+  });
+
+  const matchedTechnicianData = useMemo(() => {
+    if (!technicians || !user) return null;
+
+    return technicians.find((tech) => tech.id === user.id);
+  }, [technicians, user]);
 
   const { expenses, isLoading: isExpensesLoading } = useExpenses();
 
@@ -434,8 +447,6 @@ export default function Dashboard() {
     return job_orders ? countJobOrdersByStatus(job_orders) : {};
   }, [job_orders]);
 
-  console.log(isUser, !isTaytay && !isPasig, isTaytay || isPasig);
-
   const salesReport = (
     <>
       <div className="grid xl:grid-cols-[1fr_0.8fr] grid-cols-1 gap-4">
@@ -463,7 +474,7 @@ export default function Dashboard() {
     </>
   );
 
-  if (isLoading || isExpensesLoading)
+  if (isLoading || isExpensesLoading || isTechniciansLoading)
     return (
       <div className="h-full w-full flex items-center justify-center">
         <Loader />
@@ -497,7 +508,7 @@ export default function Dashboard() {
       {currentTab === "overview" && (
         <h2 className="text-sm opacity-60">{currentDate}</h2>
       )}
-      {!isTaytay && !isPasig ? (
+      {!isTaytay && !isPasig && !isUser ? (
         <DashboardTabs
           currentTab={currentTab}
           setCurrentTab={setCurrentTab}
@@ -572,6 +583,10 @@ export default function Dashboard() {
             </>
           )}
         </DashboardTabs>
+      ) : isUser ? (
+        <div className="mt-4 w-full pb-8">
+          <TechnicianDashboard technician={matchedTechnicianData} />
+        </div>
       ) : (
         <div className="mt-4 w-full pb-8 space-y-4">{salesReport}</div>
       )}
