@@ -182,29 +182,35 @@ function Content({ data }: { data: CreateJobOrderData }) {
           </Text>
           <Text style={styles.tableCol17}>{data.labor_total}</Text>
         </View>
-        <View style={styles.tableRow}>
-          <Text
-            style={[
-              styles.tableCol49,
-              {
-                fontSize: 8,
-                textTransform: "uppercase",
-                textAlign: "center",
-                borderRight: "1px solid black",
-                fontFamily: "Montserrat-Bold",
-              },
-            ]}
-          >
-            Material Description
-          </Text>
-          <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
-            Quantity
-          </Text>
-          <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
-            Price Per Unit
-          </Text>
-          <Text style={styles.tableLabel}>Amount</Text>
-        </View>
+        {data.materials && (
+          <View style={styles.tableRow}>
+            <Text
+              style={[
+                styles.tableCol49,
+                {
+                  fontSize: 8,
+                  textTransform: "uppercase",
+                  textAlign: "center",
+                  borderRight: "1px solid black",
+                  fontFamily: "Montserrat-Bold",
+                },
+              ]}
+            >
+              Material Description
+            </Text>
+            <Text
+              style={[styles.tableLabel, { borderRight: "1px solid black" }]}
+            >
+              Quantity
+            </Text>
+            <Text
+              style={[styles.tableLabel, { borderRight: "1px solid black" }]}
+            >
+              Price Per Unit
+            </Text>
+            <Text style={styles.tableLabel}>Amount</Text>
+          </View>
+        )}
         {data.materials &&
           data.materials.map((material, index) => (
             <View style={styles.tableRow} key={index}>

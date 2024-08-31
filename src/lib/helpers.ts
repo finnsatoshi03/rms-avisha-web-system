@@ -125,6 +125,9 @@ export function calculateMetrics(
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 6);
 
+    // Set the end of week to 23:59:59 to include the entire last day of the week
+    endOfWeek.setHours(23, 59, 59, 999);
+
     if (
       dateRange &&
       (endOfWeek < dateRange.from! || startOfWeek > dateRange.to!)
