@@ -34,6 +34,13 @@ export function calculateMetrics(
   expenses: Expenses[] = [],
   dateRange?: DateRange
 ) {
+  const isWithinDateRange = (date: Date, range: DateRange): boolean => {
+    if (!range.from || !range.to) {
+      return false;
+    }
+    return date >= range.from && date <= range.to;
+  };
+
   const completedOrders = orders.filter(
     (order) => order.status === "Completed"
   );
@@ -87,7 +94,13 @@ export function calculateMetrics(
       0
     );
 
-  const totalExpenses = expenses.reduce(
+  const filteredExpenses = dateRange
+    ? expenses.filter((expense) =>
+        isWithinDateRange(new Date(expense.created_at), dateRange)
+      )
+    : expenses;
+
+  const totalExpenses = filteredExpenses.reduce(
     (sum, expense) => sum + (expense.amount ?? 0),
     0
   );
@@ -259,6 +272,7 @@ export function calculateMetrics(
 
     const monthlyExpenses = allExpenses.filter((expense) => {
       const expenseDate = new Date(expense.created_at);
+
       return (
         expenseDate.getMonth() + 1 === month &&
         expenseDate.getFullYear() === year
