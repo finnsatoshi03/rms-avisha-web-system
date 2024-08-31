@@ -153,10 +153,25 @@ export function calculateMetrics(
     );
 
     const weeklyGross =
-      weeklyCompletedOrders.reduce(
-        (sum, order) => sum + (order.grand_total ?? 0),
-        0
-      ) +
+      weeklyCompletedOrders.reduce((sum, order) => {
+        let adjustedGrandTotal = order.grand_total ?? 0;
+
+        if (order.materials) {
+          const usedMaterialsTotal = order.materials.reduce(
+            (total, material) => {
+              if (material.used) {
+                return total + material.quantity * material.unit_price;
+              }
+              return total;
+            },
+            0
+          );
+
+          adjustedGrandTotal -= usedMaterialsTotal;
+        }
+
+        return sum + adjustedGrandTotal;
+      }, 0) +
       weeklyOrdersWithDownpayment.reduce(
         (sum, order) => sum + (order.downpayment ?? 0),
         0
@@ -251,10 +266,25 @@ export function calculateMetrics(
     });
 
     const monthlyGross =
-      monthlyCompletedOrders.reduce(
-        (sum, order) => sum + (order.grand_total ?? 0),
-        0
-      ) +
+      monthlyCompletedOrders.reduce((sum, order) => {
+        let adjustedGrandTotal = order.grand_total ?? 0;
+
+        if (order.materials) {
+          const usedMaterialsTotal = order.materials.reduce(
+            (total, material) => {
+              if (material.used) {
+                return total + material.quantity * material.unit_price;
+              }
+              return total;
+            },
+            0
+          );
+
+          adjustedGrandTotal -= usedMaterialsTotal;
+        }
+
+        return sum + adjustedGrandTotal;
+      }, 0) +
       monthlyOrdersWithDownpayment.reduce(
         (sum, order) => sum + (order.downpayment ?? 0),
         0
