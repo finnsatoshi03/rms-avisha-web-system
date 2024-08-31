@@ -34,6 +34,13 @@ export function calculateMetrics(
   expenses: Expenses[] = [],
   dateRange?: DateRange
 ) {
+  const isWithinDateRange = (date: Date, range: DateRange): boolean => {
+    if (!range.from || !range.to) {
+      return false;
+    }
+    return date >= range.from && date <= range.to;
+  };
+
   const completedOrders = orders.filter(
     (order) => order.status === "Completed"
   );
@@ -87,7 +94,13 @@ export function calculateMetrics(
       0
     );
 
-  const totalExpenses = expenses.reduce(
+  const filteredExpenses = dateRange
+    ? expenses.filter((expense) =>
+        isWithinDateRange(new Date(expense.created_at), dateRange)
+      )
+    : expenses;
+
+  const totalExpenses = filteredExpenses.reduce(
     (sum, expense) => sum + (expense.amount ?? 0),
     0
   );
@@ -125,6 +138,9 @@ export function calculateMetrics(
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 6);
 
+    // Set the end of week to 23:59:59 to include the entire last day of the week
+    endOfWeek.setHours(23, 59, 59, 999);
+
     if (
       dateRange &&
       (endOfWeek < dateRange.from! || startOfWeek > dateRange.to!)
@@ -150,10 +166,25 @@ export function calculateMetrics(
     );
 
     const weeklyGross =
-      weeklyCompletedOrders.reduce(
-        (sum, order) => sum + (order.grand_total ?? 0),
-        0
-      ) +
+      weeklyCompletedOrders.reduce((sum, order) => {
+        let adjustedGrandTotal = order.grand_total ?? 0;
+
+        if (order.materials) {
+          const usedMaterialsTotal = order.materials.reduce(
+            (total, material) => {
+              if (material.used) {
+                return total + material.quantity * material.unit_price;
+              }
+              return total;
+            },
+            0
+          );
+
+          adjustedGrandTotal -= usedMaterialsTotal;
+        }
+
+        return sum + adjustedGrandTotal;
+      }, 0) +
       weeklyOrdersWithDownpayment.reduce(
         (sum, order) => sum + (order.downpayment ?? 0),
         0
@@ -241,6 +272,7 @@ export function calculateMetrics(
 
     const monthlyExpenses = allExpenses.filter((expense) => {
       const expenseDate = new Date(expense.created_at);
+
       return (
         expenseDate.getMonth() + 1 === month &&
         expenseDate.getFullYear() === year
@@ -248,10 +280,25 @@ export function calculateMetrics(
     });
 
     const monthlyGross =
-      monthlyCompletedOrders.reduce(
-        (sum, order) => sum + (order.grand_total ?? 0),
-        0
-      ) +
+      monthlyCompletedOrders.reduce((sum, order) => {
+        let adjustedGrandTotal = order.grand_total ?? 0;
+
+        if (order.materials) {
+          const usedMaterialsTotal = order.materials.reduce(
+            (total, material) => {
+              if (material.used) {
+                return total + material.quantity * material.unit_price;
+              }
+              return total;
+            },
+            0
+          );
+
+          adjustedGrandTotal -= usedMaterialsTotal;
+        }
+
+        return sum + adjustedGrandTotal;
+      }, 0) +
       monthlyOrdersWithDownpayment.reduce(
         (sum, order) => sum + (order.downpayment ?? 0),
         0

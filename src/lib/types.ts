@@ -230,6 +230,7 @@ export type CreateJobOrderData = {
   branch_id: number;
   brand_model: string;
   contact_number: string;
+  completed_at?: string | Date;
   date: string | Date;
   discount?: number;
   email?: string;

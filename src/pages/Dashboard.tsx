@@ -212,6 +212,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (job_orders && job_orders.length > 0) {
+      // Filter job orders by date range
       const filteredOrders = job_orders.filter((order: JobOrderData) => {
         const orderDate =
           order.status === "Completed"
@@ -228,7 +229,21 @@ export default function Dashboard() {
         );
       });
 
-      const metrics = calculateMetrics(filteredOrders, expenses, dateRange);
+      // Filter expenses by date range
+      const filteredExpenses = expenses?.filter((expense) => {
+        const expenseDate = new Date(expense.created_at);
+        return (
+          (!dateRange?.from || expenseDate >= dateRange.from) &&
+          (!dateRange?.to || expenseDate <= dateRange.to)
+        );
+      });
+
+      // Calculate metrics based on filtered data
+      const metrics = calculateMetrics(
+        filteredOrders,
+        filteredExpenses,
+        dateRange
+      );
 
       // Create the formatted data for gross and net
       const formattedGrossAndNetData = metrics.monthlyMetrics.gross.map(
