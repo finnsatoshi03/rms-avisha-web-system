@@ -186,69 +186,54 @@ async function upsertMaterials(
   materials: CreateJobOrderData["materials"],
   jobOrderId: number
 ) {
-  // Step 1: Delete all existing materials for the job order
-  const { error: deleteError } = await supabase
+  // Step 1: Fetch current materials for the job order
+  const { data: existingMaterials, error: fetchExistingError } = await supabase
     .from("materials")
-    .delete()
+    .select("material_id, quantity")
     .eq("job_order_id", jobOrderId);
 
-  if (deleteError) {
-    console.log(deleteError);
-    throw new Error("Could not delete existing materials");
+  if (fetchExistingError) {
+    console.log(fetchExistingError);
+    throw new Error("Could not fetch existing materials");
   }
 
-  // Step 2: Prepare materials for insert
-  const materialsToInsert = materials?.map((material) => ({
-    used: material.used,
-    material_id: material.material_id,
-    material_description: material.material,
-    quantity: material.quantity,
-    unit_price: material.unitPrice,
-    total_amount: (material.quantity ?? 0) * (material.unitPrice ?? 0),
-    job_order_id: jobOrderId,
-  }));
+  // Step 2: Create a map of existing materials for easy lookup
+  const existingMaterialsMap = (existingMaterials || []).reduce(
+    (acc, material) => {
+      acc[material.material_id] = material.quantity;
+      return acc;
+    },
+    {} as { [key: number]: number }
+  );
 
-  // Step 3: Insert all materials
-  if (materialsToInsert && materialsToInsert.length > 0) {
-    const { error: insertError } = await supabase
-      .from("materials")
-      .insert(materialsToInsert);
+  // Step 3: Determine materials to delete
+  const updatedMaterialIds = new Set(materials?.map((m) => m.material_id));
+  const materialsToDelete = (existingMaterials || []).filter(
+    (material) => !updatedMaterialIds.has(material.material_id)
+  );
 
-    if (insertError) {
-      console.log(insertError);
-      throw new Error("Materials could not be inserted");
-    }
-  }
+  // Step 4: Delete materials that are no longer associated with the job order
+  for (const material of materialsToDelete) {
+    // Restore stock levels before deleting the material
+    const { data: materialStock, error: fetchStockError } = await supabase
+      .from("material_stocks")
+      .select("stocks")
+      .eq("id", material.material_id)
+      .single();
 
-  // Step 4: Update stock levels
-  const materialIds = materials?.map((material) => material.material_id);
-  const { data: materialStocks, error: fetchStocksError } = await supabase
-    .from("material_stocks")
-    .select("id, stocks")
-    .in("id", materialIds!);
-
-  if (fetchStocksError) {
-    console.log(fetchStocksError);
-    throw new Error("Could not fetch material stocks");
-  }
-
-  const materialStocksMap = materialStocks.reduce((acc, stock) => {
-    acc[stock.id] = stock.stocks;
-    return acc;
-  }, {} as { [key: number]: number });
-
-  for (const material of materials!) {
-    const newQuantity =
-      materialStocksMap[material.material_id!] - (material.quantity ?? 0);
-    if (newQuantity < 0) {
+    if (fetchStockError || !materialStock) {
+      console.log(fetchStockError);
       throw new Error(
-        `Not enough stock for material ID ${material.material_id}`
+        `Could not fetch stock for material ID ${material.material_id}`
       );
     }
 
+    // Update stock to add back the quantity of the deleted material
+    const updatedStock = materialStock.stocks + material.quantity;
+
     const { error: updateStockError } = await supabase
       .from("material_stocks")
-      .update({ stocks: newQuantity })
+      .update({ stocks: updatedStock })
       .eq("id", material.material_id);
 
     if (updateStockError) {
@@ -257,9 +242,111 @@ async function upsertMaterials(
         `Stock for material ID ${material.material_id} could not be updated`
       );
     }
+
+    // Delete the material from the materials table
+    const { error: deleteMaterialError } = await supabase
+      .from("materials")
+      .delete()
+      .eq("job_order_id", jobOrderId)
+      .eq("material_id", material.material_id);
+
+    if (deleteMaterialError) {
+      console.log(deleteMaterialError);
+      throw new Error(
+        `Material with ID ${material.material_id} could not be deleted`
+      );
+    }
   }
 
-  return materialsToInsert;
+  // Step 5: Update stock levels and upsert remaining materials
+  for (const material of materials!) {
+    let existingQuantity = existingMaterialsMap[material.material_id!] || 0;
+    const newQuantity = material.quantity ?? 0;
+    const quantityChange = newQuantity - existingQuantity;
+
+    if (quantityChange !== 0) {
+      // Fetch the current stock level for the material
+      const { data: materialStock, error: fetchStockError } = await supabase
+        .from("material_stocks")
+        .select("stocks")
+        .eq("id", material.material_id)
+        .single();
+
+      if (fetchStockError || !materialStock) {
+        console.log(fetchStockError);
+        throw new Error(
+          `Could not fetch stock for material ID ${material.material_id}`
+        );
+      }
+
+      // Calculate the new stock level
+      const updatedStock = materialStock.stocks - quantityChange;
+      if (updatedStock < 0) {
+        throw new Error(
+          `Not enough stock for material ID ${material.material_id}`
+        );
+      }
+
+      // Update the stock level
+      const { error: updateStockError } = await supabase
+        .from("material_stocks")
+        .update({ stocks: updatedStock })
+        .eq("id", material.material_id);
+
+      if (updateStockError) {
+        console.log(updateStockError);
+        throw new Error(
+          `Stock for material ID ${material.material_id} could not be updated`
+        );
+      }
+    }
+
+    // Update existing material or insert new material
+    existingQuantity = existingMaterialsMap[material.material_id!];
+    if (existingQuantity !== undefined) {
+      // Update existing material
+      const { error: updateError } = await supabase
+        .from("materials")
+        .update({
+          quantity: material.quantity,
+          total_amount: (material.quantity ?? 0) * (material.unitPrice ?? 0),
+          used: material.used,
+          material_description: material.material,
+          unit_price: material.unitPrice,
+        })
+        .eq("job_order_id", jobOrderId)
+        .eq("material_id", material.material_id);
+
+      if (updateError) {
+        console.log(updateError);
+        throw new Error(
+          `Material with ID ${material.material_id} could not be updated`
+        );
+      }
+    } else {
+      // Insert new material
+      const { error: insertError } = await supabase.from("materials").insert([
+        {
+          job_order_id: jobOrderId,
+          material_id: material.material_id,
+          material_description: material.material,
+          quantity: material.quantity,
+          unit_price: material.unitPrice,
+          total_amount: (material.quantity ?? 0) * (material.unitPrice ?? 0),
+          used: material.used,
+        },
+      ]);
+
+      if (insertError) {
+        console.log(insertError);
+        throw new Error(
+          `Material with ID ${material.material_id} could not be inserted`
+        );
+      }
+    }
+  }
+
+  return materials; // return the updated materials data
 }
 
 export async function createEditJobOrder(
