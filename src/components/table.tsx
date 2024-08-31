@@ -392,6 +392,7 @@ export default function Table({
       branch_id: currentOrder.branch_id ?? 0,
       brand_model: currentOrder.brand_model || "",
       contact_number: currentOrder.clients?.contact_number || "",
+      completed_at: currentOrder.completed_at || "",
       date: currentOrder.created_at
         ? new Date(currentOrder.created_at)
         : new Date(),

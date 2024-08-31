@@ -182,7 +182,7 @@ function Content({ data }: { data: CreateJobOrderData }) {
           </Text>
           <Text style={styles.tableCol17}>{data.labor_total}</Text>
         </View>
-        {data.materials && (
+        {data.materials && data.materials?.length > 0 && (
           <View style={styles.tableRow}>
             <Text
               style={[
@@ -400,6 +400,114 @@ function Content({ data }: { data: CreateJobOrderData }) {
             Date released
           </Text>
         </View>
+        <View style={{ borderBottom: "1px dashed black", height: 15 }}></View>
+        <View style={[styles.tableRow, { height: 15 }]}></View>
+        <View style={[styles.warrantyHeader, styles.tableRow]}>
+          <Image style={{ width: 100 }} src="./RMS-Logo.png" />
+          <View style={{ fontSize: 9 }}>
+            <Text>
+              {data.branch_id === 1
+                ? "EVERLASTING BLDG, 172"
+                : "ACM BUILDING ORTIGAS AVE., BRGY"}
+            </Text>
+            <Text>
+              {data.branch_id === 1
+                ? "Rizal Ave, Taytay, 1920 Rizal"
+                : "STA LUCIA DE CASTRO PASIG CITY"}
+            </Text>
+            <Text style={{ color: "#f12924" }}>
+              Call {data.branch_id === 1 ? "(02) 8983-3684" : "(02) 8254-9823"}{" "}
+              Text{" "}
+              {data.branch_id === 1 ? "(09)43-606-4129" : "(09)94-880-8918"}
+            </Text>
+            <Text style={{ color: "#f12924" }}>
+              CUSTOMER SERVICE:{" "}
+              {data.branch_id === 1 ? "(02) 8254-4828" : "(02) 8254-9823"}
+            </Text>
+          </View>
+        </View>
+        <Text style={[styles.tableHeader, { borderBottom: "1px solid black" }]}>
+          WARRANTY SLIP
+        </Text>
+        <View style={styles.tableRow}>
+          <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
+            Client Name
+          </Text>
+          <Text
+            style={[styles.tableClientInfo, { borderRight: "1px solid black" }]}
+          >
+            {data.name}
+          </Text>
+          <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
+            Order No.
+          </Text>
+          <Text
+            style={[
+              styles.tableClientInfo,
+              { color: "#f12924", fontStyle: "bold" },
+            ]}
+          >
+            {data.order_no}
+          </Text>
+        </View>
+        <View style={styles.tableRow}>
+          <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
+            Brand Model
+          </Text>
+          <Text
+            style={[styles.tableClientInfo, { borderRight: "1px solid black" }]}
+          >
+            {data.brand_model}
+          </Text>
+          <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
+            Date Received
+          </Text>
+          <Text style={[styles.tableClientInfo]}>
+            {new Date(data.date).toLocaleDateString("en-US", {
+              weekday: "short", // "Wed"
+              year: "numeric", // "2024"
+              month: "short", // "Jul"
+              day: "numeric", // "10"
+            })}
+          </Text>
+        </View>
+        <View style={styles.tableRow}>
+          <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
+            Serial Number
+          </Text>
+          <Text
+            style={[styles.tableClientInfo, { borderRight: "1px solid black" }]}
+          >
+            {data.serial_number || "---"}
+          </Text>
+          <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
+            Date Released
+          </Text>
+          <Text style={[styles.tableClientInfo]}>
+            {data.completed_at
+              ? new Date(data.completed_at).toLocaleDateString("en-US", {
+                  weekday: "short", // "Wed"
+                  year: "numeric", // "2024"
+                  month: "short", // "Jul"
+                  day: "numeric", // "10"
+                })
+              : "---"}
+          </Text>
+        </View>
+        <View style={styles.tableRow}>
+          <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
+            Total Amount
+          </Text>
+          <Text
+            style={[styles.tableClientInfo, { borderRight: "1px solid black" }]}
+          >
+            {data.grand_total}
+          </Text>
+          <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
+            Signature
+          </Text>
+          <Text style={[styles.tableClientInfo]}></Text>
+        </View>
       </View>
     </>
   );
@@ -457,11 +565,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 5,
   },
+  warrantyHeader: {
+    width: "100%",
+    display: "flex",
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 5,
+  },
   headerLogo: {
-    width: 170,
+    width: 150,
   },
   headerText: {
-    fontSize: 13,
+    fontSize: 12,
   },
   tableContainer: {
     marginTop: 10,
@@ -485,28 +602,32 @@ const styles = StyleSheet.create({
     borderBottom: "1px solid black",
   },
   tableLabel: {
-    padding: 5,
+    padding: 2,
     fontWeight: 600,
-    fontSize: 8,
+    fontSize: 7,
     width: "16.66%",
     textTransform: "uppercase",
     fontFamily: "Montserrat-Bold",
   },
   tableCol17: {
-    padding: 5,
+    fontSize: 9,
+    padding: 2,
     width: "16.66%",
   },
   tableCol49: {
-    padding: 5,
+    fontSize: 9,
+    padding: 2,
     width: "49.98%",
   },
   tabelCol66: {
-    padding: 5,
+    fontSize: 9,
+    padding: 2,
     width: "66.64%",
   },
   tableClientInfo: {
+    fontSize: 9,
     width: "33.32%",
-    padding: 5,
+    padding: 2,
   },
   footer: {
     width: "100%",
