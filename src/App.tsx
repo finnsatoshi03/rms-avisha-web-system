@@ -21,6 +21,7 @@ import TechnicianDetailPage from "./pages/TechnicianDetailPage";
 import Account from "./pages/Account";
 import Materials from "./pages/Materials";
 import Expenses from "./pages/Expenses";
+import DateError from "./pages/DateError";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,6 +59,7 @@ export default function App() {
               element={<TechnicianDetailPage />}
             />
             <Route path="account" element={<Account />} />
+            <Route path="date-error" element={<DateError />} />
           </Route>
 
           <Route path="login" element={<Login />} />

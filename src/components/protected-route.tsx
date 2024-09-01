@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useUser } from "./auth/useUser";
 import Loader from "./ui/loader";
+import { useSystemDateCheck } from "../hooks/useSystemDateCheck";
+import DateError from "../pages/DateError";
 
 export default function ProtectedRoute({
   children,
@@ -11,9 +13,10 @@ export default function ProtectedRoute({
   const navigate = useNavigate();
   const location = useLocation();
   const { isUser, isPasig, isTaytay, isAdmin, isLoading } = useUser();
+  const isDateCorrect = useSystemDateCheck();
 
   useEffect(() => {
-    if (isLoading) return; // Don't do anything if we're still loading
+    if (isLoading || !isDateCorrect) return; // Don't proceed if still loading or date is incorrect
 
     // Redirect to login if no valid role is found
     if (!isUser && !isAdmin && !isTaytay && !isPasig) {
@@ -25,9 +28,25 @@ export default function ProtectedRoute({
         navigate("/job-orders");
       }
     }
-  }, [isUser, isAdmin, isTaytay, isPasig, isLoading, navigate, location]);
+  }, [
+    isUser,
+    isAdmin,
+    isTaytay,
+    isPasig,
+    isLoading,
+    isDateCorrect,
+    navigate,
+    location,
+  ]);
 
-  // Show loading indicator while user data is being fetched
+  if (!isDateCorrect) {
+    return (
+      <div>
+        <DateError />
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center">
@@ -36,6 +55,6 @@ export default function ProtectedRoute({
     );
   }
 
-  // Allow access to children components if authenticated or have specific roles
+  // Allow access to children components if authenticated and date is correct
   return isUser || isAdmin || isPasig || isTaytay ? children : null;
 }
