@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { TechnicianWithJobOrders, JobOrderData } from "../../lib/types";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import CurrentJobOrderCard from "./current-job-order-card";
+import RevenueBreakdown from "./revenue-breakdown";
 import JobOrdersList from "./job-order-list";
+import TechnicianPerformanceAnalytics from "./heatmap-chart";
 
 export default function TechnicianDashboard({
   technician,
@@ -13,6 +15,9 @@ export default function TechnicianDashboard({
   const [currentJobOrder, setCurrentJobOrder] = useState<JobOrderData | null>(
     recentJobOrder
   );
+  const [selectedYear, setSelectedYear] = useState<number>(
+    new Date().getFullYear()
+  );
   const jobOrders = technician.joborders || [];
 
   const handleJobOrderClick = (jobOrder: JobOrderData) => {
@@ -20,6 +25,52 @@ export default function TechnicianDashboard({
   };
 
   const isRecent = currentJobOrder?.id === recentJobOrder?.id;
+
+  const completedOrders = useMemo(
+    () =>
+      technician?.joborders
+        .filter((job: JobOrderData) => job.status.toLowerCase() === "completed")
+        .map((job: JobOrderData) => ({
+          ...job,
+          users: technician,
+        })),
+    [technician]
+  );
+
+  const totalRevenue =
+    technician?.joborders
+      .filter((job: JobOrderData) => job.status === "Completed")
+      .reduce(
+        (acc: number, job: JobOrderData) => acc + Number(job.grand_total),
+        0
+      ) || 0;
+
+  const monthlyRevenue = useMemo(() => {
+    const months = Array(12).fill(0); // Initialize an array for 12 months with 0
+    technician?.joborders.forEach((job: JobOrderData) => {
+      if (job.status === "Completed") {
+        const jobDate = new Date(job.completed_at || job.created_at);
+        const monthIndex = jobDate.getMonth(); // Get month (0-11)
+        months[monthIndex] += Number(job.grand_total); // Accumulate revenue for the month
+      }
+    });
+    return months;
+  }, [technician]);
+
+  // Extract unique years from job orders for heatmap component
+  const uniqueYears = useMemo(
+    () =>
+      technician?.joborders
+        ? Array.from(
+            new Set(
+              technician.joborders.map((job: JobOrderData) =>
+                new Date(job.created_at).getFullYear()
+              )
+            )
+          )
+        : [],
+    [technician?.joborders]
+  );
 
   return (
     <>
@@ -39,7 +90,7 @@ export default function TechnicianDashboard({
           <p className="text-xs">Welcome back to RMS Avisha Enterprises 👋</p>
         </div>
       </div>
-      <div className="grid grid-cols-3 grid-rows-2 gap-4 mt-4">
+      <div className="grid xl:grid-cols-3 md:grid-cols-2 grid-cols-1 grid-rows-[auto_auto] gap-4 mt-4">
         {currentJobOrder && (
           <div className="flex flex-col">
             <CurrentJobOrderCard
@@ -49,7 +100,7 @@ export default function TechnicianDashboard({
             />
           </div>
         )}
-        {jobOrders.length > 0 && (
+        {jobOrders && jobOrders.length > 0 && (
           <div className="flex flex-col">
             <JobOrdersList
               jobOrders={jobOrders}
@@ -57,6 +108,22 @@ export default function TechnicianDashboard({
             />
           </div>
         )}
+        <div className="md:row-span-2 xl:col-span-1 md:col-span-2 col-span-1">
+          <RevenueBreakdown
+            totalRevenue={totalRevenue}
+            completedOrders={completedOrders}
+            monthlyRevenue={monthlyRevenue}
+          />
+        </div>
+        <div className="md:col-span-2 md:block hidden">
+          <TechnicianPerformanceAnalytics
+            completedOrders={completedOrders}
+            selectedYear={selectedYear}
+            setSelectedYear={setSelectedYear}
+            uniqueYears={uniqueYears as number[]}
+            techPage
+          />
+        </div>
       </div>
     </>
   );
