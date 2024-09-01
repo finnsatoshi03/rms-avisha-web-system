@@ -1,4 +1,5 @@
-import { TechnicianWithJobOrders } from "../../lib/types";
+import { useState } from "react";
+import { TechnicianWithJobOrders, JobOrderData } from "../../lib/types";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import CurrentJobOrderCard from "./current-job-order-card";
 import JobOrdersList from "./job-order-list";
@@ -9,7 +10,16 @@ export default function TechnicianDashboard({
   technician: TechnicianWithJobOrders;
 }) {
   const recentJobOrder = getRecentJobOrder(technician);
+  const [currentJobOrder, setCurrentJobOrder] = useState<JobOrderData | null>(
+    recentJobOrder
+  );
   const jobOrders = technician.joborders || [];
+
+  const handleJobOrderClick = (jobOrder: JobOrderData) => {
+    setCurrentJobOrder(jobOrder);
+  };
+
+  const isRecent = currentJobOrder?.id === recentJobOrder?.id;
 
   return (
     <>
@@ -29,18 +39,22 @@ export default function TechnicianDashboard({
           <p className="text-xs">Welcome back to RMS Avisha Enterprises 👋</p>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-4 mt-4">
-        {recentJobOrder && (
+      <div className="grid grid-cols-3 grid-rows-2 gap-4 mt-4">
+        {currentJobOrder && (
           <div className="flex flex-col">
             <CurrentJobOrderCard
-              jobOrder={recentJobOrder}
+              jobOrder={currentJobOrder}
               technician={technician}
+              isRecent={isRecent}
             />
           </div>
         )}
         {jobOrders.length > 0 && (
           <div className="flex flex-col">
-            <JobOrdersList jobOrders={jobOrders} />
+            <JobOrdersList
+              jobOrders={jobOrders}
+              onJobOrderClick={handleJobOrderClick}
+            />
           </div>
         )}
       </div>

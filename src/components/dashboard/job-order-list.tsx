@@ -6,9 +6,13 @@ import { getStatusIconAndClass } from "../utils";
 
 interface JobOrdersListProps {
   jobOrders: JobOrderData[];
+  onJobOrderClick: (jobOrder: JobOrderData) => void;
 }
 
-export default function JobOrdersList({ jobOrders }: JobOrdersListProps) {
+export default function JobOrdersList({
+  jobOrders,
+  onJobOrderClick,
+}: JobOrdersListProps) {
   return (
     <div className="border border-gray-300 rounded-lg px-4 py-3 flex flex-col h-[20.6rem]">
       <h2 className="text-sm font-bold flex items-center gap-2">
@@ -20,7 +24,8 @@ export default function JobOrdersList({ jobOrders }: JobOrdersListProps) {
         {jobOrders.map((jobOrder, index) => (
           <div
             key={jobOrder.id}
-            className={`grid grid-cols-[auto_1fr] justify-between pb-2 border-b border-gray-300 mr-2 ${
+            onClick={() => onJobOrderClick(jobOrder)}
+            className={`grid grid-cols-[auto_1fr] justify-between pb-2 border-b border-gray-300 cursor-pointer mr-2 ${
               index !== 0 ? "mt-2" : ""
             }`}
           >

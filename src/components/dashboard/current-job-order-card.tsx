@@ -13,16 +13,19 @@ const formatName = (name: string): string => {
 interface CurrentJobOrderCardProps {
   jobOrder: JobOrderData;
   technician: User;
+  isRecent: boolean;
 }
 
 export default function CurrentJobOrderCard({
   jobOrder,
   technician,
+  isRecent,
 }: CurrentJobOrderCardProps) {
   return (
     <div className="border border-gray-300 rounded-lg px-4 py-3 flex flex-col">
       <h2 className="text-sm font-bold flex items-center gap-2">
-        <Zap size={14} /> Recent Job Order
+        <Zap size={14} />{" "}
+        {isRecent ? "Recent Job Order" : `Job Order ${jobOrder?.order_no}`}
       </h2>
       <Separator className="my-3" />
       <h3 className="text-xs opacity-60 font-bold">Order Number</h3>
