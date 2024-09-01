@@ -1,23 +1,10 @@
-import {
-  AlertCircle,
-  Calendar,
-  CheckCircle,
-  Clock,
-  Package,
-  Truck,
-  Wrench,
-  XCircle,
-  Zap,
-} from "lucide-react";
-import { TechnicianWithJobOrders } from "../../lib/types";
+import { useMemo, useState } from "react";
+import { TechnicianWithJobOrders, JobOrderData } from "../../lib/types";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { Separator } from "../ui/separator";
-import { formatTimeAgo, getStatusClass } from "../../lib/helpers";
-
-const formatName = (name: string): string => {
-  const [firstName, lastName] = name.split(" ");
-  return `${firstName} ${lastName ? lastName[0].toUpperCase() + "." : ""}`;
-};
+import CurrentJobOrderCard from "./current-job-order-card";
+import RevenueBreakdown from "./revenue-breakdown";
+import JobOrdersList from "./job-order-list";
+import TechnicianPerformanceAnalytics from "./heatmap-chart";
 
 export default function TechnicianDashboard({
   technician,
@@ -25,6 +12,65 @@ export default function TechnicianDashboard({
   technician: TechnicianWithJobOrders;
 }) {
   const recentJobOrder = getRecentJobOrder(technician);
+  const [currentJobOrder, setCurrentJobOrder] = useState<JobOrderData | null>(
+    recentJobOrder
+  );
+  const [selectedYear, setSelectedYear] = useState<number>(
+    new Date().getFullYear()
+  );
+  const jobOrders = technician.joborders || [];
+
+  const handleJobOrderClick = (jobOrder: JobOrderData) => {
+    setCurrentJobOrder(jobOrder);
+  };
+
+  const isRecent = currentJobOrder?.id === recentJobOrder?.id;
+
+  const completedOrders = useMemo(
+    () =>
+      technician?.joborders
+        .filter((job: JobOrderData) => job.status.toLowerCase() === "completed")
+        .map((job: JobOrderData) => ({
+          ...job,
+          users: technician,
+        })),
+    [technician]
+  );
+
+  const totalRevenue =
+    technician?.joborders
+      .filter((job: JobOrderData) => job.status === "Completed")
+      .reduce(
+        (acc: number, job: JobOrderData) => acc + Number(job.grand_total),
+        0
+      ) || 0;
+
+  const monthlyRevenue = useMemo(() => {
+    const months = Array(12).fill(0); // Initialize an array for 12 months with 0
+    technician?.joborders.forEach((job: JobOrderData) => {
+      if (job.status === "Completed") {
+        const jobDate = new Date(job.completed_at || job.created_at);
+        const monthIndex = jobDate.getMonth(); // Get month (0-11)
+        months[monthIndex] += Number(job.grand_total); // Accumulate revenue for the month
+      }
+    });
+    return months;
+  }, [technician]);
+
+  // Extract unique years from job orders for heatmap component
+  const uniqueYears = useMemo(
+    () =>
+      technician?.joborders
+        ? Array.from(
+            new Set(
+              technician.joborders.map((job: JobOrderData) =>
+                new Date(job.created_at).getFullYear()
+              )
+            )
+          )
+        : [],
+    [technician?.joborders]
+  );
 
   return (
     <>
@@ -44,89 +90,40 @@ export default function TechnicianDashboard({
           <p className="text-xs">Welcome back to RMS Avisha Enterprises 👋</p>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-4 mt-4">
-        {recentJobOrder && (
-          <div className="border rounded-lg px-4 py-3 flex flex-col">
-            <h2 className="text-sm font-bold flex items-center gap-2">
-              <Zap size={14} /> Recent Job Order
-            </h2>
-            <Separator className="my-3" />
-            <h3 className="text-xs opacity-60 font-bold">Order Number</h3>
-            <div className="my-2 flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <img src="RMS-icon.png" className="size-3" />
-                <p className="text-sm font-semibold">
-                  {recentJobOrder?.order_no}
-                </p>
-              </div>
-              {recentJobOrder?.status && (
-                <p
-                  className={`cursor-pointer px-1 py-0.5 gap-0.5 rounded-full w-fit text-xs flex items-center font-bold ${getStatusClass(
-                    recentJobOrder.status
-                  )}`}
-                >
-                  {getStatusIconAndClass(recentJobOrder.status).icon}
-                  {recentJobOrder.status}
-                </p>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <h3 className="text-xs opacity-60 font-bold">Receiver</h3>
-                {recentJobOrder?.order_received_user ? (
-                  <div className="mt-1 flex gap-2 items-center">
-                    <Avatar className="size-6">
-                      <AvatarImage
-                        src={recentJobOrder?.order_received_user?.avatar || ""}
-                      />
-                      <AvatarFallback>
-                        {recentJobOrder?.order_received_user?.fullname
-                          ? recentJobOrder?.order_received_user?.fullname[0].toUpperCase()
-                          : recentJobOrder?.order_received_user?.email[0].toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <p className="text-sm">
-                      {recentJobOrder?.order_received_user?.fullname
-                        ? formatName(
-                            recentJobOrder.order_received_user.fullname
-                          )
-                        : recentJobOrder?.order_received_user?.email}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm">---</p>
-                )}
-              </div>
-              <div>
-                <h3 className="text-xs opacity-60 font-bold">Technician</h3>
-                <div className="mt-1 flex gap-2 items-center">
-                  <Avatar className="size-6">
-                    <AvatarImage src={technician.avatar || ""} />
-                    <AvatarFallback>
-                      {technician.fullname
-                        ? technician.fullname[0].toUpperCase()
-                        : technician.email[0].toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <p className="text-sm">
-                    {technician.fullname
-                      ? formatName(technician.fullname)
-                      : technician.email}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <h3 className="text-xs opacity-60 font-bold">Created At</h3>
-            <div className="my-2 flex items-center gap-2">
-              <Calendar size={14} />
-              <p className="text-sm font-semibold">
-                {recentJobOrder?.created_at
-                  ? formatTimeAgo(new Date(recentJobOrder.created_at))
-                  : ""}
-              </p>
-            </div>
+      <div className="grid xl:grid-cols-3 md:grid-cols-2 grid-cols-1 grid-rows-[auto_auto] gap-4 mt-4">
+        {currentJobOrder && (
+          <div className="flex flex-col">
+            <CurrentJobOrderCard
+              jobOrder={currentJobOrder}
+              technician={technician}
+              isRecent={isRecent}
+            />
           </div>
         )}
+        {jobOrders && jobOrders.length > 0 && (
+          <div className="flex flex-col">
+            <JobOrdersList
+              jobOrders={jobOrders}
+              onJobOrderClick={handleJobOrderClick}
+            />
+          </div>
+        )}
+        <div className="md:row-span-2 xl:col-span-1 md:col-span-2 col-span-1">
+          <RevenueBreakdown
+            totalRevenue={totalRevenue}
+            completedOrders={completedOrders}
+            monthlyRevenue={monthlyRevenue}
+          />
+        </div>
+        <div className="md:col-span-2 md:block hidden">
+          <TechnicianPerformanceAnalytics
+            completedOrders={completedOrders}
+            selectedYear={selectedYear}
+            setSelectedYear={setSelectedYear}
+            uniqueYears={uniqueYears as number[]}
+            techPage
+          />
+        </div>
       </div>
     </>
   );
@@ -146,36 +143,3 @@ function getRecentJobOrder(technician: TechnicianWithJobOrders) {
     return currentDate > mostRecentDate ? current : mostRecent;
   });
 }
-
-const getStatusIconAndClass = (status: string) => {
-  switch (status) {
-    case "Pending":
-      return {
-        icon: <Clock size={12} color="#5e4703" />,
-      };
-    case "For Approval":
-      return {
-        icon: <AlertCircle size={12} color="#5c3c00" />,
-      };
-    case "Repairing":
-      return {
-        icon: <Wrench size={12} color="#002144" />,
-      };
-    case "Waiting Parts":
-      return {
-        icon: <Package size={12} color="#490149" />,
-      };
-    case "Ready for Pickup":
-      return {
-        icon: <Truck size={12} color="#1c411d" />,
-      };
-    case "Completed":
-      return {
-        icon: <CheckCircle size={12} color="#414040" />,
-      };
-    default:
-      return {
-        icon: <XCircle size={12} color="#41120f" />,
-      };
-  }
-};
