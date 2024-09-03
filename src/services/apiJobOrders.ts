@@ -482,20 +482,62 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
       ? new Date(new Date().setDate(new Date().getDate() + 29))
       : null;
 
-  const completedAt = status.toLowerCase() === "completed" ? new Date() : null;
+  const completedAt =
+    status.toLowerCase() === "completed" || status.toLowerCase() === "pull out"
+      ? new Date()
+      : null;
 
-  const { data, error } = await supabase
-    .from("joborders")
-    .update({ status, warranty, completed_at: completedAt })
-    .in("id", ids)
-    .select();
+  if (status.toLowerCase() === "pull out") {
+    const { data: jobOrders, error: fetchError } = await supabase
+      .from("joborders")
+      .select("id, rate")
+      .in("id", ids);
 
-  if (error) {
-    console.log(error);
-    throw new Error("Job Order status could not be updated");
+    if (fetchError) {
+      console.error("Error fetching job orders:", fetchError);
+      throw new Error("Could not fetch job orders");
+    }
+
+    for (const jobOrder of jobOrders) {
+      let newRate = jobOrder.rate;
+      if (jobOrder.rate === 1500 || jobOrder.rate === "1500") {
+        newRate = 250;
+      } else if (jobOrder.rate === 2000 || jobOrder.rate === "2000") {
+        newRate = 500;
+      }
+
+      const { error: updateError } = await supabase
+        .from("joborders")
+        .update({
+          status,
+          warranty,
+          completed_at: completedAt,
+          rate: Number(newRate),
+          grand_total: Number(newRate),
+          net_sales: Number(newRate),
+        })
+        .eq("id", jobOrder.id);
+
+      if (updateError) {
+        console.error(`Error updating job order ${jobOrder.id}:`, updateError);
+        throw new Error(`Job Order ${jobOrder.id} could not be updated`);
+      }
+    }
+  } else {
+    const { error } = await supabase
+      .from("joborders")
+      .update({
+        status,
+        warranty,
+        completed_at: completedAt,
+      })
+      .in("id", ids);
+
+    if (error) {
+      console.error("Error updating job order status:", error);
+      throw new Error("Job Order status could not be updated");
+    }
   }
-
-  return data;
 }
 
 export async function deleteJobOrder(ids: number[]) {

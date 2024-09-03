@@ -94,6 +94,8 @@ export default function CollapsibleRows({
                           ? "text-purple-600"
                           : order.status === "Completed"
                           ? "text-green-600"
+                          : order.status === "Pull Out"
+                          ? "text-red-500"
                           : "text-red-600"
                       }`}
                     >

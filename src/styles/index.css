@@ -131,6 +131,10 @@ td:last-of-type {
   background-color: #8000803f;
   color: #490149;
 }
+.status-pull-out {
+  background-color: #ff57223f;
+  color: #b23c17;
+}
 
 @keyframes slideUp {
   from {

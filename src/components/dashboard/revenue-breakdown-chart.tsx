@@ -27,10 +27,7 @@ const PieChartComponent: React.FC<PieChartComponentProps> = ({
   const tooltipText =
     "Explore the revenue distribution across different machine types through this interactive pie chart. Each segment represents the percentage of total revenue generated from machine types like Laptops, Printers, etc., providing insights into the most profitable categories.";
 
-  // Filter out orders that are not "Completed"
-  const completedOrders = data.filter((order) => order.status === "Completed");
-
-  const aggregatedData = completedOrders.reduce(
+  const aggregatedData = data.reduce(
     (
       acc: Record<string, { name: string; value: number; orders: number }>,
       order
@@ -42,8 +39,23 @@ const PieChartComponent: React.FC<PieChartComponentProps> = ({
           orders: 0,
         };
       }
-      acc[order.machine_type].value += order.adjustedGrandTotal ?? 0;
-      acc[order.machine_type].orders += 1;
+
+      const revenue =
+        order.downpayment && order.downpayment > 0
+          ? order.downpayment
+          : order.adjustedGrandTotal ?? 0;
+
+      // Always add the revenue
+      acc[order.machine_type].value += revenue;
+
+      // Only increment the order count if the status is "Completed" or "pull out"
+      if (
+        order.status.toLowerCase() === "completed" ||
+        order.status.toLowerCase() === "pull out"
+      ) {
+        acc[order.machine_type].orders += 1;
+      }
+
       return acc;
     },
     {}
