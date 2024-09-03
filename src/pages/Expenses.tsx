@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useExpenses } from "../components/expenses/useExpenses";
 
 import { Plus, Search, X } from "lucide-react";
@@ -26,9 +26,28 @@ import {
 import ExpensesForm from "../components/expenses/expenses-form";
 import TotalExpense from "../components/expenses/total-expenses-card";
 import { ExpensesStatistics } from "../components/expenses/expenses-statistics";
+import { useUser } from "../components/auth/useUser";
 
 export default function Expenses() {
-  const { expenses, isLoading } = useExpenses();
+  const { expenses: expenseData, isLoading } = useExpenses();
+  const { isAdmin, isTaytay, isPasig } = useUser();
+
+  const expenses: ExpensesType[] = useMemo(() => {
+    if (!expenseData) return [];
+
+    let branchId: number;
+    if (isTaytay) {
+      branchId = 1;
+    } else if (isPasig) {
+      branchId = 2;
+    } else if (isAdmin) {
+      // Admin sees all branches, no filtering needed
+      return expenses;
+    }
+
+    // Filter based on branch_id for Taytay and Pasig
+    return expenseData?.filter((expense) => expense.branch_id === branchId);
+  }, [expenseData, isTaytay, isPasig, isAdmin]);
 
   const defaultToDate = endOfMonth(new Date());
 
@@ -59,6 +78,7 @@ export default function Expenses() {
   >(null);
 
   const [openModal, setOpenModal] = useState(false);
+
   const uniqueBills = new Set(
     filteredData.map((expense) => expense.bill_name.toLowerCase())
   ).size;

@@ -9,6 +9,7 @@ export async function getExpenses() {
     throw new Error(error.message);
   }
 
+  console.log(expenses);
   return expenses;
 }
 

@@ -8,6 +8,7 @@ import {
   JobOrderData,
   Metrics,
   OverviewData,
+  Expenses as ExpensesType,
 } from "../lib/types";
 import {
   calculateMetrics,
@@ -77,7 +78,22 @@ export default function Dashboard() {
     return technicians.find((tech) => tech.id === user.id);
   }, [technicians, user]);
 
-  const { expenses, isLoading: isExpensesLoading } = useExpenses();
+  const { expenses: expenseData, isLoading: isExpensesLoading } = useExpenses();
+  const expenses: ExpensesType[] = useMemo(() => {
+    if (!expenseData) return [];
+
+    let branchId: number;
+    if (isTaytay) {
+      branchId = 1;
+    } else if (isPasig) {
+      branchId = 2;
+    } else {
+      return expenses;
+    }
+
+    // Filter based on branch_id for Taytay and Pasig
+    return expenseData?.filter((expense) => expense.branch_id === branchId);
+  }, [expenseData, isTaytay, isPasig]);
 
   const [reportsData, setReportsData] = useState<OverviewData[]>([]);
   const [overviewData, setOverviewData] = useState<OverviewData[]>([]);
