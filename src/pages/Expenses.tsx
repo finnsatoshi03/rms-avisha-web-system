@@ -42,7 +42,7 @@ export default function Expenses() {
       branchId = 2;
     } else if (isAdmin) {
       // Admin sees all branches, no filtering needed
-      return expenses;
+      return expenseData;
     }
 
     // Filter based on branch_id for Taytay and Pasig

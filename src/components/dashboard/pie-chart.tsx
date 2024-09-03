@@ -63,7 +63,8 @@ export default function RevenuePerTechnicianPieChart({
       const technicianName = order.users.fullname || order.users.email;
 
       const revenueAmount =
-        order.status === "Completed"
+        order.status === "Completed" ||
+        order.status.toLowerCase() === "pull out"
           ? order.adjustedGrandTotal ?? 0
           : order.downpayment ?? 0;
 

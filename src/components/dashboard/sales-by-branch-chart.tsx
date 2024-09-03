@@ -30,7 +30,10 @@ const SalesByBranch: React.FC<SalesByBranchProps> = ({ data, metrics }) => {
     if (!acc[order.branches.location]) {
       acc[order.branches.location] = 0;
     }
-    acc[order.branches.location] += order.adjustedGrandTotal ?? 0;
+    acc[order.branches.location] +=
+      order.downpayment && order.downpayment > 0
+        ? order.downpayment
+        : order.adjustedGrandTotal ?? 0;
     return acc;
   }, {});
 

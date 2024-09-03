@@ -48,11 +48,16 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
     data.forEach((order) => {
       let date: string | null = null;
 
-      if (order.status === "Completed") {
+      if (
+        order.status.toLowerCase() === "completed" ||
+        order.status.toLowerCase() === "pull out"
+      ) {
         if (order.completed_at) {
           date = new Date(order.completed_at).toISOString().split("T")[0];
         } else {
-          console.error(`Completed order missing completed_at date: ${order}`);
+          console.error(
+            `Completed or pull out order missing completed_at date: ${order}`
+          );
         }
       } else if (order.downpayment && order.downpayment > 0) {
         if (order.created_at) {
@@ -66,10 +71,14 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
         if (!result[date]) {
           result[date] = 0;
         }
+
         const revenueAmount =
-          order.status === "Completed"
+          order.status.toLowerCase() === "completed"
             ? order.adjustedGrandTotal ?? 0
+            : order.status.toLowerCase() === "pull out"
+            ? order.rate ?? 0
             : order.downpayment ?? 0;
+
         result[date] += revenueAmount;
       } else {
         console.warn(`Invalid date encountered: ${order}`);

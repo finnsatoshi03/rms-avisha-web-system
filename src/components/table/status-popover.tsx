@@ -1,4 +1,5 @@
 import {
+  ArrowDownCircle,
   ArrowUpCircle,
   CheckCircle2,
   CircleDashed,
@@ -33,8 +34,8 @@ export const statuses: Status[] = [
   { value: "ready for pickup", label: "Ready for Pickup", icon: ArrowUpCircle },
   { value: "completed", label: "Completed", icon: CheckCircle2 },
   { value: "canceled", label: "Canceled", icon: XCircle },
+  { value: "pull out", label: "Pull Out", icon: ArrowDownCircle },
 ];
-
 export const StatusPopover = ({
   order,
   handleStatusChange,

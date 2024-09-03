@@ -88,7 +88,7 @@ export default function Dashboard() {
     } else if (isPasig) {
       branchId = 2;
     } else {
-      return expenses;
+      return expenseData;
     }
 
     // Filter based on branch_id for Taytay and Pasig
@@ -231,7 +231,8 @@ export default function Dashboard() {
       // Filter job orders by date range
       const filteredOrders = job_orders.filter((order: JobOrderData) => {
         const orderDate =
-          order.status === "Completed"
+          order.status === "Completed" ||
+          order.status.toLowerCase() === "pull out"
             ? new Date(order.completed_at!)
             : order.downpayment && order.downpayment > 0
             ? new Date(order.created_at)
@@ -345,6 +346,7 @@ export default function Dashboard() {
           .filter(
             (order: JobOrderData) =>
               order.status === "Completed" ||
+              order.status.toLowerCase() === "pull out" ||
               (order.downpayment && order.downpayment > 0)
           )
           .map((order: JobOrderData) => {
@@ -378,7 +380,8 @@ export default function Dashboard() {
       ? job_orders
           .filter((order: JobOrderData) => {
             const orderDate =
-              order.status === "Completed"
+              order.status === "Completed" ||
+              order.status.toLowerCase() === "pull out"
                 ? new Date(order.completed_at!)
                 : order.downpayment && order.downpayment > 0
                 ? new Date(order.created_at)

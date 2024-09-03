@@ -20,6 +20,8 @@ export function getStatusClass(status: string) {
       return "status-completed";
     case "canceled":
       return "status-canceled";
+    case "pull out":
+      return "status-pull-out";
     default:
       return "";
   }
@@ -42,7 +44,8 @@ export function calculateMetrics(
   };
 
   const completedOrders = orders.filter(
-    (order) => order.status === "Completed"
+    (order) =>
+      order.status === "Completed" || order.status.toLowerCase() === "pull out"
   );
 
   const ordersWithDownpayment = orders.filter(
@@ -516,7 +519,9 @@ export const aggregateByWeek = (orders: JobOrderData[]) => {
   const aggregatedData = orders.reduce((acc: any, order: JobOrderData) => {
     // Use completed_at for the week start if status is "Completed"
     const dateToUse =
-      order.status === "Completed" ? order.completed_at! : order.created_at;
+      order.status === "Completed" || order.status.toLowerCase() === "pull out"
+        ? order.completed_at!
+        : order.created_at;
     const weekStart = format(startOfWeek(new Date(dateToUse)), "yyyy-MM-dd");
 
     if (!acc[weekStart]) {
@@ -524,8 +529,11 @@ export const aggregateByWeek = (orders: JobOrderData[]) => {
     }
 
     // Adjust revenue calculation based on status
-    if (order.status === "Completed") {
-      acc[weekStart].revenue += order.adjustedGrandTotal ?? 0;
+    if (
+      order.status === "Completed" ||
+      order.status.toLowerCase() === "pull out"
+    ) {
+      acc[weekStart].revenue += order.adjustedGrandTotal || order.rate;
     } else {
       acc[weekStart].revenue += order.downpayment ?? 0;
     }
@@ -541,7 +549,7 @@ export const aggregateByWeek = (orders: JobOrderData[]) => {
 export const aggregateByMonth = (orders: JobOrderData[]) => {
   const aggregatedData = orders.reduce((acc: any, order: JobOrderData) => {
     const monthStart =
-      order.status === "Completed"
+      order.status === "Completed" || order.status.toLowerCase() === "pull out"
         ? format(startOfMonth(new Date(order.completed_at!)), "yyyy-MM-dd")
         : format(startOfMonth(new Date(order.created_at)), "yyyy-MM-dd");
 
@@ -549,8 +557,11 @@ export const aggregateByMonth = (orders: JobOrderData[]) => {
       acc[monthStart] = { date: monthStart, revenue: 0 };
     }
 
-    if (order.status === "Completed") {
-      acc[monthStart].revenue += order.adjustedGrandTotal ?? 0;
+    if (
+      order.status === "Completed" ||
+      order.status.toLowerCase() === "pull out"
+    ) {
+      acc[monthStart].revenue += order.adjustedGrandTotal || order.rate;
     } else {
       acc[monthStart].revenue += order.downpayment ?? 0;
     }

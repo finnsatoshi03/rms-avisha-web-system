@@ -138,7 +138,9 @@ const baseSchema = z.object({
 
 const rateOptions = [
   { label: "Walk-in Service", value: 1500 },
+  { label: "Walk-in Check-up", value: 250 },
   { label: "Office/Home Service", value: 2000 },
+  { label: "Office/Home Check-up", value: 500 },
 ];
 
 export default function JobOrderForm({

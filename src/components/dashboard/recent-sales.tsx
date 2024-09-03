@@ -45,11 +45,18 @@ export default function RecentSalesSection({
       {completedThisMonth.map((order: JobOrderData) => {
         // Determine the amount to display and payment status
         const isFullyPaid = order.status === "Completed";
+        const isPullout = order.status.toLowerCase() === "pull out";
         const displayAmount = isFullyPaid
           ? order.adjustedGrandTotal
+          : isPullout
+          ? order.rate // Assuming 'rate' is the amount to display for pull out
           : order.downpayment ?? 0;
 
-        const paymentStatus = isFullyPaid ? "Fully Paid" : "Downpayment";
+        const paymentStatus = isFullyPaid
+          ? "Fully Paid"
+          : isPullout
+          ? "Pull Out"
+          : "Downpayment";
 
         return (
           <div
@@ -63,7 +70,11 @@ export default function RecentSalesSection({
             <div className="grid grid-cols-[auto_1fr] space-x-4">
               <div
                 className={`px-3 py-0 h-fit self-center rounded-full text-xs ${
-                  isFullyPaid ? "bg-green-300" : "bg-yellow-300"
+                  isFullyPaid
+                    ? "bg-green-300"
+                    : isPullout
+                    ? "bg-red-300"
+                    : "bg-yellow-300"
                 } flex items-center`}
               >
                 {paymentStatus}
