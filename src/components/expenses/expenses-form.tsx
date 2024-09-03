@@ -20,10 +20,21 @@ import { Button } from "../ui/button";
 
 import { Expenses } from "../../lib/types";
 import { createEditExpense } from "../../services/apiExpenses";
+import { useUser } from "../auth/useUser";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 
 const formSchema = z.object({
   bill_name: z.string().min(1, "Bill name is required"),
   amount: z.number().min(0, "Amount must be greater than 0"),
+  branch_id: z.number().optional(),
 });
 
 export default function ExpensesForm({
@@ -35,6 +46,7 @@ export default function ExpensesForm({
 }) {
   const editSession = Boolean(expenseToEdit?.id);
   const queryClient = useQueryClient();
+  const { isAdmin, isTaytay, isPasig } = useUser();
 
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -43,7 +55,7 @@ export default function ExpensesForm({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
       toast.success("New Billing Expense created successfully!");
-      onClose && onClose();
+      if (onClose) onClose();
     },
     onError: (error) => {
       toast.error("An error occurred. Please try again.");
@@ -62,7 +74,7 @@ export default function ExpensesForm({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
       toast.success("Bill expense successfully edited!");
-      onClose && onClose();
+      if (onClose) onClose();
     },
     onError: (error) => {
       toast.error("An error occurred. Please try again.");
@@ -72,20 +84,45 @@ export default function ExpensesForm({
 
   const isPending = isCreating || isEditing;
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const extendedFormSchema = isAdmin
+    ? formSchema.extend({
+        branch_id: z.number().min(1, "Branch is required"),
+      })
+    : formSchema;
+
+  const form = useForm<z.infer<typeof extendedFormSchema>>({
+    resolver: zodResolver(extendedFormSchema),
     defaultValues: editSession
       ? expenseToEdit
       : {
           bill_name: "",
           amount: undefined,
+          branch_id: undefined,
         },
   });
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    if (editSession)
-      editExpenseMutation({ newExpenses: values, editId: expenseToEdit!.id });
-    else createExpenseMutation(values);
+  const onSubmit = (values: z.infer<typeof extendedFormSchema>) => {
+    const branchId = isTaytay
+      ? 1
+      : isPasig
+      ? 2
+      : isAdmin
+      ? values.branch_id
+      : 0;
+
+    const submittedValues = {
+      ...values,
+      branch_id: branchId,
+    };
+
+    if (editSession) {
+      editExpenseMutation({
+        newExpenses: submittedValues,
+        editId: expenseToEdit!.id,
+      });
+    } else {
+      createExpenseMutation(submittedValues);
+    }
   };
 
   useEffect(() => {
@@ -103,6 +140,43 @@ export default function ExpensesForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+        {isAdmin && (
+          <FormField
+            control={form.control}
+            name="branch_id"
+            render={({ field }) => (
+              <FormItem className="space-y-0">
+                <FormLabel
+                  className={`${
+                    form.watch("branch_id") ? "opacity-60" : "opacity-100"
+                  }`}
+                >
+                  Branch
+                </FormLabel>
+                <Select
+                  onValueChange={(value) => {
+                    field.onChange(Number(value));
+                  }}
+                  // defaultValue={String(field.value)}
+                >
+                  <FormControl>
+                    <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
+                      <SelectValue placeholder="Select a Branch" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent align="end">
+                    <SelectGroup>
+                      <SelectLabel>Branches</SelectLabel>
+                      <SelectItem value="1">Taytay</SelectItem>
+                      <SelectItem value="2">Pasig</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={form.control}
           name="bill_name"
@@ -174,7 +248,7 @@ export default function ExpensesForm({
           <Button
             onClick={(e) => {
               e.preventDefault();
-              onClose && onClose();
+              if (onClose) onClose();
             }}
             className="col-start-1 row-start-1"
             variant={"secondary"}

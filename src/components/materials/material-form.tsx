@@ -58,7 +58,7 @@ export default function MaterialForm({ onClose }: { onClose?: () => void }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["materialStocks"] });
       toast.success("Material created successfully!");
-      onClose && onClose();
+      if (onClose) onClose();
     },
     onError: (error) => {
       toast.error("An error occurred. Please try again.");
@@ -300,7 +300,7 @@ export default function MaterialForm({ onClose }: { onClose?: () => void }) {
               variant={"outline"}
               onClick={(e) => {
                 e.preventDefault();
-                onClose && onClose();
+                if (onClose) onClose();
               }}
             >
               Cancel
