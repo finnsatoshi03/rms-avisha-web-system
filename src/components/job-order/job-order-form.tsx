@@ -489,7 +489,16 @@ export default function JobOrderForm({
 
     const exceededStock = filteredMaterials?.some((material) => {
       const currentStock = getStockForMaterial(material.material_id);
-      return material.quantity > currentStock;
+
+      const originalMaterial = editMaterials?.find(
+        (m) => String(m.material_id) === String(material.material_id)
+      );
+
+      const isQuantityExceedingStock =
+        material.quantity > currentStock &&
+        (!originalMaterial || material.quantity > originalMaterial.quantity);
+
+      return isQuantityExceedingStock;
     });
 
     if (exceededStock) {
@@ -1244,7 +1253,6 @@ export default function JobOrderForm({
                                   materialStocks
                                     .filter(
                                       (stock) =>
-                                        stock.stocks !== 0 &&
                                         (readonly || !stock.deleted) &&
                                         stock.branch_id === branchId
                                     )
