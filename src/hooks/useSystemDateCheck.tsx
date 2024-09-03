@@ -22,9 +22,6 @@ export function useSystemDateCheck(thresholdInMinutes = 5) {
       const systemTime = new Date();
       const serverTime = await fetchServerTime();
 
-      console.log("System Time: ", systemTime);
-      console.log("Server Time: ", serverTime);
-
       if (serverTime) {
         const timeDifference = Math.abs(
           (systemTime.getTime() - serverTime.getTime()) / 1000 / 60
