@@ -489,16 +489,7 @@ export default function JobOrderForm({
 
     const exceededStock = filteredMaterials?.some((material) => {
       const currentStock = getStockForMaterial(material.material_id);
-
-      const originalMaterial = editMaterials?.find(
-        (m) => String(m.material_id) === String(material.material_id)
-      );
-
-      const isQuantityExceedingStock =
-        material.quantity > currentStock &&
-        (!originalMaterial || material.quantity > originalMaterial.quantity);
-
-      return isQuantityExceedingStock;
+      return material.quantity > currentStock;
     });
 
     if (exceededStock) {
@@ -1251,19 +1242,12 @@ export default function JobOrderForm({
                                 <SelectLabel>Materials</SelectLabel>
                                 {materialStocks &&
                                   materialStocks
-                                    .filter((stock) => {
-                                      const isMaterialSelected =
-                                        materialsJobOrder.some(
-                                          (material) =>
-                                            String(material.material_id) ===
-                                            String(stock.id)
-                                        );
-                                      return (
+                                    .filter(
+                                      (stock) =>
+                                        stock.stocks !== 0 &&
                                         (readonly || !stock.deleted) &&
-                                        stock.branch_id === branchId &&
-                                        (isMaterialSelected || stock.stocks > 0)
-                                      );
-                                    })
+                                        stock.branch_id === branchId
+                                    )
                                     .map((stock) => (
                                       <SelectItem
                                         key={stock.id}
