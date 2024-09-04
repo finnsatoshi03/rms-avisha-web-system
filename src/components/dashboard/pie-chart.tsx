@@ -60,7 +60,12 @@ export default function RevenuePerTechnicianPieChart({
     const revenueByTechnician: { [key: string]: number } = {};
 
     orders.forEach((order) => {
-      const technicianName = order.users.fullname || order.users.email;
+      const technicianName =
+        order.users?.fullname ||
+        order.users?.email ||
+        order.order_received_user?.fullname ||
+        order.order_received_user?.email ||
+        "Unassigned";
 
       const revenueAmount =
         order.status === "Completed" ||
