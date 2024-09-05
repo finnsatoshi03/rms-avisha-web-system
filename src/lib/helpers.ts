@@ -665,10 +665,14 @@ export const formatTimeAgo = (date: Date) => {
 export const countJobOrdersByStatus = (jobOrders: JobOrderData[]) => {
   const statusCounts: any = {
     Pending: 0,
+    "For Approval": 0,
     Repairing: 0,
+    "Waiting Parts": 0,
     "Ready for Pickup": 0,
+    "Ready to Pickup": 0,
     Completed: 0,
     Canceled: 0,
+    "Pull Out": 0,
   };
 
   jobOrders.forEach((order) => {

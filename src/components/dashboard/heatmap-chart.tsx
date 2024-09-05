@@ -31,6 +31,7 @@ const TechnicianPerformanceAnalytics = ({
   const aggregatedTechnicianData = useMemo(
     () =>
       completedOrders.reduce((acc: Record<string, number>, order) => {
+        // Check if order.users exists before accessing fullname or email
         const technicianName = order.users?.fullname || order.users?.email;
         const price = order.adjustedGrandTotal || 0;
         if (technicianName) {
@@ -61,7 +62,8 @@ const TechnicianPerformanceAnalytics = ({
       completedOrders
         .filter(
           (order) =>
-            (order.users.fullname || order.users.email) === selectedTechnician
+            // Again, check if order.users exists before accessing fullname or email
+            (order.users?.fullname || order.users?.email) === selectedTechnician
         )
         .reduce((acc: Record<string, number>, order) => {
           const orderDate = new Date(order.completed_at!);

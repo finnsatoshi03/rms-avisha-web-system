@@ -27,13 +27,26 @@ interface SalesByBranchProps {
 
 const SalesByBranch: React.FC<SalesByBranchProps> = ({ data, metrics }) => {
   const aggregatedData = data.reduce((acc: Record<string, number>, order) => {
-    if (!acc[order.branches.location]) {
-      acc[order.branches.location] = 0;
+    const branchLocation = order.branches?.location;
+
+    if (!branchLocation) {
+      console.warn(`Order missing branch location: ${order}`);
+      return acc;
     }
-    acc[order.branches.location] +=
-      order.downpayment && order.downpayment > 0
+
+    if (!acc[branchLocation]) {
+      acc[branchLocation] = 0;
+    }
+
+    const salesAmount =
+      order.status === "Completed" || order.status.toLowerCase() === "pull out"
+        ? order.adjustedGrandTotal ?? 0
+        : order.downpayment && order.downpayment > 0
         ? order.downpayment
-        : order.adjustedGrandTotal ?? 0;
+        : 0;
+
+    acc[branchLocation] += salesAmount;
+
     return acc;
   }, {});
 
