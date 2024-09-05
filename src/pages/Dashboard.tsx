@@ -367,6 +367,7 @@ export default function Dashboard() {
             }
 
             if (order.downpayment) {
+              // console.log(order.status);
               adjustedGrandTotal += order.downpayment;
             }
 
@@ -440,11 +441,14 @@ export default function Dashboard() {
   const aggregatedData = useMemo(
     () =>
       dataWithMonthNames.reduce(
-        (acc: Record<string, AggregatedData>, { monthName, grand_total }) => {
+        (
+          acc: Record<string, AggregatedData>,
+          { monthName, adjustedGrandTotal }
+        ) => {
           if (!acc[monthName]) {
             acc[monthName] = { monthName, price: 0 };
           }
-          acc[monthName].price += grand_total ?? 0;
+          acc[monthName].price += adjustedGrandTotal ?? 0;
           return acc;
         },
         {}

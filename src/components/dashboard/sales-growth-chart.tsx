@@ -48,6 +48,7 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
     data.forEach((order) => {
       let date: string | null = null;
 
+      // Determine the date based on status and relevant date fields
       if (
         order.status.toLowerCase() === "completed" ||
         order.status.toLowerCase() === "pull out"
@@ -68,23 +69,28 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
       }
 
       if (date) {
+        // Initialize the date in result if it doesn't exist, and ensure it's a number
         if (!result[date]) {
           result[date] = 0;
         }
 
-        const revenueAmount =
+        // Calculate the revenue amount as a number
+        const revenueAmount = Number(
           order.status.toLowerCase() === "completed"
             ? order.adjustedGrandTotal ?? 0
             : order.status.toLowerCase() === "pull out"
             ? order.rate ?? 0
-            : order.downpayment ?? 0;
+            : order.downpayment ?? 0
+        );
 
+        // Add the revenue amount to the existing revenue for that date
         result[date] += revenueAmount;
       } else {
         console.warn(`Invalid date encountered: ${order}`);
       }
     });
 
+    // Convert the result object into an array of objects
     return Object.keys(result).map((date) => ({
       date,
       revenue: result[date],

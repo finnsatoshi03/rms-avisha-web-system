@@ -35,7 +35,7 @@ const DashboardTabs: React.FC<DashboardTabsProps> = ({
           </TabsTrigger>
         </TabsList>
         {currentTab === "overview" && (
-          <div className="flex gap-2 xl:self-end opacity-100">
+          <div className="flex gap-2 xl:self-end opacity-100 flex-wrap">
             {Object.entries(statusCounts)
               .filter(([_, count]) => count > 0)
               .map(([status, count]) => (

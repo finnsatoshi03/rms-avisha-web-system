@@ -45,7 +45,8 @@ export default function BarChartSection({
     if (selectedYear) {
       const filteredOrders = orders.filter((order: JobOrderData) => {
         const orderYear =
-          order.status === "Completed"
+          order.status === "Completed" ||
+          order.status.toLowerCase() === "pull out"
             ? new Date(order.completed_at!).getFullYear()
             : order.downpayment && order.downpayment > 0
             ? new Date(order.created_at).getFullYear()
@@ -54,23 +55,31 @@ export default function BarChartSection({
         return orderYear === selectedYear;
       });
 
-      const aggregatedData = allMonths.map((month) => {
+      const aggregatedData = allMonths.map((month, index) => {
         const monthOrders = filteredOrders.filter((order) => {
           const orderMonth =
-            order.status === "Completed"
+            order.status === "Completed" ||
+            order.status.toLowerCase() === "pull out"
               ? new Date(order.completed_at!).getMonth()
               : order.downpayment && order.downpayment > 0
               ? new Date(order.created_at).getMonth()
               : null;
 
-          return orderMonth === allMonths.indexOf(month);
+          // Ensure the month matches the index
+          return orderMonth === index;
         });
 
         const monthTotalPrice = monthOrders.reduce((total, order) => {
-          if (order.status === "Completed") {
-            return total + (order.adjustedGrandTotal ?? 0);
+          const revenue = order.adjustedGrandTotal ?? 0;
+          const downpayment = order.downpayment ?? 0;
+
+          if (
+            order.status === "Completed" ||
+            order.status.toLowerCase() === "pull out"
+          ) {
+            return total + revenue;
           } else if (order.downpayment && order.downpayment > 0) {
-            return total + (order.downpayment ?? 0);
+            return total + downpayment;
           }
           return total;
         }, 0);
@@ -85,7 +94,7 @@ export default function BarChartSection({
 
       // Calculate metrics for the current month and previous month
       const metrics = calculateMetrics(filteredOrders);
-      // console.log(filteredOrders);
+
       setCurrentMonthTotal(metrics.metricsThisMonth.revenue);
       setComparisonPCP(metrics.pcpRevenue);
     } else {
