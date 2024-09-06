@@ -25,7 +25,7 @@ import {
 } from "../components/ui/dialog";
 import ExpensesForm from "../components/expenses/expenses-form";
 import TotalExpense from "../components/expenses/total-expenses-card";
-import { ExpensesStatistics } from "../components/expenses/expenses-statistics";
+// import { ExpensesStatistics } from "../components/expenses/expenses-statistics";
 import { useUser } from "../components/auth/useUser";
 
 export default function Expenses() {
@@ -73,9 +73,9 @@ export default function Expenses() {
 
   const [percentageChange, setPercentageChange] = useState<number | null>(null);
   const [analysisMessage, setAnalysisMessage] = useState<string | null>(null);
-  const [statisticsAnalysisMessage, setStatisticsAnalysisMessage] = useState<
-    string | null
-  >(null);
+  // const [statisticsAnalysisMessage, setStatisticsAnalysisMessage] = useState<
+  //   string | null
+  // >(null);
 
   const [openModal, setOpenModal] = useState(false);
 
@@ -83,19 +83,19 @@ export default function Expenses() {
     filteredData.map((expense) => expense.bill_name.toLowerCase())
   ).size;
 
-  const chartData: Partial<ExpensesType>[] = Object.values(
-    filteredData.reduce(
-      (acc: Record<string, { bill_name: string; amount: number }>, curr) => {
-        const billName = curr.bill_name.toLowerCase();
-        if (!acc[billName]) {
-          acc[billName] = { bill_name: billName, amount: 0 };
-        }
-        acc[billName].amount += curr.amount;
-        return acc;
-      },
-      {}
-    )
-  );
+  // const chartData: Partial<ExpensesType>[] = Object.values(
+  //   filteredData.reduce(
+  //     (acc: Record<string, { bill_name: string; amount: number }>, curr) => {
+  //       const billName = curr.bill_name.toLowerCase();
+  //       if (!acc[billName]) {
+  //         acc[billName] = { bill_name: billName, amount: 0 };
+  //       }
+  //       acc[billName].amount += curr.amount;
+  //       return acc;
+  //     },
+  //     {}
+  //   )
+  // );
 
   const filterAndSortData = (data: ExpensesType[] | undefined) => {
     if (!data) return [];
@@ -270,46 +270,46 @@ export default function Expenses() {
     }
   }, [expenses]);
 
-  useEffect(() => {
-    if (expenses && expenses.length > 0) {
-      const totalExpensesAllTime = expenses.reduce(
-        (acc, curr) => acc + Number(curr.amount),
-        0
-      );
+  // useEffect(() => {
+  //   if (expenses && expenses.length > 0) {
+  //     const totalExpensesAllTime = expenses.reduce(
+  //       (acc, curr) => acc + Number(curr.amount),
+  //       0
+  //     );
 
-      const totalExpensesLastMonth = expenses
-        .filter((expense) => {
-          const expenseDate = new Date(expense.created_at);
-          const now = new Date();
-          const startOfLastMonth = new Date(
-            now.getFullYear(),
-            now.getMonth() - 1,
-            1
-          );
-          const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
-          return (
-            expenseDate >= startOfLastMonth && expenseDate <= endOfLastMonth
-          );
-        })
-        .reduce((acc, curr) => acc + Number(curr.amount), 0);
+  //     const totalExpensesLastMonth = expenses
+  //       .filter((expense) => {
+  //         const expenseDate = new Date(expense.created_at);
+  //         const now = new Date();
+  //         const startOfLastMonth = new Date(
+  //           now.getFullYear(),
+  //           now.getMonth() - 1,
+  //           1
+  //         );
+  //         const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+  //         return (
+  //           expenseDate >= startOfLastMonth && expenseDate <= endOfLastMonth
+  //         );
+  //       })
+  //       .reduce((acc, curr) => acc + Number(curr.amount), 0);
 
-      let statisticsMessage = "";
+  //     let statisticsMessage = "";
 
-      if (totalExpensesLastMonth > totalExpensesAllTime * 0.0833) {
-        // 1/12 of the total expenses
-        statisticsMessage =
-          "The company has an increase of expenses in several bills this month.";
-      } else if (totalExpensesLastMonth < totalExpensesAllTime * 0.0833) {
-        statisticsMessage =
-          "The company has a decrease in expenses this month compared to the overall average.";
-      } else {
-        statisticsMessage =
-          "The company’s expenses this month are consistent with the overall average.";
-      }
+  //     if (totalExpensesLastMonth > totalExpensesAllTime * 0.0833) {
+  //       // 1/12 of the total expenses
+  //       statisticsMessage =
+  //         "The company has an increase of expenses in several bills this month.";
+  //     } else if (totalExpensesLastMonth < totalExpensesAllTime * 0.0833) {
+  //       statisticsMessage =
+  //         "The company has a decrease in expenses this month compared to the overall average.";
+  //     } else {
+  //       statisticsMessage =
+  //         "The company’s expenses this month are consistent with the overall average.";
+  //     }
 
-      setStatisticsAnalysisMessage(statisticsMessage);
-    }
-  }, [expenses]);
+  //     setStatisticsAnalysisMessage(statisticsMessage);
+  //   }
+  // }, [expenses]);
 
   if (isLoading)
     return (
@@ -414,10 +414,10 @@ export default function Expenses() {
             analysisMessage={analysisMessage}
             uniqueBills={uniqueBills}
           />
-          <ExpensesStatistics
+          {/* <ExpensesStatistics
             chartData={chartData}
             analysisMessage={statisticsAnalysisMessage}
-          />
+          /> */}
         </div>
       </div>
     </div>
