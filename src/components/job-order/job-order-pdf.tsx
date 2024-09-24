@@ -402,28 +402,56 @@ function Content({ data }: { data: CreateJobOrderData }) {
         </View>
         <View style={{ borderBottom: "1px dashed black", height: 15 }}></View>
         <View style={[styles.tableRow, { height: 15 }]}></View>
-        <View style={[styles.warrantyHeader, styles.tableRow]}>
-          <Image style={{ width: 100 }} src="./RMS-Logo.png" />
-          <View style={{ fontSize: 9 }}>
-            <Text>
-              {data.branch_id === 1
-                ? "EVERLASTING BLDG, 172"
-                : "ACM BUILDING ORTIGAS AVE., BRGY"}
+        <View
+          style={[
+            {
+              width: "100%",
+              display: "flex",
+              flexDirection: "row",
+              justifyContent: "space-between",
+              paddingVertical: 10,
+              paddingHorizontal: 40,
+            },
+            styles.tableRow,
+          ]}
+        >
+          <View style={styles.warrantyHeader}>
+            <Image style={{ width: 100 }} src="./RMS-Logo.png" />
+            <View style={{ fontSize: 9 }}>
+              <Text>
+                {data.branch_id === 1
+                  ? "EVERLASTING BLDG, 172"
+                  : "ACM BUILDING ORTIGAS AVE., BRGY"}
+              </Text>
+              <Text>
+                {data.branch_id === 1
+                  ? "Rizal Ave, Taytay, 1920 Rizal"
+                  : "STA LUCIA DE CASTRO PASIG CITY"}
+              </Text>
+              <Text style={{ color: "#f12924" }}>
+                Call{" "}
+                {data.branch_id === 1 ? "(02) 8983-3684" : "(02) 8254-9823"}{" "}
+                Text{" "}
+                {data.branch_id === 1 ? "(09)43-606-4129" : "(09)94-880-8918"}
+              </Text>
+              <Text style={{ color: "#f12924" }}>
+                CUSTOMER SERVICE:{" "}
+                {data.branch_id === 1 ? "(02) 8254-4828" : "(02) 8254-9823"}
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "flex-start",
+            }}
+          >
+            <Text style={{ fontSize: 8, textAlign: "right", marginRight: 10 }}>
+              Visit our{"\n"}website for{"\n"}more info{" "}
             </Text>
-            <Text>
-              {data.branch_id === 1
-                ? "Rizal Ave, Taytay, 1920 Rizal"
-                : "STA LUCIA DE CASTRO PASIG CITY"}
-            </Text>
-            <Text style={{ color: "#f12924" }}>
-              Call {data.branch_id === 1 ? "(02) 8983-3684" : "(02) 8254-9823"}{" "}
-              Text{" "}
-              {data.branch_id === 1 ? "(09)43-606-4129" : "(09)94-880-8918"}
-            </Text>
-            <Text style={{ color: "#f12924" }}>
-              CUSTOMER SERVICE:{" "}
-              {data.branch_id === 1 ? "(02) 8254-4828" : "(02) 8254-9823"}
-            </Text>
+            <Image style={{ width: 50 }} src="./qr_code.png" />
           </View>
         </View>
         <Text style={[styles.tableHeader, { borderBottom: "1px solid black" }]}>
@@ -566,13 +594,11 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   warrantyHeader: {
-    width: "100%",
     display: "flex",
     flexDirection: "row",
     gap: 12,
     justifyContent: "center",
     alignItems: "center",
-    padding: 5,
   },
   headerLogo: {
     width: 150,
