@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Dispatch, SetStateAction } from "react";
 import { Button } from "../ui/button";
 import {
@@ -9,6 +10,7 @@ import {
 } from "../ui/dialog";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import { TicketSlash } from "lucide-react";
+import { Input } from "../ui/input";
 
 interface DiscountDialogProps {
   open: boolean;
@@ -51,6 +53,15 @@ export default function DiscountDialog({
 }: DiscountDialogProps) {
   const discounts = [150, 200, 300, 500];
 
+  const [manualDiscount, setManualDiscount] = useState<number | string>("");
+
+  const handleManualDiscountSubmit = () => {
+    const discount = Number(manualDiscount);
+    if (!isNaN(discount) && discount > 0) {
+      onSelectDiscount(discount);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[400px]">
@@ -60,7 +71,7 @@ export default function DiscountDialog({
           </DialogTitle>
           <DialogDescription className="text-center text-xs">
             Choose a discount option for the customer from the available options
-            below.
+            below, or enter a custom discount.
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-2">
@@ -72,6 +83,25 @@ export default function DiscountDialog({
               onSelectDiscount={onSelectDiscount}
             />
           ))}
+        </div>
+
+        <div className="mt-2 grid grid-cols-[1fr_0.5fr] gap-2">
+          <Input
+            type="text"
+            className="border border-primary w-full p-2 text-center"
+            placeholder="Enter custom discount"
+            value={manualDiscount}
+            onInput={(e) => {
+              const value = (e.target as HTMLInputElement).value;
+              if (/^\d*$/.test(value)) {
+                setManualDiscount(value);
+              }
+            }}
+            pattern="\d*"
+          />
+          <Button className="w-full" onClick={handleManualDiscountSubmit}>
+            Apply
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
