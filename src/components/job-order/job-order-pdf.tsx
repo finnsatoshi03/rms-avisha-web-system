@@ -28,6 +28,12 @@ Font.register({
 });
 
 function Content({ data }: { data: CreateJobOrderData }) {
+  const paymentDetails = data.payment_details || {};
+
+  const formattedPaymentDetails = Object.entries(paymentDetails)
+    .map(([method, amount]) => `${method}: ${amount}`)
+    .join(", ");
+
   return (
     <>
       <View style={styles.header}>
@@ -399,6 +405,16 @@ function Content({ data }: { data: CreateJobOrderData }) {
           <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
             Date released
           </Text>
+          <Text style={styles.tableCol17}>
+            {data.completed_at
+              ? new Date(data.completed_at).toLocaleDateString("en-US", {
+                  weekday: "short", // "Wed"
+                  year: "numeric", // "2024"
+                  month: "short", // "Jul"
+                  day: "numeric", // "10"
+                })
+              : "---"}
+          </Text>
         </View>
         <View style={{ borderBottom: "1px dashed black", height: 15 }}></View>
         <View style={[styles.tableRow, { height: 15 }]}></View>
@@ -531,6 +547,17 @@ function Content({ data }: { data: CreateJobOrderData }) {
           >
             {data.grand_total}
           </Text>
+          <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
+            Payment Method
+          </Text>
+          <Text style={[styles.tableClientInfo]}>
+            {formattedPaymentDetails}
+          </Text>
+        </View>
+        <View style={styles.tableRow}>
+          <Text
+            style={[styles.tableCol49, { borderRight: "1px solid black" }]}
+          ></Text>
           <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
             Signature
           </Text>
