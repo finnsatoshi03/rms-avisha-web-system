@@ -199,9 +199,11 @@ export type JobOrderData = {
   completed_at: null | string;
   order_received_user?: User;
   downpayment: null | number;
+  payment_details: null | object;
   [key: string]:
     | undefined
     | boolean
+    | object
     | string
     | number
     | null
@@ -254,6 +256,7 @@ export type CreateJobOrderData = {
   is_copy?: boolean;
   technical_report?: string;
   downpayment?: number;
+  payment_details?: object;
 };
 
 export type MaterialStocks = {
