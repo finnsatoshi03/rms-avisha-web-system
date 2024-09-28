@@ -40,6 +40,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   deleteJobOrder,
   duplicateJobOrder,
+  updateJobOrderPayment,
   updateJobOrderStatus,
 } from "../services/apiJobOrders";
 import { useUser } from "./auth/useUser";
@@ -49,6 +50,7 @@ import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import { Separator } from "@radix-ui/react-separator";
 import { TableCellWithHover } from "./job-order/cell-hover";
+import { PaymentDialog } from "./table/payment-dialog";
 
 export default function Table({
   data,
@@ -120,6 +122,9 @@ export default function Table({
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false); // Confirm dialog for deleting orders
   const [confirmStatusDialogOpen, setConfirmStatusDialogOpen] = useState(false);
   const [deleteIds, setDeleteIds] = useState<number[]>([]);
+
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<JobOrderData | null>(null);
 
   const [isExportLoading, setIsExportLoading] = useState(false);
 
@@ -251,6 +256,12 @@ export default function Table({
         return;
       }
 
+      if (status.label === "Completed") {
+        setShowPaymentDialog(true);
+        setSelectedOrder(orderToUpdate);
+        return;
+      }
+
       updateStatusMutate(
         { ids: [orderToUpdate.id], status: status.label },
         {
@@ -269,6 +280,45 @@ export default function Table({
       );
     }
     setOpenPopover(null);
+  };
+
+  const handlePaymentSubmit = (payments: Record<string, number>) => {
+    const totalPayment = Object.values(payments).reduce(
+      (acc, amount) => acc + amount,
+      0
+    );
+
+    if (totalPayment !== selectedOrder?.grand_total) {
+      alert(
+        `The total payment amount (${totalPayment}) does not match the order total (${selectedOrder?.grand_total})`
+      );
+      return;
+    }
+
+    updateJobOrderPayment(selectedOrder.id, payments)
+      .then(() => {
+        updateStatusMutate(
+          { ids: [selectedOrder.id], status: "Completed" },
+          {
+            onSuccess: () => {
+              toast.success("Job Order status updated successfully");
+              queryClient.invalidateQueries({ queryKey: ["job_order"] });
+            },
+            onError: (error) => {
+              toast.error(
+                "An error occurred while updating the Job Order status"
+              );
+              console.error(error);
+            },
+          }
+        );
+      })
+      .catch((error) => {
+        toast.error("An error occurred while updating the payment details");
+        console.error(error);
+      });
+
+    setShowPaymentDialog(false);
   };
 
   const handleBulkStatusChange = (status: Status) => {
@@ -415,6 +465,7 @@ export default function Table({
       rate: currentOrder.rate ? currentOrder.rate : 0,
       serial_number: currentOrder.serial_number || "",
       sub_total: currentOrder.sub_total ?? 0,
+      payment_details: currentOrder.payment_details || {},
     };
 
     const fileName = `JobOrder_${currentOrder.order_no}_${
@@ -742,6 +793,12 @@ export default function Table({
           </div>
         </>
       )}
+      <PaymentDialog
+        open={showPaymentDialog}
+        onClose={() => setShowPaymentDialog(false)}
+        onSubmit={handlePaymentSubmit}
+        order={selectedOrder ?? ({} as JobOrderData)}
+      />
       <ConfirmDialog
         isOpen={confirmStatusDialogOpen}
         onClose={() => setConfirmStatusDialogOpen(false)}

@@ -540,6 +540,23 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
   }
 }
 
+export async function updateJobOrderPayment(
+  orderId: number,
+  payments: Record<string, number>
+) {
+  const { error } = await supabase
+    .from("joborders")
+    .update({
+      payment_details: payments,
+    })
+    .eq("id", orderId);
+
+  if (error) {
+    console.error("Error updating payment details:", error);
+    throw new Error("Could not update payment details");
+  }
+}
+
 export async function deleteJobOrder(ids: number[]) {
   try {
     // Retrieve client IDs associated with the job orders to be deleted
