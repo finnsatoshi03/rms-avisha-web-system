@@ -301,8 +301,11 @@ export default function Table({
           { ids: [selectedOrder.id], status: "Completed" },
           {
             onSuccess: () => {
-              toast.success("Job Order status updated successfully");
+              toast.success(
+                "Job Order status updated and payment processed successfully"
+              );
               queryClient.invalidateQueries({ queryKey: ["job_order"] });
+              setSelectedRows([]);
             },
             onError: (error) => {
               toast.error(
@@ -345,8 +348,25 @@ export default function Table({
       return;
     }
 
-    setStatusToChange(status);
-    setConfirmStatusDialogOpen(true);
+    if (status.label === "Completed") {
+      if (selectedRows.length === 1) {
+        const orderToUpdate = orders.find(
+          (order) => order.id === selectedRows[0]
+        );
+        if (orderToUpdate) {
+          setShowPaymentDialog(true);
+          setSelectedOrder(orderToUpdate);
+        }
+      } else {
+        toast.error(
+          "Bulk completion is not allowed. Please complete orders individually to ensure proper payment processing."
+        );
+        return;
+      }
+    } else {
+      setStatusToChange(status);
+      setConfirmStatusDialogOpen(true);
+    }
   };
 
   const confirmBulkStatusChange = () => {
