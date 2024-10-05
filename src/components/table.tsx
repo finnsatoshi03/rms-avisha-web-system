@@ -486,6 +486,7 @@ export default function Table({
       serial_number: currentOrder.serial_number || "",
       sub_total: currentOrder.sub_total ?? 0,
       payment_details: currentOrder.payment_details || {},
+      status: currentOrder.status || "",
     };
 
     const fileName = `JobOrder_${currentOrder.order_no}_${
