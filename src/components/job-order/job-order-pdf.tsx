@@ -471,7 +471,9 @@ function Content({ data }: { data: CreateJobOrderData }) {
           </View>
         </View>
         <Text style={[styles.tableHeader, { borderBottom: "1px solid black" }]}>
-          WARRANTY SLIP
+          {data.status?.toLowerCase() !== "completed"
+            ? "JOB ORDER"
+            : "WARRANTY SLIP"}
         </Text>
         <View style={styles.tableRow}>
           <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
