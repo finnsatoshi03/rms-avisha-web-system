@@ -20,7 +20,7 @@ import { Input } from "../ui/input";
 
 const paymentMethods = [
   { label: "Cash", value: "cash" },
-  { label: "Credit/Debit Card", value: "card" },
+  { label: "Check", value: "check" },
   { label: "GCash", value: "gcash" },
   { label: "PayMaya", value: "paymaya" },
   { label: "Paypal", value: "paypal" },
