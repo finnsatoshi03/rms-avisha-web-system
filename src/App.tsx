@@ -22,6 +22,7 @@ import Account from "./pages/Account";
 import Materials from "./pages/Materials";
 import Expenses from "./pages/Expenses";
 import DateError from "./pages/DateError";
+import ManagerReAuth from "./components/auth/manager-reauth";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,6 +49,7 @@ export default function App() {
             }
           >
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="manager-re-auth" element={<ManagerReAuth />} />
             <Route path="job-orders" element={<JobOrders />} />
             <Route path="clients" element={<Clients />} />
             <Route path="materials" element={<Materials />} />

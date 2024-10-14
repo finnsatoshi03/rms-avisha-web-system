@@ -1,25 +1,38 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import { useUser } from "../components/auth/useUser";
 import { useState, useEffect } from "react";
 import { Menu } from "lucide-react";
 
 export default function AppLayout() {
-  const { isUser } = useUser();
+  const { isUser, user } = useUser();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
+    if (
+      location.pathname !== "/dashboard" &&
+      location.pathname !== "/manager-re-auth"
+    ) {
+      console.log("Clearing re-authentication flag");
+      localStorage.removeItem("managerReAuthenticated");
+    }
+
+    if (!user) {
+      navigate("/login");
+    }
+
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
         setSidebarOpen(false);
       }
     };
-
     window.addEventListener("resize", handleResize);
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [location, user, navigate]);
 
   return (
     <div className="relative h-screen w-screen">
