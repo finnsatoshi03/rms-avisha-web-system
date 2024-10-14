@@ -42,9 +42,21 @@ import SalesReportLineChart from "../components/dashboard/sales-report-line-char
 import FinancialChart from "../components/dashboard/financial-chart";
 import TechnicianDashboard from "../components/dashboard/technician-page";
 import { getTechnicians } from "../services/apiTechnicians";
+import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
   const { isTaytay, isPasig, isUser, user } = useUser();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (
+      (isTaytay || isPasig) &&
+      !localStorage.getItem("managerReAuthenticated")
+    ) {
+      navigate("/manager-re-auth");
+    }
+  }, [isTaytay, isPasig, navigate]);
+
   const { data: orders, isLoading } = useQuery({
     queryKey: ["job_orders"],
     queryFn: async () => {
