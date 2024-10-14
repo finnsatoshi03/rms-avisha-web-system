@@ -23,7 +23,7 @@ const paymentMethods = [
   { label: "Check", value: "check" },
   { label: "GCash", value: "gcash" },
   { label: "PayMaya", value: "paymaya" },
-  { label: "Paypal", value: "paypal" },
+  { label: "Bank Transfer", value: "bank_transfer" },
   { label: "GrabPay", value: "grabpay" },
 ];
 
