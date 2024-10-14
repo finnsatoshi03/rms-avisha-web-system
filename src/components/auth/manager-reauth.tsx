@@ -1,30 +1,25 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useLogin } from "./useLogin";
-import { useUser } from "./useUser";
 import toast from "react-hot-toast";
 import { Button } from "../ui/button";
 
+const FIXED_PASSWORD = "rmlacap09";
+
 export default function ManagerReAuth() {
   const [password, setPassword] = useState("");
-  const { login, isLoading } = useLogin();
-  const { user } = useUser();
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (user && user.email) {
-      login(
-        { email: user.email, password },
-        {
-          onSuccess: () => {
-            localStorage.setItem("managerReAuthenticated", "true");
-            navigate("/dashboard");
-          },
-        }
-      );
+    setIsLoading(true);
+
+    if (password === FIXED_PASSWORD) {
+      localStorage.setItem("managerReAuthenticated", "true");
+      navigate("/dashboard");
     } else {
-      toast.error("User or user email is undefined");
+      toast.error("Incorrect password. Please try again.");
+      setIsLoading(false);
     }
   };
 
