@@ -93,7 +93,7 @@ const baseSchema = z.object({
     ),
   order_received: z.string().optional().nullable(),
   materials: z.array(materialSchema).optional(),
-  brand_model: z.string().min(1, "Brand Model is required"),
+  brand_model: z.string().optional(),
   serial_number: z
     .string()
     .optional()
@@ -102,22 +102,23 @@ const baseSchema = z.object({
     }),
   machine_type: z.union([
     z.enum(["printer", "laptop", "desktop/pc", "electric typewriter"]),
-    z
-      .string()
-      .min(1, "Machine type is required")
-      .refine(
-        (val) => val !== "others" || val.trim() !== "",
-        "Specify machine type if 'Other' is selected"
-      ),
+    z.string().optional(),
+    // .min(1, "Machine type is required")
+    // .refine(
+    //   (val) => val !== "others" || val.trim() !== "",
+    //   "Specify machine type if 'Other' is selected"
+    // ),
   ]),
-  problem_statement: z.string().min(10, "At least 10 characters required"),
+  problem_statement: z.string().optional(),
+  // .min(10, "At least 10 characters required"),
   additional_comments: z
     .string()
     .optional()
     .refine((val) => !val || val.length >= 10, {
       message: "At least 10 characters required",
     }),
-  labor_description: z.string().min(10, "At least 10 characters required"),
+  labor_description: z.string().optional(),
+  // .min(10, "At least 10 characters required"),
   rate: z.number().min(1, "Rate is required"),
   amount: z
     .number()
@@ -521,7 +522,7 @@ export default function JobOrderForm({
     // Update the materials field with the filtered materials
     const submittedValues: CreateJobOrderData = {
       ...values,
-      materials: filteredMaterials, // Ensure correct state is passed
+      materials: filteredMaterials,
       order_received:
         values.order_received?.trim() === "" ? null : values.order_received,
       technician_id:
@@ -546,6 +547,14 @@ export default function JobOrderForm({
           ? values.branch_id || 0
           : 0,
       warranty: editValues.warranty || undefined,
+      brand_model: values.brand_model || "",
+      serial_number: values.serial_number || "",
+      machine_type: values.machine_type || "",
+      problem_statement: values.problem_statement || "",
+      additional_comments: values.additional_comments || "",
+      labor_description: values.labor_description || "",
+      amount: values.amount || 0,
+      accessories: values.accessories || [],
     };
 
     // console.log(submittedValues);
