@@ -531,6 +531,8 @@ export default function Dashboard() {
       </div>
     );
 
+  console.log(currentTab);
+
   return (
     <div className="h-full">
       <div className="flex sm:flex-row flex-col justify-between">
@@ -545,7 +547,7 @@ export default function Dashboard() {
             metrics={filteredMetrics}
           />
         ) : null}
-        {currentTab === "report" && (
+        {(currentTab === "report" || isTaytay || isPasig) && (
           <DatePickerWithRange
             isAnalytics
             defaultFromDate={defaultFromDate}
