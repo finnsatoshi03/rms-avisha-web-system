@@ -16,7 +16,7 @@ export const StatusChanger = ({
     <DropdownMenuTrigger asChild>
       <Button className="rounded-full bg-slate-700 gap-1">
         <RefreshCcw size={18} strokeWidth={1.5} />
-        Change Status
+        <span className="hidden sm:block">Change Status</span>
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent className="p-2 bg-slate-700 border-none text-white text-sm flex flex-col">
