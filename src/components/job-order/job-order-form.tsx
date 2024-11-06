@@ -52,6 +52,7 @@ import { useUser } from "../auth/useUser";
 import DiscountDialog from "./discount-option-dialog";
 import { Checkbox } from "../ui/checkbox";
 import { baseSchema } from "./jobOrderSchema";
+import { useDownpayment } from "./useDownpayment";
 
 const rateOptions = [
   { label: "Walk-in Service", value: 1500 },
@@ -151,10 +152,6 @@ export default function JobOrderForm({
     editValues.discount
   );
   const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(false);
-  const [downpaymentValue, setDownpaymentValue] = useState<number | null>(
-    editValues.downpayment || null
-  );
-  const [downpaymentError, setDownpaymentError] = useState<string | null>(null);
 
   const { isTaytay, isPasig, isAdmin, user } = useUser();
   const isTechnician = user?.user_metadata.role?.includes("technician");
@@ -202,6 +199,7 @@ export default function JobOrderForm({
   // console.log(editValuesWithClient.materials);
 
   const isPending = isCreating || isEditing || materialStocksLoading;
+  const onWarranty = editSession && Boolean(editValues.warranty);
 
   const extendedBaseSchema = isAdmin
     ? baseSchema.extend({
@@ -288,6 +286,9 @@ export default function JobOrderForm({
   const laborTotal =
     Number(form.watch("rate") || 0) + Number(form.watch("amount") || 0);
   const grandTotal = (totalMaterialsPrice ?? 0) + laborTotal;
+  const { downpaymentValue, downpaymentError, handleDownpaymentChange } =
+    useDownpayment(grandTotal);
+
   const adjustedGrandTotal =
     grandTotal - (selectedDiscount ?? 0) - (downpaymentValue ?? 0);
 
@@ -327,15 +328,6 @@ export default function JobOrderForm({
     setDownpaymentInputVisible(true);
   };
 
-  const handleDownpaymentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseFloat(e.target.value);
-    if (value > grandTotal) {
-      setDownpaymentError("Downpayment cannot exceed the grand total.");
-    } else {
-      setDownpaymentError(null);
-      setDownpaymentValue(value >= 0 ? value : 0);
-    }
-  };
   const handleSelectDiscount = (discount: number) => {
     setSelectedDiscount(discount);
     setDiscountDialogOpen(false);
@@ -702,7 +694,7 @@ export default function JobOrderForm({
                     className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-3xl text-3xl font-bold rounded-none mb-2"
                     placeholder="Client Name"
                     autoFocus
-                    disabled={readonly}
+                    disabled={readonly || onWarranty}
                     {...field}
                   />
                 </FormControl>
@@ -735,7 +727,7 @@ export default function JobOrderForm({
                           onChange={(e) =>
                             handleContactNumberChange(e, fieldOnChange)
                           }
-                          disabled={readonly}
+                          disabled={readonly || onWarranty}
                           {...restFieldProps}
                         />
                       </FormControl>
@@ -754,7 +746,7 @@ export default function JobOrderForm({
                       <Input
                         placeholder="Client Email"
                         className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
-                        disabled={readonly}
+                        disabled={readonly || onWarranty}
                         {...field}
                       />
                     </FormControl>
@@ -834,7 +826,7 @@ export default function JobOrderForm({
                               field.onChange(Number(value));
                             }}
                             // defaultValue={String(field.value)}
-                            disabled={readonly}
+                            disabled={readonly || onWarranty}
                           >
                             <FormControl>
                               <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
@@ -1001,7 +993,7 @@ export default function JobOrderForm({
                           <Select
                             onValueChange={field.onChange}
                             defaultValue={field.value ?? undefined}
-                            disabled={readonly}
+                            disabled={readonly || onWarranty}
                           >
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
                               <SelectValue placeholder="Select a Technician" />
