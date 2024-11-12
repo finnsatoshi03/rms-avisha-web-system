@@ -538,7 +538,7 @@ export default function Table({
           {showNotification && (
             <div className="w-full flex items-center justify-center h-0">
               <div
-                className={`w-fit text-sm bg-slate-800 md:py-3 py-5 md:px-5 px-8 text-white rounded-full absolute bottom-4 flex  md:flex-row flex-col md:gap-0 gap-4 items-center justify-between ${animationClass} z-50`}
+                className={`w-fit text-sm bg-slate-800 md:py-3 py-5 md:px-5 px-8 text-white rounded-3xl md:rounded-full absolute bottom-4 flex  md:flex-row flex-col md:gap-0 gap-4 items-center justify-between ${animationClass} z-50`}
                 style={{
                   animation: `${animationClass} 0.2s ease-out forwards`,
                 }}
@@ -568,12 +568,14 @@ export default function Table({
                         {isExportLoading ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Exporting PDF..
+                            <span className="hidden sm:block">
+                              Exporting PDF..
+                            </span>
                           </>
                         ) : (
                           <>
                             <FileDown size={18} strokeWidth={1.5} />
-                            Export
+                            <span className="hidden sm:block">Export</span>
                           </>
                         )}
                       </Button>
@@ -582,7 +584,7 @@ export default function Table({
                         onClick={() => handleEditClick(selectedRows[0])}
                       >
                         <PenLine size={18} strokeWidth={1.5} />
-                        Edit
+                        <span className="hidden sm:block">Edit</span>
                       </Button>
                     </>
                   )}
@@ -594,7 +596,7 @@ export default function Table({
                       disabled={isDeleting}
                     >
                       <Trash2 size={18} strokeWidth={1.5} />
-                      Delete
+                      <span className="hidden sm:block">Delete</span>
                     </Button>
                   )}
                 </div>

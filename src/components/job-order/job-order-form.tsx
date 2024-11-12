@@ -51,91 +51,8 @@ import { getMaterialStocks } from "../../services/apiMaterials";
 import { useUser } from "../auth/useUser";
 import DiscountDialog from "./discount-option-dialog";
 import { Checkbox } from "../ui/checkbox";
-
-const materialSchema = z.object({
-  used: z.boolean().nullable().optional(),
-  material: z.string().min(1, "Material is required"),
-  material_id: z.string().min(1, "Material ID is required"),
-  quantity: z.number().min(1, "Quantity must be at least 1"),
-  unitPrice: z.number().min(0, "Unit price must be non-negative"),
-});
-
-const baseSchema = z.object({
-  branch_id: z.number().optional(),
-  name: z
-    .string()
-    .min(2, "Name must be at least 2 characters.")
-    .regex(/^[A-Za-z\s]+$/, {
-      message: "Name must only contain letters and spaces.",
-    })
-    .trim()
-    .min(1, "Name is required."),
-  contact_number: z
-    .string()
-    .regex(
-      /^\+63 9[0-9]{2} [0-9]{3} [0-9]{4}$/,
-      "Must be a valid PHP contact number starting with +63 9 and followed by 9 digits with spaces."
-    )
-    .min(
-      16,
-      "Contact number must include country code +63 and be 16 characters long including spaces."
-    )
-    .max(
-      16,
-      "Contact number must include country code +63 and be 16 characters long including spaces."
-    ),
-  email: z
-    .string()
-    .optional()
-    .refine(
-      (val) => val === undefined || val === "" || /.+@.+\..+/.test(val),
-      "Must be a valid email address."
-    ),
-  order_received: z.string().optional().nullable(),
-  materials: z.array(materialSchema).optional(),
-  brand_model: z.string().optional(),
-  serial_number: z
-    .string()
-    .optional()
-    .refine((val) => !val || val.length >= 3, {
-      message: "At least 3 characters required",
-    }),
-  machine_type: z.union([
-    z.enum(["printer", "laptop", "desktop/pc", "electric typewriter"]),
-    z.string().optional(),
-    // .min(1, "Machine type is required")
-    // .refine(
-    //   (val) => val !== "others" || val.trim() !== "",
-    //   "Specify machine type if 'Other' is selected"
-    // ),
-  ]),
-  problem_statement: z.string().optional(),
-  // .min(10, "At least 10 characters required"),
-  additional_comments: z
-    .string()
-    .optional()
-    .refine((val) => !val || val.length >= 10, {
-      message: "At least 10 characters required",
-    }),
-  labor_description: z.string().optional(),
-  // .min(10, "At least 10 characters required"),
-  rate: z.number().min(1, "Rate is required"),
-  amount: z
-    .number()
-    .optional()
-    .refine((val) => !val || val >= 0, {
-      message: "Amount must be non-negative",
-    }),
-  accessories: z.array(z.string()).optional(),
-  technician_id: z.string().optional().nullable(),
-  technical_report: z
-    .string()
-    .optional()
-    .refine((val) => !val || val.length >= 10, {
-      message: "Technical report must be at least 10 characters long",
-    }),
-  downpayment: z.number().optional().nullable(),
-});
+import { baseSchema } from "./jobOrderSchema";
+import { useDownpayment } from "./useDownpayment";
 
 const rateOptions = [
   { label: "Walk-in Service", value: 1500 },
@@ -144,6 +61,7 @@ const rateOptions = [
   { label: "Office/Home Service", value: 2000 },
   { label: "Office/Home Check-up", value: 500 },
   { label: "Office/Home CISS", value: 1100 },
+  { label: "Return for Warranty", value: 0 },
 ];
 
 export default function JobOrderForm({
@@ -235,10 +153,6 @@ export default function JobOrderForm({
     editValues.discount
   );
   const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(false);
-  const [downpaymentValue, setDownpaymentValue] = useState<number | null>(
-    editValues.downpayment || null
-  );
-  const [downpaymentError, setDownpaymentError] = useState<string | null>(null);
 
   const { isTaytay, isPasig, isAdmin, user } = useUser();
   const isTechnician = user?.user_metadata.role?.includes("technician");
@@ -286,6 +200,7 @@ export default function JobOrderForm({
   // console.log(editValuesWithClient.materials);
 
   const isPending = isCreating || isEditing || materialStocksLoading;
+  const onWarranty = editSession && Boolean(editValues.warranty);
 
   const extendedBaseSchema = isAdmin
     ? baseSchema.extend({
@@ -372,6 +287,9 @@ export default function JobOrderForm({
   const laborTotal =
     Number(form.watch("rate") || 0) + Number(form.watch("amount") || 0);
   const grandTotal = (totalMaterialsPrice ?? 0) + laborTotal;
+  const { downpaymentValue, downpaymentError, handleDownpaymentChange } =
+    useDownpayment(grandTotal);
+
   const adjustedGrandTotal =
     grandTotal - (selectedDiscount ?? 0) - (downpaymentValue ?? 0);
 
@@ -411,15 +329,6 @@ export default function JobOrderForm({
     setDownpaymentInputVisible(true);
   };
 
-  const handleDownpaymentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseFloat(e.target.value);
-    if (value > grandTotal) {
-      setDownpaymentError("Downpayment cannot exceed the grand total.");
-    } else {
-      setDownpaymentError(null);
-      setDownpaymentValue(value >= 0 ? value : 0);
-    }
-  };
   const handleSelectDiscount = (discount: number) => {
     setSelectedDiscount(discount);
     setDiscountDialogOpen(false);
@@ -786,7 +695,7 @@ export default function JobOrderForm({
                     className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-3xl text-3xl font-bold rounded-none mb-2"
                     placeholder="Client Name"
                     autoFocus
-                    disabled={readonly}
+                    disabled={readonly || onWarranty}
                     {...field}
                   />
                 </FormControl>
@@ -819,7 +728,7 @@ export default function JobOrderForm({
                           onChange={(e) =>
                             handleContactNumberChange(e, fieldOnChange)
                           }
-                          disabled={readonly}
+                          disabled={readonly || onWarranty}
                           {...restFieldProps}
                         />
                       </FormControl>
@@ -838,7 +747,7 @@ export default function JobOrderForm({
                       <Input
                         placeholder="Client Email"
                         className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
-                        disabled={readonly}
+                        disabled={readonly || onWarranty}
                         {...field}
                       />
                     </FormControl>
@@ -918,7 +827,7 @@ export default function JobOrderForm({
                               field.onChange(Number(value));
                             }}
                             // defaultValue={String(field.value)}
-                            disabled={readonly}
+                            disabled={readonly || onWarranty}
                           >
                             <FormControl>
                               <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
@@ -1085,7 +994,7 @@ export default function JobOrderForm({
                           <Select
                             onValueChange={field.onChange}
                             defaultValue={field.value ?? undefined}
-                            disabled={readonly}
+                            disabled={readonly || onWarranty}
                           >
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
                               <SelectValue placeholder="Select a Technician" />
@@ -1140,12 +1049,10 @@ export default function JobOrderForm({
                       <div className="space-y-0 flex justify-between items-center w-full">
                         <FormLabel>Rate</FormLabel>
                         <Select
-                          value={field.value ? String(field.value) : ""}
+                          value={field.value?.toString() || ""}
                           onValueChange={(value) => {
                             field.onChange(Number(value));
                           }}
-                          defaultValue={field.value ? String(field.value) : ""}
-                          disabled={readonly}
                         >
                           <FormControl>
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
@@ -1158,7 +1065,7 @@ export default function JobOrderForm({
                               {rateOptions.map((option) => (
                                 <SelectItem
                                   key={option.value}
-                                  value={String(option.value)}
+                                  value={option.value.toString()}
                                 >
                                   {option.label}
                                 </SelectItem>
