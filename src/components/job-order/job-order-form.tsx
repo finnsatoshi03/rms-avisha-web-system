@@ -61,6 +61,7 @@ const rateOptions = [
   { label: "Office/Home Service", value: 2000 },
   { label: "Office/Home Check-up", value: 500 },
   { label: "Office/Home CISS", value: 1100 },
+  { label: "Return for Warranty", value: 0 },
 ];
 
 export default function JobOrderForm({
@@ -1048,12 +1049,10 @@ export default function JobOrderForm({
                       <div className="space-y-0 flex justify-between items-center w-full">
                         <FormLabel>Rate</FormLabel>
                         <Select
-                          value={field.value ? String(field.value) : ""}
+                          value={field.value?.toString() || ""}
                           onValueChange={(value) => {
                             field.onChange(Number(value));
                           }}
-                          defaultValue={field.value ? String(field.value) : ""}
-                          disabled={readonly}
                         >
                           <FormControl>
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
@@ -1066,7 +1065,7 @@ export default function JobOrderForm({
                               {rateOptions.map((option) => (
                                 <SelectItem
                                   key={option.value}
-                                  value={String(option.value)}
+                                  value={option.value.toString()}
                                 >
                                   {option.label}
                                 </SelectItem>

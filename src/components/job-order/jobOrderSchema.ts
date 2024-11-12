@@ -67,7 +67,7 @@ export const baseSchema = z.object({
     }),
   labor_description: z.string().optional(),
   // .min(10, "At least 10 characters required"),
-  rate: z.number().min(1, "Rate is required"),
+  rate: z.number().min(-1, "Rate is required"),
   amount: z
     .number()
     .optional()
