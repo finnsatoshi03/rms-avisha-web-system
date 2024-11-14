@@ -2,8 +2,10 @@ import { NavLink } from "react-router-dom";
 import {
   Archive,
   EllipsisVertical,
+  Handshake,
   Home,
   Printer,
+  ReceiptText,
   Settings,
   UserRoundCog,
   UsersRound,
@@ -63,6 +65,26 @@ export default function Sidebar({
                 >
                   <Printer size={20} />
                   Job Orders
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="rental"
+                  className="flex items-center gap-4"
+                  onClick={onClose}
+                >
+                  <Handshake size={20} />
+                  Rental
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="billing-statement"
+                  className="flex items-center gap-4"
+                  onClick={onClose}
+                >
+                  <ReceiptText size={20} />
+                  Billing Statement
                 </NavLink>
               </li>
               <li>
