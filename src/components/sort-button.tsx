@@ -55,6 +55,15 @@ const expensesTableSortFields: { [key: string]: string } = {
   amount: "Amount",
 };
 
+const rentalTableSortFields: { [key: string]: string } = {
+  unit_name: "Unit Name",
+  model: "Model",
+  serial_number: "Serial Number",
+  daily_rate: "Daily Rate",
+  monthly_rate: "Monthly Rate",
+  status: "Status",
+};
+
 export default function SortButton({
   applySorts,
   sortCount,
@@ -62,6 +71,7 @@ export default function SortButton({
   isClientsTable = false,
   isMaterialsTable = false,
   isExpensesTable = false,
+  isRentalTable = false,
 }: {
   applySorts: (sorts: Sort[]) => void;
   sortCount: number;
@@ -69,6 +79,7 @@ export default function SortButton({
   isClientsTable?: boolean;
   isMaterialsTable?: boolean;
   isExpensesTable?: boolean;
+  isRentalTable?: boolean;
 }) {
   const [isSortActive, setSortActive] = useState(false);
   const [selectedValue, setSelectedValue] = useState("");
@@ -80,6 +91,8 @@ export default function SortButton({
     ? materialTableSortFields
     : isExpensesTable
     ? expensesTableSortFields
+    : isRentalTable
+    ? rentalTableSortFields
     : sortFields;
 
   useEffect(() => {

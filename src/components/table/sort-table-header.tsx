@@ -37,6 +37,11 @@ export const SortableHeader = ({
     bill_name: "Bill Name",
     amount: "Amount",
     completed_at: "Completed Date",
+    unit_name: "Unit Name",
+    model: "Model",
+    serial_number: "Serial Number",
+    daily_rate: "Daily Rate",
+    monthly_rate: "Monthly Rate",
   };
 
   return (

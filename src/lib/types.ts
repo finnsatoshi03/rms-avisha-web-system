@@ -273,6 +273,35 @@ export type MaterialStocks = {
   [key: string]: undefined | boolean | string | number | null | Date | Branch;
 };
 
+// Rental Unit Type
+export type Unit = {
+  id: number;
+  unit_name: string;
+  model: string;
+  serial_number: string;
+  daily_rate: number;
+  monthly_rate: number;
+  status: string;
+  branch_id: number;
+  created_at: string | Date;
+  is_available: boolean;
+};
+
+// Rental Type
+export type Rental = {
+  id: number;
+  client_id: number;
+  unit_id: number;
+  start_date: string | Date;
+  end_date: string | Date;
+  rate_amount: number;
+  rental_type: "DAILY" | "MONTHLY";
+  status: string;
+  payment_terms: any;
+  created_at: string | Date;
+  branch_id: number;
+};
+
 export type Expenses = {
   id: number;
   bill_name: string;
