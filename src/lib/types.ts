@@ -275,7 +275,7 @@ export type MaterialStocks = {
 
 // Rental Unit Type
 export type Unit = {
-  id: number;
+  id: string;
   unit_name: string;
   model: string;
   serial_number: string;

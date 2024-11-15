@@ -33,10 +33,22 @@ import {
   SheetHeader,
   SheetTitle,
 } from "../components/ui/sheet";
-import { RentalUnitForm } from "../components/rental/rental-form";
+import {
+  RentalUnitForm,
+  RentalUnitFormType,
+} from "../components/rental/rental-form";
+
+import {
+  useCreateUnit,
+  useUpdateUnit,
+} from "../components/rental/useCreateEditUnit";
+import { useDeleteUnit } from "../components/rental/useDeleteUnit";
 
 export default function Rental() {
   const { units, isLoading: isUnitsLoading } = useUnits();
+  const { mutate: createUnit } = useCreateUnit();
+  const { mutate: updateUnit } = useUpdateUnit();
+  const { mutate: deleteUnit } = useDeleteUnit();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -46,15 +58,6 @@ export default function Rental() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sorts, setSorts] = useState<Sort[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<Unit[]>(units || []);
-
-  const [newUnit, setNewUnit] = useState({
-    unit_name: "",
-    model: "",
-    serial_number: "",
-    status: "available",
-    daily_rate: "",
-    monthly_rate: "",
-  });
 
   const columns: { key: keyof Unit; title: string }[] = [
     { key: "unit_name", title: "Unit Name" },
@@ -149,9 +152,29 @@ export default function Rental() {
     setSelectedRow(null);
   };
 
-  const handleAddUnitSubmit = () => {
-    console.log("Adding new unit:", newUnit);
+  const handleAddUnitSubmit = (data: RentalUnitFormType) => {
+    const formattedData = {
+      ...data,
+      status: data.status.toUpperCase() as
+        | "available"
+        | "rented"
+        | "maintenance"
+        | "reserved",
+    };
+
+    if (selectedRow?.id) {
+      updateUnit({ id: selectedRow.id, data: formattedData });
+    } else {
+      // Otherwise, we're creating a new unit
+      createUnit(formattedData);
+    }
+
     setAction(null);
+    setSelectedRow(null);
+  };
+
+  const handleDeleteUnit = (id: string) => {
+    deleteUnit(id);
   };
 
   const resetFilters = () => {
@@ -265,7 +288,10 @@ export default function Rental() {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="gap-2 cursor-pointer"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteUnit(row.id);
+                }}
               >
                 <Trash size={14} strokeWidth={1.5} /> Delete
               </DropdownMenuItem>
@@ -276,22 +302,25 @@ export default function Rental() {
 
       {(selectedRow || action === "add") && (
         <Sheet open={!!action} onOpenChange={() => setAction(null)}>
-          <SheetContent className="h-full overflow-y-auto">
+          <SheetContent className="h-fit overflow-y-auto">
             <SheetHeader>
-              <SheetTitle>
-                {action === "add"
-                  ? "Add New Rental Unit"
-                  : action === "edit"
-                  ? `Edit ${selectedRow?.unit_name}`
-                  : `Details of ${selectedRow?.unit_name}`}
+              <SheetTitle className="flex items-center gap-2 text-xs px-4 bg-gray-200 rounded-full w-fit py-0.5">
+                {action === "add" ? (
+                  <>
+                    <Plus size={14} /> Add New Rental Unit
+                  </>
+                ) : action === "edit" ? (
+                  <>
+                    <FilePenLine size={14} /> Edit {selectedRow?.unit_name}
+                  </>
+                ) : (
+                  <>
+                    <ListCollapse size={14} /> Details of{" "}
+                    {selectedRow?.unit_name}
+                  </>
+                )}
               </SheetTitle>
-              <SheetDescription>
-                {action === "add"
-                  ? "Fill in the details to add a new rental unit."
-                  : action === "edit"
-                  ? "Modify the details of this unit."
-                  : "View all details of this unit."}
-              </SheetDescription>
+              <SheetDescription className="hidden"></SheetDescription>
             </SheetHeader>
             <RentalUnitForm
               initialValues={selectedRow || {}}
@@ -302,6 +331,7 @@ export default function Rental() {
                   ? "edit"
                   : "view"
               }
+              onSubmit={handleAddUnitSubmit}
             />
           </SheetContent>
         </Sheet>
