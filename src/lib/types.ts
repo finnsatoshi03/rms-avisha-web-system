@@ -281,10 +281,11 @@ export type Unit = {
   serial_number: string;
   daily_rate: number;
   monthly_rate: number;
-  status: string;
+  status: "available" | "rented" | "maintenance" | "reserved";
   branch_id: number;
   created_at: string | Date;
   is_available: boolean;
+  actions?: string;
 };
 
 // Rental Type

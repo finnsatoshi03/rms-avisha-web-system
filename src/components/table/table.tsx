@@ -24,6 +24,7 @@ type TableProps<T> = {
   handleSortChange: (column: keyof T, direction: "asc" | "desc") => void;
   handleRowClick?: (row: T) => void;
   onRowSelection?: (selectedIds: number[]) => void;
+  renderActions?: (row: T) => React.ReactNode;
 };
 
 const Table = <T,>({
@@ -38,6 +39,7 @@ const Table = <T,>({
   handleSortChange,
   handleRowClick,
   onRowSelection,
+  renderActions,
 }: TableProps<T>) => {
   const [sortStates, setSortStates] = useState<{
     [key: string]: "asc" | "desc" | null;
@@ -108,7 +110,11 @@ const Table = <T,>({
             {columns.map((col) => (
               <TableHead
                 key={col.key as string}
-                className={`w-[${100 / columns.length}%]`}
+                className={`w-[${
+                  renderActions
+                    ? 100 / (columns.length + 1)
+                    : 100 / columns.length
+                }%]`}
               >
                 {visibleColumns.includes(col.key) && (
                   <SortableHeader
@@ -121,6 +127,7 @@ const Table = <T,>({
                 )}
               </TableHead>
             ))}
+            {renderActions && <TableHead className="w-[3%]"></TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -137,6 +144,7 @@ const Table = <T,>({
                     onCheckedChange={() =>
                       handleRowSelection(row["id"] as number)
                     }
+                    onClick={(e) => e.stopPropagation()}
                   />
                 </TableCell>
               )}
@@ -163,6 +171,7 @@ const Table = <T,>({
                   </p>
                 </TableCell>
               ))}
+              {renderActions && <TableCell>{renderActions(row)}</TableCell>}
             </TableRow>
           ))}
         </TableBody>

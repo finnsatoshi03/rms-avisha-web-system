@@ -1,5 +1,13 @@
 import { useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import {
+  Ellipsis,
+  FilePenLine,
+  ListCollapse,
+  Plus,
+  Search,
+  Trash,
+  X,
+} from "lucide-react";
 
 import { useUnits } from "../components/rental/useUnits";
 import { Button } from "../components/ui/button";
@@ -10,15 +18,43 @@ import SortButton from "../components/sort-button";
 import Table from "../components/table/table";
 
 import { Sort, Unit } from "../lib/types";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
+import { Separator } from "../components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "../components/ui/sheet";
+import { RentalUnitForm } from "../components/rental/rental-form";
 
 export default function Rental() {
   const { units, isLoading: isUnitsLoading } = useUnits();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedRow, setSelectedRow] = useState<Unit | null>(null);
+  const [action, setAction] = useState<"details" | "edit" | "add" | null>(null);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [sorts, setSorts] = useState<Sort[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<Unit[]>(units || []);
+
+  const [newUnit, setNewUnit] = useState({
+    unit_name: "",
+    model: "",
+    serial_number: "",
+    status: "available",
+    daily_rate: "",
+    monthly_rate: "",
+  });
 
   const columns: { key: keyof Unit; title: string }[] = [
     { key: "unit_name", title: "Unit Name" },
@@ -99,12 +135,28 @@ export default function Rental() {
     setSorts([newSort]);
   };
 
-  const handleRowClick = (row: Unit) => {
-    // Handle row click event
+  const handleRowClick = (row: Unit, action: "details" | "edit") => {
+    setSelectedRow(row);
+    setAction(action);
   };
 
   const handleRowSelection = (selectedIds: number[]) => {
     // Handle row selection event
+  };
+
+  const handleAddClick = () => {
+    setAction("add");
+    setSelectedRow(null);
+  };
+
+  const handleAddUnitSubmit = () => {
+    console.log("Adding new unit:", newUnit);
+    setAction(null);
+  };
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setSorts([]);
   };
 
   useMemo(() => {
@@ -116,11 +168,6 @@ export default function Rental() {
     const endIndex = startIndex + itemsPerPage;
     return filteredUnits.slice(startIndex, endIndex);
   }, [filteredUnits, currentPage, itemsPerPage]);
-
-  const resetFilters = () => {
-    setSearchTerm("");
-    setSorts([]);
-  };
 
   if (isUnitsLoading) {
     return (
@@ -159,21 +206,106 @@ export default function Rental() {
               Reset <X size={16} strokeWidth={1.5} />
             </Button>
           )}
+          <Separator orientation="vertical" className="mx-2 h-[1.5rem]" />
+          <button
+            className="px-4 py-1.5 text-sm bg-primaryRed hover:bg-hoveredRed text-white flex items-center rounded-lg gap-1"
+            onClick={handleAddClick}
+          >
+            <Plus size={18} />
+            Add
+          </button>
         </div>
       </div>
       <Table
         data={paginatedData}
         columns={columns}
-        visibleColumns={columns.map((col) => col.key)}
+        visibleColumns={[...columns.map((col) => col.key)]}
         currentPage={currentPage}
         itemsPerPage={itemsPerPage}
         totalItems={filteredUnits.length}
         handlePageChange={handlePageChange}
         handleItemsPerPageChange={handleItemsPerPageChange}
         handleSortChange={handleSortChange}
-        handleRowClick={handleRowClick}
+        handleRowClick={(row) => handleRowClick(row, "details")}
         onRowSelection={handleRowSelection}
+        renderActions={(row) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="hover:bg-slate-200 h-fit w-fit p-1.5"
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                <Ellipsis size={18} strokeWidth={1.5} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="gap-2 cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRowClick(row, "details");
+                }}
+              >
+                <ListCollapse size={14} strokeWidth={1.5} />
+                Details
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="gap-2 cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRowClick(row, "edit");
+                }}
+              >
+                <FilePenLine size={14} strokeWidth={1.5} />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="gap-2 cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Trash size={14} strokeWidth={1.5} /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       />
+
+      {(selectedRow || action === "add") && (
+        <Sheet open={!!action} onOpenChange={() => setAction(null)}>
+          <SheetContent className="h-full overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>
+                {action === "add"
+                  ? "Add New Rental Unit"
+                  : action === "edit"
+                  ? `Edit ${selectedRow?.unit_name}`
+                  : `Details of ${selectedRow?.unit_name}`}
+              </SheetTitle>
+              <SheetDescription>
+                {action === "add"
+                  ? "Fill in the details to add a new rental unit."
+                  : action === "edit"
+                  ? "Modify the details of this unit."
+                  : "View all details of this unit."}
+              </SheetDescription>
+            </SheetHeader>
+            <RentalUnitForm
+              initialValues={selectedRow || {}}
+              mode={
+                action === "add"
+                  ? "create"
+                  : action === "edit"
+                  ? "edit"
+                  : "view"
+              }
+            />
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }
