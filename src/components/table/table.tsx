@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { Check, Ban, Clock, Wrench } from "lucide-react";
+
 import {
   Table as TableUI,
   TableBody,
@@ -11,9 +13,16 @@ import { Checkbox } from "../ui/checkbox";
 import { PaginationControls } from "./pagination-controls";
 import { SortableHeader } from "./sort-table-header";
 import { formatNumberWithCommas } from "../../lib/helpers";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import { Button } from "../ui/button";
 
 type TableProps<T> = {
-  data: Array<T & { id: number }>;
+  data: Array<T & { id: string }>;
   columns: { key: keyof T; title: string }[];
   visibleColumns: (keyof T)[];
   currentPage: number;
@@ -25,7 +34,27 @@ type TableProps<T> = {
   handleRowClick?: (row: T) => void;
   onRowSelection?: (selectedIds: number[]) => void;
   renderActions?: (row: T) => React.ReactNode;
+  onStatusChange?: (id: string, status: string) => void;
 };
+
+const statusOptions = [
+  {
+    value: "AVAILABLE",
+    label: "Available",
+    icon: <Check className="mr-2 size-4" />,
+  },
+  { value: "RENTED", label: "Rented", icon: <Ban className="mr-2 size-4" /> },
+  {
+    value: "RESERVED",
+    label: "Reserved",
+    icon: <Clock className="mr-2 size-4" />,
+  },
+  {
+    value: "MAINTENANCE",
+    label: "Maintenance",
+    icon: <Wrench className="mr-2 size-4" />,
+  },
+];
 
 const Table = <T,>({
   data,
@@ -40,6 +69,7 @@ const Table = <T,>({
   handleRowClick,
   onRowSelection,
   renderActions,
+  onStatusChange,
 }: TableProps<T>) => {
   const [sortStates, setSortStates] = useState<{
     [key: string]: "asc" | "desc" | null;
@@ -83,8 +113,8 @@ const Table = <T,>({
         onRowSelection([]);
         setSelectedRows([]);
       } else {
-        onRowSelection(data.map((row) => row["id"] as number));
-        setSelectedRows(data.map((row) => row["id"] as number));
+        onRowSelection(data.map((row) => Number(row["id"])));
+        setSelectedRows(data.map((row) => Number(row["id"])));
       }
     }
   };
@@ -140,9 +170,9 @@ const Table = <T,>({
               {onRowSelection && (
                 <TableCell>
                   <Checkbox
-                    checked={isRowSelected(row.id)}
+                    checked={isRowSelected(Number(row.id))}
                     onCheckedChange={() =>
-                      handleRowSelection(row["id"] as number)
+                      handleRowSelection(Number(row["id"]))
                     }
                     onClick={(e) => e.stopPropagation()}
                   />
@@ -150,25 +180,85 @@ const Table = <T,>({
               )}
               {columns.map((col) => (
                 <TableCell key={col.key as string}>
-                  <p
-                    className={` ${
-                      col.key === "status"
-                        ? row[col.key] === "AVAILABLE"
-                          ? "bg-green-200 text-green-800 font-bold rounded-full px-2 py-0.5 text-center w-fit"
-                          : "bg-red-200 text-red-800 font-bold rounded-full px-2 py-0.5 text-center w-fit"
-                        : ""
-                    }`}
-                  >
-                    {typeof col.key === "string" &&
-                    col.key.toLowerCase().includes("rate")
-                      ? `₱${String(
-                          formatNumberWithCommas(row[col.key] as number)
-                        )}`
-                      : col.key === "status"
-                      ? String(row[col.key]).charAt(0).toUpperCase() +
-                        String(row[col.key]).slice(1).toLowerCase()
-                      : String(row[col.key])}
-                  </p>
+                  {col.key === "status" ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className={`rounded-full px-2 py-0.5 h-fit text-center w-fit font-bold ${
+                            [
+                              "AVAILABLE",
+                              "RENTED",
+                              "RESERVED",
+                              "MAINTENANCE",
+                            ].includes(String(row[col.key]))
+                              ? {
+                                  AVAILABLE: "bg-green-200 text-green-800",
+                                  RENTED: "bg-red-200 text-red-800",
+                                  RESERVED: "bg-blue-200 text-blue-800",
+                                  MAINTENANCE: "bg-yellow-200 text-yellow-800",
+                                }[String(row[col.key])] || ""
+                              : ""
+                          }`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {String(row[col.key]).charAt(0).toUpperCase() +
+                            String(row[col.key]).slice(1).toLowerCase()}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" side="left">
+                        {statusOptions
+                          .filter(
+                            (status) => status.value !== String(row[col.key])
+                          )
+                          .map((status) => (
+                            <DropdownMenuItem
+                              key={status.value}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onStatusChange?.(
+                                  row.id,
+                                  status.value.toLowerCase()
+                                );
+                              }}
+                            >
+                              {status.icon}
+                              {status.label}
+                            </DropdownMenuItem>
+                          ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <p
+                      className={`rounded-full px-2 py-0.5 text-center w-fit font-bold ${
+                        col.key === "status"
+                          ? [
+                              "AVAILABLE",
+                              "RENTED",
+                              "RESERVED",
+                              "MAINTENANCE",
+                            ].includes(String(row[col.key]))
+                            ? {
+                                AVAILABLE: "bg-green-200 text-green-800",
+                                RENTED: "bg-red-200 text-red-800",
+                                RESERVED: "bg-blue-200 text-blue-800",
+                                MAINTENANCE: "bg-yellow-200 text-yellow-800",
+                              }[String(row[col.key])] || ""
+                            : ""
+                          : ""
+                      }`}
+                    >
+                      {typeof col.key === "string" &&
+                      col.key.toLowerCase().includes("rate")
+                        ? `₱${String(
+                            formatNumberWithCommas(row[col.key] as number)
+                          )}`
+                        : col.key === "status"
+                        ? String(row[col.key]).charAt(0).toUpperCase() +
+                          String(row[col.key]).slice(1).toLowerCase()
+                        : String(row[col.key])}
+                    </p>
+                  )}
                 </TableCell>
               ))}
               {renderActions && <TableCell>{renderActions(row)}</TableCell>}

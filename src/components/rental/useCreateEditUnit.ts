@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { createUnit, updateUnit } from "../../services/apiUnits";
+import { createUnit, updateStatus, updateUnit } from "../../services/apiUnits";
 
 export function useCreateUnit() {
   const queryClient = useQueryClient();
@@ -39,6 +39,21 @@ export function useUpdateUnit() {
     },
     onError: () => {
       toast.error("Error updating unit");
+    },
+  });
+}
+
+export function useUpdateStatusUnit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      updateStatus(id, status),
+    onSuccess: () => {
+      toast.success("Unit status updated successfully");
+      queryClient.invalidateQueries({ queryKey: ["units"] });
+    },
+    onError: () => {
+      toast.error("Error updating unit status");
     },
   });
 }

@@ -115,6 +115,7 @@ export function RentalUnitForm({
                 <Select
                   onValueChange={field.onChange}
                   defaultValue={field.value}
+                  disabled={mode === "view"}
                 >
                   <FormControl>
                     <SelectTrigger

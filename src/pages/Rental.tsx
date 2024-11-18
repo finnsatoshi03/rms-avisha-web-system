@@ -40,6 +40,7 @@ import {
 
 import {
   useCreateUnit,
+  useUpdateStatusUnit,
   useUpdateUnit,
 } from "../components/rental/useCreateEditUnit";
 import { useDeleteUnit } from "../components/rental/useDeleteUnit";
@@ -49,6 +50,7 @@ export default function Rental() {
   const { mutate: createUnit } = useCreateUnit();
   const { mutate: updateUnit } = useUpdateUnit();
   const { mutate: deleteUnit } = useDeleteUnit();
+  const { mutate: updateStatus } = useUpdateStatusUnit();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -173,6 +175,10 @@ export default function Rental() {
     setSelectedRow(null);
   };
 
+  const handleStatusChange = (id: string, status: string) => {
+    updateStatus({ id, status: status.toUpperCase() });
+  };
+
   const handleDeleteUnit = (id: string) => {
     deleteUnit(id);
   };
@@ -251,6 +257,7 @@ export default function Rental() {
         handleSortChange={handleSortChange}
         handleRowClick={(row) => handleRowClick(row, "details")}
         onRowSelection={handleRowSelection}
+        onStatusChange={handleStatusChange}
         renderActions={(row) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

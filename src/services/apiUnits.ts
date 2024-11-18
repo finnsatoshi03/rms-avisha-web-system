@@ -40,6 +40,7 @@ export async function updateStatus(id: string, status: string) {
     .update({ status })
     .eq("id", id)
     .single();
+
   if (error) {
     throw new Error("Error updating unit status");
   }
