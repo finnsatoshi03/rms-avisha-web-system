@@ -15,7 +15,7 @@ export default function AppLayout() {
       location.pathname !== "/dashboard" &&
       location.pathname !== "/manager-re-auth"
     ) {
-      console.log("Clearing re-authentication flag");
+      // console.log("Clearing re-authentication flag");
       localStorage.removeItem("managerReAuthenticated");
     }
 
