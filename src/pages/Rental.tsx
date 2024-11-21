@@ -93,6 +93,10 @@ export default function Rental() {
       return searchableStr.includes(searchTerm.toLowerCase());
     });
 
+    if (sorts.length === 0) {
+      return filteredData;
+    }
+
     const sortedData = [...filteredData];
     sorts.forEach((sort) => {
       sortedData.sort((a, b) => {

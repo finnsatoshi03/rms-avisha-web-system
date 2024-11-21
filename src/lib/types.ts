@@ -284,6 +284,7 @@ export type Unit = {
   status: "available" | "rented" | "maintenance" | "reserved";
   branch_id: number;
   created_at: string | Date;
+  updated_at: string | Date;
   is_available: boolean;
   actions?: string;
 };
