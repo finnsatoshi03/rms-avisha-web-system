@@ -151,6 +151,7 @@ export default function Rental() {
 
   const handleRowSelection = (selectedIds: number[]) => {
     // Handle row selection event
+    console.log(selectedIds);
   };
 
   const handleAddClick = () => {
