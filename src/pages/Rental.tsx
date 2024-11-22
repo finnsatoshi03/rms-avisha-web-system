@@ -36,7 +36,7 @@ import {
 import {
   RentalUnitForm,
   RentalUnitFormType,
-} from "../components/rental/rental-form";
+} from "../components/rental/unit-form";
 
 import {
   useCreateUnit,
@@ -44,13 +44,18 @@ import {
   useUpdateUnit,
 } from "../components/rental/useCreateEditUnit";
 import { useDeleteUnit } from "../components/rental/useDeleteUnit";
+import { RentalForm } from "../components/rental/rental-form";
+import { useClients } from "../components/clients/useClients";
 
 export default function Rental() {
   const { units, isLoading: isUnitsLoading } = useUnits();
+  const { clients, isLoading: isClientsLoading } = useClients();
   const { mutate: createUnit } = useCreateUnit();
   const { mutate: updateUnit } = useUpdateUnit();
   const { mutate: deleteUnit } = useDeleteUnit();
   const { mutate: updateStatus } = useUpdateStatusUnit();
+
+  const isLoading = isUnitsLoading || isClientsLoading;
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -60,6 +65,11 @@ export default function Rental() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sorts, setSorts] = useState<Sort[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<Unit[]>(units || []);
+
+  // rental assignments
+  const [showRentalForm, setShowRentalForm] = useState(false);
+  const [selectedUnitForRental, setSelectedUnitForRental] =
+    useState<Unit | null>(null);
 
   const columns: { key: keyof Unit; title: string }[] = [
     { key: "unit_name", title: "Unit Name" },
@@ -181,7 +191,13 @@ export default function Rental() {
   };
 
   const handleStatusChange = (id: string, status: string) => {
-    updateStatus({ id, status: status.toUpperCase() });
+    if (status.toUpperCase() === "RENTED") {
+      const unit = units?.find((u) => u.id === id);
+      setSelectedUnitForRental(unit || null);
+      setShowRentalForm(true);
+    } else {
+      updateStatus({ id, status: status.toUpperCase() });
+    }
   };
 
   const handleDeleteUnit = (id: string) => {
@@ -203,7 +219,7 @@ export default function Rental() {
     return filteredUnits.slice(startIndex, endIndex);
   }, [filteredUnits, currentPage, itemsPerPage]);
 
-  if (isUnitsLoading) {
+  if (isLoading) {
     return (
       <div className="h-full w-full flex items-center justify-center">
         <Loader />
@@ -344,6 +360,38 @@ export default function Rental() {
                   : "view"
               }
               onSubmit={handleAddUnitSubmit}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
+
+      {showRentalForm && selectedUnitForRental && (
+        <Sheet
+          open={showRentalForm}
+          onOpenChange={() => setShowRentalForm(false)}
+        >
+          <SheetContent className="overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>
+                Create Rental for {selectedUnitForRental.unit_name}
+              </SheetTitle>
+              <SheetDescription>
+                Fill in the rental details below
+              </SheetDescription>
+            </SheetHeader>
+            <RentalForm
+              unitId={selectedUnitForRental.id}
+              dailyRate={selectedUnitForRental.daily_rate}
+              monthlyRate={selectedUnitForRental.monthly_rate}
+              clients={clients || []}
+              onComplete={() => {
+                updateStatus({
+                  id: selectedUnitForRental.id,
+                  status: "RENTED",
+                });
+                setShowRentalForm(false);
+                setSelectedUnitForRental(null);
+              }}
             />
           </SheetContent>
         </Sheet>

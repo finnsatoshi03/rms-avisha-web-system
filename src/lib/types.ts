@@ -302,6 +302,7 @@ export type Rental = {
   payment_terms: any;
   created_at: string | Date;
   branch_id: number;
+  grand_total: number;
 };
 
 export type Expenses = {
