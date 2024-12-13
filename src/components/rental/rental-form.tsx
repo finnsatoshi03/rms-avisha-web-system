@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useCallback, useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -15,249 +16,657 @@ import { Input } from "../ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
 import { Separator } from "../ui/separator";
-import { Loader2 } from "lucide-react";
-import { useCreateUnit, useUpdateUnit } from "./useCreateEditUnit";
+import { Loader2, CalendarIcon } from "lucide-react";
+import { useCreateRental } from "./useCreateRental";
+import { Calendar } from "../ui/calendar";
+import {
+  format,
+  differenceInDays,
+  addMonths,
+  endOfMonth,
+  startOfMonth,
+  startOfDay,
+  isBefore,
+  addDays,
+} from "date-fns";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { cn } from "../../lib/utils";
+import { useUser } from "../auth/useUser";
 
-const rentalUnitSchema = z.object({
-  unit_name: z.string().min(2, "Unit name must be at least 2 characters"),
-  model: z.string().min(2, "Model must be at least 2 characters"),
-  serial_number: z
-    .string()
-    .min(2, "Serial number must be at least 2 characters"),
-  status: z.enum(["available", "rented", "maintenance", "reserved"]),
-  daily_rate: z.number().min(0, "Daily rate must be a positive number"),
-  monthly_rate: z.number().min(0, "Monthly rate must be a positive number"),
+const paymentMethods = [
+  { label: "Cash", value: "cash" },
+  { label: "Check", value: "check" },
+  { label: "GCash", value: "gcash" },
+  { label: "PayMaya", value: "paymaya" },
+  { label: "Bank Transfer", value: "bank_transfer" },
+  { label: "GrabPay", value: "grabpay" },
+];
+
+const rentalSchema = z.object({
+  unit_id: z.number(),
+  branch_id: z.number().min(0, "Branch is required"),
+  start_date: z.date(),
+  end_date: z.date(),
+  rental_type: z.enum(["DAILY", "MONTHLY"]),
+  rate_amount: z.number().min(0, "Rate amount must be a positive number"),
+  payment_terms: z.object({
+    deposit: z.number().min(0),
+    downpayment: z
+      .number()
+      .min(0)
+      .optional()
+      .superRefine((downpayment, ctx) => {
+        const totalAmount = (ctx.path as any).totalAmount;
+        if (downpayment && downpayment > totalAmount) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Downpayment cannot be greater than the total amount due",
+          });
+        }
+      }),
+    payment_method: z.enum([
+      "cash",
+      "check",
+      "gcash",
+      "paymaya",
+      "bank_transfer",
+      "grabpay",
+    ]),
+  }),
+  status: z.enum(["ACTIVE", "INACTIVE"]) as z.ZodType<"ACTIVE" | "INACTIVE">,
+  client: z.object({
+    name: z.string().min(1, "Client name is required"),
+    contact_number: z.string().optional(),
+    email: z.string().email().optional(),
+  }),
 });
 
-export type RentalUnitFormType = z.infer<typeof rentalUnitSchema>;
+export type RentalFormType = z.infer<typeof rentalSchema>;
+interface RentalFormProps {
+  unitId: string;
+  dailyRate: number;
+  monthlyRate: number;
+  // clients: { id: string; name: string }[];
+  onComplete: () => void;
+}
 
-export function RentalUnitForm({
-  initialValues,
-  mode = "create",
-  onSubmit,
-}: {
-  initialValues?: Partial<RentalUnitFormType>;
-  mode?: "create" | "edit" | "view";
-  onSubmit: (data: RentalUnitFormType) => void;
-}) {
-  const inputResetClass =
-    "border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none";
-  const borderClass = "border-b border-slate-200";
-  const inputClass = inputResetClass + " " + borderClass;
+export function RentalForm({
+  unitId,
+  dailyRate,
+  monthlyRate,
+  // clients,
+  onComplete,
+}: RentalFormProps) {
+  const { isTaytay, isPasig, isAdmin, user } = useUser();
+  const { mutate: createRental, isPending } = useCreateRental();
 
-  const { isPending: isCreating } = useCreateUnit();
-  const { isPending: isUpdating } = useUpdateUnit();
-  const isLoading = isCreating || isUpdating;
+  const [showDownpayment, setShowDownpayment] = useState(false);
 
-  const handleRateChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    field: any
-  ) => {
-    const value = e.target.value;
-    if (/^\d*\.?\d{0,2}$/.test(value)) {
-      field.onChange(Number(value));
+  const today = startOfDay(new Date());
+  const isTechnician = user?.user_metadata.role?.includes("technician");
+
+  const userIsPasig =
+    isTechnician && user?.user_metadata.role?.includes("pasig");
+  const userIsTaytay =
+    isTechnician && user?.user_metadata.role?.includes("taytay");
+  const userIsGeneral = isTechnician && !userIsPasig && !userIsTaytay;
+
+  const form = useForm<RentalFormType>({
+    resolver: zodResolver(rentalSchema),
+    defaultValues: {
+      unit_id: parseInt(unitId, 10),
+      rental_type: "DAILY",
+      rate_amount: dailyRate,
+      payment_terms: {
+        deposit: 0,
+        downpayment: 0,
+        payment_method: "cash",
+      },
+      status: "ACTIVE",
+      start_date: new Date(),
+      end_date: new Date(),
+      client: {
+        name: "",
+        contact_number: "",
+        email: "",
+      },
+    },
+  });
+
+  const watchRentalType = form.watch("rental_type");
+  const watchStartDate = form.watch("start_date");
+  const watchEndDate = form.watch("end_date");
+  const watchRateAmount = form.watch("rate_amount");
+  const watchDeposit = form.watch("payment_terms.deposit");
+  const watchDownpayment = form.watch("payment_terms.downpayment");
+  const watchPaymentMethod = form.watch("payment_terms.payment_method");
+  const branchId =
+    isAdmin || userIsGeneral
+      ? form.watch("branch_id")
+      : userIsTaytay
+      ? 1
+      : userIsPasig
+      ? 2
+      : isTaytay
+      ? 1
+      : isPasig
+      ? 2
+      : 0;
+
+  // Calculate rental amount
+  const calculateRentalAmount = useCallback(() => {
+    if (!watchStartDate || !watchEndDate || !watchRateAmount) return 0;
+
+    if (watchRentalType === "DAILY") {
+      // For daily rentals, calculate the exact number of days including both start and end dates
+      const days = differenceInDays(watchEndDate, watchStartDate) + 1;
+      return Math.max(0, days) * watchRateAmount;
+    } else {
+      // For monthly rentals:
+      // 1. Get the number of full months
+      const monthStart = startOfMonth(watchStartDate);
+      const monthEnd = endOfMonth(watchEndDate);
+      const fullMonths = differenceInDays(monthEnd, monthStart) / 30;
+
+      // 2. Round up to the nearest month since partial months are charged as full months
+      const months = Math.ceil(fullMonths);
+
+      // 3. Calculate the total amount
+      return Math.max(1, months) * watchRateAmount;
     }
+  }, [watchStartDate, watchEndDate, watchRateAmount, watchRentalType]);
+
+  // Calculate total amount before downpayment
+  const calculateTotalBeforeDownpayment = useCallback(() => {
+    const rentalAmount = calculateRentalAmount();
+    return rentalAmount + (watchDeposit || 0);
+  }, [calculateRentalAmount, watchDeposit]);
+
+  // Calculate grand total
+  const calculateGrandTotal = () => {
+    const totalBeforeDownpayment = calculateTotalBeforeDownpayment();
+    return totalBeforeDownpayment - (watchDownpayment || 0);
   };
 
-  const form = useForm<RentalUnitFormType>({
-    resolver: zodResolver(rentalUnitSchema),
-    defaultValues: initialValues
-      ? {
-          ...initialValues,
-          status:
-            (initialValues.status?.toLowerCase() as
-              | "available"
-              | "rented"
-              | "maintenance"
-              | "reserved") || "available",
-        }
-      : {
-          unit_name: "",
-          model: "",
-          serial_number: "",
-          status: "available",
-          daily_rate: 0,
-          monthly_rate: 0,
-        },
-  });
+  const calculateMonthlyEndDate = (startDate: Date) => {
+    // Add one month and one day to the start date
+    return addDays(addMonths(startDate, 1), 1);
+  };
+
+  // Update rate amount when rental type changes
+  useEffect(() => {
+    form.setValue(
+      "rate_amount",
+      watchRentalType === "DAILY" ? dailyRate : monthlyRate
+    );
+
+    const currentStartDate = form.getValues("start_date");
+    const newStartDate =
+      !currentStartDate || isBefore(currentStartDate, today)
+        ? today
+        : currentStartDate;
+
+    if (watchRentalType === "MONTHLY") {
+      form.setValue("start_date", newStartDate);
+      form.setValue("end_date", calculateMonthlyEndDate(newStartDate));
+    } else {
+      // For daily rentals, keep the existing dates if they're valid
+      if (!currentStartDate || isBefore(currentStartDate, today)) {
+        form.setValue("start_date", today);
+        form.setValue("end_date", addDays(today, 1));
+      }
+    }
+  }, [watchRentalType, dailyRate, monthlyRate, form, today]);
+
+  // Handle start date change
+  useEffect(() => {
+    if (!watchStartDate) return;
+
+    if (watchRentalType === "MONTHLY") {
+      form.setValue("end_date", calculateMonthlyEndDate(watchStartDate));
+    } else {
+      const currentEndDate = form.getValues("end_date");
+      if (!currentEndDate || isBefore(currentEndDate, watchStartDate)) {
+        form.setValue("end_date", addDays(watchStartDate, 1));
+      }
+    }
+  }, [watchStartDate, watchRentalType, form]);
+
+  // Validate downpayment when total changes
+  useEffect(() => {
+    if (showDownpayment && watchDownpayment) {
+      const totalBeforeDownpayment = calculateTotalBeforeDownpayment();
+      if (watchDownpayment > totalBeforeDownpayment) {
+        form.setError("payment_terms.downpayment", {
+          type: "custom",
+          message: "Downpayment cannot be greater than the total amount due",
+        });
+      } else {
+        form.clearErrors("payment_terms.downpayment");
+      }
+    }
+  }, [
+    watchDownpayment,
+    calculateTotalBeforeDownpayment,
+    form,
+    showDownpayment,
+  ]);
+
+  const onSubmit = (data: RentalFormType) => {
+    const totalBeforeDownpayment = calculateTotalBeforeDownpayment();
+    if (
+      data.payment_terms.downpayment &&
+      data.payment_terms.downpayment > totalBeforeDownpayment
+    ) {
+      form.setError("payment_terms.downpayment", {
+        type: "custom",
+        message: "Downpayment cannot be greater than the total amount due",
+      });
+      return;
+    }
+
+    const finalData = {
+      ...data,
+      branch_id: branchId,
+      grand_total: calculateGrandTotal().toFixed(2),
+    };
+    // console.log(finalData);
+    createRental(finalData, {
+      onSuccess: () => {
+        onComplete();
+      },
+      onError: (error) => {
+        console.error(error);
+      },
+    });
+  };
+
+  const rentalAmount = calculateRentalAmount();
+  const totalBeforeDownpayment = calculateTotalBeforeDownpayment();
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
-        <div className="flex justify-between">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        {(isAdmin || userIsGeneral) && (
           <FormField
             control={form.control}
-            name="unit_name"
+            name="branch_id"
             render={({ field }) => (
               <FormItem>
-                <FormControl>
-                  <Input
-                    className={`placeholder:text-3xl text-3xl font-bold ${inputResetClass}`}
-                    placeholder="Unit Name"
-                    {...field}
-                    disabled={mode === "view"}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="status"
-            render={({ field }) => (
-              <FormItem className="self-end mb-1">
+                <FormLabel>Branch</FormLabel>
                 <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  disabled={mode === "view"}
+                  onValueChange={(value) => {
+                    field.onChange(Number(value));
+                  }}
+                  // defaultValue={String(field.value)}
                 >
                   <FormControl>
-                    <SelectTrigger
-                      className={`px-2 h-fit w-fit py-0.5 border-none rounded-full text-xs font-medium ${
-                        {
-                          available: "bg-green-100 text-green-800",
-                          rented: "bg-red-100 text-red-800",
-                          maintenance: "bg-yellow-100 text-yellow-800",
-                          reserved: "bg-blue-100 text-blue-800",
-                        }[field.value] || ""
-                      }`}
-                    >
-                      <SelectValue placeholder="Select unit status">
-                        {field.value.charAt(0).toUpperCase() +
-                          field.value.slice(1)}
-                      </SelectValue>
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={`${
+                          form.watch("branch_id")
+                            ? field.value === 1
+                              ? "Taytay"
+                              : "Pasig"
+                            : "Select a branch"
+                        }`}
+                      />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value="available">Available</SelectItem>
-                    <SelectItem value="rented">Rented</SelectItem>
-                    <SelectItem value="maintenance">Maintenance</SelectItem>
-                    <SelectItem value="reserved">Reserved</SelectItem>
+                  <SelectContent align="end">
+                    <SelectGroup>
+                      <SelectLabel>Branches</SelectLabel>
+                      <SelectItem value="1">Taytay</SelectItem>
+                      <SelectItem value="2">Pasig</SelectItem>
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 <FormMessage />
               </FormItem>
             )}
           />
-        </div>
-        <Separator />
-        <div className="space-y-2">
-          <h2 className="uppercase text-slate-400 text-xs">Unit Details</h2>
-          <FormField
-            control={form.control}
-            name="model"
-            render={({ field }) => (
-              <FormItem>
-                <div className="grid grid-cols-[0.5fr_1fr]">
-                  <FormLabel>Model</FormLabel>
-                  <FormControl>
-                    <Input
-                      className={inputClass}
-                      placeholder="Model XYZ"
-                      {...field}
-                      disabled={mode === "view"}
-                    />
-                  </FormControl>
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="serial_number"
-            render={({ field }) => (
-              <FormItem>
-                <div className="grid grid-cols-[0.5fr_1fr]">
-                  <FormLabel>Serial Number</FormLabel>
-                  <FormControl>
-                    <Input
-                      className={inputClass}
-                      placeholder="ABC123"
-                      {...field}
-                      disabled={mode === "view"}
-                    />
-                  </FormControl>
-                </div>
-
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <h2 className="uppercase text-slate-400 text-xs">Rates</h2>
-          <FormField
-            control={form.control}
-            name="daily_rate"
-            render={({ field }) => (
-              <FormItem>
-                <div className="grid grid-cols-[0.5fr_1fr]">
-                  <FormLabel>Daily Rate</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      className={inputClass}
-                      placeholder="50.00"
-                      step="0.01"
-                      min="0"
-                      {...field}
-                      onChange={(e) => handleRateChange(e, field)}
-                      disabled={mode === "view"}
-                    />
-                  </FormControl>
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="monthly_rate"
-            render={({ field }) => (
-              <FormItem>
-                <div className="grid grid-cols-[0.5fr_1fr]">
-                  <FormLabel>Monthly Rate</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      className={inputClass}
-                      placeholder="1000.00"
-                      step="0.01"
-                      min="0"
-                      {...field}
-                      onChange={(e) => handleRateChange(e, field)}
-                      disabled={mode === "view"}
-                    />
-                  </FormControl>
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        {mode !== "view" && (
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                <span>{mode === "create" ? "Adding..." : "Saving..."}</span>
-              </>
-            ) : mode === "create" ? (
-              "Add Unit"
-            ) : (
-              "Save Changes"
-            )}
-          </Button>
         )}
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium">Client Information</h3>
+
+          <FormField
+            control={form.control}
+            name="client.name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Client Name *</FormLabel>
+                <FormControl>
+                  <Input placeholder="Enter client full name" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="client.contact_number"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Contact Number</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Optional: Enter client phone number"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="client.email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Optional: Enter client email"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="rental_type"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Rental Type</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select rental type" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="DAILY">Daily</SelectItem>
+                  <SelectItem value="MONTHLY">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="start_date"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>Start Date</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "pl-3 text-left font-normal",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        {field.value ? (
+                          format(field.value, "PPP")
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      disabled={(date) => isBefore(date, today)}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="end_date"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>End Date</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "pl-3 text-left font-normal",
+                          !field.value && "text-muted-foreground"
+                        )}
+                        disabled={watchRentalType === "MONTHLY"}
+                      >
+                        {field.value ? (
+                          format(field.value, "PPP")
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      disabled={(date) =>
+                        watchRentalType === "MONTHLY" ||
+                        !watchStartDate ||
+                        isBefore(date, watchStartDate)
+                      }
+                    />
+                  </PopoverContent>
+                </Popover>
+                {watchRentalType === "MONTHLY" ? (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    End date is automatically set to one month plus one day from
+                    the start date
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    End date must be after the start date
+                  </p>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="rate_amount"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Rate Amount</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="0.01"
+                  {...field}
+                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                  disabled
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <Separator />
+
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium">Payment Details</h3>
+
+          <FormField
+            control={form.control}
+            name="payment_terms.deposit"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Security Deposit</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    {...field}
+                    onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {!showDownpayment ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowDownpayment(true)}
+            >
+              Add Downpayment
+            </Button>
+          ) : (
+            <FormField
+              control={form.control}
+              name="payment_terms.downpayment"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Downpayment</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      {...field}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        if (value > totalBeforeDownpayment) {
+                          form.setError("payment_terms.downpayment", {
+                            type: "custom",
+                            message:
+                              "Downpayment cannot be greater than the total amount due",
+                          });
+                        } else {
+                          form.clearErrors("payment_terms.downpayment");
+                        }
+                        field.onChange(value);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                  <p className="text-sm text-muted-foreground">
+                    Maximum downpayment: ₱{totalBeforeDownpayment.toFixed(2)}
+                  </p>
+                </FormItem>
+              )}
+            />
+          )}
+
+          <FormField
+            control={form.control}
+            name="payment_terms.payment_method"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Payment Method</FormLabel>
+                <div className="grid grid-cols-2 gap-2">
+                  {paymentMethods.map((method) => (
+                    <Button
+                      key={method.value}
+                      type="button"
+                      className={cn(
+                        "hover:bg-green-500 hover:text-white",
+                        field.value === method.value &&
+                          "bg-green-500 text-white"
+                      )}
+                      variant="outline"
+                      onClick={() => field.onChange(method.value)}
+                    >
+                      {method.label}
+                    </Button>
+                  ))}
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <Separator />
+
+        <div className="rounded-lg bg-muted p-4">
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="font-medium">Rental Amount:</span>
+              <span>₱{rentalAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Security Deposit:</span>
+              <span>₱{(watchDeposit || 0).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total Before Downpayment:</span>
+              <span>₱{totalBeforeDownpayment.toFixed(2)}</span>
+            </div>
+            {showDownpayment && (
+              <div className="flex justify-between text-green-600">
+                <span>Downpayment:</span>
+                <span>-₱{(watchDownpayment || 0).toFixed(2)}</span>
+              </div>
+            )}
+            <Separator />
+            <div className="flex justify-between text-lg font-semibold">
+              <span>Balance Due:</span>
+              <span>₱{calculateGrandTotal().toFixed(2)}</span>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Payment Method:{" "}
+              {
+                paymentMethods.find((m) => m.value === watchPaymentMethod)
+                  ?.label
+              }
+            </div>
+          </div>
+        </div>
+
+        <Button type="submit" className="w-full" disabled={isPending}>
+          {isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <span>Creating rental...</span>
+            </>
+          ) : (
+            "Create Rental"
+          )}
+        </Button>
       </form>
     </Form>
   );

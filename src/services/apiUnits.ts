@@ -1,4 +1,4 @@
-import { RentalUnitFormType } from "../components/rental/rental-form";
+import { RentalUnitFormType } from "../components/rental/unit-form";
 import { supabase } from "./supabase";
 
 export async function getUnits() {

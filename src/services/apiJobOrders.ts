@@ -29,7 +29,7 @@ export async function getJobOrders() {
   return joborders;
 }
 
-async function upsertClient(
+export async function upsertClient(
   supabase: SupabaseClient,
   client: {
     name: string;

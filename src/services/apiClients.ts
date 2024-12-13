@@ -1,3 +1,4 @@
+import { Client } from "../lib/types";
 import { supabase } from "./supabase";
 
 export async function getClientsWithJobOrders() {
@@ -47,4 +48,47 @@ export async function getClientsWithJobOrders() {
     console.error("Error fetching clients with job orders:", error);
     throw error;
   }
+}
+
+export async function getClients() {
+  const { data: clients, error } = await supabase.from("clients").select("*");
+
+  if (error) {
+    console.error(error);
+    throw new Error("Error fetching clients");
+  }
+
+  return clients;
+}
+
+export async function getClient(id: string) {
+  const { data: client, error } = await supabase
+    .from("clients")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    console.error(error);
+    throw new Error("Error fetching client");
+  }
+
+  return client;
+}
+
+export async function createClient(
+  data: Omit<Client, "id" | "created_at">
+): Promise<Client> {
+  const { data: newClient, error } = await supabase
+    .from("clients")
+    .insert([data])
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    throw new Error("Error creating client");
+  }
+
+  return newClient;
 }
