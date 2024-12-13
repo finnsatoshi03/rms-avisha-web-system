@@ -230,7 +230,7 @@ const Table = <T,>({
                     </DropdownMenu>
                   ) : (
                     <p
-                      className={`rounded-full px-2 py-0.5 text-center w-fit font-bold ${
+                      className={`rounded-full px-2 py-0.5 w-fit font-bold ${
                         col.key === "status"
                           ? [
                               "AVAILABLE",

@@ -343,7 +343,13 @@ export default function Rental() {
 
       {(selectedRow || action === "add") && (
         <Sheet open={!!action} onOpenChange={() => setAction(null)}>
-          <SheetContent className="h-fit overflow-y-auto">
+          <SheetContent
+            className={`${
+              (action === "add" ||
+                selectedRow?.status.toLowerCase() !== "rented") &&
+              "h-fit"
+            } overflow-y-auto`}
+          >
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2 text-xs px-4 bg-gray-200 rounded-full w-fit py-0.5">
                 {action === "add" ? (
@@ -389,6 +395,7 @@ export default function Rental() {
                               rentalWithClientDetails.clients?.contact_number,
                             email: rentalWithClientDetails.clients?.email,
                           },
+                          grand_total: rentalWithClientDetails.grand_total,
                         }
                       : undefined,
                   }}

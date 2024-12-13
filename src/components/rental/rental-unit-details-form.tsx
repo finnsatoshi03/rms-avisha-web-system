@@ -22,6 +22,25 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Separator } from "../ui/separator";
+import { CalendarIcon, Mail, Phone, ReceiptText } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { cn } from "../../lib/utils";
+import {
+  differenceInDays,
+  endOfMonth,
+  format,
+  isBefore,
+  startOfDay,
+  startOfMonth,
+} from "date-fns";
+import { Calendar } from "../ui/calendar";
+import { useCallback } from "react";
 
 // Combined schema for rental unit and rental details
 const rentalUnitAndDetailsSchema = z.object({
@@ -58,9 +77,15 @@ const rentalUnitAndDetailsSchema = z.object({
   ),
 });
 
-export type RentalUnitAndDetailsFormType = z.infer<
+type BaseRentalUnitAndDetailsFormType = z.infer<
   typeof rentalUnitAndDetailsSchema
 >;
+
+export type RentalUnitAndDetailsFormType = BaseRentalUnitAndDetailsFormType & {
+  rental_details?: {
+    grand_total: number;
+  } & NonNullable<BaseRentalUnitAndDetailsFormType["rental_details"]>;
+};
 
 export function RentalUnitAndDetailsForm({
   initialValues,
@@ -75,6 +100,8 @@ export function RentalUnitAndDetailsForm({
     "border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none";
   const borderClass = "border-b border-slate-200";
   const inputClass = inputResetClass + " " + borderClass;
+
+  const today = startOfDay(new Date());
 
   const handleRateChange = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -122,6 +149,34 @@ export function RentalUnitAndDetailsForm({
     console.log("Submitting rental unit and details form:", data);
     // onSubmit(data);
   };
+
+  const watchRentalType = form.watch("rental_details.rental_type");
+  const watchStartDate = form.watch("rental_details.start_date");
+  const watchEndDate = form.watch("rental_details.end_date");
+  const watchRateAmount = form.watch("rental_details.rate_amount");
+
+  // Calculate rental amount
+  const calculateRentalAmount = useCallback(() => {
+    if (!watchStartDate || !watchEndDate || !watchRateAmount) return 0;
+
+    if (watchRentalType === "DAILY") {
+      // For daily rentals, calculate the exact number of days including both start and end dates
+      const days = differenceInDays(watchEndDate, watchStartDate) + 1;
+      return Math.max(0, days) * watchRateAmount;
+    } else {
+      // For monthly rentals:
+      // 1. Get the number of full months
+      const monthStart = startOfMonth(watchStartDate);
+      const monthEnd = endOfMonth(watchEndDate);
+      const fullMonths = differenceInDays(monthEnd, monthStart) / 30;
+
+      // 2. Round up to the nearest month since partial months are charged as full months
+      const months = Math.ceil(fullMonths);
+
+      // 3. Calculate the total amount
+      return Math.max(1, months) * watchRateAmount;
+    }
+  }, [watchStartDate, watchEndDate, watchRateAmount, watchRentalType]);
 
   return (
     <Form {...form}>
@@ -183,7 +238,7 @@ export function RentalUnitAndDetailsForm({
             )}
           />
         </div>
-        <Separator />
+        <Separator className="h-[2px]" />
         <div className="space-y-2">
           <h2 className="font-bold opacity-40 text-xs">Unit Details</h2>
           <FormField
@@ -284,58 +339,371 @@ export function RentalUnitAndDetailsForm({
         {/* Conditional Rental Details Section */}
         {status === "rented" && (
           <>
-            <Separator className="mt-4" />
+            <Separator className="mt-4 h-[2px]" />
             <div className="space-y-4">
-              <h3 className="opacity-40 text-xs font-bold">Rental Details</h3>
-
-              <FormField
-                control={form.control}
-                name="rental_details.branch_id"
-                render={({ field }) => (
-                  <FormItem className="pb-2 border-b">
-                    <div className="grid grid-cols-[1fr_auto]">
-                      <FormLabel>Branch</FormLabel>
-                      <Select
-                        onValueChange={(value) => {
-                          field.onChange(Number(value));
-                        }}
-                      >
+              <div className="flex items-center gap-2 text-xs px-4 bg-red-100 text-red-600 rounded-full w-fit py-0.5">
+                <ReceiptText size={14} />
+                Rental Details
+              </div>
+              <div>
+                <h3 className="opacity-40 text-xs font-bold">Client</h3>
+                <div className="flex justify-between gap-4 items-center">
+                  <FormField
+                    control={form.control}
+                    name="rental_details.client.name"
+                    render={({ field }) => (
+                      <FormItem>
                         <FormControl>
-                          <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0">
-                            <SelectValue
-                              placeholder={`${
-                                form.watch("rental_details.branch_id")
-                                  ? field.value === 1
-                                    ? "Taytay"
-                                    : "Pasig"
-                                  : "Select a branch"
-                              }`}
-                            />
-                          </SelectTrigger>
+                          <Input
+                            className={`placeholder:text-xl text-xl font-semibold ${inputResetClass}`}
+                            placeholder="Enter client name"
+                            {...field}
+                            disabled={mode === "view"}
+                          />
                         </FormControl>
-                        <SelectContent align="end">
-                          <SelectGroup>
-                            <SelectLabel>Branches</SelectLabel>
-                            <SelectItem value="1">Taytay</SelectItem>
-                            <SelectItem value="2">Pasig</SelectItem>
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <TooltipProvider delayDuration={100}>
+                    <div className="space-x-2">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            className="p-1.5 h-fit text-xs gap-1"
+                            variant="outline"
+                          >
+                            <Phone size={14} />
+                            <p>Contact No.</p>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-sm flex items-center gap-1">
+                            {
+                              initialValues?.rental_details?.client
+                                .contact_number
+                            }
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
 
-              {/* Add other rental details fields similarly */}
-              {/* Client Details, Dates, Payment Terms, etc. */}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            className="p-1.5 h-fit text-xs gap-1"
+                          >
+                            <Mail size={14} />
+                            <p>Email</p>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-sm flex items-center gap-1">
+                            {initialValues?.rental_details?.client.email}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TooltipProvider>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="rental_details.branch_id"
+                    render={({ field }) => (
+                      <FormItem className="border-b col-span-2">
+                        <div>
+                          <FormLabel>Branch</FormLabel>
+                          <Select
+                            onValueChange={(value) => {
+                              field.onChange(Number(value));
+                            }}
+                          >
+                            <FormControl>
+                              <SelectTrigger
+                                className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0"
+                                disabled={mode === "view"}
+                              >
+                                <SelectValue
+                                  placeholder={`${
+                                    form.watch("rental_details.branch_id")
+                                      ? field.value === 1
+                                        ? "Taytay"
+                                        : "Pasig"
+                                      : "Select a branch"
+                                  }`}
+                                />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent align="end">
+                              <SelectGroup>
+                                <SelectLabel>Branches</SelectLabel>
+                                <SelectItem value="1">Taytay</SelectItem>
+                                <SelectItem value="2">Pasig</SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="rental_details.rental_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div>
+                          <FormLabel>Rental Type</FormLabel>
+                          <FormControl>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger
+                                  className={inputClass}
+                                  disabled={mode === "view"}
+                                >
+                                  <SelectValue placeholder="Select rental type" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="DAILY">Daily</SelectItem>
+                                <SelectItem value="MONTHLY">Monthly</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="rental_details.rate_amount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div>
+                          <FormLabel>Rate Amount</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              className={inputClass}
+                              placeholder="1000.00"
+                              step="0.01"
+                              min="0"
+                              {...field}
+                              onChange={(e) => handleRateChange(e, field)}
+                              disabled={mode === "view"}
+                            />
+                          </FormControl>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="rental_details.start_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex flex-col">
+                          <FormLabel>Start Date</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="link"
+                                  className={cn(
+                                    "p-0 h-fit text-left font-normal border-b",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                  disabled={mode === "view"}
+                                >
+                                  {field.value ? (
+                                    format(field.value, "PPP")
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="w-auto p-0"
+                              align="start"
+                            >
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                disabled={(date) => isBefore(date, today)}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="rental_details.end_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex flex-col">
+                          <FormLabel>End Date</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="link"
+                                  className={cn(
+                                    "p-0 h-fit text-left font-normal border-b",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                  disabled={mode === "view"}
+                                >
+                                  {field.value ? (
+                                    format(field.value, "PPP")
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="w-auto p-0"
+                              align="start"
+                            >
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                disabled={(date) => isBefore(date, today)}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-md border py-2 space-y-2 group">
+                <h2 className="font-bold opacity-40 text-xs mx-4">
+                  Payment Details
+                </h2>
+                <Separator />
+                <div className="mx-4 grid grid-cols-[1fr_auto]">
+                  <h3 className="text-sm opacity-80 font-semibold">
+                    Rental Amount
+                  </h3>
+                  <p className="text-sm opacity-50">
+                    ₱{calculateRentalAmount()}
+                  </p>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="rental_details.payment_terms.deposit"
+                  render={({ field }) => (
+                    <FormItem className="mx-4">
+                      <div className="grid grid-cols-[1fr_auto]">
+                        <FormLabel className="text-sm opacity-80 font-semibold">
+                          Security Deposit
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            className={`${inputResetClass} text-right`}
+                            placeholder="1000.00"
+                            step="0.01"
+                            min="0"
+                            {...field}
+                            onChange={(e) => handleRateChange(e, field)}
+                            disabled={mode === "view"}
+                          />
+                        </FormControl>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="rental_details.payment_terms.downpayment"
+                  render={({ field }) => (
+                    <FormItem className="mx-4">
+                      <div className="grid grid-cols-[1fr_auto]">
+                        <FormLabel className="text-sm opacity-80 font-semibold">
+                          Downpayment
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            className={`${inputResetClass} text-right`}
+                            placeholder="1000.00"
+                            step="0.01"
+                            min="0"
+                            {...field}
+                            onChange={(e) => handleRateChange(e, field)}
+                            disabled={mode === "view"}
+                          />
+                        </FormControl>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="rental_details.payment_terms.payment_method"
+                  render={({ field }) => (
+                    <FormItem className="mx-4">
+                      <div className="grid grid-cols-[1fr_auto]">
+                        <FormLabel className="text-sm opacity-80 font-semibold">
+                          Payment Method
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            className={`${inputResetClass} text-right`}
+                            {...field}
+                            disabled={mode === "view"}
+                          />
+                        </FormControl>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="px-4 bg-slate-100 border-t border-b py-1 flex justify-between items-center">
+                  <h4 className="font-bold">Total</h4>
+                  <p className="font-semibold">
+                    ₱{initialValues?.rental_details?.grand_total || 0}
+                  </p>
+                </div>
+              </div>
             </div>
           </>
         )}
 
-        <Button type="submit" disabled={mode === "view"}>
-          {mode === "create" ? "Create Unit" : "Update Unit"}
-        </Button>
+        {mode !== "view" && (
+          <Button type="submit">
+            {mode === "create" ? "Create Unit" : "Update Unit"}
+          </Button>
+        )}
       </form>
     </Form>
   );
