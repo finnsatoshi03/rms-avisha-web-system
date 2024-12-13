@@ -65,7 +65,6 @@ export type RentalUnitAndDetailsFormType = z.infer<
 export function RentalUnitAndDetailsForm({
   initialValues,
   mode = "view",
-  onSubmit,
 }: {
   initialValues?: Partial<RentalUnitAndDetailsFormType>;
   mode?: "create" | "edit" | "view";
