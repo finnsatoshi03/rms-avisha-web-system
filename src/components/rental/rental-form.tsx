@@ -22,16 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "../ui/command";
 import { Separator } from "../ui/separator";
-import { Loader2, CalendarIcon, Check, ChevronsUpDown } from "lucide-react";
+import { Loader2, CalendarIcon } from "lucide-react";
 import { useCreateRental } from "./useCreateRental";
 import { Calendar } from "../ui/calendar";
 import {
@@ -59,7 +51,6 @@ const paymentMethods = [
 
 const rentalSchema = z.object({
   unit_id: z.number(),
-  client_id: z.number().min(0, "Client is required"),
   branch_id: z.number().min(0, "Branch is required"),
   start_date: z.date(),
   end_date: z.date(),
@@ -72,7 +63,6 @@ const rentalSchema = z.object({
       .min(0)
       .optional()
       .superRefine((downpayment, ctx) => {
-        // This will be populated during validation with the calculated total
         const totalAmount = (ctx.path as any).totalAmount;
         if (downpayment && downpayment > totalAmount) {
           ctx.addIssue({
@@ -91,15 +81,19 @@ const rentalSchema = z.object({
     ]),
   }),
   status: z.enum(["ACTIVE", "INACTIVE"]) as z.ZodType<"ACTIVE" | "INACTIVE">,
+  client: z.object({
+    name: z.string().min(1, "Client name is required"),
+    contact_number: z.string().optional(),
+    email: z.string().email().optional(),
+  }),
 });
 
 export type RentalFormType = z.infer<typeof rentalSchema>;
-
 interface RentalFormProps {
   unitId: string;
   dailyRate: number;
   monthlyRate: number;
-  clients: { id: string; name: string }[];
+  // clients: { id: string; name: string }[];
   onComplete: () => void;
 }
 
@@ -107,7 +101,7 @@ export function RentalForm({
   unitId,
   dailyRate,
   monthlyRate,
-  clients,
+  // clients,
   onComplete,
 }: RentalFormProps) {
   const { isTaytay, isPasig, isAdmin, user } = useUser();
@@ -128,7 +122,6 @@ export function RentalForm({
     resolver: zodResolver(rentalSchema),
     defaultValues: {
       unit_id: parseInt(unitId, 10),
-      client_id: 0,
       rental_type: "DAILY",
       rate_amount: dailyRate,
       payment_terms: {
@@ -139,6 +132,11 @@ export function RentalForm({
       status: "ACTIVE",
       start_date: new Date(),
       end_date: new Date(),
+      client: {
+        name: "",
+        contact_number: "",
+        email: "",
+      },
     },
   });
 
@@ -335,69 +333,57 @@ export function RentalForm({
             )}
           />
         )}
-        <FormField
-          control={form.control}
-          name="client_id"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Client</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className={cn(
-                        "w-full justify-between",
-                        !field.value && "text-muted-foreground"
-                      )}
-                    >
-                      {field.value
-                        ? clients.find(
-                            (client) => parseInt(client.id, 10) === field.value
-                          )?.name
-                        : "Select client"}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] max-h-[--radix-popover-content-available-height]">
-                  <Command>
-                    <CommandInput placeholder="Search client..." />
-                    <CommandList>
-                      <CommandEmpty>No client found.</CommandEmpty>
-                      <CommandGroup>
-                        {clients.map((client) => (
-                          <CommandItem
-                            value={client.name}
-                            key={client.id}
-                            onSelect={() => {
-                              form.setValue(
-                                "client_id",
-                                parseInt(client.id, 10)
-                              );
-                            }}
-                          >
-                            {client.name}
-                            <Check
-                              className={cn(
-                                "ml-auto",
-                                client.id === field.value.toString()
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              )}
-                            />
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium">Client Information</h3>
+
+          <FormField
+            control={form.control}
+            name="client.name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Client Name *</FormLabel>
+                <FormControl>
+                  <Input placeholder="Enter client full name" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="client.contact_number"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Contact Number</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Optional: Enter client phone number"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="client.email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Optional: Enter client email"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
@@ -598,7 +584,7 @@ export function RentalForm({
                   </FormControl>
                   <FormMessage />
                   <p className="text-sm text-muted-foreground">
-                    Maximum downpayment: ${totalBeforeDownpayment.toFixed(2)}
+                    Maximum downpayment: ₱{totalBeforeDownpayment.toFixed(2)}
                   </p>
                 </FormItem>
               )}
@@ -640,26 +626,26 @@ export function RentalForm({
           <div className="space-y-2">
             <div className="flex justify-between">
               <span className="font-medium">Rental Amount:</span>
-              <span>${rentalAmount.toFixed(2)}</span>
+              <span>₱{rentalAmount.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
               <span>Security Deposit:</span>
-              <span>${(watchDeposit || 0).toFixed(2)}</span>
+              <span>₱{(watchDeposit || 0).toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
               <span>Total Before Downpayment:</span>
-              <span>${totalBeforeDownpayment.toFixed(2)}</span>
+              <span>₱{totalBeforeDownpayment.toFixed(2)}</span>
             </div>
             {showDownpayment && (
               <div className="flex justify-between text-green-600">
                 <span>Downpayment:</span>
-                <span>-${(watchDownpayment || 0).toFixed(2)}</span>
+                <span>-₱{(watchDownpayment || 0).toFixed(2)}</span>
               </div>
             )}
             <Separator />
             <div className="flex justify-between text-lg font-semibold">
               <span>Balance Due:</span>
-              <span>${calculateGrandTotal().toFixed(2)}</span>
+              <span>₱{calculateGrandTotal().toFixed(2)}</span>
             </div>
             <div className="text-sm text-muted-foreground">
               Payment Method:{" "}

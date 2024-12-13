@@ -45,17 +45,18 @@ import {
 } from "../components/rental/useCreateEditUnit";
 import { useDeleteUnit } from "../components/rental/useDeleteUnit";
 import { RentalForm } from "../components/rental/rental-form";
-import { useClients } from "../components/clients/useClients";
+import { useRental } from "../components/rental/useRental";
+import { RentalUnitAndDetailsForm } from "../components/rental/rental-unit-details-form";
 
 export default function Rental() {
   const { units, isLoading: isUnitsLoading } = useUnits();
-  const { clients, isLoading: isClientsLoading } = useClients();
+  // const { clients, isLoading: isClientsLoading } = useClients();
   const { mutate: createUnit } = useCreateUnit();
   const { mutate: updateUnit } = useUpdateUnit();
   const { mutate: deleteUnit } = useDeleteUnit();
   const { mutate: updateStatus } = useUpdateStatusUnit();
 
-  const isLoading = isUnitsLoading || isClientsLoading;
+  const isLoading = isUnitsLoading;
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -70,6 +71,12 @@ export default function Rental() {
   const [showRentalForm, setShowRentalForm] = useState(false);
   const [selectedUnitForRental, setSelectedUnitForRental] =
     useState<Unit | null>(null);
+  const [selectedRentalUnitId, setSelectedRentalUnitId] = useState<
+    number | null
+  >(null);
+
+  const { rental: rentalWithClientDetails, isLoading: isRentalLoading } =
+    useRental(selectedRentalUnitId || 0);
 
   const columns: { key: keyof Unit; title: string }[] = [
     { key: "unit_name", title: "Unit Name" },
@@ -157,6 +164,12 @@ export default function Rental() {
   const handleRowClick = (row: Unit, action: "details" | "edit") => {
     setSelectedRow(row);
     setAction(action);
+
+    if (row.status.toLowerCase() === "rented") {
+      setSelectedRentalUnitId(Number(row.id));
+    } else {
+      setSelectedRentalUnitId(null);
+    }
   };
 
   const handleRowSelection = (selectedIds: number[]) => {
@@ -350,17 +363,52 @@ export default function Rental() {
               </SheetTitle>
               <SheetDescription className="hidden"></SheetDescription>
             </SheetHeader>
-            <RentalUnitForm
-              initialValues={selectedRow || {}}
-              mode={
-                action === "add"
-                  ? "create"
-                  : action === "edit"
-                  ? "edit"
-                  : "view"
-              }
-              onSubmit={handleAddUnitSubmit}
-            />
+            {selectedRow?.status.toLowerCase() === "rented" ? (
+              isRentalLoading ? (
+                <div className="h-full w-screen justify-center items-center">
+                  <Loader />
+                </div>
+              ) : (
+                <RentalUnitAndDetailsForm
+                  initialValues={{
+                    ...selectedRow,
+                    rental_details: rentalWithClientDetails
+                      ? {
+                          branch_id: rentalWithClientDetails.branch_id,
+                          start_date: new Date(
+                            rentalWithClientDetails.start_date
+                          ),
+                          end_date: new Date(rentalWithClientDetails.end_date),
+                          rental_type: rentalWithClientDetails.rental_type,
+                          rate_amount: rentalWithClientDetails.rate_amount,
+                          payment_terms: rentalWithClientDetails.payment_terms,
+                          status: rentalWithClientDetails.status,
+                          client: {
+                            name: rentalWithClientDetails.clients?.name,
+                            contact_number:
+                              rentalWithClientDetails.clients?.contact_number,
+                            email: rentalWithClientDetails.clients?.email,
+                          },
+                        }
+                      : undefined,
+                  }}
+                  mode={action === "edit" ? "edit" : "view"}
+                  onSubmit={handleAddUnitSubmit}
+                />
+              )
+            ) : (
+              <RentalUnitForm
+                initialValues={selectedRow || {}}
+                mode={
+                  action === "add"
+                    ? "create"
+                    : action === "edit"
+                    ? "edit"
+                    : "view"
+                }
+                onSubmit={handleAddUnitSubmit}
+              />
+            )}
           </SheetContent>
         </Sheet>
       )}
@@ -383,7 +431,7 @@ export default function Rental() {
               unitId={selectedUnitForRental.id}
               dailyRate={selectedUnitForRental.daily_rate}
               monthlyRate={selectedUnitForRental.monthly_rate}
-              clients={clients || []}
+              // clients={clients || []}
               onComplete={() => {
                 updateStatus({
                   id: selectedUnitForRental.id,

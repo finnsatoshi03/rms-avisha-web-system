@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getClients } from "../../services/apiClients";
+import { getClient, getClients } from "../../services/apiClients";
 
 export function useClients() {
   const {
@@ -13,6 +13,23 @@ export function useClients() {
 
   return {
     clients,
+    error,
+    isLoading,
+  };
+}
+
+export function useClient(id: string) {
+  const {
+    data: client,
+    error,
+    isLoading,
+  } = useQuery({
+    queryKey: ["client", id],
+    queryFn: ({ queryKey }) => getClient(queryKey[1]),
+  });
+
+  return {
+    client,
     error,
     isLoading,
   };

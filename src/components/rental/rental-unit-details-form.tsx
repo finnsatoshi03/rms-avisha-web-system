@@ -15,15 +15,17 @@ import { Input } from "../ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
 import { Separator } from "../ui/separator";
-import { Loader2 } from "lucide-react";
-import { useCreateUnit, useUpdateUnit } from "./useCreateEditUnit";
 
-const rentalUnitSchema = z.object({
+// Combined schema for rental unit and rental details
+const rentalUnitAndDetailsSchema = z.object({
+  // Unit Details
   unit_name: z.string().min(2, "Unit name must be at least 2 characters"),
   model: z.string().min(2, "Model must be at least 2 characters"),
   serial_number: z
@@ -32,28 +34,47 @@ const rentalUnitSchema = z.object({
   status: z.enum(["available", "rented", "maintenance", "reserved"]),
   daily_rate: z.number().min(0, "Daily rate must be a positive number"),
   monthly_rate: z.number().min(0, "Monthly rate must be a positive number"),
+
+  // Optional Rental Details (only required when status is 'rented')
+  rental_details: z.optional(
+    z.object({
+      branch_id: z.number().min(0, "Branch is required"),
+      start_date: z.date(),
+      end_date: z.date(),
+      rental_type: z.enum(["DAILY", "MONTHLY"]),
+      rate_amount: z.number().min(0, "Rate must be positive"),
+      payment_terms: z.object({
+        deposit: z.number().min(0),
+        downpayment: z.number().min(0).optional(),
+        payment_method: z.enum(["cash", "check", "gcash", "bank_transfer"]),
+      }),
+      status: z.enum(["ACTIVE", "INACTIVE"]),
+      client: z.object({
+        name: z.string().min(1, "Name is required"),
+        contact_number: z.string().optional(),
+        email: z.string().email().optional(),
+      }),
+    })
+  ),
 });
 
-export type RentalUnitFormType = z.infer<typeof rentalUnitSchema>;
+export type RentalUnitAndDetailsFormType = z.infer<
+  typeof rentalUnitAndDetailsSchema
+>;
 
-export function RentalUnitForm({
+export function RentalUnitAndDetailsForm({
   initialValues,
-  mode = "create",
+  mode = "view",
   onSubmit,
 }: {
-  initialValues?: Partial<RentalUnitFormType>;
+  initialValues?: Partial<RentalUnitAndDetailsFormType>;
   mode?: "create" | "edit" | "view";
-  onSubmit: (data: RentalUnitFormType) => void;
+  onSubmit: (data: RentalUnitAndDetailsFormType) => void;
 }) {
   const inputResetClass =
     "border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none";
   const borderClass = "border-b border-slate-200";
   const inputClass = inputResetClass + " " + borderClass;
-
-  const { isPending: isCreating } = useCreateUnit();
-  const { isPending: isUpdating } = useUpdateUnit();
-
-  const isLoading = isCreating || isUpdating;
 
   const handleRateChange = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -65,17 +86,16 @@ export function RentalUnitForm({
     }
   };
 
-  const form = useForm<RentalUnitFormType>({
-    resolver: zodResolver(rentalUnitSchema),
+  const form = useForm<RentalUnitAndDetailsFormType>({
+    resolver: zodResolver(rentalUnitAndDetailsSchema),
     defaultValues: initialValues
       ? {
           ...initialValues,
-          status:
-            (initialValues.status?.toLowerCase() as
-              | "available"
-              | "rented"
-              | "maintenance"
-              | "reserved") || "available",
+          status: initialValues.status?.toLowerCase() as
+            | "available"
+            | "rented"
+            | "maintenance"
+            | "reserved",
         }
       : {
           unit_name: "",
@@ -87,10 +107,26 @@ export function RentalUnitForm({
         },
   });
 
+  const status = form.watch("status");
+
+  const handleSubmit = (data: RentalUnitAndDetailsFormType) => {
+    // Validate rental details if status is 'rented'
+    if (data.status === "rented" && !data.rental_details) {
+      form.setError("rental_details", {
+        type: "manual",
+        message: "Rental details are required when status is rented",
+      });
+      return;
+    }
+
+    console.log("Submitting rental unit and details form:", data);
+    // onSubmit(data);
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
-        <div className="flex justify-between">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        <div className="flex justify-between mt-4">
           <FormField
             control={form.control}
             name="unit_name"
@@ -245,20 +281,61 @@ export function RentalUnitForm({
           />
         </div>
 
-        {mode !== "view" && (
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                <span>{mode === "create" ? "Adding..." : "Saving..."}</span>
-              </>
-            ) : mode === "create" ? (
-              "Add Unit"
-            ) : (
-              "Save Changes"
-            )}
-          </Button>
+        {/* Conditional Rental Details Section */}
+        {status === "rented" && (
+          <>
+            <Separator className="mt-4" />
+            <div className="space-y-4">
+              <h3 className="opacity-40 text-xs font-bold">Rental Details</h3>
+
+              <FormField
+                control={form.control}
+                name="rental_details.branch_id"
+                render={({ field }) => (
+                  <FormItem className="pb-2 border-b">
+                    <div className="grid grid-cols-[1fr_auto]">
+                      <FormLabel>Branch</FormLabel>
+                      <Select
+                        onValueChange={(value) => {
+                          field.onChange(Number(value));
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0">
+                            <SelectValue
+                              placeholder={`${
+                                form.watch("rental_details.branch_id")
+                                  ? field.value === 1
+                                    ? "Taytay"
+                                    : "Pasig"
+                                  : "Select a branch"
+                              }`}
+                            />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent align="end">
+                          <SelectGroup>
+                            <SelectLabel>Branches</SelectLabel>
+                            <SelectItem value="1">Taytay</SelectItem>
+                            <SelectItem value="2">Pasig</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Add other rental details fields similarly */}
+              {/* Client Details, Dates, Payment Terms, etc. */}
+            </div>
+          </>
         )}
+
+        <Button type="submit" disabled={mode === "view"}>
+          {mode === "create" ? "Create Unit" : "Update Unit"}
+        </Button>
       </form>
     </Form>
   );

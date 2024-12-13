@@ -61,6 +61,21 @@ export async function getClients() {
   return clients;
 }
 
+export async function getClient(id: string) {
+  const { data: client, error } = await supabase
+    .from("clients")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    console.error(error);
+    throw new Error("Error fetching client");
+  }
+
+  return client;
+}
+
 export async function createClient(
   data: Omit<Client, "id" | "created_at">
 ): Promise<Client> {
