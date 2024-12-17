@@ -362,7 +362,7 @@ export default function Rental() {
               (action === "add" ||
                 selectedRow?.status.toLowerCase() !== "rented") &&
               "h-fit"
-            } overflow-y-auto`}
+            } overflow-y-auto min-w-[50vw]`}
           >
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2 text-xs px-4 bg-gray-200 rounded-full w-fit py-0.5">
@@ -385,7 +385,7 @@ export default function Rental() {
             </SheetHeader>
             {selectedRow?.status.toLowerCase() === "rented" ? (
               isRentalLoading ? (
-                <div className="h-full w-screen justify-center items-center">
+                <div className="h-full w-full justify-center items-center">
                   <Loader />
                 </div>
               ) : (
@@ -443,14 +443,12 @@ export default function Rental() {
           open={showRentalForm}
           onOpenChange={() => setShowRentalForm(false)}
         >
-          <SheetContent className="overflow-y-auto">
+          <SheetContent className="overflow-y-auto min-w-[50vw]">
             <SheetHeader>
               <SheetTitle>
                 Create Rental for {selectedUnitForRental.unit_name}
               </SheetTitle>
-              <SheetDescription>
-                Fill in the rental details below
-              </SheetDescription>
+              <SheetDescription className="hidden"></SheetDescription>
             </SheetHeader>
             <RentalForm
               unitId={selectedUnitForRental.id}
