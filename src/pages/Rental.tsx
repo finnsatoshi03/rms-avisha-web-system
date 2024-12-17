@@ -98,7 +98,6 @@ export default function Rental() {
     available: 1,
     rented: 2,
     maintenance: 3,
-    reserved: 4,
   };
 
   const filterAndSortData = (data: Unit[]) => {
@@ -195,8 +194,7 @@ export default function Rental() {
       status: data.status.toUpperCase() as
         | "available"
         | "rented"
-        | "maintenance"
-        | "reserved",
+        | "maintenance",
     };
 
     if (selectedRow?.id) {

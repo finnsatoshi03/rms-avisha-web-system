@@ -52,7 +52,7 @@ const rentalUnitAndDetailsSchema = z.object({
   serial_number: z
     .string()
     .min(2, "Serial number must be at least 2 characters"),
-  status: z.enum(["available", "rented", "maintenance", "reserved"]),
+  status: z.enum(["available", "rented", "maintenance"]),
   daily_rate: z.number().min(0, "Daily rate must be a positive number"),
   monthly_rate: z.number().min(0, "Monthly rate must be a positive number"),
   rental_details: z.optional(
@@ -110,8 +110,7 @@ export function RentalUnitAndDetailsForm({
           status: initialValues.status?.toLowerCase() as
             | "available"
             | "rented"
-            | "maintenance"
-            | "reserved",
+            | "maintenance",
         }
       : {
           unit_name: "",
@@ -294,13 +293,11 @@ export function RentalUnitAndDetailsForm({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {["available", "rented", "maintenance", "reserved"].map(
-                      (status) => (
-                        <SelectItem key={status} value={status}>
-                          {status.charAt(0).toUpperCase() + status.slice(1)}
-                        </SelectItem>
-                      )
-                    )}
+                    {["available", "rented", "maintenance"].map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />
