@@ -150,7 +150,6 @@ export function RentalForm({
   const watchRateAmount = form.watch("rate_amount");
   const watchDeposit = form.watch("payment_terms.deposit");
   const watchDownpayment = form.watch("payment_terms.downpayment");
-  const watchPaymentMethod = form.watch("payment_terms.payment_method");
   const branchId =
     isAdmin || userIsGeneral
       ? form.watch("branch_id")

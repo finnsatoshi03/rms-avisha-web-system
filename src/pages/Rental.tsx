@@ -52,6 +52,7 @@ import {
 } from "../components/rental/rental-unit-details-form";
 import { useUpdateRental } from "../components/rental/useUpdateRental";
 import { UpdateRentalData } from "../services/apiRental";
+import toast from "react-hot-toast";
 
 export default function Rental() {
   const { units, isLoading: isUnitsLoading } = useUnits();
@@ -228,6 +229,13 @@ export default function Rental() {
   };
 
   const handleDeleteUnit = (id: string) => {
+    if (selectedRow?.id) {
+      if (selectedRow.status.toLowerCase() === "rented") {
+        toast.error("Update the Status to Available before deleting.");
+        return;
+      }
+    }
+
     deleteUnit(id);
   };
 
