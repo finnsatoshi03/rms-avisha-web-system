@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -172,13 +172,32 @@ export function RentalForm({
       watchRentalType
     );
     return rentalAmount + (watchDeposit || 0);
-  }, [calculateRentalAmount, watchDeposit]);
+  }, [
+    watchStartDate,
+    watchEndDate,
+    watchRateAmount,
+    watchRentalType,
+    watchDeposit,
+  ]);
 
   // Calculate grand total
-  const calculateGrandTotal = () => {
-    const totalBeforeDownpayment = calculateTotalBeforeDownpayment();
+  const grandTotal = useMemo(() => {
+    const rentalAmount = calculateRentalAmount(
+      watchStartDate,
+      watchEndDate,
+      watchRateAmount,
+      watchRentalType
+    );
+    const totalBeforeDownpayment = rentalAmount + (watchDeposit || 0);
     return totalBeforeDownpayment - (watchDownpayment || 0);
-  };
+  }, [
+    watchStartDate,
+    watchEndDate,
+    watchRateAmount,
+    watchRentalType,
+    watchDeposit,
+    watchDownpayment,
+  ]);
 
   const calculateMonthlyEndDate = (startDate: Date) => {
     // Add one month and one day to the start date
@@ -283,7 +302,7 @@ export function RentalForm({
     const finalData = {
       ...data,
       branch_id: branchId,
-      grand_total: calculateGrandTotal().toFixed(2),
+      grand_total: grandTotal.toFixed(2),
     };
     // console.log(finalData);
     createRental(finalData, {
@@ -569,8 +588,6 @@ export function RentalForm({
           </div>
         </div>
 
-        <Separator />
-
         <div className="rounded-md border py-2 space-y-2 group">
           <h2 className="font-bold opacity-40 text-xs mx-4">Payment Details</h2>
           <Separator />
@@ -579,7 +596,9 @@ export function RentalForm({
             <span className="text-sm opacity-80 font-semibold">
               Rental Amount
             </span>
-            <span className="text-sm">₱{rentalAmount.toFixed(2)}</span>
+            <span className="text-sm opacity-50">
+              ₱{rentalAmount.toFixed(2)}
+            </span>
           </div>
           <FormField
             control={form.control}
@@ -682,7 +701,7 @@ export function RentalForm({
           </div>
           <div className="px-4 bg-slate-100 border-t border-b py-1 flex justify-between items-center">
             <h4 className="font-bold">Total</h4>
-            <p className="font-semibold">₱{calculateGrandTotal().toFixed(2)}</p>
+            <p className="font-bold">₱{grandTotal.toFixed(2)}</p>
           </div>
         </div>
 
