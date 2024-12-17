@@ -46,7 +46,12 @@ import {
 import { useDeleteUnit } from "../components/rental/useDeleteUnit";
 import { RentalForm } from "../components/rental/rental-form";
 import { useRental } from "../components/rental/useRental";
-import { RentalUnitAndDetailsForm } from "../components/rental/rental-unit-details-form";
+import {
+  RentalUnitAndDetailsForm,
+  RentalUnitAndDetailsFormType,
+} from "../components/rental/rental-unit-details-form";
+import { useUpdateRental } from "../components/rental/useUpdateRental";
+import { UpdateRentalData } from "../services/apiRental";
 
 export default function Rental() {
   const { units, isLoading: isUnitsLoading } = useUnits();
@@ -55,6 +60,7 @@ export default function Rental() {
   const { mutate: updateUnit } = useUpdateUnit();
   const { mutate: deleteUnit } = useDeleteUnit();
   const { mutate: updateStatus } = useUpdateStatusUnit();
+  const { mutate: updateRental } = useUpdateRental();
 
   const isLoading = isUnitsLoading;
 
@@ -201,6 +207,14 @@ export default function Rental() {
 
     setAction(null);
     setSelectedRow(null);
+  };
+
+  const handleUpdateRental = (data: RentalUnitAndDetailsFormType) => {
+    const updateData: UpdateRentalData = {
+      ...data,
+      id: Number(selectedRow?.id) || 0,
+    };
+    updateRental(updateData);
   };
 
   const handleStatusChange = (id: string, status: string) => {
@@ -380,6 +394,7 @@ export default function Rental() {
                     ...selectedRow,
                     rental_details: rentalWithClientDetails
                       ? {
+                          rental_id: rentalWithClientDetails.id,
                           branch_id: rentalWithClientDetails.branch_id,
                           start_date: new Date(
                             rentalWithClientDetails.start_date
@@ -400,7 +415,10 @@ export default function Rental() {
                       : undefined,
                   }}
                   mode={action === "edit" ? "edit" : "view"}
-                  onSubmit={handleAddUnitSubmit}
+                  onSubmit={(data) => {
+                    handleUpdateRental(data);
+                    setAction(null);
+                  }}
                 />
               )
             ) : (

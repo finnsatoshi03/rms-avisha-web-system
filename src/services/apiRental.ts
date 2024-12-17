@@ -1,9 +1,17 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { RentalFormType } from "../components/rental/rental-form";
+import { RentalUnitAndDetailsFormType } from "../components/rental/rental-unit-details-form";
 import { supabase } from "./supabase";
 
 interface CreateRentalData extends RentalFormType {
   unit_id: number;
   status: "ACTIVE" | "INACTIVE";
+}
+
+export interface UpdateRentalData
+  extends Partial<RentalUnitAndDetailsFormType> {
+  id: number;
 }
 
 async function upsertClient(clientData: {
@@ -136,4 +144,45 @@ export async function getRentalByUnitIdWithClient(unitId: number) {
   }
 
   return rental;
+}
+
+export async function updateRental(rentalData: UpdateRentalData) {
+  // Destructure the data, separating rental details and client info
+  const { rental_details, id, ...unitData } = rentalData;
+
+  // Prepare the rental update payload
+  const rentalUpdatePayload: any = {
+    ...(rental_details && {
+      id: rental_details.rental_id,
+      start_date: rental_details.start_date,
+      end_date: rental_details.end_date,
+      rental_type: rental_details.rental_type,
+      rate_amount: rental_details.rate_amount,
+      payment_terms: rental_details.payment_terms,
+      status: rental_details.status || "ACTIVE",
+      grand_total: rental_details.grand_total,
+      branch_id: rental_details.branch_id,
+    }),
+  };
+
+  // Update client if client details exist
+  let clientId;
+  if (rental_details?.client) {
+    clientId = await upsertClient(rental_details.client);
+    rentalUpdatePayload.client_id = clientId;
+  }
+
+  // Perform the rental update
+  const { data, error } = await supabase
+    .from("rentals")
+    .update(rentalUpdatePayload)
+    .eq("id", rentalUpdatePayload.id)
+    .select();
+
+  if (error) {
+    console.error("Error updating rental:", error);
+    throw new Error("Failed to update rental");
+  }
+
+  return { rental: data, clientId };
 }

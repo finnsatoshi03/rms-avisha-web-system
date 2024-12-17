@@ -39,6 +39,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { cn } from "../../lib/utils";
 import { useUser } from "../auth/useUser";
+import { calculateRentalAmount } from "./utils";
 
 const paymentMethods = [
   { label: "Cash", value: "cash" },
@@ -160,32 +161,14 @@ export function RentalForm({
       ? 2
       : 0;
 
-  // Calculate rental amount
-  const calculateRentalAmount = useCallback(() => {
-    if (!watchStartDate || !watchEndDate || !watchRateAmount) return 0;
-
-    if (watchRentalType === "DAILY") {
-      // For daily rentals, calculate the exact number of days including both start and end dates
-      const days = differenceInDays(watchEndDate, watchStartDate) + 1;
-      return Math.max(0, days) * watchRateAmount;
-    } else {
-      // For monthly rentals:
-      // 1. Get the number of full months
-      const monthStart = startOfMonth(watchStartDate);
-      const monthEnd = endOfMonth(watchEndDate);
-      const fullMonths = differenceInDays(monthEnd, monthStart) / 30;
-
-      // 2. Round up to the nearest month since partial months are charged as full months
-      const months = Math.ceil(fullMonths);
-
-      // 3. Calculate the total amount
-      return Math.max(1, months) * watchRateAmount;
-    }
-  }, [watchStartDate, watchEndDate, watchRateAmount, watchRentalType]);
-
   // Calculate total amount before downpayment
   const calculateTotalBeforeDownpayment = useCallback(() => {
-    const rentalAmount = calculateRentalAmount();
+    const rentalAmount = calculateRentalAmount(
+      watchStartDate,
+      watchEndDate,
+      watchRateAmount,
+      watchRentalType
+    );
     return rentalAmount + (watchDeposit || 0);
   }, [calculateRentalAmount, watchDeposit]);
 
@@ -288,7 +271,12 @@ export function RentalForm({
     });
   };
 
-  const rentalAmount = calculateRentalAmount();
+  const rentalAmount = calculateRentalAmount(
+    watchStartDate,
+    watchEndDate,
+    watchRateAmount,
+    watchRentalType
+  );
   const totalBeforeDownpayment = calculateTotalBeforeDownpayment();
 
   return (

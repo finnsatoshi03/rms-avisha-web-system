@@ -22,6 +22,7 @@ import {
 import { Separator } from "../ui/separator";
 import { Loader2 } from "lucide-react";
 import { useCreateUnit, useUpdateUnit } from "./useCreateEditUnit";
+import { handleRateChange } from "./utils";
 
 const rentalUnitSchema = z.object({
   unit_name: z.string().min(2, "Unit name must be at least 2 characters"),
@@ -54,16 +55,6 @@ export function RentalUnitForm({
   const { isPending: isUpdating } = useUpdateUnit();
 
   const isLoading = isCreating || isUpdating;
-
-  const handleRateChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    field: any
-  ) => {
-    const value = e.target.value;
-    if (/^\d*\.?\d{0,2}$/.test(value)) {
-      field.onChange(Number(value));
-    }
-  };
 
   const form = useForm<RentalUnitFormType>({
     resolver: zodResolver(rentalUnitSchema),

@@ -1,16 +1,10 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { format, startOfDay, isBefore, differenceInDays } from "date-fns";
+
+// UI Components
 import { Button } from "../ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "../ui/form";
 import { Input } from "../ui/input";
 import {
   Select,
@@ -22,29 +16,37 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Separator } from "../ui/separator";
-import { CalendarIcon, Mail, Phone, ReceiptText } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { Calendar } from "../ui/calendar";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
+  TooltipProvider,
 } from "../ui/tooltip";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "../ui/form";
+
+// Icons
+import { CalendarIcon, Mail, Phone, ReceiptText } from "lucide-react";
+
+// Utilities
 import { cn } from "../../lib/utils";
 import {
-  differenceInDays,
-  endOfMonth,
-  format,
-  isBefore,
-  startOfDay,
-  startOfMonth,
-} from "date-fns";
-import { Calendar } from "../ui/calendar";
-import { useCallback } from "react";
+  calculateRentalAmount,
+  handleRateChange,
+  statusColorMap,
+} from "./utils";
+import { useEffect } from "react";
 
-// Combined schema for rental unit and rental details
+// Schema Definition
 const rentalUnitAndDetailsSchema = z.object({
-  // Unit Details
   unit_name: z.string().min(2, "Unit name must be at least 2 characters"),
   model: z.string().min(2, "Model must be at least 2 characters"),
   serial_number: z
@@ -53,10 +55,9 @@ const rentalUnitAndDetailsSchema = z.object({
   status: z.enum(["available", "rented", "maintenance", "reserved"]),
   daily_rate: z.number().min(0, "Daily rate must be a positive number"),
   monthly_rate: z.number().min(0, "Monthly rate must be a positive number"),
-
-  // Optional Rental Details (only required when status is 'rented')
   rental_details: z.optional(
     z.object({
+      rental_id: z.number().min(0, "Rental ID is required"),
       branch_id: z.number().min(0, "Branch is required"),
       start_date: z.date(),
       end_date: z.date(),
@@ -77,14 +78,12 @@ const rentalUnitAndDetailsSchema = z.object({
   ),
 });
 
-type BaseRentalUnitAndDetailsFormType = z.infer<
+export type RentalUnitAndDetailsFormType = z.infer<
   typeof rentalUnitAndDetailsSchema
->;
-
-export type RentalUnitAndDetailsFormType = BaseRentalUnitAndDetailsFormType & {
+> & {
   rental_details?: {
     grand_total: number;
-  } & NonNullable<BaseRentalUnitAndDetailsFormType["rental_details"]>;
+  };
 };
 
 export function RentalUnitAndDetailsForm({
@@ -102,16 +101,6 @@ export function RentalUnitAndDetailsForm({
   const inputClass = inputResetClass + " " + borderClass;
 
   const today = startOfDay(new Date());
-
-  const handleRateChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    field: any
-  ) => {
-    const value = e.target.value;
-    if (/^\d*\.?\d{0,2}$/.test(value)) {
-      field.onChange(Number(value));
-    }
-  };
 
   const form = useForm<RentalUnitAndDetailsFormType>({
     resolver: zodResolver(rentalUnitAndDetailsSchema),
@@ -135,9 +124,41 @@ export function RentalUnitAndDetailsForm({
   });
 
   const status = form.watch("status");
+  const watchRentalDetails = form.watch("rental_details");
+  const isDirty = form.formState.isDirty;
 
-  const handleSubmit = (data: RentalUnitAndDetailsFormType) => {
-    // Validate rental details if status is 'rented'
+  useEffect(() => {
+    if (status === "rented" && watchRentalDetails) {
+      const rentalAmount =
+        calculateRentalAmount(
+          watchRentalDetails.start_date,
+          watchRentalDetails.end_date,
+          watchRentalDetails.rate_amount,
+          watchRentalDetails.rental_type
+        ) || 0;
+
+      const deposit = watchRentalDetails.payment_terms.deposit || 0;
+      const downpayment = watchRentalDetails.payment_terms.downpayment || 0;
+
+      const grandTotal = rentalAmount + deposit + downpayment;
+
+      form.setValue("rental_details.grand_total", grandTotal);
+    }
+  }, [
+    status,
+    watchRentalDetails,
+    watchRentalDetails?.start_date,
+    watchRentalDetails?.end_date,
+    watchRentalDetails?.rate_amount,
+    watchRentalDetails?.rental_type,
+    watchRentalDetails?.payment_terms?.deposit,
+    watchRentalDetails?.payment_terms?.downpayment,
+    form,
+  ]);
+
+  const handleSubmit = (formData: RentalUnitAndDetailsFormType) => {
+    const data = JSON.parse(JSON.stringify(formData));
+
     if (data.status === "rented" && !data.rental_details) {
       form.setError("rental_details", {
         type: "manual",
@@ -146,41 +167,92 @@ export function RentalUnitAndDetailsForm({
       return;
     }
 
-    console.log("Submitting rental unit and details form:", data);
-    // onSubmit(data);
+    // Explicitly calculate grand total if in rented status
+    if (data.status === "rented" && data.rental_details) {
+      const rentalAmount =
+        calculateRentalAmount(
+          data.rental_details.start_date,
+          data.rental_details.end_date,
+          data.rental_details.rate_amount,
+          data.rental_details.rental_type
+        ) || 0;
+
+      const deposit = data.rental_details.payment_terms.deposit || 0;
+      const downpayment = data.rental_details.payment_terms.downpayment || 0;
+
+      // Explicitly set grand total
+      data.rental_details.grand_total = rentalAmount + deposit + downpayment;
+    }
+
+    // console.log("Submitting rental unit and details form:", data);
+
+    onSubmit(data);
   };
 
-  const watchRentalType = form.watch("rental_details.rental_type");
-  const watchStartDate = form.watch("rental_details.start_date");
-  const watchEndDate = form.watch("rental_details.end_date");
-  const watchRateAmount = form.watch("rental_details.rate_amount");
+  const renderRentalDuration = () => {
+    const startDate = form.watch("rental_details.start_date");
+    const endDate = form.watch("rental_details.end_date");
+    const unitName = form.watch("unit_name");
 
-  // Calculate rental amount
-  const calculateRentalAmount = useCallback(() => {
-    if (!watchStartDate || !watchEndDate || !watchRateAmount) return 0;
-
-    if (watchRentalType === "DAILY") {
-      // For daily rentals, calculate the exact number of days including both start and end dates
-      const days = differenceInDays(watchEndDate, watchStartDate) + 1;
-      return Math.max(0, days) * watchRateAmount;
-    } else {
-      // For monthly rentals:
-      // 1. Get the number of full months
-      const monthStart = startOfMonth(watchStartDate);
-      const monthEnd = endOfMonth(watchEndDate);
-      const fullMonths = differenceInDays(monthEnd, monthStart) / 30;
-
-      // 2. Round up to the nearest month since partial months are charged as full months
-      const months = Math.ceil(fullMonths);
-
-      // 3. Calculate the total amount
-      return Math.max(1, months) * watchRateAmount;
+    if (startDate && endDate) {
+      const days = differenceInDays(endDate, startDate) + 1; // Add 1 to include both start and end dates
+      return (
+        <div className="text-sm font-medium col-span-2 text-slate-400 mt-1">
+          Unit{" "}
+          <span className="font-semibold italic text-slate-500">
+            {unitName}
+          </span>{" "}
+          rented for {days} {days === 1 ? "day" : "days"}
+        </div>
+      );
     }
-  }, [watchStartDate, watchEndDate, watchRateAmount, watchRentalType]);
+    return null;
+  };
+
+  const renderInputField = (
+    name: keyof RentalUnitAndDetailsFormType,
+    label: string,
+    placeholder: string,
+    type: "text" | "number" = "text",
+    options?: { step?: string; min?: string },
+    isUnit?: boolean
+  ) => (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <div className="grid grid-cols-[0.5fr_1fr]">
+            <FormLabel>{label}</FormLabel>
+            <FormControl>
+              <Input
+                type={type}
+                className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none border-b border-slate-200"
+                placeholder={placeholder}
+                {...(type === "number"
+                  ? {
+                      step: options?.step || "0.01",
+                      min: options?.min || "0",
+                      onChange: (e) => handleRateChange(e, field),
+                    }
+                  : {})}
+                value={typeof field.value === "object" ? "" : field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                disabled={mode === "view" || isUnit}
+              />
+            </FormControl>
+          </div>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        {/* Unit Header */}
         <div className="flex justify-between mt-4">
           <FormField
             control={form.control}
@@ -189,10 +261,10 @@ export function RentalUnitAndDetailsForm({
               <FormItem>
                 <FormControl>
                   <Input
-                    className={`placeholder:text-3xl text-3xl font-bold ${inputResetClass}`}
+                    className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none placeholder:text-3xl text-3xl font-bold"
                     placeholder="Unit Name"
                     {...field}
-                    disabled={mode === "view"}
+                    disabled
                   />
                 </FormControl>
                 <FormMessage />
@@ -207,30 +279,28 @@ export function RentalUnitAndDetailsForm({
                 <Select
                   onValueChange={field.onChange}
                   defaultValue={field.value}
-                  disabled={mode === "view"}
+                  disabled
                 >
                   <FormControl>
                     <SelectTrigger
                       className={`px-2 h-fit w-fit py-0.5 border-none rounded-full text-xs font-medium ${
-                        {
-                          available: "bg-green-100 text-green-800",
-                          rented: "bg-red-100 text-red-800",
-                          maintenance: "bg-yellow-100 text-yellow-800",
-                          reserved: "bg-blue-100 text-blue-800",
-                        }[field.value] || ""
+                        statusColorMap[field.value] || ""
                       }`}
                     >
-                      <SelectValue placeholder="Select unit status">
+                      <SelectValue>
                         {field.value.charAt(0).toUpperCase() +
                           field.value.slice(1)}
                       </SelectValue>
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="available">Available</SelectItem>
-                    <SelectItem value="rented">Rented</SelectItem>
-                    <SelectItem value="maintenance">Maintenance</SelectItem>
-                    <SelectItem value="reserved">Reserved</SelectItem>
+                    {["available", "rented", "maintenance", "reserved"].map(
+                      (status) => (
+                        <SelectItem key={status} value={status}>
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </SelectItem>
+                      )
+                    )}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -238,102 +308,49 @@ export function RentalUnitAndDetailsForm({
             )}
           />
         </div>
+
         <Separator className="h-[2px]" />
+
+        {/* Unit Details Section */}
         <div className="space-y-2">
           <h2 className="font-bold opacity-40 text-xs">Unit Details</h2>
-          <FormField
-            control={form.control}
-            name="model"
-            render={({ field }) => (
-              <FormItem>
-                <div className="grid grid-cols-[0.5fr_1fr]">
-                  <FormLabel>Model</FormLabel>
-                  <FormControl>
-                    <Input
-                      className={inputClass}
-                      placeholder="Model XYZ"
-                      {...field}
-                      disabled={mode === "view"}
-                    />
-                  </FormControl>
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="serial_number"
-            render={({ field }) => (
-              <FormItem>
-                <div className="grid grid-cols-[0.5fr_1fr]">
-                  <FormLabel>Serial Number</FormLabel>
-                  <FormControl>
-                    <Input
-                      className={inputClass}
-                      placeholder="ABC123"
-                      {...field}
-                      disabled={mode === "view"}
-                    />
-                  </FormControl>
-                </div>
-
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {renderInputField(
+            "model",
+            "Model",
+            "Model XYZ",
+            undefined,
+            undefined,
+            true
+          )}
+          {renderInputField(
+            "serial_number",
+            "Serial Number",
+            "ABC123",
+            undefined,
+            undefined,
+            true
+          )}
         </div>
 
+        {/* Rates Section */}
         <div className="space-y-2">
           <h2 className="font-bold opacity-40 text-xs">Rates</h2>
-          <FormField
-            control={form.control}
-            name="daily_rate"
-            render={({ field }) => (
-              <FormItem>
-                <div className="grid grid-cols-[0.5fr_1fr]">
-                  <FormLabel>Daily Rate</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      className={inputClass}
-                      placeholder="50.00"
-                      step="0.01"
-                      min="0"
-                      {...field}
-                      onChange={(e) => handleRateChange(e, field)}
-                      disabled={mode === "view"}
-                    />
-                  </FormControl>
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="monthly_rate"
-            render={({ field }) => (
-              <FormItem>
-                <div className="grid grid-cols-[0.5fr_1fr]">
-                  <FormLabel>Monthly Rate</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      className={inputClass}
-                      placeholder="1000.00"
-                      step="0.01"
-                      min="0"
-                      {...field}
-                      onChange={(e) => handleRateChange(e, field)}
-                      disabled={mode === "view"}
-                    />
-                  </FormControl>
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {renderInputField(
+            "daily_rate",
+            "Daily Rate",
+            "50.00",
+            "number",
+            undefined,
+            true
+          )}
+          {renderInputField(
+            "monthly_rate",
+            "Monthly Rate",
+            "1000.00",
+            "number",
+            undefined,
+            true
+          )}
         </div>
 
         {/* Conditional Rental Details Section */}
@@ -366,7 +383,7 @@ export function RentalUnitAndDetailsForm({
                     )}
                   />
                   <TooltipProvider delayDuration={100}>
-                    <div className="space-x-2">
+                    <div className="space-x-2 flex items-center">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -598,6 +615,7 @@ export function RentalUnitAndDetailsForm({
                       </FormItem>
                     )}
                   />
+                  {renderRentalDuration()}
                 </div>
               </div>
 
@@ -611,7 +629,13 @@ export function RentalUnitAndDetailsForm({
                     Rental Amount
                   </h3>
                   <p className="text-sm opacity-50">
-                    ₱{calculateRentalAmount()}
+                    ₱
+                    {calculateRentalAmount(
+                      watchRentalDetails?.start_date,
+                      watchRentalDetails?.end_date,
+                      watchRentalDetails?.rate_amount,
+                      watchRentalDetails?.rental_type
+                    ) || 0}
                   </p>
                 </div>
 
@@ -691,7 +715,7 @@ export function RentalUnitAndDetailsForm({
                 <div className="px-4 bg-slate-100 border-t border-b py-1 flex justify-between items-center">
                   <h4 className="font-bold">Total</h4>
                   <p className="font-semibold">
-                    ₱{initialValues?.rental_details?.grand_total || 0}
+                    ₱{form.watch("rental_details.grand_total") || 0}
                   </p>
                 </div>
               </div>
@@ -700,7 +724,7 @@ export function RentalUnitAndDetailsForm({
         )}
 
         {mode !== "view" && (
-          <Button type="submit">
+          <Button type="submit" disabled={!isDirty}>
             {mode === "create" ? "Create Unit" : "Update Unit"}
           </Button>
         )}
