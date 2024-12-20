@@ -5,6 +5,7 @@ export async function getUnits() {
   const { data: units, error } = await supabase
     .from("units")
     .select("*")
+    .neq("status", "inactive")
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -49,10 +50,14 @@ export async function updateStatus(id: string, status: string) {
   return data;
 }
 
-export async function deleteUnits(id: string) {
-  const { data, error } = await supabase.from("units").delete().eq("id", id);
+export async function deleteUnit(id: string) {
+  const { data, error } = await supabase
+    .from("units")
+    .update({ is_available: false, status: "inactive" })
+    .eq("id", id);
+
   if (error) {
-    throw new Error("Error deleting unit");
+    throw new Error("Error updating unit status");
   }
   return data;
 }

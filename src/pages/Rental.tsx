@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo, useState } from "react";
 import {
   Ellipsis,
@@ -46,7 +47,14 @@ import {
 import { useDeleteUnit } from "../components/rental/useDeleteUnit";
 import { RentalForm } from "../components/rental/rental-form";
 import { useRental } from "../components/rental/useRental";
-import { RentalUnitAndDetailsForm } from "../components/rental/rental-unit-details-form";
+import {
+  RentalUnitAndDetailsForm,
+  RentalUnitAndDetailsFormType,
+} from "../components/rental/rental-unit-details-form";
+import { useUpdateRental } from "../components/rental/useUpdateRental";
+import { UpdateRentalData } from "../services/apiRental";
+import toast from "react-hot-toast";
+import ReturnInspectionDialog from "../components/rental/return-inspection-dialog";
 
 export default function Rental() {
   const { units, isLoading: isUnitsLoading } = useUnits();
@@ -55,6 +63,7 @@ export default function Rental() {
   const { mutate: updateUnit } = useUpdateUnit();
   const { mutate: deleteUnit } = useDeleteUnit();
   const { mutate: updateStatus } = useUpdateStatusUnit();
+  const { mutate: updateRental } = useUpdateRental();
 
   const isLoading = isUnitsLoading;
 
@@ -75,6 +84,10 @@ export default function Rental() {
     number | null
   >(null);
 
+  // return inspection dialog
+  const [showReturnDialog, setShowReturnDialog] = useState(false);
+  const [unitForReturn, setUnitForReturn] = useState<Unit | null>(null);
+
   const { rental: rentalWithClientDetails, isLoading: isRentalLoading } =
     useRental(selectedRentalUnitId || 0);
 
@@ -91,7 +104,6 @@ export default function Rental() {
     available: 1,
     rented: 2,
     maintenance: 3,
-    reserved: 4,
   };
 
   const filterAndSortData = (data: Unit[]) => {
@@ -188,8 +200,7 @@ export default function Rental() {
       status: data.status.toUpperCase() as
         | "available"
         | "rented"
-        | "maintenance"
-        | "reserved",
+        | "maintenance",
     };
 
     if (selectedRow?.id) {
@@ -203,17 +214,55 @@ export default function Rental() {
     setSelectedRow(null);
   };
 
+  const handleUpdateRental = (data: RentalUnitAndDetailsFormType) => {
+    const updateData: UpdateRentalData = {
+      ...data,
+      id: Number(selectedRow?.id) || 0,
+    };
+    updateRental(updateData);
+  };
+
   const handleStatusChange = (id: string, status: string) => {
     if (status.toUpperCase() === "RENTED") {
       const unit = units?.find((u) => u.id === id);
       setSelectedUnitForRental(unit || null);
       setShowRentalForm(true);
+    } else if (status.toUpperCase() === "AVAILABLE") {
+      const unit = units?.find((u) => u.id === id);
+      if (unit?.status.toUpperCase() === "RENTED") {
+        setUnitForReturn(unit);
+        setShowReturnDialog(true);
+      } else {
+        updateStatus({ id, status: status.toUpperCase() });
+      }
     } else {
       updateStatus({ id, status: status.toUpperCase() });
     }
   };
 
+  const handleReturnInspectionComplete = (inspectionData: any) => {
+    // Here you could save the inspection data to your backend
+    console.log("Return Inspection Data:", inspectionData);
+
+    if (unitForReturn) {
+      updateStatus({
+        id: unitForReturn.id,
+        status: "AVAILABLE",
+      });
+    }
+
+    setUnitForReturn(null);
+    setShowReturnDialog(false);
+  };
+
   const handleDeleteUnit = (id: string) => {
+    if (selectedRow?.id) {
+      if (selectedRow.status.toLowerCase() === "rented") {
+        toast.error("Update the Status to Available before deleting.");
+        return;
+      }
+    }
+
     deleteUnit(id);
   };
 
@@ -343,7 +392,13 @@ export default function Rental() {
 
       {(selectedRow || action === "add") && (
         <Sheet open={!!action} onOpenChange={() => setAction(null)}>
-          <SheetContent className="h-fit overflow-y-auto">
+          <SheetContent
+            className={`${
+              (action === "add" ||
+                selectedRow?.status.toLowerCase() !== "rented") &&
+              "h-fit"
+            } overflow-y-auto min-w-[50vw]`}
+          >
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2 text-xs px-4 bg-gray-200 rounded-full w-fit py-0.5">
                 {action === "add" ? (
@@ -365,7 +420,7 @@ export default function Rental() {
             </SheetHeader>
             {selectedRow?.status.toLowerCase() === "rented" ? (
               isRentalLoading ? (
-                <div className="h-full w-screen justify-center items-center">
+                <div className="h-full w-full justify-center items-center">
                   <Loader />
                 </div>
               ) : (
@@ -374,6 +429,7 @@ export default function Rental() {
                     ...selectedRow,
                     rental_details: rentalWithClientDetails
                       ? {
+                          rental_id: rentalWithClientDetails.id,
                           branch_id: rentalWithClientDetails.branch_id,
                           start_date: new Date(
                             rentalWithClientDetails.start_date
@@ -389,11 +445,15 @@ export default function Rental() {
                               rentalWithClientDetails.clients?.contact_number,
                             email: rentalWithClientDetails.clients?.email,
                           },
+                          grand_total: rentalWithClientDetails.grand_total,
                         }
                       : undefined,
                   }}
                   mode={action === "edit" ? "edit" : "view"}
-                  onSubmit={handleAddUnitSubmit}
+                  onSubmit={(data) => {
+                    handleUpdateRental(data);
+                    setAction(null);
+                  }}
                 />
               )
             ) : (
@@ -418,14 +478,12 @@ export default function Rental() {
           open={showRentalForm}
           onOpenChange={() => setShowRentalForm(false)}
         >
-          <SheetContent className="overflow-y-auto">
+          <SheetContent className="overflow-y-auto min-w-[50vw]">
             <SheetHeader>
               <SheetTitle>
                 Create Rental for {selectedUnitForRental.unit_name}
               </SheetTitle>
-              <SheetDescription>
-                Fill in the rental details below
-              </SheetDescription>
+              <SheetDescription className="hidden"></SheetDescription>
             </SheetHeader>
             <RentalForm
               unitId={selectedUnitForRental.id}
@@ -443,6 +501,18 @@ export default function Rental() {
             />
           </SheetContent>
         </Sheet>
+      )}
+
+      {showReturnDialog && unitForReturn && (
+        <ReturnInspectionDialog
+          isOpen={showReturnDialog}
+          onClose={() => {
+            setShowReturnDialog(false);
+            setUnitForReturn(null);
+          }}
+          onConfirm={handleReturnInspectionComplete}
+          // unitDetails={unitForReturn}
+        />
       )}
     </div>
   );

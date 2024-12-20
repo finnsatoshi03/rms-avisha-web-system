@@ -28,7 +28,7 @@ export function useUpdateUnit() {
         unit_name: string;
         model: string;
         serial_number: string;
-        status: "available" | "rented" | "maintenance" | "reserved";
+        status: "available" | "rented" | "maintenance";
         daily_rate: number;
         monthly_rate: number;
       };

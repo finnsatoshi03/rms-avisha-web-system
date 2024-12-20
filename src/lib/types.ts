@@ -281,7 +281,7 @@ export type Unit = {
   serial_number: string;
   daily_rate: number;
   monthly_rate: number;
-  status: "available" | "rented" | "maintenance" | "reserved";
+  status: "available" | "rented" | "maintenance";
   branch_id: number;
   created_at: string | Date;
   updated_at: string | Date;

@@ -22,6 +22,7 @@ import {
 import { Separator } from "../ui/separator";
 import { Loader2 } from "lucide-react";
 import { useCreateUnit, useUpdateUnit } from "./useCreateEditUnit";
+import { handleRateChange } from "./utils";
 
 const rentalUnitSchema = z.object({
   unit_name: z.string().min(2, "Unit name must be at least 2 characters"),
@@ -29,7 +30,7 @@ const rentalUnitSchema = z.object({
   serial_number: z
     .string()
     .min(2, "Serial number must be at least 2 characters"),
-  status: z.enum(["available", "rented", "maintenance", "reserved"]),
+  status: z.enum(["available", "rented", "maintenance"]),
   daily_rate: z.number().min(0, "Daily rate must be a positive number"),
   monthly_rate: z.number().min(0, "Monthly rate must be a positive number"),
 });
@@ -55,16 +56,6 @@ export function RentalUnitForm({
 
   const isLoading = isCreating || isUpdating;
 
-  const handleRateChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    field: any
-  ) => {
-    const value = e.target.value;
-    if (/^\d*\.?\d{0,2}$/.test(value)) {
-      field.onChange(Number(value));
-    }
-  };
-
   const form = useForm<RentalUnitFormType>({
     resolver: zodResolver(rentalUnitSchema),
     defaultValues: initialValues
@@ -74,8 +65,7 @@ export function RentalUnitForm({
             (initialValues.status?.toLowerCase() as
               | "available"
               | "rented"
-              | "maintenance"
-              | "reserved") || "available",
+              | "maintenance") || "available",
         }
       : {
           unit_name: "",
@@ -125,7 +115,6 @@ export function RentalUnitForm({
                           available: "bg-green-100 text-green-800",
                           rented: "bg-red-100 text-red-800",
                           maintenance: "bg-yellow-100 text-yellow-800",
-                          reserved: "bg-blue-100 text-blue-800",
                         }[field.value] || ""
                       }`}
                     >
@@ -139,7 +128,6 @@ export function RentalUnitForm({
                     <SelectItem value="available">Available</SelectItem>
                     <SelectItem value="rented">Rented</SelectItem>
                     <SelectItem value="maintenance">Maintenance</SelectItem>
-                    <SelectItem value="reserved">Reserved</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

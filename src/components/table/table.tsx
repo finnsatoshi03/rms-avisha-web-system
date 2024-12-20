@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, Ban, Clock, Wrench } from "lucide-react";
+import { Check, Ban, Wrench } from "lucide-react";
 
 import {
   Table as TableUI,
@@ -44,11 +44,6 @@ const statusOptions = [
     icon: <Check className="mr-2 size-4" />,
   },
   { value: "RENTED", label: "Rented", icon: <Ban className="mr-2 size-4" /> },
-  {
-    value: "RESERVED",
-    label: "Reserved",
-    icon: <Clock className="mr-2 size-4" />,
-  },
   {
     value: "MAINTENANCE",
     label: "Maintenance",
@@ -186,16 +181,12 @@ const Table = <T,>({
                         <Button
                           variant="ghost"
                           className={`rounded-full px-2 py-0.5 h-fit text-center w-fit font-bold ${
-                            [
-                              "AVAILABLE",
-                              "RENTED",
-                              "RESERVED",
-                              "MAINTENANCE",
-                            ].includes(String(row[col.key]))
+                            ["AVAILABLE", "RENTED", "MAINTENANCE"].includes(
+                              String(row[col.key])
+                            )
                               ? {
                                   AVAILABLE: "bg-green-200 text-green-800",
                                   RENTED: "bg-red-200 text-red-800",
-                                  RESERVED: "bg-blue-200 text-blue-800",
                                   MAINTENANCE: "bg-yellow-200 text-yellow-800",
                                 }[String(row[col.key])] || ""
                               : ""
@@ -230,18 +221,14 @@ const Table = <T,>({
                     </DropdownMenu>
                   ) : (
                     <p
-                      className={`rounded-full px-2 py-0.5 text-center w-fit font-bold ${
+                      className={`rounded-full px-2 py-0.5 w-fit font-bold ${
                         col.key === "status"
-                          ? [
-                              "AVAILABLE",
-                              "RENTED",
-                              "RESERVED",
-                              "MAINTENANCE",
-                            ].includes(String(row[col.key]))
+                          ? ["AVAILABLE", "RENTED", "MAINTENANCE"].includes(
+                              String(row[col.key])
+                            )
                             ? {
                                 AVAILABLE: "bg-green-200 text-green-800",
                                 RENTED: "bg-red-200 text-red-800",
-                                RESERVED: "bg-blue-200 text-blue-800",
                                 MAINTENANCE: "bg-yellow-200 text-yellow-800",
                               }[String(row[col.key])] || ""
                             : ""
