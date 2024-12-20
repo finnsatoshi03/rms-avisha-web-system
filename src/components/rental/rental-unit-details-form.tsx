@@ -515,7 +515,7 @@ export function RentalUnitAndDetailsForm({
                               min="0"
                               {...field}
                               onChange={(e) => handleRateChange(e, field)}
-                              disabled={mode === "view"}
+                              disabled
                             />
                           </FormControl>
                         </div>

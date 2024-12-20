@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo, useState } from "react";
 import {
   Ellipsis,
@@ -53,6 +54,7 @@ import {
 import { useUpdateRental } from "../components/rental/useUpdateRental";
 import { UpdateRentalData } from "../services/apiRental";
 import toast from "react-hot-toast";
+import ReturnInspectionDialog from "../components/rental/return-inspection-dialog";
 
 export default function Rental() {
   const { units, isLoading: isUnitsLoading } = useUnits();
@@ -81,6 +83,10 @@ export default function Rental() {
   const [selectedRentalUnitId, setSelectedRentalUnitId] = useState<
     number | null
   >(null);
+
+  // return inspection dialog
+  const [showReturnDialog, setShowReturnDialog] = useState(false);
+  const [unitForReturn, setUnitForReturn] = useState<Unit | null>(null);
 
   const { rental: rentalWithClientDetails, isLoading: isRentalLoading } =
     useRental(selectedRentalUnitId || 0);
@@ -221,9 +227,32 @@ export default function Rental() {
       const unit = units?.find((u) => u.id === id);
       setSelectedUnitForRental(unit || null);
       setShowRentalForm(true);
+    } else if (status.toUpperCase() === "AVAILABLE") {
+      const unit = units?.find((u) => u.id === id);
+      if (unit?.status.toUpperCase() === "RENTED") {
+        setUnitForReturn(unit);
+        setShowReturnDialog(true);
+      } else {
+        updateStatus({ id, status: status.toUpperCase() });
+      }
     } else {
       updateStatus({ id, status: status.toUpperCase() });
     }
+  };
+
+  const handleReturnInspectionComplete = (inspectionData: any) => {
+    // Here you could save the inspection data to your backend
+    console.log("Return Inspection Data:", inspectionData);
+
+    if (unitForReturn) {
+      updateStatus({
+        id: unitForReturn.id,
+        status: "AVAILABLE",
+      });
+    }
+
+    setUnitForReturn(null);
+    setShowReturnDialog(false);
   };
 
   const handleDeleteUnit = (id: string) => {
@@ -472,6 +501,18 @@ export default function Rental() {
             />
           </SheetContent>
         </Sheet>
+      )}
+
+      {showReturnDialog && unitForReturn && (
+        <ReturnInspectionDialog
+          isOpen={showReturnDialog}
+          onClose={() => {
+            setShowReturnDialog(false);
+            setUnitForReturn(null);
+          }}
+          onConfirm={handleReturnInspectionComplete}
+          unitDetails={unitForReturn}
+        />
       )}
     </div>
   );
