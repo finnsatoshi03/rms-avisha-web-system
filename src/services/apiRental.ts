@@ -147,8 +147,8 @@ export async function getRentalByUnitIdWithClient(unitId: number) {
 }
 
 export async function updateRental(rentalData: UpdateRentalData) {
-  // Destructure the data, separating rental details and client info
-  const { rental_details, id, ...unitData } = rentalData;
+  // Destructure only what we need, ignoring unitData completely
+  const { rental_details } = rentalData;
 
   // Prepare the rental update payload
   const rentalUpdatePayload: any = {

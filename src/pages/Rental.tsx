@@ -511,7 +511,7 @@ export default function Rental() {
             setUnitForReturn(null);
           }}
           onConfirm={handleReturnInspectionComplete}
-          unitDetails={unitForReturn}
+          // unitDetails={unitForReturn}
         />
       )}
     </div>

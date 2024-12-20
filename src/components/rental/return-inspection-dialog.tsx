@@ -25,14 +25,12 @@ interface ReturnInspectionDialogProps {
     meterReading: string;
     timestamp: string;
   }) => void;
-  unitDetails: any;
 }
 
 const ReturnInspectionDialog: React.FC<ReturnInspectionDialogProps> = ({
   isOpen,
   onClose,
   onConfirm,
-  unitDetails,
 }) => {
   const [checklistItems, setChecklistItems] = useState({
     physicalCondition: false,
