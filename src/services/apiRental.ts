@@ -125,9 +125,8 @@ export async function createRentalWithClient(data: CreateRentalData) {
   return { rental: assignedRental, clientId };
 }
 
-// Get Rental by Unit ID with Client Details
 export async function getRentalByUnitIdWithClient(unitId: number) {
-  const { data: rental, error } = await supabase
+  const { data: rentals, error } = await supabase
     .from("rentals")
     .select(
       `
@@ -136,14 +135,16 @@ export async function getRentalByUnitIdWithClient(unitId: number) {
     `
     )
     .eq("unit_id", unitId)
-    .single();
+    .eq("status", "ACTIVE")
+    .order("created_at", { ascending: false });
 
   if (error) {
     console.error("Error getting rental by unit id:", error);
     throw new Error("Error getting rental by unit id");
   }
 
-  return rental;
+  // Return the most recent rental record
+  return rentals?.[0] || null;
 }
 
 export async function updateRental(rentalData: UpdateRentalData) {

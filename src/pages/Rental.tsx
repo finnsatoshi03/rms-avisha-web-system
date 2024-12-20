@@ -80,6 +80,7 @@ export default function Rental() {
   const [showRentalForm, setShowRentalForm] = useState(false);
   const [selectedUnitForRental, setSelectedUnitForRental] =
     useState<Unit | null>(null);
+
   const [selectedRentalUnitId, setSelectedRentalUnitId] = useState<
     number | null
   >(null);

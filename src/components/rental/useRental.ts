@@ -7,8 +7,9 @@ export function useRental(unitId: number) {
     error,
     isLoading,
   } = useQuery({
-    queryKey: ["unit", unitId],
+    queryKey: ["rental", unitId],
     queryFn: () => getRentalByUnitIdWithClient(unitId),
+    enabled: !!unitId,
   });
 
   return {
