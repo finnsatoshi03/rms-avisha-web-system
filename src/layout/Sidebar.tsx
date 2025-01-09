@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import {
   Archive,
+  ChevronDown,
   EllipsisVertical,
   Handshake,
   Home,
@@ -34,26 +35,52 @@ export default function Sidebar({
 }) {
   const { user } = useUser();
   const [open, setOpen] = useState(false);
+  const [isHomeOpen, setIsHomeOpen] = useState(true);
 
   return (
     <nav
       className={cn(
-        "flex flex-col justify-between min-h-screen w-[250px] lg:w-full bg-white lg:shadow-none shadow-lg",
+        "flex flex-col justify-between min-h-screen overflow-y-auto w-[250px] lg:w-full bg-white lg:shadow-none shadow-lg",
         className
       )}
     >
-      <img src="./RMS-Logo.png" alt="RMS Logo" className="w-3/4" />
+      <img src="/RMS-Logo.png" alt="RMS Logo" className="w-3/4" />
       <ul className="flex flex-col justify-between h-[calc(100%-20%-2rem)] w-full">
         <div className="flex flex-col space-y-1">
           <li>
-            <NavLink
-              to="dashboard"
-              className="flex items-center gap-4"
-              onClick={onClose}
+            <button
+              onClick={() => setIsHomeOpen(!isHomeOpen)}
+              className="flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors opacity-50"
             >
-              <Home size={20} />
-              Home
-            </NavLink>
+              <div className="flex items-center gap-4">
+                <Home size={20} />
+                Home
+              </div>
+              <ChevronDown
+                size={16}
+                className={`transition-transform ${
+                  isHomeOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+            {isHomeOpen && (
+              <div className="ml-5 pl-3 border-l-2 border-slate-200 mt-1 space-y-1">
+                <NavLink
+                  to="dashboard/job-order"
+                  className="flex items-center gap-4 px-3 !py-1.5 rounded-lg"
+                  onClick={onClose}
+                >
+                  Job Order
+                </NavLink>
+                <NavLink
+                  to="dashboard/rental"
+                  className="flex items-center gap-4 px-3 !py-1.5 rounded-lg"
+                  onClick={onClose}
+                >
+                  Rental
+                </NavLink>
+              </div>
+            )}
           </li>
           {!isUser ? (
             <>
