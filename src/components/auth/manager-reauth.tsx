@@ -16,7 +16,7 @@ export default function ManagerReAuth() {
 
     if (password === FIXED_PASSWORD) {
       localStorage.setItem("managerReAuthenticated", "true");
-      navigate("/dashboard");
+      navigate("/dashboard/job-order");
     } else {
       toast.error("Incorrect password. Please try again.");
       setIsLoading(false);

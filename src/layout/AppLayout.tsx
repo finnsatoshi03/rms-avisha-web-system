@@ -12,7 +12,7 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (
-      location.pathname !== "/dashboard" &&
+      location.pathname !== "/dashboard/job-order" &&
       location.pathname !== "/manager-re-auth"
     ) {
       // console.log("Clearing re-authentication flag");

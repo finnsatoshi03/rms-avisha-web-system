@@ -1,5 +1,5 @@
 import Maintenance from "./Maintenance";
 
-export default function BillingStatement() {
+export default function DashboardRental() {
   return <Maintenance />;
 }

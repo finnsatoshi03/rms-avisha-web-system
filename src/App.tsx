@@ -12,6 +12,7 @@ import "./styles/loader.css";
 
 import AppLayout from "./layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
+import DashboardRental from "./pages/DashboardRental";
 import JobOrders from "./pages/JobOrders";
 import Clients from "./pages/Clients";
 import Settings from "./pages/Settings";
@@ -22,10 +23,10 @@ import TechnicianDetailPage from "./pages/TechnicianDetailPage";
 import Account from "./pages/Account";
 import Materials from "./pages/Materials";
 import Expenses from "./pages/Expenses";
-import DateError from "./pages/DateError";
 import ManagerReAuth from "./components/auth/manager-reauth";
 // import BillingStatement from "./pages/BillingStatement";
 import Rental from "./pages/Rental";
+import NotFound from "./pages/NotFound";
 import Maintenance from "./pages/Maintenance";
 
 const queryClient = new QueryClient({
@@ -45,7 +46,10 @@ export default function App() {
       <ReactQueryDevtools initialIsOpen={false} />
       <BrowserRouter>
         <Routes>
-          <Route index element={<Navigate replace to="dashboard" />} />
+          <Route
+            index
+            element={<Navigate replace to="dashboard/job-order" />}
+          />
           <Route
             element={
               <ProtectedRoute>
@@ -53,7 +57,8 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="dashboard/job-order" element={<Dashboard />} />
+            <Route path="dashboard/rental" element={<DashboardRental />} />
             <Route path="manager-re-auth" element={<ManagerReAuth />} />
             <Route path="job-orders" element={<JobOrders />} />
             <Route path="rental" element={<Rental />} />
@@ -68,10 +73,10 @@ export default function App() {
               element={<TechnicianDetailPage />}
             />
             <Route path="account" element={<Account />} />
-            <Route path="date-error" element={<DateError />} />
           </Route>
 
           <Route path="login" element={<Login />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
 
