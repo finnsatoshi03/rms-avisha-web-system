@@ -12,7 +12,7 @@ export function useLogin() {
       loginApi({ email, password }),
     onSuccess: (user) => {
       queryClient.setQueryData(["user"], user.user);
-      navigate("/dashboard", { replace: true });
+      navigate("/dashboard/job-order", { replace: true });
 
       window.history.pushState(null, document.title, window.location.href);
       window.addEventListener("popstate", function () {

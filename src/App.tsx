@@ -23,7 +23,6 @@ import TechnicianDetailPage from "./pages/TechnicianDetailPage";
 import Account from "./pages/Account";
 import Materials from "./pages/Materials";
 import Expenses from "./pages/Expenses";
-import DateError from "./pages/DateError";
 import ManagerReAuth from "./components/auth/manager-reauth";
 import BillingStatement from "./pages/BillingStatement";
 import Rental from "./pages/Rental";
@@ -73,7 +72,6 @@ export default function App() {
               element={<TechnicianDetailPage />}
             />
             <Route path="account" element={<Account />} />
-            <Route path="date-error" element={<DateError />} />
           </Route>
 
           <Route path="login" element={<Login />} />
