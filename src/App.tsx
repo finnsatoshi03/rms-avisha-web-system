@@ -24,9 +24,10 @@ import Account from "./pages/Account";
 import Materials from "./pages/Materials";
 import Expenses from "./pages/Expenses";
 import ManagerReAuth from "./components/auth/manager-reauth";
-import BillingStatement from "./pages/BillingStatement";
+// import BillingStatement from "./pages/BillingStatement";
 import Rental from "./pages/Rental";
 import NotFound from "./pages/NotFound";
+import Maintenance from "./pages/Maintenance";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -61,7 +62,7 @@ export default function App() {
             <Route path="manager-re-auth" element={<ManagerReAuth />} />
             <Route path="job-orders" element={<JobOrders />} />
             <Route path="rental" element={<Rental />} />
-            <Route path="billing-statement" element={<BillingStatement />} />
+            <Route path="billing-statement" element={<Maintenance />} />
             <Route path="clients" element={<Clients />} />
             <Route path="materials" element={<Materials />} />
             <Route path="expenses" element={<Expenses />} />
