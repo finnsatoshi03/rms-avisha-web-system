@@ -59,16 +59,37 @@ export async function login({
   email: string;
   password: string;
 }) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  // First attempt to authenticate with Supabase
+  const { data: authData, error: authError } =
+    await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-  if (error) {
-    throw new Error(error.message);
+  if (authError) {
+    throw new Error(authError.message);
   }
 
-  return data;
+  // Check if user is marked as deleted in public.users table
+  const { data: userData, error: userError } = await supabase
+    .from("users")
+    .select("deleted")
+    .eq("id", authData.user.id)
+    .single();
+
+  if (userError) {
+    throw new Error("Error checking user status");
+  }
+
+  if (userData?.deleted) {
+    // Sign out the user immediately if they're deleted
+    await supabase.auth.signOut();
+    throw new Error(
+      "This account has been deactivated. Please contact support for more information."
+    );
+  }
+
+  return authData;
 }
 
 export async function getCurrentUser() {
