@@ -38,7 +38,6 @@ export async function getJobOrdersFiltered({
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
-  // Start building the query
   let query = supabase.from("joborders").select(
     `
       *,
@@ -59,30 +58,54 @@ export async function getJobOrdersFiltered({
     { count: "exact" }
   );
 
-  // Add comprehensive search filter if searchTerm is provided
   if (searchTerm && searchTerm.trim() !== "") {
-    const term = searchTerm.trim();
+    const term = searchTerm.trim().toLowerCase();
+    console.log("Using search term:", term);
 
-    // Search across both joborders fields and clients fields
-    query = query.or(
-      [
-        // Direct joborders table fields
-        `brand_model.ilike.%${term}%`,
-        `serial_number.ilike.%${term}%`,
-        `machine_type.ilike.%${term}%`,
-        `problem_statement.ilike.%${term}%`,
-        `additional_comments.ilike.%${term}%`,
-        `labor_description.ilike.%${term}%`,
-        `accessories.ilike.%${term}%`,
-        `order_no.ilike.%${term}%`,
-        `status.ilike.%${term}%`,
-        `warranty.ilike.%${term}%`,
-        `technical_report.ilike.%${term}%`,
-      ].join(",")
-    );
+    const jobOrderConditions = [
+      `brand_model.ilike.%${term}%`,
+      `serial_number.ilike.%${term}%`,
+      `machine_type.ilike.%${term}%`,
+      `problem_statement.ilike.%${term}%`,
+      `additional_comments.ilike.%${term}%`,
+      `labor_description.ilike.%${term}%`,
+      `accessories.ilike.%${term}%`,
+      `order_no.ilike.%${term}%`,
+      `status.ilike.%${term}%`,
+      `warranty.ilike.%${term}%`,
+      `technical_report.ilike.%${term}%`,
+    ].join(",");
+
+    const { data: matchingClients, error: clientError } = await supabase
+      .from("clients")
+      .select("id")
+      .or(
+        `name.ilike.%${term}%,` +
+          `email.ilike.%${term}%,` +
+          `contact_number.ilike.%${term}%`
+      );
+
+    if (clientError) {
+      query = query.or(jobOrderConditions);
+    } else if (matchingClients && matchingClients.length > 0) {
+      const clientIds = matchingClients.map((client) => client.id);
+
+      let orConditions = jobOrderConditions;
+
+      if (clientIds.length > 0) {
+        if (orConditions) {
+          orConditions += `,client_id.in.(${clientIds.join(",")})`;
+        } else {
+          orConditions = `client_id.in.(${clientIds.join(",")})`;
+        }
+      }
+
+      query = query.or(orConditions);
+    } else {
+      query = query.or(jobOrderConditions);
+    }
   }
 
-  // Complete the query with order and pagination
   const {
     data: joborders,
     error,
@@ -90,7 +113,7 @@ export async function getJobOrdersFiltered({
   } = await query.order("created_at", { ascending: false }).range(from, to);
 
   if (error) {
-    console.log(error);
+    console.log("Query error:", error);
     throw new Error("Job Orders could not be fetched");
   }
 
