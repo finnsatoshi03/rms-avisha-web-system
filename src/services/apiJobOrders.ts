@@ -29,6 +29,74 @@ export async function getJobOrders() {
   return joborders;
 }
 
+export async function getJobOrdersFiltered({
+  page = 1,
+  limit = 10,
+  searchTerm = "",
+} = {}) {
+  // Calculate range for pagination
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  // Start building the query
+  let query = supabase.from("joborders").select(
+    `
+      *,
+      clients:client_id (*),
+      branches:branch_id (*),
+      materials (
+        id,
+        material_description,
+        quantity,
+        unit_price,
+        total_amount,
+        job_order_id,
+        material_id,
+        used
+      ),
+      users:technician_id (*)
+    `,
+    { count: "exact" }
+  );
+
+  // Add comprehensive search filter if searchTerm is provided
+  if (searchTerm && searchTerm.trim() !== "") {
+    const term = searchTerm.trim();
+
+    // Search across both joborders fields and clients fields
+    query = query.or(
+      [
+        // Direct joborders table fields
+        `brand_model.ilike.%${term}%`,
+        `serial_number.ilike.%${term}%`,
+        `machine_type.ilike.%${term}%`,
+        `problem_statement.ilike.%${term}%`,
+        `additional_comments.ilike.%${term}%`,
+        `labor_description.ilike.%${term}%`,
+        `accessories.ilike.%${term}%`,
+        `order_no.ilike.%${term}%`,
+        `status.ilike.%${term}%`,
+        `warranty.ilike.%${term}%`,
+        `technical_report.ilike.%${term}%`,
+      ].join(",")
+    );
+  }
+
+  // Complete the query with order and pagination
+  const {
+    data: joborders,
+    error,
+    count,
+  } = await query.order("created_at", { ascending: false }).range(from, to);
+
+  if (error) {
+    console.log(error);
+    throw new Error("Job Orders could not be fetched");
+  }
+
+  return { data: joborders, meta: { totalCount: count } };
+}
+
 export async function upsertClient(
   supabase: SupabaseClient,
   client: {

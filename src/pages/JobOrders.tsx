@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Plus, Search, X } from "lucide-react";
 import HeaderText from "../components/ui/headerText";
 import { Separator } from "../components/ui/separator";
@@ -17,13 +17,13 @@ import {
 } from "../components/ui/sheet";
 import JobOrderForm from "../components/job-order/job-order-form";
 import { useQuery } from "@tanstack/react-query";
-import { getJobOrders } from "../services/apiJobOrders";
+import { getJobOrdersFiltered } from "../services/apiJobOrders";
 import Loader from "../components/ui/loader";
 import ErrorBoundary from "../components/error-boundery";
 import { getTechnicians } from "../services/apiTechnicians";
 import { Input } from "../components/ui/input";
-import { renderWarrantyInfo } from "../lib/helpers";
 import { useUser } from "../components/auth/useUser";
+import debounce from "lodash/debounce"; // Import debounce from lodash
 
 const viewColumns = [
   { key: "created_at", title: "Date" },
@@ -34,39 +34,88 @@ const viewColumns = [
   { key: "completed_at", title: "Completed Date" },
 ];
 
+// Define the query response type
+interface JobOrderResponse {
+  data: JobOrderData[];
+  meta: {
+    totalCount: number | null;
+  };
+}
+
 export default function JobOrders() {
   const { isTaytay, isPasig, isUser, user } = useUser();
 
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ["job_order"],
-    queryFn: getJobOrders,
-  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [sorts, setSorts] = useState<Sort[]>([]);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(
+    viewColumns
+      .filter((col) => col.key !== "completed_at")
+      .map((col) => col.key)
+  );
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
-  orders?.sort(
-    (a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  // Create a debounced function for updating search term
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const debouncedSearch = useCallback(
+    debounce((term: string) => {
+      setDebouncedSearchTerm(term);
+      setIsSearching(false);
+    }, 500), // 500ms debounce delay
+    []
   );
 
-  const job_orders = useMemo(() => {
-    if (!orders) return [];
-
-    let filteredOrders = orders.filter((order: JobOrderData) =>
-      isTaytay
-        ? order.branches.location === "Taytay"
-        : isPasig
-        ? order.branches.location === "Pasig"
-        : true
-    );
-
-    // If the user is a technician, filter by the user's job orders
-    if (isUser) {
-      filteredOrders = filteredOrders.filter(
-        (order) => order.users?.id === user?.id
-      );
+  // Effect to trigger debounced search
+  useEffect(() => {
+    if (searchTerm) {
+      setIsSearching(true);
     }
+    debouncedSearch(searchTerm);
 
-    return filteredOrders;
-  }, [orders, isTaytay, isPasig, isUser, user]);
+    return () => {
+      debouncedSearch.cancel(); // Cancel any pending debounces on unmount
+    };
+  }, [searchTerm, debouncedSearch]);
+
+  // Query with search term included
+  const { data, isLoading, isFetching } = useQuery<JobOrderResponse>({
+    queryKey: ["job_order", currentPage, itemsPerPage, debouncedSearchTerm],
+    queryFn: () =>
+      getJobOrdersFiltered({
+        page: currentPage,
+        limit: itemsPerPage,
+        searchTerm: debouncedSearchTerm,
+      }),
+    placeholderData: (previousData) => previousData,
+  });
+
+  // Reset to first page when search term changes
+  useEffect(() => {
+    if (debouncedSearchTerm) {
+      setCurrentPage(1);
+    }
+  }, [debouncedSearchTerm]);
+
+  const job_orders = useMemo(() => {
+    const orders = data?.data || [];
+
+    // Apply your existing branch/user filtering logic if needed
+    return orders
+      .filter((order: JobOrderData) =>
+        isTaytay
+          ? order.branches.location === "Taytay"
+          : isPasig
+          ? order.branches.location === "Pasig"
+          : true
+      )
+      .filter((order: JobOrderData) => !isUser || order.users?.id === user?.id);
+  }, [data?.data, isTaytay, isPasig, isUser, user]);
+
+  // Get total count from API
+  const totalItems = data?.meta?.totalCount || 0;
 
   // Fetch Technicians
   const { data: technicians } = useQuery({
@@ -74,33 +123,16 @@ export default function JobOrders() {
     queryFn: () => getTechnicians({ fetchAll: false }),
   });
 
-  const [sorts, setSorts] = useState<Sort[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
   const [filteredData, setFilteredData] = useState<JobOrderData[]>(
     job_orders || []
   );
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(
-    viewColumns
-      .filter((col) => col.key !== "completed_at")
-      .map((col) => col.key)
-  );
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [paginatedData, setPaginatedData] = useState<JobOrderData[]>([]);
 
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
-
+  // Update filtered data when sorts change or job_orders change
   useEffect(() => {
     if (job_orders) {
-      setFilteredData(filterAndSortData(job_orders));
+      setFilteredData(sortData(job_orders));
     }
-  }, [job_orders, searchTerm, sorts]);
-
-  useEffect(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    setPaginatedData(filteredData.slice(startIndex, endIndex));
-  }, [filteredData, currentPage, itemsPerPage]);
+  }, [job_orders, sorts]);
 
   const applySorts = (newSorts: Sort[]) => setSorts(newSorts);
 
@@ -114,43 +146,42 @@ export default function JobOrders() {
     canceled: 7,
   };
 
-  const filterAndSortData = (data: JobOrderData[] | undefined) => {
+  // Modified sortData function to properly handle nested fields like users.fullname
+  const sortData = (data: JobOrderData[] | undefined) => {
     if (!data) return [];
 
-    const searchFilteredData = data.filter((item: JobOrderData) => {
-      const searchableStr = [
-        item.brand_model,
-        item.clients?.name,
-        item.order_no,
-        item.machine_type,
-        item.problem_statement,
-        item.status,
-        item.grand_total,
-        renderWarrantyInfo(item.warranty),
-        new Date(item.completed_at ?? "").toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          timeZone: "Asia/Singapore",
-        }),
-        new Date(item.created_at).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          timeZone: "Asia/Singapore",
-        }),
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return searchableStr.includes(searchTerm.toLowerCase());
-    });
-
-    const sortedData = [...searchFilteredData];
+    const sortedData = [...data];
     sorts.forEach((sort) => {
       sortedData.sort((a, b) => {
-        const aValue = String(a[sort.key]).toLowerCase();
-        const bValue = String(b[sort.key]).toLowerCase();
+        // Handle nested fields like users.fullname
+        let aValue, bValue;
+
+        if (sort.key.includes(".")) {
+          const [parentKey, childKey] = sort.key.split(".");
+          aValue = String(
+            typeof a[parentKey as keyof JobOrderData] === "object" &&
+              a[parentKey as keyof JobOrderData] !== null
+              ? (a[parentKey as keyof JobOrderData] as Record<string, any>)[
+                  childKey
+                ]
+              : ""
+          ).toLowerCase();
+          bValue = String(
+            typeof b[parentKey as keyof JobOrderData] === "object" &&
+              b[parentKey as keyof JobOrderData] !== null
+              ? (b[parentKey as keyof JobOrderData] as Record<string, any>)[
+                  childKey
+                ]
+              : ""
+          ).toLowerCase();
+        } else {
+          aValue = String(
+            a[sort.key as keyof JobOrderData] || ""
+          ).toLowerCase();
+          bValue = String(
+            b[sort.key as keyof JobOrderData] || ""
+          ).toLowerCase();
+        }
 
         if (sort.key === "status") {
           const aPriority = statusPriority[aValue] || 0;
@@ -181,10 +212,14 @@ export default function JobOrders() {
     return sortedData;
   };
 
-  const resetFilters = () => setSearchTerm("");
+  const resetFilters = () => {
+    setSearchTerm("");
+    setDebouncedSearchTerm("");
+  };
 
   const resetFiltersAndSort = () => {
     setSearchTerm("");
+    setDebouncedSearchTerm("");
     setSorts([]);
   };
 
@@ -194,7 +229,7 @@ export default function JobOrders() {
     );
   };
 
-  const handleSortChange = (column: string, direction: any) =>
+  const handleSortChange = (column: string, direction: "asc" | "desc") =>
     applySorts([{ key: column, direction }]);
 
   const handleColumnVisibilityChange = (column: string, isVisible: boolean) => {
@@ -229,9 +264,15 @@ export default function JobOrders() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="border-gray-400 h-fit py-1 pl-8 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all ease-in-out duration-500 relative focus-within:w-[300px]"
-              placeholder="Search.."
+              placeholder="Search brand model, machine type, status, etc."
             />
-            <Search className="absolute left-3 top-2 opacity-60" size={14} />
+            <div className="absolute left-3 top-2 opacity-60">
+              {isSearching || isFetching ? (
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-500 border-t-transparent" />
+              ) : (
+                <Search size={14} />
+              )}
+            </div>
           </div>
           <SortButton
             applySorts={applySorts}
@@ -277,14 +318,14 @@ export default function JobOrders() {
       </div>
       <ErrorBoundary>
         <Table
-          data={paginatedData}
+          data={filteredData}
           originalData={job_orders}
           technicians={technicians || []}
           resetFilters={resetFilters}
           visibleColumns={visibleColumns}
           currentPage={currentPage}
           itemsPerPage={itemsPerPage}
-          totalItems={filteredData.length}
+          totalItems={totalItems}
           handlePageChange={handlePageChange}
           handleItemsPerPageChange={handleItemsPerPageChange}
           handleSortChange={handleSortChange}
