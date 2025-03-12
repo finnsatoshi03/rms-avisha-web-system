@@ -490,7 +490,7 @@ function Content({ data }: { data: CreateJobOrderData }) {
           <Text
             style={[
               styles.tableClientInfo,
-              { color: "#f12924", fontStyle: "bold" },
+              { color: "#f12924", fontWeight: "bold" },
             ]}
           >
             {data.order_no}
