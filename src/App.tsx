@@ -25,7 +25,7 @@ import Materials from "./pages/Materials";
 import Expenses from "./pages/Expenses";
 import ManagerReAuth from "./components/auth/manager-reauth";
 // import BillingStatement from "./pages/BillingStatement";
-import Rental from "./pages/Rental";
+// import Rental from "./pages/Rental";
 import NotFound from "./pages/NotFound";
 import Maintenance from "./pages/Maintenance";
 
