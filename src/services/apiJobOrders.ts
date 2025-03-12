@@ -29,6 +29,97 @@ export async function getJobOrders() {
   return joborders;
 }
 
+export async function getJobOrdersFiltered({
+  page = 1,
+  limit = 10,
+  searchTerm = "",
+} = {}) {
+  // Calculate range for pagination
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  let query = supabase.from("joborders").select(
+    `
+      *,
+      clients:client_id (*),
+      branches:branch_id (*),
+      materials (
+        id,
+        material_description,
+        quantity,
+        unit_price,
+        total_amount,
+        job_order_id,
+        material_id,
+        used
+      ),
+      users:technician_id (*)
+    `,
+    { count: "exact" }
+  );
+
+  if (searchTerm && searchTerm.trim() !== "") {
+    const term = searchTerm.trim().toLowerCase();
+    console.log("Using search term:", term);
+
+    const jobOrderConditions = [
+      `brand_model.ilike.%${term}%`,
+      `serial_number.ilike.%${term}%`,
+      `machine_type.ilike.%${term}%`,
+      `problem_statement.ilike.%${term}%`,
+      `additional_comments.ilike.%${term}%`,
+      `labor_description.ilike.%${term}%`,
+      `accessories.ilike.%${term}%`,
+      `order_no.ilike.%${term}%`,
+      `status.ilike.%${term}%`,
+      `warranty.ilike.%${term}%`,
+      `technical_report.ilike.%${term}%`,
+    ].join(",");
+
+    const { data: matchingClients, error: clientError } = await supabase
+      .from("clients")
+      .select("id")
+      .or(
+        `name.ilike.%${term}%,` +
+          `email.ilike.%${term}%,` +
+          `contact_number.ilike.%${term}%`
+      );
+
+    if (clientError) {
+      query = query.or(jobOrderConditions);
+    } else if (matchingClients && matchingClients.length > 0) {
+      const clientIds = matchingClients.map((client) => client.id);
+
+      let orConditions = jobOrderConditions;
+
+      if (clientIds.length > 0) {
+        if (orConditions) {
+          orConditions += `,client_id.in.(${clientIds.join(",")})`;
+        } else {
+          orConditions = `client_id.in.(${clientIds.join(",")})`;
+        }
+      }
+
+      query = query.or(orConditions);
+    } else {
+      query = query.or(jobOrderConditions);
+    }
+  }
+
+  const {
+    data: joborders,
+    error,
+    count,
+  } = await query.order("created_at", { ascending: false }).range(from, to);
+
+  if (error) {
+    console.log("Query error:", error);
+    throw new Error("Job Orders could not be fetched");
+  }
+
+  return { data: joborders, meta: { totalCount: count } };
+}
+
 export async function upsertClient(
   supabase: SupabaseClient,
   client: {

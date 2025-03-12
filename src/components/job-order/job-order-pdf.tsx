@@ -51,7 +51,7 @@ function Content({ data }: { data: CreateJobOrderData }) {
           </Text>
           <Text style={{ color: "#f12924" }}>
             Call {data.branch_id === 1 ? "(02) 8983-3684" : "(02) 8254-9823"}{" "}
-            Text {data.branch_id === 1 ? "(09)43-606-4129" : "(09)94-880-8918"}
+            Text {data.branch_id === 1 ? "(09)43-606-4129" : "(09)66-774-5227"}
           </Text>
           <Text style={{ color: "#f12924" }}>
             CUSTOMER SERVICE:{" "}
@@ -448,7 +448,7 @@ function Content({ data }: { data: CreateJobOrderData }) {
                 Call{" "}
                 {data.branch_id === 1 ? "(02) 8983-3684" : "(02) 8254-9823"}{" "}
                 Text{" "}
-                {data.branch_id === 1 ? "(09)43-606-4129" : "(09)94-880-8918"}
+                {data.branch_id === 1 ? "(09)43-606-4129" : "(09)66-774-5227"}
               </Text>
               <Text style={{ color: "#f12924" }}>
                 CUSTOMER SERVICE:{" "}

@@ -21,7 +21,7 @@ export function useLogin() {
     },
     onError: (error) => {
       console.log(error);
-      toast.error("Provided credentials are incorrect. Please try again.");
+      toast.error(`Error: ${error.message}`);
     },
   });
 
