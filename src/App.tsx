@@ -61,7 +61,7 @@ export default function App() {
             <Route path="dashboard/rental" element={<DashboardRental />} />
             <Route path="manager-re-auth" element={<ManagerReAuth />} />
             <Route path="job-orders" element={<JobOrders />} />
-            <Route path="rental" element={<Rental />} />
+            <Route path="rental" element={<Maintenance />} />
             <Route path="billing-statement" element={<Maintenance />} />
             <Route path="clients" element={<Clients />} />
             <Route path="materials" element={<Materials />} />
