@@ -80,39 +80,45 @@ export default function JobOrders() {
     };
   }, [searchTerm, debouncedSearch]);
 
-  // Query with search term included
+  // Get branch location filter based on user role
+  const getBranchLocation = () => {
+    if (isTaytay) return "Taytay";
+    if (isPasig) return "Pasig";
+    return null; // No branch filter for admin/CEO
+  };
+
+  // Include role-based filtering in API call
   const { data, isLoading, isFetching } = useQuery<JobOrderResponse>({
-    queryKey: ["job_order", currentPage, itemsPerPage, debouncedSearchTerm],
+    queryKey: [
+      "job_order",
+      currentPage,
+      itemsPerPage,
+      debouncedSearchTerm,
+      isTaytay,
+      isPasig,
+      isUser,
+      user?.id,
+    ],
     queryFn: () =>
       getJobOrdersFiltered({
         page: currentPage,
         limit: itemsPerPage,
         searchTerm: debouncedSearchTerm,
+        branchLocation: getBranchLocation(),
+        technicianId: isUser ? user?.id : undefined,
       }),
     placeholderData: (previousData) => previousData,
   });
 
-  // Reset to first page when search term changes
+  // Reset to first page when search term changes or role changes
   useEffect(() => {
-    if (debouncedSearchTerm) {
-      setCurrentPage(1);
-    }
-  }, [debouncedSearchTerm]);
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, isTaytay, isPasig, isUser, user?.id]);
 
+  // Simplify since filtering is now done on the server
   const job_orders = useMemo(() => {
-    const orders = data?.data || [];
-
-    // Apply your existing branch/user filtering logic if needed
-    return orders
-      .filter((order: JobOrderData) =>
-        isTaytay
-          ? order.branches.location === "Taytay"
-          : isPasig
-          ? order.branches.location === "Pasig"
-          : true
-      )
-      .filter((order: JobOrderData) => !isUser || order.users?.id === user?.id);
-  }, [data?.data, isTaytay, isPasig, isUser, user]);
+    return data?.data || [];
+  }, [data?.data]);
 
   // Get total count from API
   const totalItems = data?.meta?.totalCount || 0;

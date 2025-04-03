@@ -33,6 +33,14 @@ export async function getJobOrdersFiltered({
   page = 1,
   limit = 10,
   searchTerm = "",
+  branchLocation = null,
+  technicianId = undefined,
+}: {
+  page?: number;
+  limit?: number;
+  searchTerm?: string;
+  branchLocation?: string | null;
+  technicianId?: string | number | undefined;
 } = {}) {
   // Calculate range for pagination
   const from = (page - 1) * limit;
@@ -57,6 +65,25 @@ export async function getJobOrdersFiltered({
     `,
     { count: "exact" }
   );
+
+  // Add branch location filter if provided
+  if (branchLocation) {
+    // Need to filter using a join for branch location
+    const { data: branchIds, error: branchError } = await supabase
+      .from("branches")
+      .select("id")
+      .eq("location", branchLocation);
+
+    if (!branchError && branchIds && branchIds.length > 0) {
+      const ids = branchIds.map((branch) => branch.id);
+      query = query.in("branch_id", ids);
+    }
+  }
+
+  // Add technician filter if provided
+  if (technicianId) {
+    query = query.eq("technician_id", technicianId);
+  }
 
   if (searchTerm && searchTerm.trim() !== "") {
     const term = searchTerm.trim().toLowerCase();
