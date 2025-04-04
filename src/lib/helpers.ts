@@ -22,6 +22,10 @@ export function getStatusClass(status: string) {
       return "status-canceled";
     case "pull out":
       return "status-pull-out";
+    case "for collection":
+      return "status-for-collection";
+    case "for billing":
+      return "status-for-billing";
     default:
       return "";
   }
@@ -673,6 +677,8 @@ export const countJobOrdersByStatus = (jobOrders: JobOrderData[]) => {
     Completed: 0,
     Canceled: 0,
     "Pull Out": 0,
+    "For Collection": 0,
+    "For Billing": 0,
   };
 
   jobOrders.forEach((order) => {

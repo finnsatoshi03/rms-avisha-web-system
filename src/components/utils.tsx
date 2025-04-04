@@ -7,6 +7,8 @@ import {
   WrenchIcon,
   XCircleIcon,
   ArrowDownCircleIcon,
+  WalletIcon,
+  ReceiptIcon,
 } from "lucide-react";
 
 export const getStatusIconAndClass = (status: string) => {
@@ -63,6 +65,18 @@ export const getStatusIconAndClass = (status: string) => {
             fill="#b23c17"
             className="text-background"
           />
+        ),
+      };
+    case "For Collection":
+      return {
+        icon: (
+          <WalletIcon size={14} fill="#1e3a8a" className="text-background" />
+        ),
+      };
+    case "For Billing":
+      return {
+        icon: (
+          <ReceiptIcon size={14} fill="#831843" className="text-background" />
         ),
       };
     default:

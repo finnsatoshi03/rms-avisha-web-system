@@ -135,6 +135,15 @@ td:last-of-type {
   background-color: #ff57223f;
   color: #b23c17;
 }
+.status-for-collection {
+  background-color: #1e3a8a3f;
+  color: #1e3a8a;
+}
+
+.status-for-billing {
+  background-color: #8318433f;
+  color: #831843;
+}
 
 @keyframes slideUp {
   from {

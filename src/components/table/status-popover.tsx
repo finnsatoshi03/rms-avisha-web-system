@@ -6,6 +6,8 @@ import {
   CircleDotDashed,
   LucideIcon,
   XCircle,
+  Wallet,
+  Receipt,
 } from "lucide-react";
 import { getStatusClass } from "../../lib/helpers";
 import {
@@ -35,6 +37,8 @@ export const statuses: Status[] = [
   { value: "completed", label: "Completed", icon: CheckCircle2 },
   { value: "canceled", label: "Canceled", icon: XCircle },
   { value: "pull out", label: "Pull Out", icon: ArrowDownCircle },
+  { value: "for collection", label: "For Collection", icon: Wallet },
+  { value: "for billing", label: "For Billing", icon: Receipt },
 ];
 export const StatusPopover = ({
   order,

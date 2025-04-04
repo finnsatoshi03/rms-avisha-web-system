@@ -150,6 +150,8 @@ export default function JobOrders() {
     "waiting parts": 5,
     pending: 6,
     canceled: 7,
+    "for collection": 8,
+    "for billing": 9,
   };
 
   // Modified sortData function to properly handle nested fields like users.fullname
