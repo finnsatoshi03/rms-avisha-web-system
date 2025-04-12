@@ -56,10 +56,11 @@ export const StatusPopover = ({
     onOpenChange={(isOpen) => setOpenPopover(isOpen ? order.order_no : null)}
   >
     <PopoverTrigger asChild>
+      {/* remove cursor-not-allowed pointer-events-none if wants to be a popover */}
       <p
         className={`cursor-pointer px-2 py-0.5 rounded-full w-fit flex items-center font-bold ${getStatusClass(
           order.status
-        )}`}
+        )} cursor-not-allowed pointer-events-none`}
         onClick={(e) => e.stopPropagation()}
       >
         {order.status}

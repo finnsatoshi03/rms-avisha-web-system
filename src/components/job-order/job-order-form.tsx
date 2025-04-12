@@ -8,7 +8,15 @@ import { pdf } from "@react-pdf/renderer";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { saveAs } from "file-saver";
 import toast from "react-hot-toast";
-import { Clock, Loader2, Plus, Trash, X } from "lucide-react";
+import {
+  Check,
+  ChevronsUpDown,
+  Clock,
+  Loader2,
+  Plus,
+  Trash,
+  X,
+} from "lucide-react";
 
 import {
   Form,
@@ -53,6 +61,15 @@ import DiscountDialog from "./discount-option-dialog";
 import { Checkbox } from "../ui/checkbox";
 import { baseSchema } from "./jobOrderSchema";
 import { useDownpayment } from "./useDownpayment";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "../ui/command";
+import { cn } from "../../lib/utils";
 
 const rateOptions = [
   { label: "Walk-in Service", value: 1500 },
@@ -63,6 +80,133 @@ const rateOptions = [
   { label: "Office/Home CISS", value: 1100 },
   { label: "Return for Warranty", value: 0 },
 ];
+
+interface MaterialStockItem {
+  id: number;
+  material_name: string;
+  price: number;
+  stocks: number;
+  branch_id: number;
+  deleted?: boolean;
+  brand?: string;
+  cost?: number;
+}
+
+interface MaterialOrderItem {
+  material_id: string | number;
+  material?: string;
+  quantity?: number;
+  unitPrice?: number;
+  used?: boolean;
+}
+
+interface MaterialComboboxProps {
+  value: string;
+  onChange: (value: string) => void;
+  materials: MaterialStockItem[] | undefined;
+  disabled: boolean;
+  branchId: number | undefined;
+  materialsJobOrder: MaterialOrderItem[];
+}
+
+const MaterialCombobox: React.FC<MaterialComboboxProps> = ({
+  value,
+  onChange,
+  materials,
+  disabled,
+  branchId,
+  materialsJobOrder,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+
+  const filteredMaterials =
+    materials?.filter((stock) => {
+      const isMaterialSelected = materialsJobOrder.some(
+        (material) => String(material.material_id) === String(stock.id)
+      );
+      return (
+        (disabled || !stock.deleted) &&
+        stock.branch_id === branchId &&
+        (isMaterialSelected || stock.stocks > 0)
+      );
+    }) || [];
+
+  // Get selected material name for display
+  const selectedMaterial = filteredMaterials.find(
+    (material) => String(material.id) === value
+  );
+  const selectedMaterialName = selectedMaterial
+    ? `${selectedMaterial.material_name}${
+        selectedMaterial.brand ? ` - ${selectedMaterial.brand}` : ""
+      }`
+    : "Select material";
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="justify-between border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit"
+          disabled={disabled}
+        >
+          <span className="truncate max-w-[200px] text-left">
+            {value ? selectedMaterialName : "Select material"}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[300px]">
+        <Command>
+          <CommandInput
+            placeholder="Search materials..."
+            onValueChange={setSearchValue}
+            value={searchValue}
+          />
+          <CommandEmpty>No material found.</CommandEmpty>
+          <CommandGroup className="max-h-[300px] overflow-y-auto">
+            {filteredMaterials
+              .filter(
+                (stock) =>
+                  stock.material_name
+                    .toLowerCase()
+                    .includes(searchValue.toLowerCase()) ||
+                  (stock.brand &&
+                    stock.brand
+                      .toLowerCase()
+                      .includes(searchValue.toLowerCase()))
+              )
+              .map((stock) => (
+                <CommandItem
+                  key={stock.id}
+                  value={stock.material_name.toLowerCase()}
+                  onSelect={() => {
+                    onChange(String(stock.id));
+                    setOpen(false);
+                    setSearchValue("");
+                  }}
+                  className="flex items-center"
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4 flex-shrink-0",
+                      value === String(stock.id) ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span className="truncate">
+                    {stock.material_name}{" "}
+                    {stock.brand ? `- ${stock.brand}` : ""}
+                  </span>
+                </CommandItem>
+              ))}
+          </CommandGroup>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 export default function JobOrderForm({
   jobOrderToEdit = {} as JobOrderData,
@@ -1155,47 +1299,17 @@ export default function JobOrderForm({
                     render={({ field }) => (
                       <FormItem className="space-y-0 w-full">
                         <FormControl>
-                          <Select
-                            onValueChange={(value) => {
+                          <MaterialCombobox
+                            value={field.value ? String(field.value) : ""}
+                            onChange={(value) => {
                               handleMaterialChange(index, Number(value));
                               field.onChange(String(value));
                             }}
-                            value={field.value ? String(field.value) : ""}
+                            materials={materialStocks}
                             disabled={readonly}
-                          >
-                            <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit">
-                              <SelectValue placeholder="Select material" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectLabel>Materials</SelectLabel>
-                                {materialStocks &&
-                                  materialStocks
-                                    .filter((stock) => {
-                                      const isMaterialSelected =
-                                        materialsJobOrder.some(
-                                          (material) =>
-                                            String(material.material_id) ===
-                                            String(stock.id)
-                                        );
-                                      return (
-                                        (readonly || !stock.deleted) &&
-                                        stock.branch_id === branchId &&
-                                        (isMaterialSelected || stock.stocks > 0)
-                                      );
-                                    })
-                                    .map((stock) => (
-                                      <SelectItem
-                                        key={stock.id}
-                                        value={String(stock.id)}
-                                      >
-                                        {stock.material_name} -{" "}
-                                        {stock.brand || ""}
-                                      </SelectItem>
-                                    ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
+                            branchId={branchId || 0}
+                            materialsJobOrder={materialsJobOrder}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
