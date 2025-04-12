@@ -1,7 +1,9 @@
 import { useState } from "react";
 
-export function useDownpayment(grandTotal: number) {
-  const [downpaymentValue, setDownpaymentValue] = useState<number | null>(null);
+export function useDownpayment(grandTotal: number, initialValue?: number) {
+  const [downpaymentValue, setDownpaymentValue] = useState<number | null>(
+    initialValue || null
+  );
   const [downpaymentError, setDownpaymentError] = useState<string | null>(null);
 
   const handleDownpaymentChange = (e: React.ChangeEvent<HTMLInputElement>) => {

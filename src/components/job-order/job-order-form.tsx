@@ -296,7 +296,9 @@ export default function JobOrderForm({
   const [selectedDiscount, setSelectedDiscount] = useState<number | null>(
     editValues.discount
   );
-  const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(false);
+  const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(
+    Boolean(editValues.downpayment && editValues.downpayment > 0)
+  );
 
   const { isTaytay, isPasig, isAdmin, user } = useUser();
   const isTechnician = user?.user_metadata.role?.includes("technician");
@@ -432,7 +434,7 @@ export default function JobOrderForm({
     Number(form.watch("rate") || 0) + Number(form.watch("amount") || 0);
   const grandTotal = (totalMaterialsPrice ?? 0) + laborTotal;
   const { downpaymentValue, downpaymentError, handleDownpaymentChange } =
-    useDownpayment(grandTotal);
+    useDownpayment(grandTotal, editValues.downpayment || undefined);
 
   const adjustedGrandTotal =
     grandTotal - (selectedDiscount ?? 0) - (downpaymentValue ?? 0);
@@ -1572,16 +1574,27 @@ export default function JobOrderForm({
                   <p className="opacity-60 gap-1">Downpayment</p>
                   {downpaymentValue || downpaymentInputVisible ? (
                     <div className="flex-col items-end justify-end w-[115px]">
-                      <input
-                        type="number"
-                        value={downpaymentValue ?? ""}
-                        onChange={handleDownpaymentChange}
-                        className="w-full text-right placeholder:right bg-transparent focus:outline-none"
-                        placeholder="Enter amount"
-                        min="0"
-                        disabled={readonly || isPending}
-                      />
-                      {downpaymentError && (
+                      {readonly ? (
+                        <p className="text-right">
+                          ₱
+                          {downpaymentValue !== null
+                            ? formatNumberWithCommas(downpaymentValue)
+                            : editValues.downpayment
+                            ? formatNumberWithCommas(editValues.downpayment)
+                            : "0"}
+                        </p>
+                      ) : (
+                        <input
+                          type="number"
+                          value={downpaymentValue ?? ""}
+                          onChange={handleDownpaymentChange}
+                          className="w-full text-right placeholder:right bg-transparent focus:outline-none"
+                          placeholder="Enter amount"
+                          min="0"
+                          disabled={readonly || isPending}
+                        />
+                      )}
+                      {downpaymentError && !readonly && (
                         <p className="text-red-500 text-xs mt-1 text-right">
                           {downpaymentError}
                         </p>
