@@ -615,7 +615,7 @@ export default function Table({
               </div>
             </div>
           )}
-          <div className="h-[calc(100%-6.5rem)] flex flex-col justify-between">
+          <div className="h-[calc(100%-7.5rem)] flex flex-col justify-between">
             <TableUI>
               <TableHeader>
                 <TableRow className="bg-slate-100 border-none">

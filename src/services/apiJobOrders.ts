@@ -35,12 +35,14 @@ export async function getJobOrdersFiltered({
   searchTerm = "",
   branchLocation = null,
   technicianId = undefined,
+  statusFilters = [],
 }: {
   page?: number;
   limit?: number;
   searchTerm?: string;
   branchLocation?: string | null;
   technicianId?: string | number | undefined;
+  statusFilters?: string[];
 } = {}) {
   // Calculate range for pagination
   const from = (page - 1) * limit;
@@ -65,6 +67,14 @@ export async function getJobOrdersFiltered({
     `,
     { count: "exact" }
   );
+
+  // Add status filters if provided
+  if (statusFilters.length > 0) {
+    const statusConditions = statusFilters
+      .map((status) => `status.eq.${status}`)
+      .join(",");
+    query = query.or(statusConditions);
+  }
 
   // Add branch location filter if provided
   if (branchLocation) {
