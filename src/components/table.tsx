@@ -354,6 +354,18 @@ export default function Table({
           (order) => order.id === selectedRows[0]
         );
         if (orderToUpdate) {
+          const isTechnicalReportEmpty =
+            !orderToUpdate.technical_report ||
+            orderToUpdate.technical_report.trim() === "";
+
+          if (isTechnicalReportEmpty) {
+            toast.error(
+              "Technical report is required before completing the job order."
+            );
+            // setCurrentEditId(orderToUpdate.id);
+            // setEditSheetOpen(true);
+            return;
+          }
           setShowPaymentDialog(true);
           setSelectedOrder(orderToUpdate);
         }
