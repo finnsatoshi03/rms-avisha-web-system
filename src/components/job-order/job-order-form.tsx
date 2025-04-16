@@ -843,7 +843,7 @@ export default function JobOrderForm({
                     className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-3xl text-3xl font-bold rounded-none mb-2"
                     placeholder="Client Name"
                     autoFocus
-                    disabled={readonly}
+                    disabled={readonly || onWarranty}
                     {...field}
                   />
                 </FormControl>
@@ -895,7 +895,7 @@ export default function JobOrderForm({
                       <Input
                         placeholder="Client Email"
                         className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
-                        disabled={readonly || onWarranty}
+                        disabled={readonly}
                         {...field}
                       />
                     </FormControl>
