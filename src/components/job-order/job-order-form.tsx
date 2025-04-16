@@ -328,11 +328,14 @@ export default function JobOrderForm({
       newJobOrder,
       jobOrderId,
       clientId,
+      originalClientName,
     }: {
       newJobOrder: CreateJobOrderData;
       jobOrderId: number;
       clientId: number;
-    }) => createEditJobOrder(newJobOrder, jobOrderId, clientId, null),
+      originalClientName: string | null;
+    }) =>
+      createEditJobOrder(newJobOrder, jobOrderId, clientId, originalClientName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job_order"] });
       toast.success("Job order successfully edited!");
@@ -612,13 +615,12 @@ export default function JobOrderForm({
       accessories: values.accessories || [],
     };
 
-    // console.log(submittedValues);
-
     if (editSession) {
       editJobOrder({
         newJobOrder: submittedValues,
         jobOrderId: editId,
         clientId,
+        originalClientName: clients?.name || null,
       });
     } else {
       createJobOrder(submittedValues, {
