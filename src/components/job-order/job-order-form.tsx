@@ -843,7 +843,7 @@ export default function JobOrderForm({
                     className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-3xl text-3xl font-bold rounded-none mb-2"
                     placeholder="Client Name"
                     autoFocus
-                    disabled={readonly || onWarranty}
+                    disabled={readonly}
                     {...field}
                   />
                 </FormControl>
@@ -876,7 +876,7 @@ export default function JobOrderForm({
                           onChange={(e) =>
                             handleContactNumberChange(e, fieldOnChange)
                           }
-                          disabled={readonly || onWarranty}
+                          disabled={readonly}
                           {...restFieldProps}
                         />
                       </FormControl>
