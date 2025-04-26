@@ -168,6 +168,7 @@ export async function upsertClient(
   clientId: number | null
 ): Promise<number> {
   if (clientId) {
+    // Always update with the latest client data
     const { data: clientData, error: clientError } = await supabase
       .from("clients")
       .update({
@@ -200,7 +201,24 @@ export async function upsertClient(
     }
 
     if (existingClient) {
-      return existingClient.id;
+      // Update the existing client with the latest data
+      const { data: updatedClient, error: updateError } = await supabase
+        .from("clients")
+        .update({
+          contact_number: client.contact_number,
+          email: client.email,
+          created_at: client.date,
+        })
+        .eq("id", existingClient.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.log(updateError);
+        throw new Error("Existing client could not be updated with new data");
+      }
+
+      return updatedClient.id;
     }
 
     // If client does not exist, create a new one
