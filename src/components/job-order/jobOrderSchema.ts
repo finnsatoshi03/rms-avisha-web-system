@@ -57,8 +57,7 @@ export const baseSchema = z.object({
     //   "Specify machine type if 'Other' is selected"
     // ),
   ]),
-  problem_statement: z.string().optional(),
-  // .min(10, "At least 10 characters required"),
+  problem_statement: z.string().min(10, "At least 10 characters required"),
   additional_comments: z
     .string()
     .optional()
