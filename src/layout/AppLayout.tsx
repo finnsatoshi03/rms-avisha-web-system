@@ -1,7 +1,7 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import AppSidebar from "./Sidebar";
 import { useUser } from "../components/auth/useUser";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   SidebarInset,
   SidebarProvider,
@@ -9,10 +9,66 @@ import {
 } from "../components/ui/sidebar";
 import { Separator } from "../components/ui/separator";
 
+// Breadcrumb configuration
+const breadcrumbConfig: Record<string, string> = {
+  dashboard: "Dashboard",
+  "job-order": "Job Order",
+  rental: "Rental",
+  "job-orders": "Job Orders",
+  clients: "Clients",
+  materials: "Materials",
+  expenses: "Expenses",
+  settings: "Settings",
+  technicians: "Technicians",
+  account: "Account",
+  "manager-re-auth": "Manager Re-Authentication",
+  "billing-statement": "Billing Statement",
+};
+
+const generateBreadcrumbs = (pathname: string) => {
+  const segments = pathname.split("/").filter(Boolean);
+  const breadcrumbs = ["RMS"];
+
+  segments.forEach((segment, index) => {
+    const decodedSegment = decodeURIComponent(segment);
+
+    // Handle special cases for nested routes
+    if (segment === "dashboard" && segments[index + 1]) {
+      const nextSegment = segments[index + 1];
+      const dashboardLabel = breadcrumbConfig[nextSegment] || nextSegment;
+      breadcrumbs.push("Dashboard", dashboardLabel);
+      return;
+    }
+
+    // Skip if it's already handled by dashboard case
+    if (segments[index - 1] === "dashboard") {
+      return;
+    }
+
+    // Handle technician detail pages
+    if (segments[index - 1] === "technicians" && !breadcrumbConfig[segment]) {
+      breadcrumbs.push("Technician Details");
+      return;
+    }
+
+    // Use configured label or capitalize the segment
+    const label =
+      breadcrumbConfig[segment] ||
+      decodedSegment.charAt(0).toUpperCase() + decodedSegment.slice(1);
+    breadcrumbs.push(label);
+  });
+
+  return breadcrumbs;
+};
+
 export default function AppLayout() {
   const { isUser, user } = useUser();
   const location = useLocation();
   const navigate = useNavigate();
+
+  const breadcrumbs = useMemo(() => {
+    return generateBreadcrumbs(location.pathname);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (
@@ -37,9 +93,14 @@ export default function AppLayout() {
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
             <div className="flex items-center gap-2 text-sm font-medium">
-              <span className="text-muted-foreground">RMS</span>
-              <span>/</span>
-              <span>Dashboard</span>
+              {breadcrumbs.map((crumb, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <span className={index === 0 ? "text-muted-foreground" : ""}>
+                    {crumb}
+                  </span>
+                  {index < breadcrumbs.length - 1 && <span>/</span>}
+                </div>
+              ))}
             </div>
           </div>
         </header>

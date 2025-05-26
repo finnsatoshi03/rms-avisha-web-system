@@ -192,7 +192,7 @@ export default function Materials() {
     );
 
   return (
-    <div className="h-full">
+    <div className="h-[calc(100%-1rem)]">
       <HeaderText>Materials</HeaderText>
 
       <div className="my-4 flex sm:flex-row flex-col sm:gap-0 gap-2 justify-between">
@@ -248,7 +248,7 @@ export default function Materials() {
         />
       </div>
       {isAdmin ? (
-        <Tabs defaultValue="taytay" className="h-[calc(100%-4.5rem)]">
+        <Tabs defaultValue="taytay" className="h-[calc(100%-2rem)]">
           <TabsList className="rounded-b-none">
             <TabsTrigger value="taytay">Taytay</TabsTrigger>
             <TabsTrigger value="pasig">Pasig</TabsTrigger>
