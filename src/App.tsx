@@ -15,7 +15,7 @@ import Dashboard from "./pages/Dashboard";
 import DashboardRental from "./pages/DashboardRental";
 import JobOrders from "./pages/JobOrders";
 import Clients from "./pages/Clients";
-import Settings from "./pages/Settings";
+// import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/protected-route";
 import Technicians from "./pages/Technicians";
@@ -66,7 +66,7 @@ export default function App() {
             <Route path="clients" element={<Clients />} />
             <Route path="materials" element={<Materials />} />
             <Route path="expenses" element={<Expenses />} />
-            <Route path="settings" element={<Settings />} />
+            <Route path="settings" element={<Maintenance />} />
             <Route path="technicians" element={<Technicians />} />
             <Route
               path="technicians/:technicianName"
