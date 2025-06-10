@@ -19,6 +19,12 @@ import TechnicianCard from "../components/technicians/technician-card";
 import toast from "react-hot-toast";
 import { ConfirmDialog } from "../components/table/alert-dialog";
 import { useUser } from "../components/auth/useUser";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
 
 export default function Technicians() {
   const queryClient = useQueryClient();
@@ -48,9 +54,12 @@ export default function Technicians() {
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<
     string | null
   >(null);
-  // const [filteredTechnicians, setFilteredTechnicians] = useState<
-  //   TechnicianWithJobOrders[]
-  // >([]);
+  const [adminTechnicians, setAdminTechnicians] = useState<
+    TechnicianWithJobOrders[]
+  >([]);
+  const [managerTechnicians, setManagerTechnicians] = useState<
+    TechnicianWithJobOrders[]
+  >([]);
 
   const handleRemoveTechnician = (id: string) => {
     setSelectedTechnicianId(id);
@@ -78,41 +87,81 @@ export default function Technicians() {
 
   useEffect(() => {
     if (data) {
-      const filteredTechnicians = data.filter((technician) => {
-        // General admin sees all technicians
-        if (isAdmin) {
-          return true;
-        }
+      let filteredTechnicians = data;
 
-        // Apply branch-specific filtering
-        if (isTaytay) {
-          return (
+      // Apply branch-specific filtering
+      if (isTaytay) {
+        filteredTechnicians = data.filter(
+          (technician) =>
             technician.role?.includes("taytay") ||
             technician.email?.includes("taytay") ||
             technician.role?.includes("general") ||
             technician.email === "avisha@email.com"
-          );
-        }
-
-        if (isPasig) {
-          return (
+        );
+      } else if (isPasig) {
+        filteredTechnicians = data.filter(
+          (technician) =>
             technician.role?.includes("pasig") ||
             technician.email?.includes("pasig") ||
             technician.role?.includes("general") ||
             technician.email === "avisha@email.com"
-          );
-        }
-
-        // If no specific branch, apply a default filter
-        return (
-          technician.role?.includes("general") ||
-          technician.email === "avisha@email.com"
         );
-      });
+      } else if (!isAdmin) {
+        // If no specific branch and not admin, apply a default filter
+        filteredTechnicians = data.filter(
+          (technician) =>
+            technician.role?.includes("general") ||
+            technician.email === "avisha@email.com"
+        );
+      }
 
-      setTechnicians(filteredTechnicians);
+      // Further categorization for UI display
+      const admins = filteredTechnicians.filter(
+        (tech) =>
+          tech.role?.includes("admin") || tech.email === "avisha@email.com"
+      );
+
+      const managers = filteredTechnicians.filter(
+        (tech) =>
+          tech.role?.includes("manager") ||
+          tech.email?.includes("manager") ||
+          tech.role?.includes("taytay") ||
+          tech.role?.includes("pasig")
+      );
+
+      const techniciansOnly = filteredTechnicians.filter(
+        (tech) =>
+          !tech.role?.includes("admin") &&
+          tech.email !== "avisha@email.com" &&
+          !tech.role?.includes("manager") &&
+          !tech.email?.includes("manager") &&
+          !tech.role?.includes("taytay") &&
+          !tech.role?.includes("pasig")
+      );
+
+      setAdminTechnicians(admins);
+      setManagerTechnicians(managers);
+      setTechnicians(techniciansOnly);
     }
   }, [data, isAdmin, isTaytay, isPasig]);
+
+  const filteredAdmins = adminTechnicians.filter(
+    (tech) =>
+      tech.fullname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tech.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredManagers = managerTechnicians.filter(
+    (tech) =>
+      tech.fullname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tech.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredTechnicians = technicians.filter(
+    (tech) =>
+      tech.fullname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tech.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   if (isLoading)
     return (
@@ -155,19 +204,77 @@ export default function Technicians() {
             </Dialog>
           </div>
         </div>
-        <div className="grid xl:grid-cols-4 lg:grid-cols-2 grid-cols-1 gap-4 h-full">
-          {technicians.length > 0 ? (
-            technicians.map((technician) => (
-              <TechnicianCard
-                key={technician.id}
-                technician={technician}
-                onRemove={() => handleRemoveTechnician(technician.id)}
-              />
-            ))
-          ) : (
-            <p>No technicians found</p>
-          )}
-        </div>
+
+        <Tabs defaultValue="technicians" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="technicians">Technicians</TabsTrigger>
+            <TabsTrigger value="managers">Managers</TabsTrigger>
+            <TabsTrigger value="admin">CEO</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="admin">
+            {filteredAdmins.length > 0 ? (
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-700 mb-4">CEOs</h3>
+                <div className="grid xl:grid-cols-4 lg:grid-cols-2 grid-cols-1 gap-4">
+                  {filteredAdmins.map((technician) => (
+                    <TechnicianCard
+                      key={technician.id}
+                      technician={technician}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-center py-8 text-gray-500">No CEOs found</p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="managers">
+            {filteredManagers.length > 0 ? (
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-700 mb-4">
+                  Managers
+                </h3>
+                <div className="grid xl:grid-cols-4 lg:grid-cols-2 grid-cols-1 gap-4">
+                  {filteredManagers.map((technician) => (
+                    <TechnicianCard
+                      key={technician.id}
+                      technician={technician}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-center py-8 text-gray-500">
+                No managers found
+              </p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="technicians">
+            {filteredTechnicians.length > 0 ? (
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-700 mb-4">
+                  Technicians
+                </h3>
+                <div className="grid xl:grid-cols-4 lg:grid-cols-2 grid-cols-1 gap-4">
+                  {filteredTechnicians.map((technician) => (
+                    <TechnicianCard
+                      key={technician.id}
+                      technician={technician}
+                      onRemove={() => handleRemoveTechnician(technician.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-center py-8 text-gray-500">
+                No technicians found
+              </p>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
       <ConfirmDialog
         isOpen={confirmDialogOpen}

@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 
 interface TechnicianCardProps {
   technician: TechnicianWithJobOrders;
-  onRemove: () => void;
+  onRemove?: () => void;
 }
 
 export default function TechnicianCard({
@@ -53,13 +53,15 @@ export default function TechnicianCard({
             {technician.fullname?.[0] || technician.email?.[0].toUpperCase()}
           </AvatarFallback>
         </Avatar>
-        <Button
-          className="flex gap-1 items-center justify-between px-3 h-fit text-xs"
-          variant={"outline"}
-          onClick={onRemove}
-        >
-          Remove <Trash size={12} />
-        </Button>
+        {onRemove && (
+          <Button
+            className="flex gap-1 items-center justify-between px-3 h-fit text-xs"
+            variant={"outline"}
+            onClick={onRemove}
+          >
+            Remove <Trash size={12} />
+          </Button>
+        )}
       </div>
       <div className="mt-4">
         <p className="text-sm font-bold">
