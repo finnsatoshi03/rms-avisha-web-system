@@ -10,19 +10,17 @@ export default function Logout() {
   };
 
   return (
-    <a>
-      <button
-        className="cursor-pointer flex items-center gap-2"
-        disabled={isLoading}
-        onClick={handleClick}
-      >
-        {isLoading ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <LogOut size={20} />
-        )}
-        Logout
-      </button>
-    </a>
+    <button
+      className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
+      disabled={isLoading}
+      onClick={handleClick}
+    >
+      {isLoading ? (
+        <Loader2 size={16} className="animate-spin" />
+      ) : (
+        <LogOut size={16} />
+      )}
+      Logout
+    </button>
   );
 }
