@@ -16,7 +16,7 @@ import {
   SheetTrigger,
 } from "../components/ui/sheet";
 import JobOrderForm from "../components/job-order/job-order-form";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getJobOrdersFiltered } from "../services/apiJobOrders";
 import Loader from "../components/ui/loader";
 import ErrorBoundary from "../components/error-boundery";
@@ -30,6 +30,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../components/ui/popover";
+import ExportDialog from "../components/job-order/export-dialog";
+import BatchDeleteDialog from "../components/job-order/batch-delete-dialog";
 
 const viewColumns = [
   { key: "created_at", title: "Date" },
@@ -63,7 +65,8 @@ interface JobOrderResponse {
 }
 
 export default function JobOrders() {
-  const { isTaytay, isPasig, isUser, user } = useUser();
+  const queryClient = useQueryClient();
+  const { isTaytay, isPasig, isUser, isAdmin, user } = useUser();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -394,11 +397,29 @@ export default function JobOrders() {
             </SheetContent>
           </Sheet>
         </div>
-        <ColumnVisibilityDropdown
-          viewColumns={viewColumns}
-          visibleColumns={visibleColumns}
-          handleToggleColumn={handleToggleColumn}
-        />
+        <div className="flex items-center gap-2">
+          <ExportDialog
+            branchLocation={getBranchLocation()}
+            technicianId={user?.id}
+            isUser={isUser}
+          />
+          {(isAdmin || isTaytay || isPasig) && (
+            <BatchDeleteDialog
+              branchLocation={getBranchLocation()}
+              technicianId={user?.id}
+              isUser={isUser}
+              onSuccess={() => {
+                // Invalidate queries to refresh the data
+                queryClient.invalidateQueries({ queryKey: ["job_order"] });
+              }}
+            />
+          )}
+          <ColumnVisibilityDropdown
+            viewColumns={viewColumns}
+            visibleColumns={visibleColumns}
+            handleToggleColumn={handleToggleColumn}
+          />
+        </div>
       </div>
 
       <div className="flex flex-wrap mb-4 items-center justify-between">

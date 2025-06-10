@@ -36,6 +36,8 @@ export async function getJobOrdersFiltered({
   branchLocation = null,
   technicianId = undefined,
   statusFilters = [],
+  startDate = undefined,
+  endDate = undefined,
 }: {
   page?: number;
   limit?: number;
@@ -43,6 +45,8 @@ export async function getJobOrdersFiltered({
   branchLocation?: string | null;
   technicianId?: string | number | undefined;
   statusFilters?: string[];
+  startDate?: string;
+  endDate?: string;
 } = {}) {
   // Calculate range for pagination
   const from = (page - 1) * limit;
@@ -93,6 +97,17 @@ export async function getJobOrdersFiltered({
   // Add technician filter if provided
   if (technicianId) {
     query = query.eq("technician_id", technicianId);
+  }
+
+  // Add date range filter if provided
+  if (startDate) {
+    query = query.gte("created_at", startDate);
+  }
+  if (endDate) {
+    // Add 1 day to endDate to include the full end date
+    const endDateTime = new Date(endDate);
+    endDateTime.setDate(endDateTime.getDate() + 1);
+    query = query.lt("created_at", endDateTime.toISOString().split("T")[0]);
   }
 
   if (searchTerm && searchTerm.trim() !== "") {
