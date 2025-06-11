@@ -62,7 +62,7 @@ const generateBreadcrumbs = (pathname: string) => {
 };
 
 export default function AppLayout() {
-  const { isUser, user } = useUser();
+  const { isUser, user, isAdmin } = useUser();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -70,19 +70,62 @@ export default function AppLayout() {
     return generateBreadcrumbs(location.pathname);
   }, [location.pathname]);
 
-  useEffect(() => {
-    if (
-      location.pathname !== "/dashboard/job-order" &&
-      location.pathname !== "/manager-re-auth"
-    ) {
-      // console.log("Clearing re-authentication flag");
-      localStorage.removeItem("managerReAuthenticated");
-    }
+  // Comprehensive protection check - moved outside useEffect
+  const isDashboardRoute = location.pathname.startsWith("/dashboard");
+  const isManagerReAuthRoute = location.pathname === "/manager-re-auth";
+  const isManagerReAuthenticated =
+    localStorage.getItem("managerReAuthenticated") === "true";
 
+  // Block access immediately if trying to access dashboard without auth
+  const shouldBlockAccess =
+    isDashboardRoute &&
+    !isManagerReAuthenticated &&
+    !isManagerReAuthRoute &&
+    !isAdmin;
+
+  useEffect(() => {
     if (!user) {
       navigate("/login");
+      return;
     }
-  }, [location, user, navigate]);
+
+    // Force redirect if trying to bypass
+    if (shouldBlockAccess) {
+      navigate("/manager-re-auth", { replace: true });
+      return;
+    }
+
+    // Clear re-authentication flag only when leaving dashboard completely
+    if (!isDashboardRoute && !isManagerReAuthRoute) {
+      localStorage.removeItem("managerReAuthenticated");
+    }
+  }, [
+    location,
+    user,
+    navigate,
+    shouldBlockAccess,
+    isDashboardRoute,
+    isManagerReAuthRoute,
+  ]);
+
+  // Block rendering entirely if user is not authenticated
+  if (!user) {
+    return null;
+  }
+
+  // Block dashboard access completely until re-authentication
+  if (shouldBlockAccess) {
+    // Force navigation and block UI
+    navigate("/manager-re-auth", { replace: true });
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p>Redirecting to authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>
