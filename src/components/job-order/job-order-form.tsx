@@ -1381,7 +1381,7 @@ export default function JobOrderForm({
                                 );
                                 field.onChange(value ? parseFloat(value) : "");
                               }}
-                              disabled={readonly}
+                              disabled
                             />
                           </div>
                         </FormControl>
