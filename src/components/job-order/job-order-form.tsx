@@ -856,35 +856,38 @@ export default function JobOrderForm({
               Basic Information
             </h2>
             <div className="grid md:grid-cols-3 grid-cols-1 gap-2 px-4 py-2 border rounded-xl">
-              <FormField
-                control={form.control}
-                name="contact_number"
-                render={({ field }) => {
-                  const {
-                    onChange: fieldOnChange,
-                    value: fieldValue,
-                    ...restFieldProps
-                  } = field;
-                  return (
-                    <FormItem className="space-y-0">
-                      <FormLabel>Contact No.</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Client Contact"
-                          className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
-                          value={contactNumber || fieldValue}
-                          onChange={(e) =>
-                            handleContactNumberChange(e, fieldOnChange)
-                          }
-                          disabled={readonly}
-                          {...restFieldProps}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  );
-                }}
-              />
+              {/* Hide contact number based on security conditions */}
+              {!(editSession && !isAdmin && !isTaytay && !isPasig) && (
+                <FormField
+                  control={form.control}
+                  name="contact_number"
+                  render={({ field }) => {
+                    const {
+                      onChange: fieldOnChange,
+                      value: fieldValue,
+                      ...restFieldProps
+                    } = field;
+                    return (
+                      <FormItem className="space-y-0">
+                        <FormLabel>Contact No.</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Client Contact"
+                            className={`border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0`}
+                            value={contactNumber || fieldValue}
+                            onChange={(e) =>
+                              handleContactNumberChange(e, fieldOnChange)
+                            }
+                            disabled={readonly}
+                            {...restFieldProps}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="email"
