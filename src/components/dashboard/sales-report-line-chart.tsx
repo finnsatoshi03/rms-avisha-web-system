@@ -1,4 +1,4 @@
-import { GrossAndNetData } from "../../lib/types";
+import { GrossAndNetData, JobOrderData, Expenses } from "../../lib/types";
 import {
   ChartConfig,
   ChartContainer,
@@ -7,12 +7,22 @@ import {
   ChartTooltipContent,
 } from "../ui/chart";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import DeductionsDialog from "./deductions-dialog";
+import { DateRange } from "react-day-picker";
+
+interface SalesReportLineChartProps {
+  grossAndNetData: GrossAndNetData[];
+  filteredOrders: JobOrderData[];
+  expenses: Expenses[];
+  dateRange?: DateRange;
+}
 
 export default function SalesReportLineChart({
   grossAndNetData,
-}: {
-  grossAndNetData: GrossAndNetData[];
-}) {
+  filteredOrders,
+  expenses,
+  dateRange,
+}: SalesReportLineChartProps) {
   const chartConfig = {
     // gross: {
     //   label: "Gross Sales",
@@ -24,7 +34,18 @@ export default function SalesReportLineChart({
 
   return (
     <div className="border border-slate-300 py-4 px-5 rounded-xl">
-      <h1 className="font-bold text-xl">Sales Figures</h1>
+      <div className="flex justify-between items-start">
+        <h1 className="font-bold text-xl">Sales Figures</h1>
+        <DeductionsDialog
+          orders={filteredOrders}
+          expenses={expenses}
+          dateRange={
+            dateRange && dateRange.from && dateRange.to
+              ? { from: dateRange.from, to: dateRange.to }
+              : undefined
+          }
+        />
+      </div>
       <ChartContainer config={chartConfig} className="h-[30vh] w-full">
         <LineChart
           accessibilityLayer

@@ -520,7 +520,12 @@ export default function Dashboard() {
         </div>
         <FinancialChart data={profitData} />
       </div>
-      <SalesReportLineChart grossAndNetData={grossAndNetData} />
+      <SalesReportLineChart
+        grossAndNetData={grossAndNetData}
+        filteredOrders={filteredOrders}
+        expenses={expenses}
+        dateRange={dateRange}
+      />
     </>
   );
 
