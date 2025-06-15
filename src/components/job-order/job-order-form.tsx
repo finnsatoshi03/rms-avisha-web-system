@@ -39,7 +39,7 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { Separator } from "../ui/separator";
-import { TagInput } from "../tag-input";
+
 import AccessoriesSection from "./accessories-section";
 import JobOrderPDF from "./job-order-pdf";
 import {
@@ -279,12 +279,6 @@ export default function JobOrderForm({
   const [specifyInputValue, setSpecifyInputValue] = useState("");
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>(
     editSession ? parsedAccessories : []
-  );
-  const [selectedSubOptions, setSelectedSubOptions] = useState<{
-    [key: string]: any;
-  }>({});
-  const [formattedAccessories, setFormattedAccessories] = useState<string[]>(
-    []
   );
 
   const [jobOrderDataForPrinting, setJobOrderDataForPrinting] =
@@ -677,71 +671,21 @@ export default function JobOrderForm({
     onChange(formattedInput);
   };
 
-  const handleAccessorySelection = (accessory: string) => {
-    if (readonly) return;
-
-    setSelectedAccessories((prev: string[]) => {
-      const isSelected = prev.includes(accessory);
-      if (isSelected) {
-        setFormattedAccessories((formattedPrev) =>
-          formattedPrev.filter((item) => !item.startsWith(accessory))
-        );
-        return prev.filter((item) => !item.startsWith(accessory));
-      } else {
-        setFormattedAccessories((formattedPrev) => [
-          ...formattedPrev,
-          accessory,
-        ]);
-        return [...prev, accessory];
-      }
-    });
-
-    if (!selectedAccessories.includes(accessory)) {
-      setSelectedSubOptions((prev) => ({
-        ...prev,
-        [accessory]: {},
-      }));
-    } else {
-      setSelectedSubOptions((prev) => {
-        const { [accessory]: _, ...rest } = prev;
-        return rest;
-      });
-    }
-  };
-
-  const handleSubOptionSelection = (
+  const handleAccessorySelection = (
     accessory: string,
-    subOption: string,
-    value: string
+    action?: "add" | "remove"
   ) => {
     if (readonly) return;
 
-    setSelectedSubOptions((prev) => {
-      const updatedOptions = {
-        ...prev,
-        [accessory]: {
-          ...prev[accessory],
-          [subOption]: value,
-        },
-      };
-
-      const subOptions = updatedOptions[accessory];
-      const mergedOption = Object.values(subOptions).filter(Boolean).join(" ");
-      setFormattedAccessories((prevFormatted) => {
-        const existingIndex = prevFormatted.findIndex((acc) =>
-          acc.startsWith(accessory)
-        );
-        if (existingIndex !== -1) {
-          return prevFormatted.map((acc, index) =>
-            index === existingIndex ? `${accessory} ${mergedOption}` : acc
-          );
-        } else {
-          return [...prevFormatted, `${accessory} ${mergedOption}`];
-        }
-      });
-
-      return updatedOptions;
-    });
+    if (action === "remove" || selectedAccessories.includes(accessory)) {
+      // Remove accessory
+      setSelectedAccessories((prev: string[]) =>
+        prev.filter((item) => item !== accessory)
+      );
+    } else {
+      // Add accessory
+      setSelectedAccessories((prev: string[]) => [...prev, accessory]);
+    }
   };
 
   const getStockForMaterial = (materialId: number) => {
@@ -785,8 +729,8 @@ export default function JobOrderForm({
   }, [selectedMachineType, specifyInputValue]);
 
   useEffect(() => {
-    form.setValue("accessories", formattedAccessories);
-  }, [formattedAccessories, form]);
+    form.setValue("accessories", selectedAccessories);
+  }, [selectedAccessories, form]);
 
   useEffect(() => {
     if (editSession && editValuesWithClient.contact_number) {
@@ -1455,27 +1399,11 @@ export default function JobOrderForm({
                 {form.formState.errors.materials.message}
               </p>
             )}
-            {selectedMachineType !== "others" ? (
-              <AccessoriesSection
-                selectedAccessories={selectedAccessories}
-                handleAccessorySelection={handleAccessorySelection}
-                handleSubOptionSelection={handleSubOptionSelection}
-                selectedSubOptions={selectedSubOptions}
-                selectedMachineType={selectedMachineType}
-              />
-            ) : (
-              <div className="my-3 px-4 py-3 border rounded-xl">
-                <h2 className="text-sm">Accessories</h2>
-                <TagInput
-                  tags={selectedAccessories}
-                  setTags={(newTags: string[]) => {
-                    // console.log(newTags);
-                    setSelectedAccessories(newTags);
-                    form.setValue("accessories", newTags);
-                  }}
-                />
-              </div>
-            )}
+            <AccessoriesSection
+              selectedAccessories={selectedAccessories}
+              handleAccessorySelection={handleAccessorySelection}
+              selectedMachineType={selectedMachineType}
+            />
           </div>
           {editSession && (
             <>
