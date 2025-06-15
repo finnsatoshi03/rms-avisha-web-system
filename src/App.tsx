@@ -13,6 +13,7 @@ import "./styles/loader.css";
 import AppLayout from "./layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import DashboardRental from "./pages/DashboardRental";
+import TechnicianDashboard from "./pages/TechnicianDashboard";
 import JobOrders from "./pages/JobOrders";
 import Clients from "./pages/Clients";
 // import Settings from "./pages/Settings";
@@ -59,6 +60,10 @@ export default function App() {
           >
             <Route path="dashboard/job-order" element={<Dashboard />} />
             <Route path="dashboard/rental" element={<DashboardRental />} />
+            <Route
+              path="technician-dashboard"
+              element={<TechnicianDashboard />}
+            />
             <Route path="manager-re-auth" element={<ManagerReAuth />} />
             <Route path="job-orders" element={<JobOrders />} />
             <Route path="rental" element={<Maintenance />} />

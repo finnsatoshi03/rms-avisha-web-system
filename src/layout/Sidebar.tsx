@@ -72,68 +72,67 @@ export default function AppSidebar({
       <SidebarContent>
         <SidebarGroup>
           <SidebarMenu>
-            <SidebarMenuItem>
-              <Collapsible open={isHomeOpen} onOpenChange={setIsHomeOpen}>
-                <CollapsibleTrigger asChild>
-                  <SidebarMenuButton
-                    className="w-full justify-between opacity-50"
-                    tooltip="Home"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Home size={20} />
-                      <span>Home</span>
-                    </div>
-                    <ChevronDown
-                      size={16}
-                      className={`transition-transform ${
-                        isHomeOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </SidebarMenuButton>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarMenuSub>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild>
-                        <NavLink
-                          to="dashboard/job-order"
-                          onClick={handleNavClick}
-                          className={({ isActive }) =>
-                            cn(
-                              "w-full",
-                              isActive &&
-                                "bg-sidebar-accent text-sidebar-accent-foreground"
-                            )
-                          }
-                        >
-                          Job Order
-                        </NavLink>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild>
-                        <NavLink
-                          to="dashboard/rental"
-                          onClick={handleNavClick}
-                          className={({ isActive }) =>
-                            cn(
-                              "w-full",
-                              isActive &&
-                                "bg-sidebar-accent text-sidebar-accent-foreground"
-                            )
-                          }
-                        >
-                          Rental
-                        </NavLink>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                  </SidebarMenuSub>
-                </CollapsibleContent>
-              </Collapsible>
-            </SidebarMenuItem>
-
             {!isUser ? (
               <>
+                <SidebarMenuItem>
+                  <Collapsible open={isHomeOpen} onOpenChange={setIsHomeOpen}>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        className="w-full justify-between opacity-50"
+                        tooltip="Home"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Home size={20} />
+                          <span>Home</span>
+                        </div>
+                        <ChevronDown
+                          size={16}
+                          className={`transition-transform ${
+                            isHomeOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild>
+                            <NavLink
+                              to="dashboard/job-order"
+                              onClick={handleNavClick}
+                              className={({ isActive }) =>
+                                cn(
+                                  "w-full",
+                                  isActive &&
+                                    "bg-sidebar-accent text-sidebar-accent-foreground"
+                                )
+                              }
+                            >
+                              Job Order
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild>
+                            <NavLink
+                              to="dashboard/rental"
+                              onClick={handleNavClick}
+                              className={({ isActive }) =>
+                                cn(
+                                  "w-full",
+                                  isActive &&
+                                    "bg-sidebar-accent text-sidebar-accent-foreground"
+                                )
+                              }
+                            >
+                              Rental
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Job Orders">
                     <NavLink
@@ -268,24 +267,44 @@ export default function AppSidebar({
                 </SidebarMenuItem>
               </>
             ) : (
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Job Orders">
-                  <NavLink
-                    to="job-orders"
-                    onClick={handleNavClick}
-                    className={({ isActive }) =>
-                      cn(
-                        "w-full",
-                        isActive &&
-                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                      )
-                    }
-                  >
-                    <Printer size={20} />
-                    <span>Job Orders</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              <>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Dashboard">
+                    <NavLink
+                      to="technician-dashboard"
+                      onClick={handleNavClick}
+                      className={({ isActive }) =>
+                        cn(
+                          "w-full",
+                          isActive &&
+                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                        )
+                      }
+                    >
+                      <Home size={20} />
+                      <span>Dashboard</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Job Orders">
+                    <NavLink
+                      to="job-orders"
+                      onClick={handleNavClick}
+                      className={({ isActive }) =>
+                        cn(
+                          "w-full",
+                          isActive &&
+                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                        )
+                      }
+                    >
+                      <Printer size={20} />
+                      <span>Job Orders</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </>
             )}
           </SidebarMenu>
         </SidebarGroup>

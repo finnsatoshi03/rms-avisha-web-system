@@ -40,12 +40,11 @@ import OverviewCard from "../components/dashboard/overview-card";
 import { DatePickerWithRange } from "../components/date-range-picker";
 import SalesReportLineChart from "../components/dashboard/sales-report-line-chart";
 import FinancialChart from "../components/dashboard/financial-chart";
-import TechnicianDashboard from "../components/dashboard/technician-page";
-import { getTechnicians } from "../services/apiTechnicians";
+
 import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
-  const { isTaytay, isPasig, isUser, user } = useUser();
+  const { isTaytay, isPasig, isUser } = useUser();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -78,17 +77,6 @@ export default function Dashboard() {
         : true
     );
   }, [orders, isTaytay, isPasig]);
-
-  const { data: technicians, isLoading: isTechniciansLoading } = useQuery({
-    queryKey: ["technicians", { fetchAll: true }],
-    queryFn: () => getTechnicians({ fetchAll: true }),
-  });
-
-  const matchedTechnicianData = useMemo(() => {
-    if (!technicians || !user) return null;
-
-    return technicians.find((tech) => tech.id === user.id);
-  }, [technicians, user]);
 
   const { expenses: expenseData, isLoading: isExpensesLoading } = useExpenses();
   const expenses: ExpensesType[] = useMemo(() => {
@@ -529,14 +517,12 @@ export default function Dashboard() {
     </>
   );
 
-  if (isLoading || isExpensesLoading || isTechniciansLoading)
+  if (isLoading || isExpensesLoading)
     return (
       <div className="h-full w-full flex items-center justify-center">
         <Loader />
       </div>
     );
-
-  console.log(currentTab);
 
   return (
     <div className="h-full">
@@ -640,10 +626,6 @@ export default function Dashboard() {
             </>
           )}
         </DashboardTabs>
-      ) : isUser ? (
-        <div className="mt-4 w-full pb-8">
-          <TechnicianDashboard technician={matchedTechnicianData} />
-        </div>
       ) : (
         <div className="mt-4 w-full pb-8 space-y-4">{salesReport}</div>
       )}

@@ -20,10 +20,12 @@ export default function ProtectedRoute({
       navigate("/login");
     } else if (isUser) {
       // Allow only specific paths for `isUser`
-      const allowedPaths = ["/dashboard", "/job-orders", "/account"];
+      const allowedPaths = ["/technician-dashboard", "/job-orders", "/account"];
       if (!allowedPaths.includes(location.pathname)) {
-        navigate("/job-orders");
+        navigate("/technician-dashboard");
       }
+    } else if (!isUser && location.pathname === "/technician-dashboard") {
+      navigate("/dashboard/job-order");
     }
   }, [isUser, isAdmin, isTaytay, isPasig, isLoading, navigate, location]);
 
