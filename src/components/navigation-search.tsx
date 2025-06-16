@@ -27,8 +27,8 @@ import {
 } from "lucide-react";
 import { useUser } from "./auth/useUser";
 import Logout from "./auth/logout";
-import { NavLink } from "react-router-dom";
 import { Separator } from "./ui/separator";
+import { SettingsDialog } from "./settings/settings-dialog";
 
 // Navigation items configuration
 const navigationItems = [
@@ -102,13 +102,13 @@ const navigationItems = [
       {
         icon: Settings,
         title: "Settings",
-        path: "/settings",
+        path: "settings-dialog",
         keywords: ["settings", "configuration", "preferences"],
       },
       {
         icon: UserRoundCog,
         title: "Account",
-        path: "/account",
+        path: "account-dialog",
         keywords: ["account", "profile", "user"],
       },
     ],
@@ -118,6 +118,10 @@ const navigationItems = [
 const NavigationSearch: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<
+    "account" | "security" | "appearance"
+  >("account");
   const [search, setSearch] = useState("");
   const navigate = useNavigate();
   const { user, isUser } = useUser();
@@ -187,7 +191,16 @@ const NavigationSearch: React.FC = () => {
   const handleSelect = (path: string) => {
     setOpen(false);
     setSearch("");
-    navigate(path);
+
+    if (path === "settings-dialog") {
+      setSettingsTab("security");
+      setSettingsOpen(true);
+    } else if (path === "account-dialog") {
+      setSettingsTab("account");
+      setSettingsOpen(true);
+    } else {
+      navigate(path);
+    }
   };
 
   return (
@@ -248,14 +261,17 @@ const NavigationSearch: React.FC = () => {
               </div>
             </div>
             <div className="h-px bg-border" />
-            <NavLink
-              to="/account"
-              className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
-              onClick={() => setProfileOpen(false)}
+            <button
+              onClick={() => {
+                setProfileOpen(false);
+                setSettingsTab("account");
+                setSettingsOpen(true);
+              }}
+              className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground w-full text-left"
             >
               <UserRoundCog size={16} />
               Account
-            </NavLink>
+            </button>
             <Separator />
             <Logout />
           </div>
@@ -312,6 +328,13 @@ const NavigationSearch: React.FC = () => {
           )}
         </CommandList>
       </CommandDialog>
+
+      {/* Settings Dialog */}
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        defaultTab={settingsTab}
+      />
     </>
   );
 };

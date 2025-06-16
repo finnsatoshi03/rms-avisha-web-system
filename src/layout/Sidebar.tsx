@@ -44,6 +44,7 @@ import Logout from "../components/auth/logout";
 import { cn } from "../lib/utils";
 import { useUser } from "../components/auth/useUser";
 import { useState } from "react";
+import { SettingsDialog } from "../components/settings/settings-dialog";
 
 interface SidebarProps {
   className?: string;
@@ -127,6 +128,7 @@ export default function AppSidebar({
   const { user } = useUser();
   const [open, setOpen] = useState(false);
   const [isHomeOpen, setIsHomeOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleNavClick = () => {
     onClose?.();
@@ -384,21 +386,15 @@ export default function AppSidebar({
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Settings">
-                    <NavLink
-                      to="settings"
-                      onClick={handleNavClick}
-                      className={({ isActive }) =>
-                        cn(
-                          "w-full",
-                          isActive &&
-                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                        )
-                      }
-                    >
-                      <Settings size={20} />
-                      <span>Settings</span>
-                    </NavLink>
+                  <SidebarMenuButton
+                    tooltip="Settings"
+                    onClick={() => {
+                      setSettingsOpen(true);
+                      onClose?.();
+                    }}
+                  >
+                    <Settings size={20} />
+                    <span>Settings</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -447,17 +443,17 @@ export default function AppSidebar({
                 sideOffset={4}
               >
                 <div className="grid gap-2">
-                  <NavLink
-                    to="account"
-                    className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
+                  <button
                     onClick={() => {
                       setOpen(false);
-                      handleNavClick();
+                      setSettingsOpen(true);
+                      onClose?.();
                     }}
+                    className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground w-full text-left"
                   >
                     <UserRoundCog size={16} />
                     Account
-                  </NavLink>
+                  </button>
                   <Logout />
                 </div>
               </PopoverContent>
@@ -465,6 +461,13 @@ export default function AppSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+
+      {/* Settings Dialog */}
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        defaultTab="account"
+      />
     </Sidebar>
   );
 }

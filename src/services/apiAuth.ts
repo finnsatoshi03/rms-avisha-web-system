@@ -104,6 +104,7 @@ export async function getCurrentUser() {
   }
 
   const user = data?.user;
+
   return user;
 }
 
@@ -153,4 +154,34 @@ export async function updateUser({
 
   if (urlError) throw new Error(urlError.message);
   return updatedUser;
+}
+
+export async function updatePassword({
+  currentPassword,
+  newPassword,
+  userId,
+}: {
+  currentPassword: string;
+  newPassword: string;
+  userId: string;
+}) {
+  const { data, error } = await supabase.rpc("update_password", {
+    current_plain_password: currentPassword,
+    new_plain_password: newPassword,
+    current_id: userId,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (data === "incorrect") {
+    throw new Error("Current password is incorrect");
+  }
+
+  if (data === "success") {
+    return { success: true };
+  }
+
+  throw new Error("Failed to update password");
 }
