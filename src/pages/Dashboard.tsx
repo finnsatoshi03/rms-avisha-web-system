@@ -598,11 +598,7 @@ export default function Dashboard() {
         <h2 className="text-sm opacity-60">{currentDate}</h2>
       )}
       {!isTaytay && !isPasig && !isUser ? (
-        <DashboardTabs
-          currentTab={currentTab}
-          setCurrentTab={setCurrentTab}
-          statusCounts={statusCounts}
-        >
+        <DashboardTabs setCurrentTab={setCurrentTab}>
           {job_orders && job_orders.length === 0 ? (
             <div className="h-full w-full flex items-center justify-center">
               <p>

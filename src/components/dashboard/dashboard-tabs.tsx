@@ -3,17 +3,13 @@ import React from "react";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 
 interface DashboardTabsProps {
-  currentTab: string;
   setCurrentTab: (tab: string) => void;
   children: React.ReactNode;
-  statusCounts: Record<string, number>;
 }
 
 const DashboardTabs: React.FC<DashboardTabsProps> = ({
-  currentTab,
   setCurrentTab,
   children,
-  statusCounts,
 }) => {
   return (
     <Tabs
