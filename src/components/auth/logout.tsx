@@ -11,7 +11,7 @@ export default function Logout() {
 
   return (
     <button
-      className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground"
+      className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md bg-red-100 text-red-500 hover:bg-accent hover:text-accent-foreground"
       disabled={isLoading}
       onClick={handleClick}
     >

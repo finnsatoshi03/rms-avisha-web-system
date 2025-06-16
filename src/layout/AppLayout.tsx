@@ -8,6 +8,7 @@ import {
   SidebarTrigger,
 } from "../components/ui/sidebar";
 import { Separator } from "../components/ui/separator";
+import NavigationSearch from "../components/navigation-search";
 
 // Breadcrumb configuration
 const breadcrumbConfig: Record<string, string> = {
@@ -132,18 +133,28 @@ export default function AppLayout() {
       <AppSidebar isUser={isUser} />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <div className="flex items-center gap-2 text-sm font-medium">
-              {breadcrumbs.map((crumb, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <span className={index === 0 ? "text-muted-foreground" : ""}>
-                    {crumb}
-                  </span>
-                  {index < breadcrumbs.length - 1 && <span>/</span>}
-                </div>
-              ))}
+          <div className="flex items-center justify-between w-full px-4">
+            {/* Left side - Sidebar trigger and breadcrumbs */}
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" className="mr-2 h-4" />
+              <div className="flex items-center gap-2 text-sm font-medium">
+                {breadcrumbs.map((crumb, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <span
+                      className={index === 0 ? "text-muted-foreground" : ""}
+                    >
+                      {crumb}
+                    </span>
+                    {index < breadcrumbs.length - 1 && <span>/</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right side - Search and User Profile */}
+            <div className="flex items-center gap-3">
+              <NavigationSearch />
             </div>
           </div>
         </header>

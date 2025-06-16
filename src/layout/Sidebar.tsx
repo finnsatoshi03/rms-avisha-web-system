@@ -441,7 +441,7 @@ export default function AppSidebar({
                 </SidebarMenuButton>
               </PopoverTrigger>
               <PopoverContent
-                className="w-[--radix-popover-trigger-width] min-w-56 rounded-lg"
+                className="w-[--radix-popover-trigger-width] min-w-56 rounded-lg p-2"
                 side="right"
                 align="end"
                 sideOffset={4}
