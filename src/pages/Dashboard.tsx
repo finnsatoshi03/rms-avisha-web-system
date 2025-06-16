@@ -131,6 +131,11 @@ export default function Dashboard() {
 
   const [defaultFromDate, setDefaultFromDate] = useState<Date>(new Date());
 
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date()),
+  });
+
   useEffect(() => {
     if (job_orders && job_orders.length > 0) {
       const earliestJobOrderDate = new Date(
@@ -162,21 +167,61 @@ export default function Dashboard() {
         : earliestJobOrderDate;
 
       setDefaultFromDate(earliestDate);
+    } else {
+      const today = new Date();
+      setDefaultFromDate(startOfMonth(today));
+    }
+  }, [job_orders, expenses]);
+
+  // Update date range based on current tab
+  useEffect(() => {
+    // Only proceed if we have data to work with
+    if (!job_orders || job_orders.length === 0) return;
+
+    if (currentTab === "report") {
+      // Calculate all-time range directly for smooth transition
+      const earliestJobOrderDate = new Date(
+        Math.min(
+          ...job_orders.map((order) => new Date(order.created_at).getTime())
+        )
+      );
+
+      const earliestExpenseDate =
+        expenses && expenses.length > 0
+          ? new Date(
+              Math.min(
+                ...expenses.map((expense) =>
+                  new Date(expense.created_at).getTime()
+                )
+              )
+            )
+          : null;
+
+      const allTimeFromDate = earliestExpenseDate
+        ? new Date(
+            Math.min(
+              earliestJobOrderDate.getTime(),
+              earliestExpenseDate.getTime()
+            )
+          )
+        : earliestJobOrderDate;
+
+      const allTimeToDate = new Date();
+      allTimeToDate.setHours(23, 59, 59, 999);
+
+      setDateRange({
+        from: allTimeFromDate,
+        to: allTimeToDate,
+      });
+    } else if (currentTab === "analytics") {
+      // Set to current month for analytics tab
       setDateRange({
         from: startOfMonth(new Date()),
         to: endOfMonth(new Date()),
       });
-    } else {
-      const today = new Date();
-      setDefaultFromDate(startOfMonth(today));
-      setDateRange({ from: startOfMonth(today), to: endOfMonth(today) });
     }
-  }, [job_orders, expenses]);
-
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: defaultFromDate || new Date(),
-    to: defaultToDate,
-  });
+    // Note: We don't change dateRange for overview tab to maintain user's selection
+  }, [currentTab, job_orders, expenses]);
 
   useEffect(() => {
     if (job_orders && job_orders.length > 0) {
