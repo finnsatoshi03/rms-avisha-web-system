@@ -29,6 +29,7 @@ import RevenuePerTechnicianPieChart from "../components/dashboard/leaderboard";
 import PieChartComponent from "../components/dashboard/revenue-breakdown-chart";
 import SalesByBranch from "../components/dashboard/sales-by-branch-chart";
 import TechnicianPerformanceAnalytics from "../components/dashboard/heatmap-chart";
+import StatusOverview from "../components/dashboard/status-overview";
 import { DateRange } from "react-day-picker";
 import { useQuery } from "@tanstack/react-query";
 import { getJobOrders } from "../services/apiJobOrders";
@@ -568,12 +569,13 @@ export default function Dashboard() {
             <>
               <TabsContent value="overview" className="w-full pb-8">
                 <div className="h-[calc(100%-1rem-0.5rem-2rem)] mt-4 flex flex-col gap-4">
-                  <div className="grid xl:grid-cols-[0.7fr_1fr] lg:grid-cols-1 gap-4">
+                  <div className="grid xl:grid-cols-[0.7fr_1fr_0.4fr] lg:grid-cols-[1fr_0.4fr] grid-cols-1 gap-4">
                     <OverviewSection overviewData={overviewData} />
                     <BarChartSection
                       data={aggregatedDataArray}
                       orders={completedOrders}
                     />
+                    <StatusOverview statusCounts={statusCounts} />
                   </div>
                   <div className="grid xl:grid-cols-[1fr_0.5fr] grid-cols-1 gap-4">
                     <RecentSalesSection completedOrders={completedOrders} />
