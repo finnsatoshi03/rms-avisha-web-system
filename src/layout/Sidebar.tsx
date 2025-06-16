@@ -12,6 +12,7 @@ import {
   UsersRound,
   WalletMinimal,
   Wrench,
+  Calendar,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import {
@@ -49,6 +50,74 @@ interface SidebarProps {
   isUser?: boolean;
   onClose?: () => void;
 }
+
+// Week Calendar Component
+const WeekCalendar = () => {
+  const today = new Date();
+  const currentDay = today.getDay();
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - currentDay);
+
+  const weekDays = [];
+  const dayNames = ["S", "M", "T", "W", "T", "F", "S"];
+
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(startOfWeek);
+    date.setDate(startOfWeek.getDate() + i);
+    weekDays.push(date);
+  }
+
+  const monthName = today.toLocaleDateString("en-US", { month: "short" });
+  const year = today.getFullYear();
+
+  return (
+    <div className="p-3 border border-sidebar-border rounded-lg bg-sidebar-accent/30">
+      <div className="flex items-center gap-2 mb-3">
+        <Calendar size={14} className="text-sidebar-foreground/70" />
+        <span className="text-xs font-medium text-sidebar-foreground/70">
+          {monthName} {year}
+        </span>
+      </div>
+
+      {/* Weekday Labels Row */}
+      <div className="grid grid-cols-7 gap-1 mb-1 p-1 bg-slate-100 rounded-md">
+        {dayNames.map((dayName, index) => (
+          <div key={`day-${index}`} className="flex justify-center">
+            <span className="text-[10px] font-medium text-slate-600">
+              {dayName}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Date Numbers Row */}
+      <div className="grid grid-cols-7 gap-1">
+        {weekDays.map((date, index) => {
+          const isToday = date.toDateString() === today.toDateString();
+          const dayNumber = date.getDate();
+
+          return (
+            <div
+              key={index}
+              className="flex items-center justify-center p-1 rounded-md text-xs transition-colors hover:bg-sidebar-accent/20"
+            >
+              <span
+                className={cn(
+                  "text-xs font-medium",
+                  isToday
+                    ? "text-red-500 font-bold"
+                    : "text-sidebar-foreground/70"
+                )}
+              >
+                {dayNumber}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 export default function AppSidebar({
   className,
@@ -338,7 +407,11 @@ export default function AppSidebar({
         )}
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 space-y-3">
+        {/* Week Calendar */}
+        <WeekCalendar />
+
+        {/* User Profile */}
         <SidebarMenu>
           <SidebarMenuItem>
             <Popover open={open} onOpenChange={setOpen}>
