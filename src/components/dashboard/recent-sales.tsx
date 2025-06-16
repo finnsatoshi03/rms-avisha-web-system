@@ -1,7 +1,7 @@
-import { formatNumberWithCommas } from "../../lib/helpers";
 import { Link } from "react-router-dom";
 import { JobOrderData } from "../../lib/types";
 import { Button } from "../ui/button";
+import { Badge } from "../ui/badge";
 
 export default function RecentSalesSection({
   completedOrders,
@@ -27,6 +27,20 @@ export default function RecentSalesSection({
 
   const numberOfSales = completedThisMonth.length;
 
+  const getBadgeVariant = (isFullyPaid: boolean, isPullout: boolean) => {
+    if (isFullyPaid) return "secondary";
+    if (isPullout) return "destructive";
+    return "outline";
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
   return (
     <div className="border border-slate-300 rounded-lg h-[50vh] overflow-y-auto relative">
       <div className="sticky top-0 bg-white z-10 pt-4 px-5">
@@ -50,50 +64,63 @@ export default function RecentSalesSection({
         </div>
       </div>
       <div className="py-4 px-5">
-        {completedThisMonth.map((order: JobOrderData) => {
-          // Determine the amount to display and payment status
-          const isFullyPaid = order.status === "Completed";
-          const isPullout = order.status.toLowerCase() === "pull out";
-          const displayAmount = isFullyPaid
-            ? order.adjustedGrandTotal
-            : isPullout
-            ? order.rate // Assuming 'rate' is the amount to display for pull out
-            : order.downpayment ?? 0;
+        {completedThisMonth.length > 0 ? (
+          completedThisMonth.map((order: JobOrderData) => {
+            // Determine the amount to display and payment status
+            const isFullyPaid = order.status === "Completed";
+            const isPullout = order.status.toLowerCase() === "pull out";
+            const displayAmount = isFullyPaid
+              ? order.adjustedGrandTotal
+              : isPullout
+              ? order.rate // Assuming 'rate' is the amount to display for pull out
+              : order.downpayment ?? 0;
 
-          const paymentStatus = isFullyPaid
-            ? "Fully Paid"
-            : isPullout
-            ? "Pull Out"
-            : "Downpayment";
+            const paymentStatus = isFullyPaid
+              ? "Fully Paid"
+              : isPullout
+              ? "Pull Out"
+              : "Downpayment";
 
-          return (
-            <div
-              className="flex items-center justify-between mt-2"
-              key={order.order_no}
-            >
-              <div>
-                <h1 className="text-sm font-bold">{order.clients.name}</h1>
-                <p className="text-xs opacity-60">{order.order_no}</p>
-              </div>
-              <div className="grid grid-cols-[auto_1fr] space-x-4">
-                <div
-                  className={`px-3 py-0 h-fit self-center rounded-full text-xs ${
-                    isFullyPaid
-                      ? "bg-green-300"
-                      : isPullout
-                      ? "bg-red-300"
-                      : "bg-yellow-300"
-                  } flex items-center`}
-                >
-                  {paymentStatus}
+            return (
+              <div
+                className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0"
+                key={order.order_no}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h1 className="font-bold truncate pr-2">
+                      {order.clients.name}
+                    </h1>
+                    <Badge
+                      variant={getBadgeVariant(isFullyPaid, isPullout)}
+                      className={`flex-shrink-0 ${
+                        isFullyPaid
+                          ? "bg-green-100 text-green-700 border-green-200"
+                          : isPullout
+                          ? "bg-red-100 text-red-700 border-red-200"
+                          : "bg-amber-100 text-amber-700 border-amber-200"
+                      }`}
+                    >
+                      {paymentStatus}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs opacity-60 font-mono">
+                      {order.order_no}
+                    </p>
+                    <p className="font-bold text-sm">
+                      {formatCurrency(displayAmount ?? 0)}
+                    </p>
+                  </div>
                 </div>
-                <p className="font-bold text-right">
-                  ₱{formatNumberWithCommas(displayAmount ?? 0)}
-                </p>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        ) : (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <p className="text-sm text-gray-500">No sales this month</p>
+          </div>
+        )}
       </div>
     </div>
   );
