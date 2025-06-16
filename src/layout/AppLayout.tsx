@@ -149,7 +149,7 @@ export default function AppLayout() {
         </header>
         <div className="flex flex-1 flex-col gap-4 pt-0">
           <div className="h-[calc(100vh-6rem)]">
-            <div className="h-full p-6">
+            <div className="h-full px-6">
               <Outlet />
             </div>
           </div>

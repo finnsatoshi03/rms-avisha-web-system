@@ -25,7 +25,7 @@ import RecentSalesSection from "../components/dashboard/recent-sales";
 import DateRangePickerWithExport from "../components/dashboard/analytics-header-buttons";
 import DashboardTabs from "../components/dashboard/dashboard-tabs";
 import SalesGrowthChart from "../components/dashboard/sales-growth-chart";
-import RevenuePerTechnicianPieChart from "../components/dashboard/pie-chart";
+import RevenuePerTechnicianPieChart from "../components/dashboard/leaderboard";
 import PieChartComponent from "../components/dashboard/revenue-breakdown-chart";
 import SalesByBranch from "../components/dashboard/sales-by-branch-chart";
 import TechnicianPerformanceAnalytics from "../components/dashboard/heatmap-chart";
