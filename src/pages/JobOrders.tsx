@@ -1,6 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, Search, X, ChevronDown, Filter } from "lucide-react";
+import {
+  Plus,
+  Search,
+  X,
+  ChevronDown,
+  Filter,
+  CircleAlert,
+} from "lucide-react";
 import HeaderText from "../components/ui/headerText";
 import { Separator } from "../components/ui/separator";
 import Table from "../components/table";
@@ -76,6 +83,7 @@ export default function JobOrders() {
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<string[]>(
     []
   );
+  const [showWarningsOnly, setShowWarningsOnly] = useState(false);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(
     viewColumns
@@ -125,6 +133,7 @@ export default function JobOrders() {
       isUser,
       user?.id,
       selectedStatusFilters, // Add status filters to query key
+      showWarningsOnly, // Add warning filter to query key
     ],
     queryFn: () =>
       getJobOrdersFiltered({
@@ -134,6 +143,7 @@ export default function JobOrders() {
         branchLocation: getBranchLocation(),
         technicianId: isUser ? user?.id : undefined,
         statusFilters: selectedStatusFilters, // Pass status filters to API
+        showWarningsOnly: showWarningsOnly, // Pass warning filter to API
       }),
     placeholderData: (previousData) => previousData,
   });
@@ -148,6 +158,7 @@ export default function JobOrders() {
     isUser,
     user?.id,
     selectedStatusFilters,
+    showWarningsOnly,
   ]);
 
   // Simplify since filtering is now done on the server
@@ -275,12 +286,14 @@ export default function JobOrders() {
   const resetFilters = () => {
     setSearchTerm("");
     setDebouncedSearchTerm("");
+    setShowWarningsOnly(false);
   };
 
   const resetFiltersAndSort = () => {
     setSearchTerm("");
     setDebouncedSearchTerm("");
     setSorts([]);
+    setShowWarningsOnly(false);
   };
 
   const handleToggleColumn = (key: string) => {
@@ -321,8 +334,8 @@ export default function JobOrders() {
 
   // Add this after the existing useEffect hooks
   const activeFiltersCount = useMemo(() => {
-    return selectedStatusFilters.length;
-  }, [selectedStatusFilters]);
+    return selectedStatusFilters.length + (showWarningsOnly ? 1 : 0);
+  }, [selectedStatusFilters, showWarningsOnly]);
 
   const visibleActiveFilters = useMemo(() => {
     return selectedStatusFilters.slice(0, 2);
@@ -366,7 +379,8 @@ export default function JobOrders() {
           />
           {(searchTerm ||
             sorts.length > 0 ||
-            selectedStatusFilters.length > 0) && (
+            selectedStatusFilters.length > 0 ||
+            showWarningsOnly) && (
             <Button
               variant="ghost"
               className="h-fit w-fit p-0 px-3 py-1.5 gap-1 rounded-lg"
@@ -425,6 +439,23 @@ export default function JobOrders() {
       <div className="flex flex-wrap mb-4 items-center justify-between">
         {/* Add the status filters section */}
         <div className="flex flex-wrap gap-2 items-center">
+          {/* Warning Filter Button */}
+          <button
+            onClick={() => setShowWarningsOnly(!showWarningsOnly)}
+            className={`px-3 py-0.5 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
+              showWarningsOnly
+                ? "bg-red-100 text-red-700 ring-2 ring-red-300"
+                : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+            }`}
+            aria-label={`${
+              showWarningsOnly ? "Hide" : "Show"
+            } job orders with warnings`}
+          >
+            <CircleAlert size={14} strokeWidth={1.5} />
+            Warnings
+            {showWarningsOnly && <X size={12} />}
+          </button>
+
           {visibleStatusFilters.map((status) => (
             <button
               key={status.value}
@@ -488,6 +519,19 @@ export default function JobOrders() {
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500">Active filters:</span>
             <div className="flex flex-wrap gap-2">
+              {showWarningsOnly && (
+                <div className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 flex items-center gap-1">
+                  <CircleAlert size={12} />
+                  <span>Warnings</span>
+                  <button
+                    onClick={() => setShowWarningsOnly(false)}
+                    className="text-red-500 hover:text-red-700"
+                    aria-label="Remove warnings filter"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
               {visibleActiveFilters.map((status) => {
                 const statusObj = allStatuses.find((s) => s.value === status);
                 return (

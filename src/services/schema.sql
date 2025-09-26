@@ -177,3 +177,22 @@ CREATE TABLE public.users (
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
+-- Changelog table for dynamic changelog management
+CREATE TABLE IF NOT EXISTS changelogs (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  version VARCHAR(50) NOT NULL,
+  release_date DATE NOT NULL,
+  features JSONB NOT NULL DEFAULT '[]',
+  roles JSONB NOT NULL DEFAULT '[]', -- Array of roles that should see this changelog
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+
+-- Create index for better performance
+CREATE INDEX IF NOT EXISTS idx_changelogs_roles ON changelogs USING GIN (roles);
+CREATE INDEX IF NOT EXISTS idx_changelogs_active ON changelogs (is_active);
+CREATE INDEX IF NOT EXISTS idx_changelogs_release_date ON changelogs (release_date DESC);

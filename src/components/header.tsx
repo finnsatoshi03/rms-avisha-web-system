@@ -37,47 +37,49 @@ export default function Header({ className }: { className?: string }) {
           onSubmit={onSubmit}
         />
       </div>
-      <Popover>
-        <PopoverTrigger onClick={() => setOpen(true)}>
-          <div className="flex gap-2">
-            <Avatar>
-              <AvatarImage
-                src={user?.user_metadata.avatar || "/RMS-icon.png"}
-              />
-              <AvatarFallback>RMS</AvatarFallback>
-            </Avatar>
-            <div className="leading-3 text-left">
-              <p className="font-bold">
-                {user
-                  ? user?.user_metadata.fullname
+      <div className="flex items-center gap-2">
+        <Popover>
+          <PopoverTrigger onClick={() => setOpen(true)}>
+            <div className="flex gap-2">
+              <Avatar>
+                <AvatarImage
+                  src={user?.user_metadata.avatar || "/RMS-icon.png"}
+                />
+                <AvatarFallback>RMS</AvatarFallback>
+              </Avatar>
+              <div className="leading-3 text-left">
+                <p className="font-bold">
+                  {user
                     ? user?.user_metadata.fullname
-                    : user?.email
-                  : "H3cker"}
-              </p>
-              <p className="opacity-60 text-sm font-semibold">
-                {user
-                  ? user?.user_metadata.role
+                      ? user?.user_metadata.fullname
+                      : user?.email
+                    : "H3cker"}
+                </p>
+                <p className="opacity-60 text-sm font-semibold">
+                  {user
                     ? user?.user_metadata.role
-                    : user?.role
-                  : "H3cker"}
-              </p>
+                      ? user?.user_metadata.role
+                      : user?.role
+                    : "H3cker"}
+                </p>
+              </div>
             </div>
-          </div>
-        </PopoverTrigger>
-        {open && (
-          <PopoverContent className="p-3 max-w-[200px] flex flex-col gap-1">
-            <NavLink
-              to="account"
-              className="flex gap-2"
-              onClick={() => setOpen(false)}
-            >
-              <UserRoundCog size={20} />
-              Account
-            </NavLink>
-            <Logout />
-          </PopoverContent>
-        )}
-      </Popover>
+          </PopoverTrigger>
+          {open && (
+            <PopoverContent className="p-3 max-w-[200px] flex flex-col gap-1">
+              <NavLink
+                to="account"
+                className="flex gap-2"
+                onClick={() => setOpen(false)}
+              >
+                <UserRoundCog size={20} />
+                Account
+              </NavLink>
+              <Logout />
+            </PopoverContent>
+          )}
+        </Popover>
+      </div>
     </div>
   );
 }

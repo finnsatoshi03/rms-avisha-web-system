@@ -38,6 +38,7 @@ export async function getJobOrdersFiltered({
   statusFilters = [],
   startDate = undefined,
   endDate = undefined,
+  showWarningsOnly = false,
 }: {
   page?: number;
   limit?: number;
@@ -47,6 +48,7 @@ export async function getJobOrdersFiltered({
   statusFilters?: string[];
   startDate?: string;
   endDate?: string;
+  showWarningsOnly?: boolean;
 } = {}) {
   // Calculate range for pagination
   const from = (page - 1) * limit;
@@ -78,6 +80,16 @@ export async function getJobOrdersFiltered({
       .map((status) => `status.eq.${status}`)
       .join(",");
     query = query.or(statusConditions);
+  }
+
+  // Add warning filter if provided
+  if (showWarningsOnly) {
+    // Filter for job orders that are pending for more than 2 days
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    const twoDaysAgoISO = twoDaysAgo.toISOString();
+
+    query = query.eq("status", "Pending").lt("created_at", twoDaysAgoISO);
   }
 
   // Add branch location filter if provided

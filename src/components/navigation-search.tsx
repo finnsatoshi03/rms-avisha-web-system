@@ -13,6 +13,13 @@ import { Button } from "./ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "./ui/dialog";
+import {
   Search,
   Archive,
   Handshake,
@@ -29,6 +36,8 @@ import { useUser } from "./auth/useUser";
 import Logout from "./auth/logout";
 import { Separator } from "./ui/separator";
 import { SettingsDialog } from "./settings/settings-dialog";
+import ChangelogTrigger from "./changelog/changelog-trigger";
+import ChangelogAdmin from "./changelog/changelog-admin";
 
 // Navigation items configuration
 const navigationItems = [
@@ -111,6 +120,12 @@ const navigationItems = [
         path: "account-dialog",
         keywords: ["account", "profile", "user"],
       },
+      {
+        icon: Archive,
+        title: "Changelog Admin",
+        path: "changelog-admin-dialog",
+        keywords: ["changelog", "admin", "updates", "version", "release"],
+      },
     ],
   },
 ];
@@ -119,12 +134,13 @@ const NavigationSearch: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [changelogAdminOpen, setChangelogAdminOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<
     "account" | "security" | "appearance"
   >("account");
   const [search, setSearch] = useState("");
   const navigate = useNavigate();
-  const { user, isUser } = useUser();
+  const { user, isUser, isAdmin } = useUser();
 
   // Handle Ctrl+K shortcut and Escape key
   useEffect(() => {
@@ -167,8 +183,20 @@ const NavigationSearch: React.FC = () => {
         },
       ];
     }
-    return navigationItems;
-  }, [isUser]);
+
+    // For admin users, show all items including changelog admin
+    if (isAdmin) {
+      return navigationItems;
+    }
+
+    // For other users, filter out changelog admin
+    return navigationItems.map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) => item.path !== "changelog-admin-dialog"
+      ),
+    }));
+  }, [isUser, isAdmin]);
 
   // Filter items based on search
   const filteredItems = React.useMemo(() => {
@@ -198,6 +226,8 @@ const NavigationSearch: React.FC = () => {
     } else if (path === "account-dialog") {
       setSettingsTab("account");
       setSettingsOpen(true);
+    } else if (path === "changelog-admin-dialog") {
+      setChangelogAdminOpen(true);
     } else {
       navigate(path);
     }
@@ -218,6 +248,8 @@ const NavigationSearch: React.FC = () => {
           Ctrl+K
         </kbd>
       </Button>
+
+      <ChangelogTrigger />
 
       {/* User Profile */}
       <Popover open={profileOpen} onOpenChange={setProfileOpen}>
@@ -335,6 +367,19 @@ const NavigationSearch: React.FC = () => {
         onOpenChange={setSettingsOpen}
         defaultTab={settingsTab}
       />
+
+      {/* Changelog Admin Dialog */}
+      <Dialog open={changelogAdminOpen} onOpenChange={setChangelogAdminOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Changelog Management</DialogTitle>
+            <DialogDescription>
+              Manage system changelogs and updates for different user roles.
+            </DialogDescription>
+          </DialogHeader>
+          <ChangelogAdmin />
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
