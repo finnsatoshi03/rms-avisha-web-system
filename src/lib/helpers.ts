@@ -532,15 +532,14 @@ export const aggregateByWeek = (orders: JobOrderData[]) => {
       acc[weekStart] = { date: weekStart, revenue: 0 };
     }
 
-    // Adjust revenue calculation based on status
-    if (
-      order.status === "Completed" ||
-      order.status.toLowerCase() === "pull out"
-    ) {
-      acc[weekStart].revenue += order.adjustedGrandTotal || order.rate;
-    } else {
-      acc[weekStart].revenue += order.downpayment ?? 0;
-    }
+    // Ensure we're adding numbers, not concatenating strings
+    const revenueAmount = Number(
+      order.status === "Completed" || order.status.toLowerCase() === "pull out"
+        ? order.adjustedGrandTotal || order.rate || 0
+        : order.downpayment || 0
+    );
+
+    acc[weekStart].revenue += revenueAmount;
 
     return acc;
   }, {});
@@ -561,14 +560,14 @@ export const aggregateByMonth = (orders: JobOrderData[]) => {
       acc[monthStart] = { date: monthStart, revenue: 0 };
     }
 
-    if (
-      order.status === "Completed" ||
-      order.status.toLowerCase() === "pull out"
-    ) {
-      acc[monthStart].revenue += order.adjustedGrandTotal || order.rate;
-    } else {
-      acc[monthStart].revenue += order.downpayment ?? 0;
-    }
+    // Ensure we're adding numbers, not concatenating strings
+    const revenueAmount = Number(
+      order.status === "Completed" || order.status.toLowerCase() === "pull out"
+        ? order.adjustedGrandTotal || order.rate || 0
+        : order.downpayment || 0
+    );
+
+    acc[monthStart].revenue += revenueAmount;
 
     return acc;
   }, {});

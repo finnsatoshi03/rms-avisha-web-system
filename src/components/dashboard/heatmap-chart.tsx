@@ -5,7 +5,7 @@ import { Tooltip } from "react-tooltip";
 import { JobOrderData } from "../../lib/types";
 import CalendarHeatmapComponent from "../calendar-heatmap";
 import { formatNumberWithCommas } from "../../lib/helpers";
-import { Flame } from "lucide-react";
+import { Flame, Crown } from "lucide-react";
 import {
   Tooltip as TipTool,
   TooltipContent,
@@ -51,7 +51,6 @@ const TechnicianPerformanceAnalytics = ({
   );
 
   const topTechnician = sortedTechnicians[0];
-  const otherTechnicians = sortedTechnicians.slice(1);
 
   const [selectedTechnician, setSelectedTechnician] = useState<string>(
     sortedTechnicians[0] || ""
@@ -107,7 +106,7 @@ const TechnicianPerformanceAnalytics = ({
   return (
     <div
       className={`tech-performance-chart border p-5 rounded-xl ${
-        !techPage ? "lg:h-[50vh] h-fit border-slate-300" : ""
+        !techPage ? "h-[50vh] min-h-0 grid border-slate-300" : ""
       }`}
     >
       {!techPage && (
@@ -196,38 +195,33 @@ const TechnicianPerformanceAnalytics = ({
         </div>
       </div>
       {!techPage && (
-        <div className="flex flex-col mt-3">
-          <div
-            className="flex flex-col"
-            onClick={() => setSelectedTechnician(topTechnician)}
-          >
-            <span className="mr-2 font-bold text-sm">🔥 Top Technician:</span>
-            <div
-              className={`cursor-pointer text-xs border border-gray-300 rounded px-5 py-1 w-fit flex flex-col items-center mt-1 ${
-                topTechnician === selectedTechnician ? "bg-gray-300" : ""
-              }`}
-            >
-              <p>{topTechnician}</p>
-              <p>
-                ₱
-                {formatNumberWithCommas(
-                  aggregatedTechnicianData[topTechnician]
-                )}
-              </p>
-            </div>
-          </div>
-          <p className="mt-3 text-sm font-bold">Other Technicians:</p>
-          <div className="flex flex-wrap items-center justify-start gap-2 text-xs">
-            {otherTechnicians.map((tech) => (
+        <div className="flex flex-col min-h-0 flex-1 overflow-y-auto mt-3">
+          <div className="flex flex-wrap items-center justify-start gap-2 text-xs min-h-0 overflow-y-auto">
+            {sortedTechnicians.map((tech) => (
               <button
                 key={tech}
                 onClick={() => setSelectedTechnician(tech)}
-                className={`border border-gray-300 rounded p-1 flex flex-col items-center mt-1 ${
-                  tech === selectedTechnician ? "bg-gray-300" : ""
+                className={`border rounded p-1 flex flex-col items-center mt-1 transition-colors relative ${
+                  tech === topTechnician
+                    ? "border-orange-400 bg-orange-100 hover:bg-orange-200"
+                    : "border-gray-300 hover:bg-gray-100"
+                } ${
+                  tech === selectedTechnician
+                    ? tech === topTechnician
+                      ? "bg-orange-200"
+                      : "bg-gray-300"
+                    : ""
                 }`}
               >
-                <span>{tech}</span>
-                <span>
+                {tech === topTechnician && (
+                  <Crown
+                    size={12}
+                    className="absolute -top-1 -right-1 text-orange-500"
+                    fill="currentColor"
+                  />
+                )}
+                <span className="font-medium">{tech}</span>
+                <span className="text-xs">
                   ₱{formatNumberWithCommas(aggregatedTechnicianData[tech])}
                 </span>
               </button>

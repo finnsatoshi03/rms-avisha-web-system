@@ -122,14 +122,14 @@ const PieChartComponent: React.FC<PieChartComponentProps> = ({
           </Pie>
         </PieChart>
       </ResponsiveContainer>
-      <div className="flex flex-col text-center gap-4">
+      <div className="flex flex-col min-h-0 text-center gap-4">
         <div>
           <p className="font-bold text-black text-2xl">
             {formatNumberWithCommas(metrics.numberOfSales)}
           </p>
           <p className="text-xs text-gray-400">Total Sales</p>
         </div>
-        <div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {aggregatedDataArray.map((item, index) => {
             const isMax = item.name === maxRevenueMachineType.name;
             const color = isMax ? "#f12924" : colors[index];
