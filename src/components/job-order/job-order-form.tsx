@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -12,6 +10,7 @@ import {
   Check,
   ChevronsUpDown,
   Clock,
+  Info,
   Loader2,
   Plus,
   Trash,
@@ -62,6 +61,12 @@ import { Checkbox } from "../ui/checkbox";
 import { baseSchema } from "./jobOrderSchema";
 import { useDownpayment } from "./useDownpayment";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
 import {
   Command,
   CommandEmpty,
@@ -263,6 +268,7 @@ export default function JobOrderForm({
     labor_description: editValues.labor_description || "",
     amount: editValues.amount || 0,
     accessories: editValues.accessories || [],
+    warranty_months: editValues.warranty_months || 1,
   };
 
   const accessoriesString = editValuesWithClient.accessories;
@@ -389,6 +395,7 @@ export default function JobOrderForm({
           technician_id: "",
           technical_report: "",
           downpayment: undefined,
+          warranty_months: 1,
         },
   });
 
@@ -599,6 +606,7 @@ export default function JobOrderForm({
           ? values.branch_id || 0
           : 0,
       warranty: editValues.warranty || undefined,
+      warranty_months: values.warranty_months || 1,
       brand_model: values.brand_model || "",
       serial_number: values.serial_number || "",
       machine_type: values.machine_type || "",
@@ -726,7 +734,7 @@ export default function JobOrderForm({
     if (selectedMachineType === "others") {
       form.setValue("machine_type", specifyInputValue);
     }
-  }, [selectedMachineType, specifyInputValue]);
+  }, [selectedMachineType, specifyInputValue, form]);
 
   useEffect(() => {
     form.setValue("accessories", selectedAccessories);
@@ -741,7 +749,7 @@ export default function JobOrderForm({
 
   useEffect(() => {
     setInitialFormValues(form.getValues());
-  }, [editSession]);
+  }, [editSession, form]);
 
   useEffect(() => {
     const subscription = form.watch((values) => {
@@ -1207,6 +1215,58 @@ export default function JobOrderForm({
                     {laborTotal.toFixed(2)}
                   </p>
                 </div>
+                <FormField
+                  control={form.control}
+                  name="warranty_months"
+                  render={({ field }) => (
+                    <FormItem className="border-b py-2">
+                      <div className="space-y-0 flex justify-between items-center w-full">
+                        <div className="flex items-center gap-2">
+                          <FormLabel>Warranty</FormLabel>
+                          <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info
+                                  size={14}
+                                  className="text-gray-500 cursor-help"
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                <p className="text-xs">
+                                  Warranty period starts when job order is
+                                  marked as "Completed"
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                        <Select
+                          onValueChange={(value) => {
+                            field.onChange(Number(value));
+                          }}
+                          defaultValue={field.value?.toString() || "1"}
+                          disabled={readonly}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
+                              <SelectValue placeholder="Select warranty period" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent align="end">
+                            <SelectGroup>
+                              <SelectLabel>Warranty Period</SelectLabel>
+                              <SelectItem value="0">No warranty</SelectItem>
+                              <SelectItem value="1">1 month</SelectItem>
+                              <SelectItem value="2">2 months</SelectItem>
+                              <SelectItem value="3">3 months</SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <FormMessage className="text-right" />
+                    </FormItem>
+                  )}
+                />
               </div>
             </div>
           </div>

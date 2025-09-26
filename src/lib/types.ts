@@ -191,6 +191,7 @@ export type JobOrderData = {
   sub_total: null | number;
   technician_id: string;
   warranty: null | string;
+  warranty_months: null | number;
   users: User;
   is_copy: null | boolean;
   net_sales: null | number;
@@ -253,6 +254,7 @@ export type CreateJobOrderData = {
   technician_id?: null | string;
   status?: string;
   warranty?: string;
+  warranty_months?: number;
   is_copy?: boolean;
   technical_report?: string;
   downpayment?: number;

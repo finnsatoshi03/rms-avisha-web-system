@@ -82,4 +82,5 @@ export const baseSchema = z.object({
       message: "Technical report must be at least 10 characters long",
     }),
   downpayment: z.number().optional().nullable(),
+  warranty_months: z.number().min(0).max(3).optional(),
 });

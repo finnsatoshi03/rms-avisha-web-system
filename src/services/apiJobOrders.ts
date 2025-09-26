@@ -288,11 +288,8 @@ async function upsertJobOrder(
     serial_number: jobOrder.serial_number,
     sub_total: jobOrder.sub_total,
     technician_id: jobOrder.technician_id,
-    warranty: jobOrder.warranty
-      ? jobOrder.warranty
-      : jobOrder.status?.toLowerCase() === "completed"
-      ? new Date(new Date().setDate(new Date().getDate() + 29))
-      : null,
+    warranty: jobOrder.warranty || null,
+    warranty_months: jobOrder.warranty_months || null,
     is_copy: jobOrder.is_copy ?? false,
     technical_report: jobOrder.technical_report,
   };
@@ -638,9 +635,20 @@ export async function duplicateJobOrder(id: number) {
 }
 
 export async function updateJobOrderStatus(ids: number[], status: string) {
+  // Fetch warranty_months from the database for each job order
+  const { data: jobOrders, error: fetchError } = await supabase
+    .from("joborders")
+    .select("id, warranty_months")
+    .in("id", ids);
+
+  if (fetchError) {
+    console.error("Error fetching job orders:", fetchError);
+    throw new Error("Could not fetch job orders");
+  }
+
   const warranty =
     status.toLowerCase() === "completed"
-      ? new Date(new Date().setDate(new Date().getDate() + 29))
+      ? new Date(new Date().setDate(new Date().getDate() + 30)) // Default 1 month if no warranty_months
       : null;
 
   const completedAt =
@@ -649,17 +657,17 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
       : null;
 
   if (status.toLowerCase() === "pull out") {
-    const { data: jobOrders, error: fetchError } = await supabase
+    const { data: pullOutJobOrders, error: pullOutFetchError } = await supabase
       .from("joborders")
       .select("id, rate")
       .in("id", ids);
 
-    if (fetchError) {
-      console.error("Error fetching job orders:", fetchError);
+    if (pullOutFetchError) {
+      console.error("Error fetching job orders:", pullOutFetchError);
       throw new Error("Could not fetch job orders");
     }
 
-    for (const jobOrder of jobOrders) {
+    for (const jobOrder of pullOutJobOrders) {
       let newRate = jobOrder.rate;
       if (jobOrder.rate === 1500 || jobOrder.rate === "1500") {
         newRate = 250;
@@ -685,18 +693,34 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
       }
     }
   } else {
-    const { error } = await supabase
-      .from("joborders")
-      .update({
-        status,
-        warranty,
-        completed_at: completedAt,
-      })
-      .in("id", ids);
+    // Update each job order individually to use their specific warranty_months
+    for (const jobOrder of jobOrders) {
+      const warrantyDate =
+        status.toLowerCase() === "completed" &&
+        jobOrder.warranty_months &&
+        jobOrder.warranty_months > 0
+          ? new Date(
+              new Date().setDate(
+                new Date().getDate() + jobOrder.warranty_months * 30
+              )
+            )
+          : status.toLowerCase() === "completed"
+          ? new Date(new Date().setDate(new Date().getDate() + 30)) // Default 1 month
+          : null;
 
-    if (error) {
-      console.error("Error updating job order status:", error);
-      throw new Error("Job Order status could not be updated");
+      const { error } = await supabase
+        .from("joborders")
+        .update({
+          status,
+          warranty: warrantyDate,
+          completed_at: completedAt,
+        })
+        .eq("id", jobOrder.id);
+
+      if (error) {
+        console.error(`Error updating job order ${jobOrder.id}:`, error);
+        throw new Error(`Job Order ${jobOrder.id} could not be updated`);
+      }
     }
   }
 }
