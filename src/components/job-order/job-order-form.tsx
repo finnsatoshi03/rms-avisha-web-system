@@ -10,6 +10,7 @@ import {
   Check,
   ChevronsUpDown,
   Clock,
+  Edit,
   Info,
   Loader2,
   Plus,
@@ -224,6 +225,11 @@ export default function JobOrderForm({
   technicians?: User[];
   onClose?: () => void;
 }) {
+  // State to track if we're in edit mode (overrides readonly when true)
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Determine if form should be readonly based on props and edit mode
+  const isFormReadonly = readonly && !isEditMode;
   const {
     id: editId,
     clients,
@@ -444,7 +450,7 @@ export default function JobOrderForm({
     grandTotal - (selectedDiscount ?? 0) - (downpaymentValue ?? 0);
 
   const filteredTechnicians = useMemo(() => {
-    if (userIsGeneral || readonly) {
+    if (userIsGeneral || isFormReadonly) {
       return technicians;
     }
     if (branchId === 1 || userIsTaytay) {
@@ -472,7 +478,7 @@ export default function JobOrderForm({
     userIsPasig,
     userIsTaytay,
     userIsGeneral,
-    readonly,
+    isFormReadonly,
   ]);
 
   const handleAddDownpayment = () => {
@@ -683,7 +689,7 @@ export default function JobOrderForm({
     accessory: string,
     action?: "add" | "remove"
   ) => {
-    if (readonly) return;
+    if (isFormReadonly) return;
 
     if (action === "remove" || selectedAccessories.includes(accessory)) {
       // Remove accessory
@@ -764,7 +770,12 @@ export default function JobOrderForm({
   return (
     <>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className={
+            isEditMode ? "border-2 border-blue-200 rounded-lg p-4" : ""
+          }
+        >
           <div className="flex flex-wrap gap-2 mb-2">
             <div className="px-3 py-1 bg-gray-200 rounded-full text-gray-600 text-xs w-fit flex items-center gap-1">
               <Clock size={12} strokeWidth={1.5} />
@@ -784,6 +795,36 @@ export default function JobOrderForm({
                   : ""}
               </div>
             )}
+            {readonly && !isEditMode && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditMode(true)}
+                className="px-3 py-1 h-fit text-xs flex items-center gap-1"
+              >
+                <Edit size={12} strokeWidth={1.5} />
+                Edit
+              </Button>
+            )}
+            {readonly && isEditMode && (
+              <>
+                <div className="px-3 py-1 bg-blue-200 rounded-full text-blue-600 text-xs w-fit flex items-center gap-1">
+                  <Edit size={12} strokeWidth={1.5} />
+                  Edit Mode
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditMode(false)}
+                  className="px-3 py-1 h-fit text-xs flex items-center gap-1"
+                >
+                  <X size={12} strokeWidth={1.5} />
+                  Cancel
+                </Button>
+              </>
+            )}
           </div>
           <FormField
             control={form.control}
@@ -795,7 +836,7 @@ export default function JobOrderForm({
                     className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-3xl text-3xl font-bold rounded-none mb-2"
                     placeholder="Client Name"
                     autoFocus
-                    disabled={readonly || onWarranty}
+                    disabled={isFormReadonly || onWarranty}
                     {...field}
                   />
                 </FormControl>
@@ -830,7 +871,7 @@ export default function JobOrderForm({
                             onChange={(e) =>
                               handleContactNumberChange(e, fieldOnChange)
                             }
-                            disabled={readonly}
+                            disabled={isFormReadonly}
                             {...restFieldProps}
                           />
                         </FormControl>
@@ -850,7 +891,7 @@ export default function JobOrderForm({
                       <Input
                         placeholder="Client Email"
                         className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
-                        disabled={readonly}
+                        disabled={isFormReadonly}
                         {...field}
                       />
                     </FormControl>
@@ -930,7 +971,7 @@ export default function JobOrderForm({
                               field.onChange(Number(value));
                             }}
                             // defaultValue={String(field.value)}
-                            disabled={readonly || onWarranty}
+                            disabled={isFormReadonly || onWarranty}
                           >
                             <FormControl>
                               <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
@@ -970,7 +1011,7 @@ export default function JobOrderForm({
                           <Input
                             placeholder="e.g., Brother MFC-J4335DW"
                             className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
-                            disabled={readonly}
+                            disabled={isFormReadonly}
                             {...field}
                           />
                         </FormControl>
@@ -990,7 +1031,7 @@ export default function JobOrderForm({
                           <Input
                             placeholder="e.g., XYZ123456789"
                             className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
-                            disabled={readonly}
+                            disabled={isFormReadonly}
                             {...field}
                           />
                         </FormControl>
@@ -1012,7 +1053,7 @@ export default function JobOrderForm({
                             setSelectedMachineType(value);
                           }}
                           defaultValue={field.value}
-                          disabled={readonly}
+                          disabled={isFormReadonly}
                         >
                           <FormControl>
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
@@ -1056,7 +1097,7 @@ export default function JobOrderForm({
                       <FormControl>
                         <Textarea
                           placeholder="Describe the issue"
-                          disabled={readonly}
+                          disabled={isFormReadonly}
                           {...field}
                         />
                       </FormControl>
@@ -1073,7 +1114,7 @@ export default function JobOrderForm({
                       <FormControl>
                         <Textarea
                           placeholder="Any extra details"
-                          disabled={readonly}
+                          disabled={isFormReadonly}
                           {...field}
                         />
                       </FormControl>
@@ -1097,7 +1138,7 @@ export default function JobOrderForm({
                           <Select
                             onValueChange={field.onChange}
                             defaultValue={field.value ?? undefined}
-                            disabled={readonly || onWarranty}
+                            disabled={isFormReadonly || onWarranty}
                           >
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
                               <SelectValue placeholder="Select a Technician" />
@@ -1136,7 +1177,7 @@ export default function JobOrderForm({
                       <FormControl>
                         <Textarea
                           placeholder="Describe the work performed"
-                          disabled={readonly}
+                          disabled={isFormReadonly}
                           {...field}
                         />
                       </FormControl>
@@ -1200,7 +1241,7 @@ export default function JobOrderForm({
                               );
                               field.onChange(value ? parseFloat(value) : "");
                             }}
-                            disabled={readonly}
+                            disabled={isFormReadonly}
                           />
                         </FormControl>
                       </div>
@@ -1245,7 +1286,7 @@ export default function JobOrderForm({
                             field.onChange(Number(value));
                           }}
                           defaultValue={field.value?.toString() || "1"}
-                          disabled={readonly}
+                          disabled={isFormReadonly}
                         >
                           <FormControl>
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
@@ -1296,7 +1337,7 @@ export default function JobOrderForm({
                               onCheckedChange={(checked) =>
                                 field.onChange(checked)
                               }
-                              disabled={readonly}
+                              disabled={isFormReadonly}
                             />
                           </div>
                         </FormControl>
@@ -1317,7 +1358,7 @@ export default function JobOrderForm({
                               field.onChange(String(value));
                             }}
                             materials={materialStocks}
-                            disabled={readonly}
+                            disabled={isFormReadonly}
                             branchId={branchId || 0}
                             materialsJobOrder={materialsJobOrder}
                           />
@@ -1348,7 +1389,7 @@ export default function JobOrderForm({
                               type="button"
                               className="px-1 border rounded-full"
                               onClick={() => decrement(index)}
-                              disabled={readonly}
+                              disabled={isFormReadonly}
                             >
                               -
                             </button>
@@ -1357,7 +1398,7 @@ export default function JobOrderForm({
                               type="button"
                               className="px-1 border rounded-full"
                               onClick={() => increment(index)}
-                              disabled={readonly}
+                              disabled={isFormReadonly}
                             >
                               +
                             </button>
@@ -1416,7 +1457,7 @@ export default function JobOrderForm({
                     size="icon"
                     className="text-xs p-2 h-fit self-center w-fit justify-self-center"
                     onClick={() => remove(index)}
-                    disabled={readonly}
+                    disabled={isFormReadonly}
                   >
                     <Trash size={12} strokeWidth={1.5} />
                   </Button>
@@ -1441,7 +1482,7 @@ export default function JobOrderForm({
                     );
                   }
                 }}
-                disabled={readonly}
+                disabled={isFormReadonly}
               >
                 <Plus size={14} strokeWidth={1.5} className="mr-2" />
                 Add Material
@@ -1477,7 +1518,7 @@ export default function JobOrderForm({
                     <FormControl>
                       <Textarea
                         placeholder="Describe the issues diagnosed and actions taken on the unit"
-                        disabled={readonly}
+                        disabled={isFormReadonly}
                         {...field}
                       />
                     </FormControl>
@@ -1488,7 +1529,7 @@ export default function JobOrderForm({
             </>
           )}
           <div className="flex md:flex-row flex-col md:justify-between mt-2">
-            {!readonly && (
+            {!isFormReadonly && (
               <Button type="submit" disabled={isPending || !isFormChanged}>
                 {isPending ? (
                   <>
@@ -1533,7 +1574,7 @@ export default function JobOrderForm({
                         size={"icon"}
                         variant={"destructive"}
                         onClick={() => setSelectedDiscount(null)}
-                        disabled={readonly || isPending}
+                        disabled={isFormReadonly || isPending}
                       >
                         <X size={10} />
                       </Button>
@@ -1584,7 +1625,7 @@ export default function JobOrderForm({
                           className="w-full text-right placeholder:right bg-transparent focus:outline-none"
                           placeholder="Enter amount"
                           min="0"
-                          disabled={readonly || isPending}
+                          disabled={isFormReadonly || isPending}
                         />
                       )}
                       {downpaymentError && !readonly && (
