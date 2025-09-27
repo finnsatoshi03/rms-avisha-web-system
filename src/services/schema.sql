@@ -196,3 +196,59 @@ CREATE TABLE IF NOT EXISTS changelogs (
 CREATE INDEX IF NOT EXISTS idx_changelogs_roles ON changelogs USING GIN (roles);
 CREATE INDEX IF NOT EXISTS idx_changelogs_active ON changelogs (is_active);
 CREATE INDEX IF NOT EXISTS idx_changelogs_release_date ON changelogs (release_date DESC);
+
+CREATE TABLE IF NOT EXISTS quotations (
+  id BIGINT GENERATED ALWAYS AS IDENTITY NOT NULL,
+  quote_no TEXT UNIQUE NOT NULL,
+  job_order_id BIGINT NOT NULL,
+  date_created TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  end_date DATE,
+  company TEXT,
+  address TEXT,
+  note TEXT,
+  subtotal NUMERIC DEFAULT 0,
+  discount NUMERIC DEFAULT 0,
+  total_quote NUMERIC DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT quotations_pkey PRIMARY KEY (id),
+  CONSTRAINT quotations_job_order_id_fkey FOREIGN KEY (job_order_id) REFERENCES public.joborders(id) ON DELETE CASCADE
+);
+
+-- If the table exists but has old columns, drop them
+ALTER TABLE quotations DROP COLUMN IF EXISTS client_name;
+ALTER TABLE quotations DROP COLUMN IF EXISTS contact;
+ALTER TABLE quotations DROP COLUMN IF EXISTS brand;
+ALTER TABLE quotations DROP COLUMN IF EXISTS model;
+ALTER TABLE quotations DROP COLUMN IF EXISTS serial_number;
+ALTER TABLE quotations DROP COLUMN IF EXISTS problem;
+
+-- Ensure the job_order_id column exists and is properly typed
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS job_order_id BIGINT;
+
+-- Add the foreign key constraint if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'quotations_job_order_id_fkey'
+    ) THEN
+        ALTER TABLE quotations 
+        ADD CONSTRAINT quotations_job_order_id_fkey 
+        FOREIGN KEY (job_order_id) REFERENCES public.joborders(id) ON DELETE CASCADE;
+    END IF;
+END $$;
+
+-- Create quotation_items table if it doesn't exist
+CREATE TABLE IF NOT EXISTS quotation_items (
+  id BIGINT GENERATED ALWAYS AS IDENTITY NOT NULL,
+  quotation_id BIGINT NOT NULL,
+  description TEXT NOT NULL,
+  qty NUMERIC NOT NULL DEFAULT 1,
+  unit_price NUMERIC NOT NULL DEFAULT 0,
+  amount NUMERIC NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT quotation_items_pkey PRIMARY KEY (id),
+  CONSTRAINT quotation_items_quotation_id_fkey FOREIGN KEY (quotation_id) REFERENCES public.quotations(id) ON DELETE CASCADE
+);

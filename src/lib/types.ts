@@ -330,3 +330,42 @@ export type TechnicianWithJobOrders = User & {
   joborders: JobOrderData[];
   order_received_user?: User;
 };
+
+// Quotation Types
+export type QuotationItem = {
+  id?: number;
+  description: string;
+  qty: number;
+  unit_price: number;
+  amount: number;
+};
+
+export type QuotationData = {
+  id?: number;
+  quote_no: string;
+  job_order_id: number;
+  date_created: string;
+  end_date: string;
+  company: string;
+  address: string;
+  note: string;
+  subtotal: number;
+  discount: number;
+  total_quote: number;
+  created_at: string;
+  updated_at: string;
+  quotation_items?: QuotationItem[];
+};
+
+export type CreateQuotationData = {
+  quote_no: string;
+  job_order_id: number;
+  end_date: string;
+  company: string;
+  address: string;
+  note: string;
+  subtotal: number;
+  discount: number;
+  total_quote: number;
+  quotation_items: QuotationItem[];
+};
