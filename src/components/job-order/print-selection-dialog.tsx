@@ -39,7 +39,7 @@ export default function PrintSelectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[400px]">
+      <DialogContent className="w-fit">
         <DialogHeader className="items-center">
           <DialogTitle className="text-xl font-extrabold">
             Print Selection
