@@ -125,7 +125,7 @@ export default function ChangelogDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="gap-0 p-0 [&>button:last-child]:text-white"
+        className="gap-0 p-0 [&>button:last-child]:text-white max-h-[90vh] flex flex-col"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
@@ -142,13 +142,29 @@ export default function ChangelogDialog({
         </div>
 
         {/* Content */}
-        <div className="space-y-6 px-6 pt-3 pb-6">
+        <div className="space-y-6 px-6 pt-3 pb-6 flex-1 min-h-0 flex flex-col">
           <DialogHeader>
             <DialogTitle>{currentChangelog.title}</DialogTitle>
             <DialogDescription>
               {currentChangelog.description}
             </DialogDescription>
           </DialogHeader>
+
+          {/* Features List */}
+          <div className="space-y-3 flex-1 min-h-0 overflow-y-auto">
+            <h4 className="text-sm font-medium text-gray-900">What's New:</h4>
+            <ul className="space-y-2">
+              {currentChangelog.features.map((feature, index) => (
+                <li
+                  key={index}
+                  className="flex items-start gap-2 text-sm text-gray-600"
+                >
+                  <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0" />
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
 
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div className="flex justify-center space-x-1.5 max-sm:order-1">
