@@ -609,7 +609,7 @@ export default function QuotationDialog({
     endDate.setMonth(endDate.getMonth() + data.validity_months);
 
     const quotationData: CreateQuotationData = {
-      quote_no: "", // Will be generated in the API
+      quote_no: "", // Will be generated automatically by database trigger
       job_order_id: 0, // Will be set when job order is created
       end_date: endDate.toISOString().split("T")[0],
       company: data.company,
@@ -653,7 +653,7 @@ export default function QuotationDialog({
       endDate.setMonth(endDate.getMonth() + formData.validity_months);
 
       const quotationData = {
-        quote_no: `Q-${Date.now()}`, // Temporary quote number
+        quote_no: "", // Will be generated automatically by database trigger
         job_order_id: 0,
         end_date: endDate.toISOString().split("T")[0],
         company: formData.company,

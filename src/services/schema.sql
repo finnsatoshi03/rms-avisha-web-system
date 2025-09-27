@@ -260,3 +260,41 @@ ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS material_id TEXT;
 -- Note: material_id is stored as TEXT to match frontend expectations
 -- Foreign key constraint is not added due to type mismatch (TEXT vs INTEGER)
 -- The relationship is maintained at the application level
+
+-- Create sequence for quote numbers
+CREATE SEQUENCE IF NOT EXISTS quote_no_seq START 1;
+
+-- Create function to generate sequential quote numbers
+CREATE OR REPLACE FUNCTION generate_quote_no()
+RETURNS TEXT AS $$
+DECLARE
+  next_val INTEGER;
+  padded_no TEXT;
+BEGIN
+  -- Get next value from sequence
+  next_val := nextval('quote_no_seq');
+  
+  -- Pad with zeros to 5 digits
+  padded_no := LPAD(next_val::TEXT, 5, '0');
+  
+  RETURN padded_no;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger to automatically set quote_no on insert
+CREATE OR REPLACE FUNCTION set_quote_number()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.quote_no IS NULL OR NEW.quote_no = '' THEN
+    NEW.quote_no := generate_quote_no();
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger for quotations table
+DROP TRIGGER IF EXISTS trigger_set_quote_number ON quotations;
+CREATE TRIGGER trigger_set_quote_number
+  BEFORE INSERT ON quotations
+  FOR EACH ROW
+  EXECUTE FUNCTION set_quote_number();

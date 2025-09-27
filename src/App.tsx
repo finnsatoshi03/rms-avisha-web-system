@@ -15,6 +15,7 @@ import Dashboard from "./pages/Dashboard";
 import DashboardRental from "./pages/DashboardRental";
 import TechnicianDashboard from "./pages/TechnicianDashboard";
 import JobOrders from "./pages/JobOrders";
+import Quotations from "./pages/Quotations";
 import Clients from "./pages/Clients";
 // import Settings from "./pages/Settings";
 import Login from "./pages/Login";
@@ -66,6 +67,7 @@ export default function App() {
             />
             <Route path="manager-re-auth" element={<ManagerReAuth />} />
             <Route path="job-orders" element={<JobOrders />} />
+            <Route path="quotations" element={<Quotations />} />
             <Route path="rental" element={<Maintenance />} />
             <Route path="billing-statement" element={<Maintenance />} />
             <Route path="clients" element={<Clients />} />

@@ -58,6 +58,7 @@ import {
 } from "../../lib/helpers";
 import { createEditJobOrder } from "../../services/apiJobOrders";
 import { getMaterialStocks } from "../../services/apiMaterials";
+import { getQuotationsByJobOrder } from "../../services/apiQuotations";
 import { useUser } from "../auth/useUser";
 import { useBranchValidation } from "../../hooks/useBranchValidation";
 import { BranchWarning } from "../ui/branch-warning";
@@ -435,6 +436,13 @@ export default function JobOrderForm({
     queryFn: () => getMaterialStocks({ fetchAll: true }),
   });
 
+  // Fetch existing quotations for this job order
+  const { data: existingQuotations, isLoading: quotationsLoading } = useQuery({
+    queryKey: ["quotations", editId],
+    queryFn: () => getQuotationsByJobOrder(editId!),
+    enabled: Boolean(editId), // Only run if we have a job order ID
+  });
+
   const isPending = isCreating || isEditing || materialStocksLoading;
   const onWarranty = editSession && Boolean(editValues.warranty);
 
@@ -442,6 +450,26 @@ export default function JobOrderForm({
   const [isFormChanged, setIsFormChanged] = useState(false);
 
   const materials = form.watch("materials");
+
+  // Set quotation data when existing quotations are loaded
+  useEffect(() => {
+    if (existingQuotations && existingQuotations.length > 0) {
+      // Use the first quotation if multiple exist
+      const quotation = existingQuotations[0];
+      setQuotationData({
+        job_order_id: editId!,
+        quote_no: quotation.quote_no,
+        end_date: quotation.end_date || "",
+        company: quotation.company || "",
+        address: quotation.address || "",
+        note: quotation.note || "",
+        subtotal: quotation.subtotal || 0,
+        discount: quotation.discount || 0,
+        total_quote: quotation.total_quote || 0,
+        quotation_items: quotation.quotation_items || [],
+      });
+    }
+  }, [existingQuotations, editId]);
 
   // Watch for material changes and sync to quotation dialog
   useEffect(() => {
@@ -603,6 +631,7 @@ export default function JobOrderForm({
 
       const quotationPDFData = {
         ...quotationData,
+        quote_no: quotationData?.quote_no || "TBD", // Use generated quote_no or fallback
         end_date: endDate.toISOString().split("T")[0],
         clientData: {
           name: form.getValues("name") || "",
@@ -801,16 +830,22 @@ export default function JobOrderForm({
           // Create quotation if one was prepared
           if (quotationData && isCreatingQuotation) {
             try {
-              const { createQuotation, generateQuoteNumber } = await import(
+              const { createQuotation } = await import(
                 "../../services/apiQuotations"
               );
               const quotationToCreate = {
                 ...quotationData,
-                quote_no: generateQuoteNumber(),
                 job_order_id: response.jobOrder,
+                // quote_no will be generated automatically by database trigger
               };
 
-              await createQuotation(quotationToCreate);
+              const createdQuotation = await createQuotation(quotationToCreate);
+              // Update quotation data with the returned data (including generated quote_no)
+              setQuotationData({
+                ...quotationData,
+                quote_no: createdQuotation.quote_no,
+                job_order_id: createdQuotation.job_order_id,
+              });
               toast.success("Quotation created successfully!");
             } catch (error) {
               console.error("Error creating quotation:", error);
@@ -1115,49 +1150,63 @@ export default function JobOrderForm({
                   : ""}
               </div>
             )}
-            {!isFormReadonly && !editSession && (
+            {!isFormReadonly && (
               <TooltipProvider delayDuration={100}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant={quotationData ? "default" : "outline"}
                       size="sm"
                       onClick={handleCreateQuotation}
-                      disabled={isPending}
-                      className="px-3 py-1 h-fit text-xs flex items-center gap-1"
+                      disabled={isPending || quotationsLoading}
+                      className={`px-3 py-1 h-fit text-xs flex items-center gap-1 ${
+                        quotationData
+                          ? "bg-green-600 hover:bg-green-700 text-white"
+                          : ""
+                      }`}
                     >
-                      <Plus size={12} strokeWidth={1.5} />
-                      {isCreatingQuotation
+                      {quotationData ? (
+                        <Check size={12} strokeWidth={1.5} />
+                      ) : (
+                        <Plus size={12} strokeWidth={1.5} />
+                      )}
+                      {quotationData
+                        ? "View/Edit Quotation"
+                        : isCreatingQuotation
                         ? "Edit Quotation"
                         : "Create Quotation"}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
                     <p className="text-xs">
-                      Create a quotation for this job order. Client details can
-                      be edited within the quotation dialog.
+                      {quotationData
+                        ? "View or edit the existing quotation for this job order."
+                        : "Create a quotation for this job order. Client details can be edited within the quotation dialog."}
                     </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
-            {isCreatingQuotation && quotationData && (
-              <div className="px-3 py-1 bg-blue-200 rounded-full text-blue-600 text-xs w-fit flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            {quotationData && (
+              <div className="px-3 py-1 bg-green-100 rounded-full text-green-700 text-xs w-fit flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span>
                   Quotation: ₱
                   {formatNumberWithCommas(quotationData.total_quote)}
+                  {quotationData.quote_no && ` (${quotationData.quote_no})`}
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleRemoveQuotation}
-                  className="h-4 w-4 p-0 hover:bg-blue-300"
-                >
-                  <X size={10} />
-                </Button>
+                {!editSession && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoveQuotation}
+                    className="h-4 w-4 p-0 hover:bg-green-200"
+                  >
+                    <X size={10} />
+                  </Button>
+                )}
               </div>
             )}
             {isCreatingQuotation && (
@@ -1933,7 +1982,7 @@ export default function JobOrderForm({
               </h2>
               <div className="py-3 mb-3 border-dashed border-y-2 border-gray-300">
                 <p>Subtotal</p>
-                {isCreatingQuotation && quotationData ? (
+                {quotationData ? (
                   <div className="flex justify-between">
                     <p className="opacity-60">Quotation</p>
                     <p>₱{formatNumberWithCommas(quotationData.total_quote)}</p>
@@ -1960,9 +2009,7 @@ export default function JobOrderForm({
                 )}
                 <div className="flex justify-between gap-8">
                   <p className="opacity-60">Discount</p>
-                  {isCreatingQuotation &&
-                  quotationData &&
-                  quotationData.discount > 0 ? (
+                  {quotationData && quotationData.discount > 0 ? (
                     <p>₱{formatNumberWithCommas(quotationData.discount)}</p>
                   ) : selectedDiscount ? (
                     <div className="flex items-center gap-1">

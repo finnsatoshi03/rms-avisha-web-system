@@ -360,7 +360,7 @@ export type QuotationData = {
 };
 
 export type CreateQuotationData = {
-  quote_no: string;
+  quote_no?: string; // Optional - will be generated automatically by database trigger
   job_order_id: number;
   end_date: string;
   company: string;

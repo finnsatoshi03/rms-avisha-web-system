@@ -137,9 +137,176 @@ export async function deleteQuotation(quotationId: number) {
   }
 }
 
-// Generate a unique quote number
+// Generate a unique quote number (deprecated - now handled by database trigger)
 export function generateQuoteNumber(): string {
-  const timestamp = Date.now().toString();
-  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `Q-${timestamp.slice(-6)}-${random}`;
+  // This function is deprecated. Quote numbers are now generated automatically
+  // by the database trigger using sequential numbering (00001, 00002, etc.)
+  // Return empty string to let the database handle it
+  return "";
+}
+
+// Get job orders that have quotations (status = "Quotation")
+export async function getQuotationJobOrders({
+  page = 1,
+  limit = 10,
+  searchTerm = "",
+  branchLocation = null,
+  technicianId = undefined,
+  showWarningsOnly = false,
+}: {
+  page?: number;
+  limit?: number;
+  searchTerm?: string;
+  branchLocation?: string | null;
+  technicianId?: string | number | undefined;
+  showWarningsOnly?: boolean;
+} = {}) {
+  // Calculate range for pagination
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  let query = supabase.from("joborders").select(
+    `
+      *,
+      clients:client_id (*),
+      branches:branch_id (*),
+      materials (
+        id,
+        material_description,
+        quantity,
+        unit_price,
+        total_amount,
+        job_order_id,
+        material_id,
+        used
+      ),
+      users:technician_id (*),
+      quotations (
+        id,
+        quote_no,
+        date_created,
+        end_date,
+        company,
+        address,
+        note,
+        subtotal,
+        discount,
+        total_quote,
+        quotation_items (*)
+      )
+    `,
+    { count: "exact" }
+  );
+
+  // Filter only job orders with "Quotation" status
+  query = query.eq("status", "Quotation");
+
+  // Add warning filter if provided
+  if (showWarningsOnly) {
+    // Filter for quotations that are pending for more than 2 days
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    const twoDaysAgoISO = twoDaysAgo.toISOString();
+
+    query = query.lt("created_at", twoDaysAgoISO);
+  }
+
+  // Add branch location filter if provided
+  if (branchLocation) {
+    // Need to filter using a join for branch location
+    const { data: branchIds, error: branchError } = await supabase
+      .from("branches")
+      .select("id")
+      .eq("location", branchLocation);
+
+    if (!branchError && branchIds && branchIds.length > 0) {
+      const ids = branchIds.map((branch) => branch.id);
+      query = query.in("branch_id", ids);
+    }
+  }
+
+  // Add technician filter if provided
+  if (technicianId) {
+    query = query.eq("technician_id", technicianId);
+  }
+
+  if (searchTerm && searchTerm.trim() !== "") {
+    const term = searchTerm.trim().toLowerCase();
+    console.log("Using search term:", term);
+
+    const jobOrderConditions = [
+      `brand_model.ilike.%${term}%`,
+      `serial_number.ilike.%${term}%`,
+      `machine_type.ilike.%${term}%`,
+      `problem_statement.ilike.%${term}%`,
+      `additional_comments.ilike.%${term}%`,
+      `labor_description.ilike.%${term}%`,
+      `accessories.ilike.%${term}%`,
+      `order_no.ilike.%${term}%`,
+      `warranty.ilike.%${term}%`,
+      `technical_report.ilike.%${term}%`,
+    ].join(",");
+
+    const { data: matchingClients, error: clientError } = await supabase
+      .from("clients")
+      .select("id")
+      .or(
+        `name.ilike.%${term}%,` +
+          `email.ilike.%${term}%,` +
+          `contact_number.ilike.%${term}%`
+      );
+
+    if (clientError) {
+      console.error("Error searching clients:", clientError);
+    }
+
+    const { data: matchingTechnicians, error: techError } = await supabase
+      .from("users")
+      .select("id")
+      .ilike("fullname", `%${term}%`);
+
+    if (techError) {
+      console.error("Error searching technicians:", techError);
+    }
+
+    // Build the combined condition
+    let combinedCondition = jobOrderConditions;
+
+    // Add client conditions if there are matching clients
+    if (matchingClients && matchingClients.length > 0) {
+      const clientIds = matchingClients.map((client) => client.id);
+      const clientConditions = clientIds
+        .map((id) => `client_id.eq.${id}`)
+        .join(",");
+      combinedCondition += `,${clientConditions}`;
+    }
+
+    // Add technician conditions if there are matching technicians
+    if (matchingTechnicians && matchingTechnicians.length > 0) {
+      const technicianIds = matchingTechnicians.map((tech) => tech.id);
+      const technicianConditions = technicianIds
+        .map((id) => `technician_id.eq.${id}`)
+        .join(",");
+      combinedCondition += `,${technicianConditions}`;
+    }
+
+    query = query.or(combinedCondition);
+  }
+
+  // Apply pagination and ordering
+  query = query.order("created_at", { ascending: false }).range(from, to);
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    console.error("Error fetching quotation job orders:", error);
+    throw new Error("Quotation job orders could not be fetched");
+  }
+
+  return {
+    data: data || [],
+    meta: {
+      totalCount: count,
+    },
+  };
 }

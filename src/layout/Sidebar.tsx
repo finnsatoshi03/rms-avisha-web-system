@@ -128,6 +128,7 @@ export default function AppSidebar({
   const { user } = useUser();
   const [open, setOpen] = useState(false);
   const [isHomeOpen, setIsHomeOpen] = useState(true);
+  const [isJobOrdersOpen, setIsJobOrdersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleNavClick = () => {
@@ -205,22 +206,66 @@ export default function AppSidebar({
                   </Collapsible>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Job Orders">
-                    <NavLink
-                      to="job-orders"
-                      onClick={handleNavClick}
-                      className={({ isActive }) =>
-                        cn(
-                          "w-full",
-                          isActive &&
-                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                        )
-                      }
-                    >
-                      <Printer size={20} />
-                      <span>Job Orders</span>
-                    </NavLink>
-                  </SidebarMenuButton>
+                  <Collapsible
+                    open={isJobOrdersOpen}
+                    onOpenChange={setIsJobOrdersOpen}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        className="w-full justify-between opacity-50"
+                        tooltip="Job Orders"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Printer size={20} />
+                          <span>Job Orders</span>
+                        </div>
+                        <ChevronDown
+                          size={16}
+                          className={`transition-transform ${
+                            isJobOrdersOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild>
+                            <NavLink
+                              to="job-orders"
+                              onClick={handleNavClick}
+                              className={({ isActive }) =>
+                                cn(
+                                  "w-full",
+                                  isActive &&
+                                    "bg-sidebar-accent text-sidebar-accent-foreground"
+                                )
+                              }
+                            >
+                              All Job Orders
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild>
+                            <NavLink
+                              to="quotations"
+                              onClick={handleNavClick}
+                              className={({ isActive }) =>
+                                cn(
+                                  "w-full",
+                                  isActive &&
+                                    "bg-sidebar-accent text-sidebar-accent-foreground"
+                                )
+                              }
+                            >
+                              Quotations
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
@@ -358,22 +403,66 @@ export default function AppSidebar({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Job Orders">
-                    <NavLink
-                      to="job-orders"
-                      onClick={handleNavClick}
-                      className={({ isActive }) =>
-                        cn(
-                          "w-full",
-                          isActive &&
-                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                        )
-                      }
-                    >
-                      <Printer size={20} />
-                      <span>Job Orders</span>
-                    </NavLink>
-                  </SidebarMenuButton>
+                  <Collapsible
+                    open={isJobOrdersOpen}
+                    onOpenChange={setIsJobOrdersOpen}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        className="w-full justify-between"
+                        tooltip="Job Orders"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Printer size={20} />
+                          <span>Job Orders</span>
+                        </div>
+                        <ChevronDown
+                          size={16}
+                          className={`transition-transform ${
+                            isJobOrdersOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild>
+                            <NavLink
+                              to="job-orders"
+                              onClick={handleNavClick}
+                              className={({ isActive }) =>
+                                cn(
+                                  "w-full",
+                                  isActive &&
+                                    "bg-sidebar-accent text-sidebar-accent-foreground"
+                                )
+                              }
+                            >
+                              All Job Orders
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild>
+                            <NavLink
+                              to="quotations"
+                              onClick={handleNavClick}
+                              className={({ isActive }) =>
+                                cn(
+                                  "w-full",
+                                  isActive &&
+                                    "bg-sidebar-accent text-sidebar-accent-foreground"
+                                )
+                              }
+                            >
+                              Quotations
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </SidebarMenuItem>
               </>
             )}
