@@ -1,12 +1,24 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Trash, Clock, X, Check, ChevronsUpDown } from "lucide-react";
+import {
+  Plus,
+  Trash,
+  Clock,
+  X,
+  Check,
+  ChevronsUpDown,
+  Printer,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getMaterialStocks } from "../../services/apiMaterials";
 import { useBranchValidation } from "../../hooks/useBranchValidation";
 import { BranchWarning } from "../ui/branch-warning";
+import { pdf } from "@react-pdf/renderer";
+import QuotationPDF from "./quotation-pdf";
+import PrintDialog from "./print-dialog";
+import PrintSelectionDialog from "./print-selection-dialog";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import DiscountDialog from "./discount-option-dialog";
@@ -96,6 +108,14 @@ interface QuotationDialogProps {
     unitPrice: number;
     material_id: string;
   }>;
+  onMaterialsChange?: (
+    materials: Array<{
+      material: string;
+      quantity: number;
+      unitPrice: number;
+      material_id: string;
+    }>
+  ) => void;
   selectedBranchId?: number | null;
 }
 
@@ -232,12 +252,17 @@ export default function QuotationDialog({
   clientData,
   onClientDataChange,
   jobOrderMaterials = [],
+  onMaterialsChange,
   selectedBranchId,
 }: QuotationDialogProps) {
   const [subtotal, setSubtotal] = useState(0);
   const [discount, setDiscount] = useState(0);
   const [totalQuote, setTotalQuote] = useState(0);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printSelectionDialogOpen, setPrintSelectionDialogOpen] =
+    useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [validityMonths, setValidityMonths] = useState(1);
   const [specifyInputValue, setSpecifyInputValue] = useState("");
   const [editedClientData, setEditedClientData] = useState(
@@ -251,6 +276,9 @@ export default function QuotationDialog({
       problem_statement: "",
     }
   );
+
+  // Ref to prevent infinite sync loops
+  const isSyncingRef = useRef(false);
 
   // Branch validation - use the selected branch from job order form
   const { branchId, hasValidBranch, warningMessage } =
@@ -326,6 +354,46 @@ export default function QuotationDialog({
 
   const watchedItems = form.watch("quotation_items");
 
+  // Debounced sync from job order to quotation to prevent conflicts
+  useEffect(() => {
+    if (isSyncingRef.current) return; // Prevent infinite loops
+    if (!jobOrderMaterials) return;
+
+    // Debounce the sync to prevent conflicts with user input
+    const timeoutId = setTimeout(() => {
+      const updatedItems: QuotationItem[] = jobOrderMaterials.map(
+        (material) => ({
+          description: material.material,
+          qty: material.quantity,
+          unit_price: material.unitPrice,
+          amount: material.quantity * material.unitPrice,
+          material_id: material.material_id,
+        })
+      );
+
+      // Set sync flag
+      isSyncingRef.current = true;
+
+      // Sync to keep both forms in sync
+      form.setValue("quotation_items", updatedItems);
+
+      // Recalculate totals
+      const newSubtotal = updatedItems.reduce(
+        (total, item) => total + (item.amount || 0),
+        0
+      );
+      setSubtotal(newSubtotal);
+      setTotalQuote(newSubtotal - discount);
+
+      // Reset sync flag after a short delay
+      setTimeout(() => {
+        isSyncingRef.current = false;
+      }, 100);
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [jobOrderMaterials, form, discount]);
+
   // Calculate totals when items change
   useEffect(() => {
     const newSubtotal = watchedItems.reduce(
@@ -385,6 +453,9 @@ export default function QuotationDialog({
     );
     setSubtotal(newSubtotal);
     setTotalQuote(newSubtotal - discount);
+
+    // Sync materials back to job order form
+    handleMaterialsChange(items);
   };
 
   const handleAddItem = () => {
@@ -395,11 +466,21 @@ export default function QuotationDialog({
       amount: 0,
       material_id: "",
     });
+    // Sync materials after adding
+    setTimeout(() => {
+      const currentItems = form.getValues("quotation_items");
+      handleMaterialsChange(currentItems);
+    }, 0);
   };
 
   const handleRemoveItem = (index: number) => {
     if (fields.length > 1) {
       remove(index);
+      // Sync materials after removing
+      setTimeout(() => {
+        const currentItems = form.getValues("quotation_items");
+        handleMaterialsChange(currentItems);
+      }, 0);
     }
   };
 
@@ -433,6 +514,9 @@ export default function QuotationDialog({
       );
       setSubtotal(newSubtotal);
       setTotalQuote(newSubtotal - discount);
+
+      // Sync materials back to job order form
+      handleMaterialsChange(items);
     }
   };
 
@@ -464,6 +548,27 @@ export default function QuotationDialog({
     }
   };
 
+  const handleMaterialsChange = useCallback(
+    (updatedMaterials: QuotationItem[]) => {
+      // Convert quotation items to job order material format
+      const jobOrderMaterials = updatedMaterials.map((item) => ({
+        material: item.description,
+        quantity: item.qty,
+        unitPrice: item.unit_price,
+        material_id: item.material_id,
+      }));
+
+      // Sync materials back to job order form
+      if (onMaterialsChange) {
+        onMaterialsChange(jobOrderMaterials);
+      }
+    },
+    [onMaterialsChange]
+  );
+
+  // DISABLED: Auto-sync from quotation to job order to prevent quantity conflicts
+  // Manual sync will happen only when user explicitly saves the quotation
+
   const onSubmit = (data: QuotationFormData) => {
     // Calculate end date based on validity months
     const endDate = new Date();
@@ -482,8 +587,74 @@ export default function QuotationDialog({
       quotation_items: data.quotation_items,
     };
 
+    // Manual sync: Update job order form with quotation materials when saving
+    const validItems = data.quotation_items.filter(
+      (item) => item.material_id && item.material_id !== ""
+    );
+    if (validItems.length > 0) {
+      console.log("Manual sync on save:", validItems);
+      handleMaterialsChange(validItems);
+    }
+
     onSave(quotationData);
-    onOpenChange(false);
+    setPrintSelectionDialogOpen(true);
+  };
+
+  const handlePrintSelection = (option: "quotation" | "job_order" | "both") => {
+    setPrintSelectionDialogOpen(false);
+
+    if (option === "quotation" || option === "both") {
+      setPrintDialogOpen(true);
+    } else if (option === "job_order") {
+      // For job order printing, we need to trigger the parent's print flow
+      // This will be handled by the parent component
+      onOpenChange(false);
+    }
+  };
+
+  const handlePrint = async (type: "company" | "client" | "both") => {
+    setIsPrinting(true);
+    try {
+      const formData = form.getValues();
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + formData.validity_months);
+
+      const quotationData = {
+        quote_no: `Q-${Date.now()}`, // Temporary quote number
+        job_order_id: 0,
+        end_date: endDate.toISOString().split("T")[0],
+        company: formData.company,
+        address: formData.address,
+        note: formData.note || "",
+        subtotal,
+        discount,
+        total_quote: totalQuote,
+        quotation_items: formData.quotation_items,
+        clientData: editedClientData,
+        branch_id: currentBranchId || 1,
+        job_order_no: `JO-${Date.now()}`, // Temporary job order number
+        date: new Date().toISOString().split("T")[0],
+      };
+
+      const blob = await pdf(
+        <QuotationPDF data={quotationData} type={type} />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `quotation-${type}-${Date.now()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setPrintDialogOpen(false);
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   const date = new Date().toLocaleDateString("en-US", {
@@ -996,6 +1167,15 @@ export default function QuotationDialog({
               <Button
                 type="button"
                 variant="outline"
+                onClick={() => setPrintDialogOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <Printer size={16} />
+                Print
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => onOpenChange(false)}
               >
                 Cancel
@@ -1010,6 +1190,24 @@ export default function QuotationDialog({
           onOpenChange={setDiscountDialogOpen}
           grandTotal={subtotal}
           onSelectDiscount={handleSelectDiscount}
+        />
+
+        <PrintDialog
+          open={printDialogOpen}
+          onOpenChange={setPrintDialogOpen}
+          onPrint={handlePrint}
+          title="Print Quotation"
+          loading={isPrinting}
+        />
+
+        <PrintSelectionDialog
+          open={printSelectionDialogOpen}
+          onClose={() => {
+            setPrintSelectionDialogOpen(false);
+            onOpenChange(false);
+          }}
+          onSelectOption={handlePrintSelection}
+          loading={isPrinting}
         />
       </DialogContent>
     </Dialog>

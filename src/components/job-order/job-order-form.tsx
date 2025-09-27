@@ -66,6 +66,7 @@ import { useDownpayment } from "./useDownpayment";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import QuotationDialog from "./quotation-dialog";
 import { CreateQuotationData } from "../../lib/types";
+import PrintSelectionDialog from "./print-selection-dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -327,6 +328,8 @@ export default function JobOrderForm({
   const [quotationData, setQuotationData] =
     useState<CreateQuotationData | null>(null);
   const [isCreatingQuotation, setIsCreatingQuotation] = useState(false);
+  const [printSelectionDialogOpen, setPrintSelectionDialogOpen] =
+    useState(false);
 
   const { isTaytay, isPasig, isAdmin, user } = useUser();
   const isTechnician = user?.user_metadata.role?.includes("technician");
@@ -684,7 +687,13 @@ export default function JobOrderForm({
             ...submittedValues,
             order_no: response.order_no,
           });
-          setPrintDialogOpen(true);
+
+          // Show print selection dialog if in quotation mode, otherwise show regular print dialog
+          if (isCreatingQuotation && quotationData) {
+            setPrintSelectionDialogOpen(true);
+          } else {
+            setPrintDialogOpen(true);
+          }
         },
         onError: (error) => {
           toast.error("An error occurred. Please try again.");
@@ -754,6 +763,27 @@ export default function JobOrderForm({
   const handleSaveQuotation = (quotation: CreateQuotationData) => {
     setQuotationData(quotation);
     setIsCreatingQuotation(true);
+    setQuotationDialogOpen(false);
+  };
+
+  const handlePrintSelection = (option: "quotation" | "job_order" | "both") => {
+    setPrintSelectionDialogOpen(false);
+
+    if (option === "quotation") {
+      // Handle quotation printing - this will be handled by the quotation dialog
+      // For now, we'll just close the dialog
+      setPrintDialogOpen(true);
+    } else if (option === "job_order") {
+      // Handle job order printing
+      if (jobOrderDataForPrinting) {
+        generatePDF(jobOrderDataForPrinting, "company");
+      }
+    } else if (option === "both") {
+      // Handle both - show print dialog for job order first
+      if (jobOrderDataForPrinting) {
+        generatePDF(jobOrderDataForPrinting, "both");
+      }
+    }
   };
 
   const handleRemoveQuotation = () => {
@@ -778,6 +808,18 @@ export default function JobOrderForm({
     form.setValue("serial_number", updatedClientData.serial_number);
     form.setValue("machine_type", updatedClientData.machine_type);
     form.setValue("problem_statement", updatedClientData.problem_statement);
+  };
+
+  const handleMaterialsChange = (
+    updatedMaterials: Array<{
+      material: string;
+      quantity: number;
+      unitPrice: number;
+      material_id: string;
+    }>
+  ) => {
+    // Update the job order form materials with the new material data
+    form.setValue("materials", updatedMaterials);
   };
 
   const getStockForMaterial = (materialId: number) => {
@@ -1872,8 +1914,19 @@ export default function JobOrderForm({
           problem_statement: form.getValues("problem_statement") || "",
         }}
         onClientDataChange={handleClientDataChange}
-        jobOrderMaterials={form.getValues("materials") || []}
+        jobOrderMaterials={form.watch("materials") || []}
+        onMaterialsChange={handleMaterialsChange}
         selectedBranchId={watchedBranchId}
+      />
+
+      <PrintSelectionDialog
+        open={printSelectionDialogOpen}
+        onClose={() => {
+          setPrintSelectionDialogOpen(false);
+          if (onClose) onClose();
+        }}
+        onSelectOption={handlePrintSelection}
+        loading={isPrinting}
       />
     </>
   );
