@@ -734,18 +734,18 @@ export default function JobOrderForm({
       );
       form.setValue(`materials.${index}.material_id`, String(materialId));
       form.setValue(`materials.${index}.unitPrice`, selectedMaterial.price);
-      
+
       // Update reactive materials state
       const values = form.getValues();
       const updatedMaterials = [...(values?.materials || [])];
-      updatedMaterials[index] = { 
-        ...updatedMaterials[index], 
+      updatedMaterials[index] = {
+        ...updatedMaterials[index],
         material: selectedMaterial.material_name,
         material_id: String(materialId),
-        unitPrice: selectedMaterial.price
+        unitPrice: selectedMaterial.price,
       };
       setReactiveMaterials(updatedMaterials);
-      
+
       console.log("Job order material updated:", selectedMaterial);
     }
   };
@@ -897,12 +897,15 @@ export default function JobOrderForm({
     });
 
     form.setValue(`materials.${index}.quantity`, finalQuantity);
-    
+
     // Update reactive materials state
     const updatedMaterials = [...(values?.materials || [])];
-    updatedMaterials[index] = { ...updatedMaterials[index], quantity: finalQuantity };
+    updatedMaterials[index] = {
+      ...updatedMaterials[index],
+      quantity: finalQuantity,
+    };
     setReactiveMaterials(updatedMaterials);
-    
+
     console.log("Quantity updated to:", finalQuantity);
   };
 
@@ -921,12 +924,15 @@ export default function JobOrderForm({
 
     if (newQuantity <= currentStock) {
       form.setValue(`materials.${index}.quantity`, newQuantity);
-      
+
       // Update reactive materials state
       const updatedMaterials = [...(values?.materials || [])];
-      updatedMaterials[index] = { ...updatedMaterials[index], quantity: newQuantity };
+      updatedMaterials[index] = {
+        ...updatedMaterials[index],
+        quantity: newQuantity,
+      };
       setReactiveMaterials(updatedMaterials);
-      
+
       console.log("Quantity updated to:", newQuantity);
     } else {
       toast.error(`Not enough stock for material ID ${materialId}`);

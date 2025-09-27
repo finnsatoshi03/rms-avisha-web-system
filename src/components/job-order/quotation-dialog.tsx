@@ -423,6 +423,11 @@ export default function QuotationDialog({
     setTotalQuote(newSubtotal - discount);
   }, [watchedItems, discount]);
 
+  // Update total when discount changes
+  useEffect(() => {
+    setTotalQuote(subtotal - discount);
+  }, [discount, subtotal]);
+
   // Watch for changes in individual item fields and recalculate
   const watchedItemsValues = form.watch("quotation_items");
   useEffect(() => {
