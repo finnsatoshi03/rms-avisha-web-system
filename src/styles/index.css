@@ -125,6 +125,10 @@ td:last-of-type {
   background-color: #ffc1073f;
   color: #5e4703;
 }
+.status-quotation {
+  background-color: #17a2b83f;
+  color: #0c5460;
+}
 .status-repairing {
   background-color: #007bff4b;
   color: #002144;

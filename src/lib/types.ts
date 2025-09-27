@@ -259,6 +259,7 @@ export type CreateJobOrderData = {
   technical_report?: string;
   downpayment?: number;
   payment_details?: object;
+  isCreatingQuotation?: boolean;
 };
 
 export type MaterialStocks = {

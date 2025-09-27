@@ -334,7 +334,10 @@ async function upsertJobOrder(
 
     return { id: data.id, order_no: data.order_no };
   } else {
-    jobOrderData.status = jobOrder.status ?? "Pending";
+    // Set status to "Quotation" if creating a quotation, otherwise "Pending"
+    jobOrderData.status = jobOrder.isCreatingQuotation
+      ? "Quotation"
+      : jobOrder.status ?? "Pending";
 
     const { data, error } = await supabase
       .from("joborders")
@@ -598,7 +601,7 @@ export async function duplicateJobOrder(id: number) {
       rate: jobOrderData.rate,
       serial_number: jobOrderData.serial_number,
       sub_total: jobOrderData.sub_total,
-      status: "Pending",
+      status: jobOrderData.status === "Quotation" ? "Quotation" : "Pending",
       technician_id: jobOrderData.technician_id,
       technical_report: jobOrderData.technical_report,
       is_copy: true,

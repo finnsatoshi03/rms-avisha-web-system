@@ -52,6 +52,7 @@ const viewColumns = [
 // Add this after the viewColumns definition
 const allStatuses = [
   { label: "Pending", value: "Pending" },
+  { label: "Quotation", value: "Quotation" },
   { label: "For Approval", value: "For Approval" },
   { label: "Repairing", value: "Repairing" },
   { label: "Waiting Parts", value: "Waiting Parts" },

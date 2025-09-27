@@ -632,6 +632,7 @@ export default function JobOrderForm({
       labor_description: values.labor_description || "",
       amount: values.amount || 0,
       accessories: values.accessories || [],
+      isCreatingQuotation: isCreatingQuotation,
     };
 
     if (editSession) {

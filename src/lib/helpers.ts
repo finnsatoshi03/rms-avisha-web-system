@@ -7,6 +7,8 @@ export function getStatusClass(status: string) {
   switch (status.toLowerCase()) {
     case "pending":
       return "status-pending";
+    case "quotation":
+      return "status-quotation";
     case "for approval":
       return "status-for-approval";
     case "repairing":
@@ -668,6 +670,7 @@ export const formatTimeAgo = (date: Date) => {
 export const countJobOrdersByStatus = (jobOrders: JobOrderData[]) => {
   const statusCounts: any = {
     Pending: 0,
+    Quotation: 0,
     "For Approval": 0,
     Repairing: 0,
     "Waiting Parts": 0,
