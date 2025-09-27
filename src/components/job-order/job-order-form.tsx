@@ -441,6 +441,27 @@ export default function JobOrderForm({
 
   const materials = form.watch("materials");
 
+  // Watch for material changes and sync to quotation dialog
+  useEffect(() => {
+    console.log("Job order materials changed:", materials);
+
+    // Only sync if quotation dialog is open and we have materials
+    if (quotationDialogOpen && materials && materials.length > 0) {
+      console.log("Syncing job order materials to quotation dialog");
+      // The quotation dialog will automatically receive the updated materials
+      // through the jobOrderMaterials prop
+    }
+  }, [materials, quotationDialogOpen]);
+
+  // Create a reactive materials array that will trigger re-renders
+  const [reactiveMaterials, setReactiveMaterials] = useState(materials || []);
+
+  // Update reactive materials when form materials change
+  useEffect(() => {
+    console.log("Updating reactive materials:", materials);
+    setReactiveMaterials(materials || []);
+  }, [materials]);
+
   const date = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -704,6 +725,7 @@ export default function JobOrderForm({
   }
 
   const handleMaterialChange = (index: number, materialId: number) => {
+    console.log("Job order material changed:", { index, materialId });
     const selectedMaterial = materialStocks?.find((m) => m.id === materialId);
     if (selectedMaterial) {
       form.setValue(
@@ -712,6 +734,19 @@ export default function JobOrderForm({
       );
       form.setValue(`materials.${index}.material_id`, String(materialId));
       form.setValue(`materials.${index}.unitPrice`, selectedMaterial.price);
+      
+      // Update reactive materials state
+      const values = form.getValues();
+      const updatedMaterials = [...(values?.materials || [])];
+      updatedMaterials[index] = { 
+        ...updatedMaterials[index], 
+        material: selectedMaterial.material_name,
+        material_id: String(materialId),
+        unitPrice: selectedMaterial.price
+      };
+      setReactiveMaterials(updatedMaterials);
+      
+      console.log("Job order material updated:", selectedMaterial);
     }
   };
 
@@ -818,8 +853,23 @@ export default function JobOrderForm({
       material_id: string;
     }>
   ) => {
+    console.log("Job order form received materials update:", updatedMaterials);
+
     // Update the job order form materials with the new material data
     form.setValue("materials", updatedMaterials);
+
+    // Update reactive materials state
+    setReactiveMaterials(updatedMaterials);
+
+    // Trigger form validation and re-render
+    form.trigger("materials");
+
+    // Force a re-render by updating a dummy state if needed
+    // This ensures the form updates are reflected in the UI
+    console.log(
+      "Job order form materials updated to:",
+      form.getValues("materials")
+    );
   };
 
   const getStockForMaterial = (materialId: number) => {
@@ -835,22 +885,49 @@ export default function JobOrderForm({
   };
 
   const decrement = (index: number) => {
+    console.log("Job order decrement called for index:", index);
     const values = form.getValues();
     const newQuantity = (values?.materials?.[index]?.quantity ?? 0) - 1;
-    form.setValue(
-      `materials.${index}.quantity`,
-      newQuantity < 0 ? 0 : newQuantity
-    );
+    const finalQuantity = newQuantity < 0 ? 0 : newQuantity;
+
+    console.log("Decrementing quantity:", {
+      index,
+      newQuantity,
+      finalQuantity,
+    });
+
+    form.setValue(`materials.${index}.quantity`, finalQuantity);
+    
+    // Update reactive materials state
+    const updatedMaterials = [...(values?.materials || [])];
+    updatedMaterials[index] = { ...updatedMaterials[index], quantity: finalQuantity };
+    setReactiveMaterials(updatedMaterials);
+    
+    console.log("Quantity updated to:", finalQuantity);
   };
 
   const increment = (index: number) => {
+    console.log("Job order increment called for index:", index);
     const values = form.getValues();
     const materialId = values?.materials?.[index]?.material_id;
     const currentStock = getStockForMaterial(Number(materialId));
     const newQuantity = (values?.materials?.[index]?.quantity ?? 0) + 1;
 
+    console.log("Incrementing quantity:", {
+      materialId,
+      newQuantity,
+      currentStock,
+    });
+
     if (newQuantity <= currentStock) {
       form.setValue(`materials.${index}.quantity`, newQuantity);
+      
+      // Update reactive materials state
+      const updatedMaterials = [...(values?.materials || [])];
+      updatedMaterials[index] = { ...updatedMaterials[index], quantity: newQuantity };
+      setReactiveMaterials(updatedMaterials);
+      
+      console.log("Quantity updated to:", newQuantity);
     } else {
       toast.error(`Not enough stock for material ID ${materialId}`);
     }
@@ -1914,7 +1991,7 @@ export default function JobOrderForm({
           problem_statement: form.getValues("problem_statement") || "",
         }}
         onClientDataChange={handleClientDataChange}
-        jobOrderMaterials={form.watch("materials") || []}
+        jobOrderMaterials={reactiveMaterials}
         onMaterialsChange={handleMaterialsChange}
         selectedBranchId={watchedBranchId}
       />

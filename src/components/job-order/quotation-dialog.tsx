@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -354,10 +354,24 @@ export default function QuotationDialog({
 
   const watchedItems = form.watch("quotation_items");
 
-  // Debounced sync from job order to quotation to prevent conflicts
+  // Bidirectional sync with conflict prevention
   useEffect(() => {
-    if (isSyncingRef.current) return; // Prevent infinite loops
-    if (!jobOrderMaterials) return;
+    console.log(
+      "Quotation dialog received jobOrderMaterials:",
+      jobOrderMaterials
+    );
+    console.log("isSyncingRef.current:", isSyncingRef.current);
+
+    if (isSyncingRef.current) {
+      console.log("Skipping sync - already syncing");
+      return; // Prevent infinite loops
+    }
+    if (!jobOrderMaterials || jobOrderMaterials.length === 0) {
+      console.log("Skipping sync - no materials");
+      return;
+    }
+
+    console.log("Starting sync from job order to quotation");
 
     // Debounce the sync to prevent conflicts with user input
     const timeoutId = setTimeout(() => {
@@ -371,10 +385,12 @@ export default function QuotationDialog({
         })
       );
 
+      console.log("Converting to quotation items:", updatedItems);
+
       // Set sync flag
       isSyncingRef.current = true;
 
-      // Sync to keep both forms in sync
+      // Update quotation items with job order materials
       form.setValue("quotation_items", updatedItems);
 
       // Recalculate totals
@@ -385,11 +401,14 @@ export default function QuotationDialog({
       setSubtotal(newSubtotal);
       setTotalQuote(newSubtotal - discount);
 
+      console.log("Quotation dialog updated with new materials");
+
       // Reset sync flag after a short delay
       setTimeout(() => {
         isSyncingRef.current = false;
+        console.log("Sync flag reset");
       }, 100);
-    }, 500); // 500ms debounce
+    }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
   }, [jobOrderMaterials, form, discount]);
@@ -548,23 +567,33 @@ export default function QuotationDialog({
     }
   };
 
-  const handleMaterialsChange = useCallback(
-    (updatedMaterials: QuotationItem[]) => {
-      // Convert quotation items to job order material format
-      const jobOrderMaterials = updatedMaterials.map((item) => ({
-        material: item.description,
-        quantity: item.qty,
-        unitPrice: item.unit_price,
-        material_id: item.material_id,
-      }));
+  const handleMaterialsChange = (updatedMaterials: QuotationItem[]) => {
+    // Prevent infinite loops
+    if (isSyncingRef.current) return;
 
-      // Sync materials back to job order form
-      if (onMaterialsChange) {
-        onMaterialsChange(jobOrderMaterials);
-      }
-    },
-    [onMaterialsChange]
-  );
+    console.log(
+      "Quotation dialog syncing materials to job order:",
+      updatedMaterials
+    );
+
+    // Convert quotation items to job order material format
+    const jobOrderMaterials = updatedMaterials.map((item) => ({
+      material: item.description,
+      quantity: item.qty,
+      unitPrice: item.unit_price,
+      material_id: item.material_id,
+    }));
+
+    console.log("Converted to job order format:", jobOrderMaterials);
+
+    // Sync materials back to job order form
+    if (onMaterialsChange) {
+      console.log("Calling onMaterialsChange with:", jobOrderMaterials);
+      onMaterialsChange(jobOrderMaterials);
+    } else {
+      console.log("onMaterialsChange is not available");
+    }
+  };
 
   // DISABLED: Auto-sync from quotation to job order to prevent quantity conflicts
   // Manual sync will happen only when user explicitly saves the quotation
@@ -592,12 +621,11 @@ export default function QuotationDialog({
       (item) => item.material_id && item.material_id !== ""
     );
     if (validItems.length > 0) {
-      console.log("Manual sync on save:", validItems);
       handleMaterialsChange(validItems);
     }
 
     onSave(quotationData);
-    setPrintSelectionDialogOpen(true);
+    onOpenChange(false); // Close the dialog after saving
   };
 
   const handlePrintSelection = (option: "quotation" | "job_order" | "both") => {
@@ -856,36 +884,44 @@ export default function QuotationDialog({
                   <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
                     Company Information
                   </h2>
-                  <div className="space-y-0 border-b py-2">
-                    <div className="space-y-0 flex justify-between items-center w-full">
-                      <FormLabel>Company Name</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Enter company name"
-                          className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
-                          value={form.watch("company")}
-                          onChange={(e) =>
-                            form.setValue("company", e.target.value)
-                          }
-                        />
-                      </FormControl>
-                    </div>
-                  </div>
-                  <div className="space-y-0 border-b py-2">
-                    <div className="space-y-0 flex justify-between items-center w-full">
-                      <FormLabel>Company Address</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Enter company address"
-                          className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
-                          value={form.watch("address")}
-                          onChange={(e) =>
-                            form.setValue("address", e.target.value)
-                          }
-                        />
-                      </FormControl>
-                    </div>
-                  </div>
+                  <FormField
+                    control={form.control}
+                    name="company"
+                    render={({ field }) => (
+                      <FormItem className="border-b py-2">
+                        <div className="space-y-0 flex justify-between items-center w-full">
+                          <FormLabel>Company Name</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter company name"
+                              className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
+                              {...field}
+                            />
+                          </FormControl>
+                        </div>
+                        <FormMessage className="text-right" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem className="border-b py-2">
+                        <div className="space-y-0 flex justify-between items-center w-full">
+                          <FormLabel>Company Address</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter company address"
+                              className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
+                              {...field}
+                            />
+                          </FormControl>
+                        </div>
+                        <FormMessage className="text-right" />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </div>
             </div>
