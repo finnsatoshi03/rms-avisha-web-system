@@ -57,6 +57,8 @@ import {
 import { createEditJobOrder } from "../../services/apiJobOrders";
 import { getMaterialStocks } from "../../services/apiMaterials";
 import { useUser } from "../auth/useUser";
+import { useBranchValidation } from "../../hooks/useBranchValidation";
+import { BranchWarning } from "../ui/branch-warning";
 import DiscountDialog from "./discount-option-dialog";
 import { Checkbox } from "../ui/checkbox";
 import { baseSchema } from "./jobOrderSchema";
@@ -127,6 +129,18 @@ const MaterialCombobox: React.FC<MaterialComboboxProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
+
+  // Reset selection when branch changes
+  useEffect(() => {
+    if (value) {
+      const selectedMaterial = materials?.find(
+        (stock) => String(stock.id) === value && stock.branch_id === branchId
+      );
+      if (!selectedMaterial) {
+        onChange(""); // Clear selection if material is not available in new branch
+      }
+    }
+  }, [branchId, value, materials, onChange]);
 
   const filteredMaterials =
     materials?.filter((stock) => {
@@ -325,11 +339,6 @@ export default function JobOrderForm({
     isTechnician && user?.user_metadata.role?.includes("taytay");
   const userIsGeneral = isTechnician && !userIsPasig && !userIsTaytay;
 
-  const { data: materialStocks, isLoading: materialStocksLoading } = useQuery({
-    queryKey: ["materialStocks", { fetchAll: true }],
-    queryFn: () => getMaterialStocks({ fetchAll: true }),
-  });
-
   // Create
   const { mutate: createJobOrder, isPending: isCreating } = useMutation({
     mutationFn: (newJobOrder: CreateJobOrderData) =>
@@ -361,9 +370,6 @@ export default function JobOrderForm({
     },
   });
   // console.log(editValuesWithClient.materials);
-
-  const isPending = isCreating || isEditing || materialStocksLoading;
-  const onWarranty = editSession && Boolean(editValues.warranty);
 
   const extendedBaseSchema = isAdmin
     ? baseSchema.extend({
@@ -413,22 +419,25 @@ export default function JobOrderForm({
         },
   });
 
+  const watchedBranchId = form.watch("branch_id");
+
+  // Branch validation - watch for branch changes
+  const { branchId, hasValidBranch, warningMessage } =
+    useBranchValidation(watchedBranchId);
+
+  const { data: materialStocks, isLoading: materialStocksLoading } = useQuery({
+    queryKey: ["materialStocks", { fetchAll: true, branchId: watchedBranchId }],
+    queryFn: () => getMaterialStocks({ fetchAll: true }),
+  });
+
+  const isPending = isCreating || isEditing || materialStocksLoading;
+  const onWarranty = editSession && Boolean(editValues.warranty);
+
   const [initialFormValues, setInitialFormValues] = useState(form.getValues());
   const [isFormChanged, setIsFormChanged] = useState(false);
 
   const materials = form.watch("materials");
-  const branchId =
-    isAdmin || userIsGeneral
-      ? form.watch("branch_id")
-      : userIsTaytay
-      ? 1
-      : userIsPasig
-      ? 2
-      : isTaytay
-      ? 1
-      : isPasig
-      ? 2
-      : 0;
+
   const date = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -1248,11 +1257,6 @@ export default function JobOrderForm({
                   <h2 className="text-xs font-bold opacity-40">
                     Labor Details
                   </h2>
-                  {isCreatingQuotation && (
-                    <div className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full">
-                      Disabled - Quotation Active
-                    </div>
-                  )}
                 </div>
                 <FormField
                   control={form.control}
@@ -1304,7 +1308,7 @@ export default function JobOrderForm({
                       <FormControl>
                         <Textarea
                           placeholder="Describe the work performed"
-                          disabled={isFormReadonly || isCreatingQuotation}
+                          disabled={isFormReadonly}
                           {...field}
                         />
                       </FormControl>
@@ -1324,7 +1328,7 @@ export default function JobOrderForm({
                           onValueChange={(value) => {
                             field.onChange(Number(value));
                           }}
-                          disabled={isFormReadonly || isCreatingQuotation}
+                          disabled={isFormReadonly}
                         >
                           <FormControl>
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
@@ -1369,7 +1373,7 @@ export default function JobOrderForm({
                               );
                               field.onChange(value ? parseFloat(value) : "");
                             }}
-                            disabled={isFormReadonly || isCreatingQuotation}
+                            disabled={isFormReadonly}
                           />
                         </FormControl>
                       </div>
@@ -1445,17 +1449,8 @@ export default function JobOrderForm({
               <h2 className="text-xs font-bold opacity-40">
                 Material and Accessories
               </h2>
-              {isCreatingQuotation && (
-                <div className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full">
-                  Disabled - Quotation Active
-                </div>
-              )}
             </div>
-            <div
-              className={`grid grid-cols-[0.2fr_1fr_0.3fr_0.5fr_0.5fr_0.2fr] gap-4 px-4 py-3 border rounded-xl ${
-                isCreatingQuotation ? "opacity-50 pointer-events-none" : ""
-              }`}
-            >
+            <div className="grid grid-cols-[0.2fr_1fr_0.3fr_0.5fr_0.5fr_0.2fr] gap-4 px-4 py-3 border rounded-xl">
               <h2 className="text-sm">Used</h2>
               <h2 className="text-sm">Material</h2>
               <h2 className="text-sm">Quantity</h2>
@@ -1490,17 +1485,23 @@ export default function JobOrderForm({
                     render={({ field }) => (
                       <FormItem className="space-y-0 w-full">
                         <FormControl>
-                          <MaterialCombobox
-                            value={field.value ? String(field.value) : ""}
-                            onChange={(value) => {
-                              handleMaterialChange(index, Number(value));
-                              field.onChange(String(value));
-                            }}
-                            materials={materialStocks}
-                            disabled={isFormReadonly}
-                            branchId={branchId || 0}
-                            materialsJobOrder={materialsJobOrder}
-                          />
+                          <div className="flex items-center gap-2">
+                            <MaterialCombobox
+                              value={field.value ? String(field.value) : ""}
+                              onChange={(value) => {
+                                handleMaterialChange(index, Number(value));
+                                field.onChange(String(value));
+                              }}
+                              materials={materialStocks}
+                              disabled={isFormReadonly || !hasValidBranch}
+                              branchId={branchId || 0}
+                              key={`material-${index}-${branchId}`}
+                              materialsJobOrder={materialsJobOrder}
+                            />
+                            {!hasValidBranch && (
+                              <BranchWarning message={warningMessage} />
+                            )}
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1621,7 +1622,7 @@ export default function JobOrderForm({
                     );
                   }
                 }}
-                disabled={isFormReadonly || isCreatingQuotation}
+                disabled={isFormReadonly}
               >
                 <Plus size={14} strokeWidth={1.5} className="mr-2" />
                 Add Material
@@ -1639,11 +1640,7 @@ export default function JobOrderForm({
                 {form.formState.errors.materials.message}
               </p>
             )}
-            <div
-              className={
-                isCreatingQuotation ? "opacity-50 pointer-events-none" : ""
-              }
-            >
+            <div>
               <AccessoriesSection
                 selectedAccessories={selectedAccessories}
                 handleAccessorySelection={handleAccessorySelection}
@@ -1875,6 +1872,8 @@ export default function JobOrderForm({
           problem_statement: form.getValues("problem_statement") || "",
         }}
         onClientDataChange={handleClientDataChange}
+        jobOrderMaterials={form.getValues("materials") || []}
+        selectedBranchId={watchedBranchId}
       />
     </>
   );

@@ -2,7 +2,11 @@ import React, { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Trash, Clock, X } from "lucide-react";
+import { Plus, Trash, Clock, X, Check, ChevronsUpDown } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { getMaterialStocks } from "../../services/apiMaterials";
+import { useBranchValidation } from "../../hooks/useBranchValidation";
+import { BranchWarning } from "../ui/branch-warning";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import DiscountDialog from "./discount-option-dialog";
@@ -27,14 +31,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { QuotationItem, CreateQuotationData } from "../../lib/types";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "../ui/command";
+import {
+  QuotationItem,
+  CreateQuotationData,
+  MaterialStocks,
+} from "../../lib/types";
 import { formatNumberWithCommas } from "../../lib/helpers";
+import { cn } from "../../lib/utils";
 
 const quotationItemSchema = z.object({
   description: z.string().min(1, "Description is required"),
   qty: z.number().min(1, "Quantity must be at least 1"),
   unit_price: z.number().min(0, "Unit price must be non-negative"),
   amount: z.number().min(0, "Amount must be non-negative"),
+  material_id: z.string().min(1, "Please select an inventory item"),
 });
 
 const quotationSchema = z.object({
@@ -72,6 +90,13 @@ interface QuotationDialogProps {
     machine_type: string;
     problem_statement: string;
   }) => void;
+  jobOrderMaterials?: Array<{
+    material: string;
+    quantity: number;
+    unitPrice: number;
+    material_id: string;
+  }>;
+  selectedBranchId?: number | null;
 }
 
 const validityOptions = [
@@ -80,6 +105,125 @@ const validityOptions = [
   { label: "3 Months", value: 3 },
 ];
 
+interface InventoryComboboxProps {
+  value: string;
+  onChange: (value: string) => void;
+  materials: MaterialStocks[] | undefined;
+  disabled: boolean;
+  branchId: number | null | undefined;
+  quotationItems: QuotationItem[];
+}
+
+const InventoryCombobox: React.FC<InventoryComboboxProps> = ({
+  value,
+  onChange,
+  materials,
+  disabled,
+  branchId,
+  quotationItems,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+
+  // Reset selection when branch changes
+  useEffect(() => {
+    if (value) {
+      const selectedMaterial = materials?.find(
+        (stock) => String(stock.id) === value && stock.branch_id === branchId
+      );
+      if (!selectedMaterial) {
+        onChange(""); // Clear selection if material is not available in new branch
+      }
+    }
+  }, [branchId, value, materials, onChange]);
+
+  const filteredMaterials =
+    materials?.filter((stock) => {
+      const isMaterialSelected = quotationItems.some(
+        (item) => String(item.material_id) === String(stock.id)
+      );
+      return (
+        (disabled || !stock.deleted) &&
+        stock.branch_id === branchId &&
+        (isMaterialSelected || stock.stocks > 0)
+      );
+    }) || [];
+
+  // Get selected material name for display
+  const selectedMaterial = filteredMaterials.find(
+    (material) => String(material.id) === value
+  );
+  const selectedMaterialName = selectedMaterial
+    ? `${selectedMaterial.material_name}${
+        selectedMaterial.brand ? ` - ${selectedMaterial.brand}` : ""
+      }`
+    : "Select inventory item";
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="justify-between border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit"
+          disabled={disabled}
+        >
+          <span className="truncate max-w-[200px] text-left">
+            {value ? selectedMaterialName : "Select inventory item"}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[300px]" align="start">
+        <Command>
+          <CommandInput
+            placeholder="Search inventory..."
+            onValueChange={setSearchValue}
+          />
+          <CommandEmpty>No inventory item found.</CommandEmpty>
+          <CommandGroup className="max-h-[300px] overflow-y-auto">
+            {filteredMaterials
+              .filter(
+                (stock) =>
+                  stock.material_name
+                    .toLowerCase()
+                    .includes(searchValue.toLowerCase()) ||
+                  (stock.brand &&
+                    stock.brand
+                      .toLowerCase()
+                      .includes(searchValue.toLowerCase()))
+              )
+              .map((stock) => (
+                <CommandItem
+                  key={stock.id}
+                  value={stock.material_name.toLowerCase()}
+                  onSelect={() => {
+                    onChange(String(stock.id));
+                    setOpen(false);
+                    setSearchValue("");
+                  }}
+                  className="flex items-center"
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4 flex-shrink-0",
+                      value === String(stock.id) ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span className="truncate">
+                    {stock.material_name}{" "}
+                    {stock.brand ? `- ${stock.brand}` : ""}
+                  </span>
+                </CommandItem>
+              ))}
+          </CommandGroup>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 export default function QuotationDialog({
   open,
   onOpenChange,
@@ -87,6 +231,8 @@ export default function QuotationDialog({
   initialData,
   clientData,
   onClientDataChange,
+  jobOrderMaterials = [],
+  selectedBranchId,
 }: QuotationDialogProps) {
   const [subtotal, setSubtotal] = useState(0);
   const [discount, setDiscount] = useState(0);
@@ -106,12 +252,60 @@ export default function QuotationDialog({
     }
   );
 
+  // Branch validation - use the selected branch from job order form
+  const { branchId, hasValidBranch, warningMessage } =
+    useBranchValidation(selectedBranchId);
+
+  // Watch for branch changes in the parent form (if any)
+  const [currentBranchId, setCurrentBranchId] = useState(branchId);
+
+  useEffect(() => {
+    setCurrentBranchId(branchId);
+  }, [branchId]);
+
+  // Fetch material stocks for inventory selection
+  const { data: materialStocks } = useQuery({
+    queryKey: ["material_stocks", { branchId: currentBranchId }],
+    queryFn: () => getMaterialStocks({ fetchAll: false }),
+  });
+
   // Update editedClientData when clientData prop changes
   useEffect(() => {
     if (clientData) {
       setEditedClientData(clientData);
     }
   }, [clientData]);
+
+  // Create initial quotation items from job order materials (inventory-based only)
+  const createInitialQuotationItems = () => {
+    const items: QuotationItem[] = [];
+
+    // Add materials from job order that have material_id (inventory items)
+    jobOrderMaterials.forEach((material) => {
+      if (material.material && material.quantity > 0 && material.material_id) {
+        items.push({
+          description: material.material,
+          qty: material.quantity,
+          unit_price: material.unitPrice,
+          amount: material.quantity * material.unitPrice,
+          material_id: material.material_id,
+        });
+      }
+    });
+
+    // If no items from job order, add a default empty item
+    if (items.length === 0) {
+      items.push({
+        description: "",
+        qty: 1,
+        unit_price: 0,
+        amount: 0,
+        material_id: "",
+      });
+    }
+
+    return items;
+  };
 
   const form = useForm<QuotationFormData>({
     resolver: zodResolver(quotationSchema),
@@ -120,9 +314,8 @@ export default function QuotationDialog({
       address: initialData?.address || "",
       validity_months: 1,
       note: initialData?.note || "",
-      quotation_items: initialData?.quotation_items || [
-        { description: "", qty: 1, unit_price: 0, amount: 0 },
-      ],
+      quotation_items:
+        initialData?.quotation_items || createInitialQuotationItems(),
     },
   });
 
@@ -195,12 +388,51 @@ export default function QuotationDialog({
   };
 
   const handleAddItem = () => {
-    append({ description: "", qty: 1, unit_price: 0, amount: 0 });
+    append({
+      description: "",
+      qty: 1,
+      unit_price: 0,
+      amount: 0,
+      material_id: "",
+    });
   };
 
   const handleRemoveItem = (index: number) => {
     if (fields.length > 1) {
       remove(index);
+    }
+  };
+
+  const handleInventorySelection = (index: number, materialId: string) => {
+    const selectedMaterial = materialStocks?.find(
+      (stock) => String(stock.id) === materialId
+    );
+
+    if (selectedMaterial) {
+      // Update the form with the selected material details
+      form.setValue(`quotation_items.${index}.material_id`, materialId);
+      form.setValue(
+        `quotation_items.${index}.description`,
+        selectedMaterial.material_name
+      );
+      form.setValue(
+        `quotation_items.${index}.unit_price`,
+        selectedMaterial.price
+      );
+
+      // Recalculate amount
+      const currentQty = form.getValues(`quotation_items.${index}.qty`) || 1;
+      const newAmount = currentQty * selectedMaterial.price;
+      form.setValue(`quotation_items.${index}.amount`, newAmount);
+
+      // Trigger recalculation
+      const items = form.getValues("quotation_items");
+      const newSubtotal = items.reduce(
+        (total, item) => total + (item.amount || 0),
+        0
+      );
+      setSubtotal(newSubtotal);
+      setTotalQuote(newSubtotal - discount);
     }
   };
 
@@ -565,7 +797,7 @@ export default function QuotationDialog({
                 Quotation Items
               </h2>
               <div className="grid grid-cols-[1fr_0.3fr_0.5fr_0.5fr_0.2fr] gap-4 px-4 py-3 border rounded-xl">
-                <h2 className="text-sm">Description</h2>
+                <h2 className="text-sm">Inventory Item</h2>
                 <h2 className="text-sm">Qty</h2>
                 <h2 className="text-sm">Unit Price</h2>
                 <h2 className="text-sm">Amount</h2>
@@ -576,21 +808,29 @@ export default function QuotationDialog({
                     <FormField
                       control={form.control}
                       name={`quotation_items.${index}.description`}
-                      render={({ field }) => (
+                      render={() => (
                         <FormItem className="space-y-0 w-full">
                           <FormControl>
-                            <Input
-                              placeholder="Item description"
-                              className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
-                              {...field}
-                              onChange={(e) =>
-                                handleItemChange(
-                                  index,
-                                  "description",
-                                  e.target.value
-                                )
-                              }
-                            />
+                            <div className="flex items-center gap-2">
+                              <InventoryCombobox
+                                value={
+                                  form.getValues(
+                                    `quotation_items.${index}.material_id`
+                                  ) || ""
+                                }
+                                onChange={(value) =>
+                                  handleInventorySelection(index, value)
+                                }
+                                materials={materialStocks}
+                                disabled={!hasValidBranch}
+                                branchId={currentBranchId}
+                                key={`inventory-${index}-${currentBranchId}`}
+                                quotationItems={watchedItems}
+                              />
+                              {!hasValidBranch && (
+                                <BranchWarning message={warningMessage} />
+                              )}
+                            </div>
                           </FormControl>
                           <FormMessage />
                         </FormItem>

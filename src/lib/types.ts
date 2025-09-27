@@ -339,6 +339,7 @@ export type QuotationItem = {
   qty: number;
   unit_price: number;
   amount: number;
+  material_id: string;
 };
 
 export type QuotationData = {
