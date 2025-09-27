@@ -27,6 +27,7 @@ export default function MergedPDF({
 
   const quotationPDFData = {
     ...quotationData,
+    quote_no: quotationData.quote_no || "TBD", // Ensure quote_no is always a string
     end_date: endDate.toISOString().split("T")[0],
     clientData: {
       name: jobOrderData.name || "",
