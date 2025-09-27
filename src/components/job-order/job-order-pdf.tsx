@@ -15,6 +15,7 @@ import font2 from "/fonts/Montserrat-Black.ttf";
 interface JobOrderPDFProps {
   data: CreateJobOrderData;
   type?: "company" | "client" | "both" | null;
+  contentOnly?: boolean;
 }
 
 Font.register({
@@ -572,7 +573,11 @@ function Content({ data }: { data: CreateJobOrderData }) {
 
 const Watermark = () => <Text style={styles.watermark}>COPY</Text>;
 
-export default function JobOrderPDF({ data, type }: JobOrderPDFProps) {
+export default function JobOrderPDF({
+  data,
+  type,
+  contentOnly = false,
+}: JobOrderPDFProps) {
   const printBoth = (
     <>
       <Page style={styles.page}>
@@ -586,8 +591,8 @@ export default function JobOrderPDF({ data, type }: JobOrderPDFProps) {
     </>
   );
 
-  return (
-    <Document>
+  const content = (
+    <>
       {type === "company" && (
         <Page style={styles.page}>
           <Content data={data} />
@@ -601,8 +606,14 @@ export default function JobOrderPDF({ data, type }: JobOrderPDFProps) {
         </Page>
       )}
       {!type || type === "both" ? printBoth : null}
-    </Document>
+    </>
   );
+
+  if (contentOnly) {
+    return content;
+  }
+
+  return <Document>{content}</Document>;
 }
 
 const styles = StyleSheet.create({

@@ -29,6 +29,7 @@ interface QuotationPDFProps {
     end_date: string;
   };
   type?: "company" | "client" | "both" | null;
+  contentOnly?: boolean;
 }
 
 Font.register({
@@ -282,7 +283,11 @@ function SecondPageContent({ data }: { data: QuotationPDFProps["data"] }) {
 
 const Watermark = () => <Text style={styles.watermark}>COPY</Text>;
 
-export default function QuotationPDF({ data, type }: QuotationPDFProps) {
+export default function QuotationPDF({
+  data,
+  type,
+  contentOnly = false,
+}: QuotationPDFProps) {
   const printBoth = (
     <>
       <Page style={styles.page}>
@@ -296,8 +301,8 @@ export default function QuotationPDF({ data, type }: QuotationPDFProps) {
     </>
   );
 
-  return (
-    <Document>
+  const content = (
+    <>
       {type === "company" && (
         <Page style={styles.page}>
           <FirstPageContent />
@@ -311,8 +316,14 @@ export default function QuotationPDF({ data, type }: QuotationPDFProps) {
         </Page>
       )}
       {!type || type === "both" ? printBoth : null}
-    </Document>
+    </>
   );
+
+  if (contentOnly) {
+    return content;
+  }
+
+  return <Document>{content}</Document>;
 }
 
 const styles = StyleSheet.create({

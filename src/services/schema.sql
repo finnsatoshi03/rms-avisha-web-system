@@ -247,8 +247,16 @@ CREATE TABLE IF NOT EXISTS quotation_items (
   qty NUMERIC NOT NULL DEFAULT 1,
   unit_price NUMERIC NOT NULL DEFAULT 0,
   amount NUMERIC NOT NULL DEFAULT 0,
+  material_id TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT quotation_items_pkey PRIMARY KEY (id),
   CONSTRAINT quotation_items_quotation_id_fkey FOREIGN KEY (quotation_id) REFERENCES public.quotations(id) ON DELETE CASCADE
 );
+
+-- Add material_id column to existing quotation_items table if it doesn't exist
+ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS material_id TEXT;
+
+-- Note: material_id is stored as TEXT to match frontend expectations
+-- Foreign key constraint is not added due to type mismatch (TEXT vs INTEGER)
+-- The relationship is maintained at the application level

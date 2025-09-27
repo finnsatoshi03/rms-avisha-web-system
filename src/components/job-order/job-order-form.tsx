@@ -42,6 +42,8 @@ import { Separator } from "../ui/separator";
 
 import AccessoriesSection from "./accessories-section";
 import JobOrderPDF from "./job-order-pdf";
+import QuotationPDF from "./quotation-pdf";
+import MergedPDF from "./merged-pdf";
 import {
   MaterialItem,
   JobOrderData,
@@ -592,6 +594,120 @@ export default function JobOrderForm({
     window.addEventListener("focus", afterPrint, { once: true });
   };
 
+  const generateQuotationPDF = async (quotationData: CreateQuotationData) => {
+    setIsPrinting(true);
+
+    try {
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + 1); // Default 1 month validity
+
+      const quotationPDFData = {
+        ...quotationData,
+        end_date: endDate.toISOString().split("T")[0],
+        clientData: {
+          name: form.getValues("name") || "",
+          contact_number: form.getValues("contact_number") || "",
+          email: form.getValues("email") || "",
+          brand_model: form.getValues("brand_model") || "",
+          serial_number: form.getValues("serial_number") || "",
+          machine_type: form.getValues("machine_type") || "",
+          problem_statement: form.getValues("problem_statement") || "",
+        },
+        branch_id: watchedBranchId || 1,
+        job_order_no: `JO-${Date.now()}`, // Temporary job order number
+        date: new Date().toISOString().split("T")[0],
+      };
+
+      const doc = <QuotationPDF data={quotationPDFData} type="both" />;
+      const asBlob = await pdf(doc).toBlob();
+
+      const src = URL.createObjectURL(asBlob);
+      const iframe = document.createElement("iframe");
+      iframe.style.display = "none";
+      document.body.appendChild(iframe);
+
+      iframe.onload = function () {
+        setTimeout(function () {
+          iframe.contentWindow?.print();
+        }, 1);
+      };
+
+      iframe.src = src;
+
+      const afterPrint = () => {
+        setIsPrinting(false);
+        setPrintDialogOpen(false);
+        saveAs(asBlob, `quotation-${Date.now()}.pdf`);
+        if (onClose) onClose();
+        URL.revokeObjectURL(src);
+      };
+
+      window.addEventListener("focus", afterPrint, { once: true });
+    } catch (error) {
+      console.error("Error generating quotation PDF:", error);
+      setIsPrinting(false);
+    }
+  };
+
+  const generateMergedPDF = async (
+    jobOrderData: CreateJobOrderData,
+    quotationData: CreateQuotationData
+  ) => {
+    setIsPrinting(true);
+
+    try {
+      // Find the technician by order_received ID
+      const orderReceivedTechnician = technicians.find(
+        (tech) => tech.id === jobOrderData.order_received
+      );
+      const orderReceivedTechnicianName = orderReceivedTechnician
+        ? orderReceivedTechnician.fullname
+        : "---";
+
+      // Find the technician by technician_id
+      const technician = technicians.find(
+        (tech) => tech.id === jobOrderData.technician_id
+      );
+      const technicianName = technician ? technician.fullname : "---";
+
+      const doc = (
+        <MergedPDF
+          jobOrderData={jobOrderData}
+          quotationData={quotationData}
+          orderReceivedTechnicianName={orderReceivedTechnicianName || "---"}
+          technicianName={technicianName || "---"}
+        />
+      );
+      const asBlob = await pdf(doc).toBlob();
+
+      const src = URL.createObjectURL(asBlob);
+      const iframe = document.createElement("iframe");
+      iframe.style.display = "none";
+      document.body.appendChild(iframe);
+
+      iframe.onload = function () {
+        setTimeout(function () {
+          iframe.contentWindow?.print();
+        }, 1);
+      };
+
+      iframe.src = src;
+
+      const afterPrint = () => {
+        setIsPrinting(false);
+        setPrintDialogOpen(false);
+        saveAs(asBlob, `job-order-with-quotation-${Date.now()}.pdf`);
+        if (onClose) onClose();
+        URL.revokeObjectURL(src);
+      };
+
+      window.addEventListener("focus", afterPrint, { once: true });
+    } catch (error) {
+      console.error("Error generating merged PDF:", error);
+      setIsPrinting(false);
+    }
+  };
+
   function onSubmit(values: z.infer<typeof formSchema>) {
     // Filter out any undefined or null material entries
     const filteredMaterials = values.materials
@@ -805,18 +921,19 @@ export default function JobOrderForm({
     setPrintSelectionDialogOpen(false);
 
     if (option === "quotation") {
-      // Handle quotation printing - this will be handled by the quotation dialog
-      // For now, we'll just close the dialog
-      setPrintDialogOpen(true);
+      // Handle quotation printing
+      if (quotationData) {
+        generateQuotationPDF(quotationData);
+      }
     } else if (option === "job_order") {
       // Handle job order printing
       if (jobOrderDataForPrinting) {
         generatePDF(jobOrderDataForPrinting, "company");
       }
     } else if (option === "both") {
-      // Handle both - show print dialog for job order first
-      if (jobOrderDataForPrinting) {
-        generatePDF(jobOrderDataForPrinting, "both");
+      // Handle both - generate merged PDF with both documents
+      if (jobOrderDataForPrinting && quotationData) {
+        generateMergedPDF(jobOrderDataForPrinting, quotationData);
       }
     }
   };
