@@ -693,6 +693,12 @@ export default function JobOrderForm({
   ) => {
     setIsPrinting(true);
 
+    const quotationPDFData = {
+      ...quotationData,
+      job_order_no: quotationData.job_order_no || "",
+      quote_no: quotationData.quote_no || "",
+    };
+
     try {
       // Find the technician by order_received ID
       const orderReceivedTechnician = technicians.find(
@@ -711,7 +717,7 @@ export default function JobOrderForm({
       const doc = (
         <MergedPDF
           jobOrderData={jobOrderData}
-          quotationData={quotationData}
+          quotationData={quotationPDFData}
           orderReceivedTechnicianName={orderReceivedTechnicianName || "---"}
           technicianName={technicianName || "---"}
         />
