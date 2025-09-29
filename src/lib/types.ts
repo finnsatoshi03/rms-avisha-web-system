@@ -355,6 +355,9 @@ export type QuotationData = {
   discount: number;
   labor_rate: number;
   total_quote: number;
+  status?: "draft" | "for_approval" | "approved" | "rejected" | "expired";
+  is_active?: boolean;
+  is_final?: boolean;
   created_at: string;
   updated_at: string;
   quotation_items?: QuotationItem[];
@@ -371,5 +374,10 @@ export type CreateQuotationData = {
   discount: number;
   labor_rate: number;
   total_quote: number;
+  status?: "draft" | "for_approval" | "approved" | "rejected" | "expired";
+  is_active?: boolean;
+  is_final?: boolean;
   quotation_items?: QuotationItem[];
+  auto_generate_quote_no?: boolean;
+  manual_quote_no?: string;
 };

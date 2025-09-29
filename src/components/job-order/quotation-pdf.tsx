@@ -108,7 +108,15 @@ function FirstPageContent() {
           </View>
           <Text style={styles.ceoTitle}>Chief Executive Officer (CEO)</Text>
         </View>
-        <Image style={styles.partnershipLogo} src="./Brother-Partnership.png" />
+        <View style={styles.partnershipContainer}>
+          <Image
+            style={styles.partnershipLogo}
+            src="./Brother-Partnership.png"
+          />
+          <Text style={styles.authorizedServiceCenter}>
+            AUTHORIZED SERVICE CENTER
+          </Text>
+        </View>
       </View>
     </>
   );
@@ -413,8 +421,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 20,
   },
+  partnershipContainer: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+  },
   partnershipLogo: {
     width: 200,
+  },
+  authorizedServiceCenter: {
+    fontSize: 11,
+    fontWeight: "normal",
+    fontFamily: "Agency FB",
+    textAlign: "center",
+    marginTop: 5,
   },
   secondPageHeader: {
     display: "flex",

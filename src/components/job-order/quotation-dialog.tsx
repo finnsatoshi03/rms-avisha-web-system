@@ -46,6 +46,7 @@ import {
 } from "../../lib/types";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import { cn } from "../../lib/utils";
+import { supabase } from "../../services/supabase";
 
 const quotationItemSchema = z.object({
   description: z.string().min(1, "Description is required"),
@@ -55,6 +56,36 @@ const quotationItemSchema = z.object({
   material_id: z.string().min(1, "Please select an inventory item"),
 });
 
+// Function to validate quote number uniqueness
+const validateQuoteNumberUniqueness = async (
+  quoteNo: string
+): Promise<boolean> => {
+  if (!quoteNo || quoteNo.trim() === "") return true; // Empty is valid (will be auto-generated)
+
+  try {
+    const { data, error } = await supabase
+      .from("quotations")
+      .select("quote_no")
+      .eq("quote_no", quoteNo.trim())
+      .single();
+
+    if (error && error.code === "PGRST116") {
+      // No rows found - quote number is unique
+      return true;
+    }
+
+    if (data) {
+      // Quote number already exists
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error validating quote number:", error);
+    return false;
+  }
+};
+
 const quotationSchema = z.object({
   company: z.string().optional(),
   address: z.string().optional(),
@@ -62,6 +93,20 @@ const quotationSchema = z.object({
   labor_rate: z.number().min(0, "Labor rate must be non-negative"),
   note: z.string().optional(),
   quotation_items: z.array(quotationItemSchema).optional(),
+  auto_generate_quote_no: z.boolean().default(true),
+  manual_quote_no: z
+    .string()
+    .optional()
+    .refine(
+      async (value) => {
+        if (!value || value.trim() === "") return true;
+        return await validateQuoteNumberUniqueness(value);
+      },
+      {
+        message:
+          "Quote number already exists. Please choose a different number.",
+      }
+    ),
 });
 
 type QuotationFormData = z.infer<typeof quotationSchema>;
@@ -333,6 +378,9 @@ export default function QuotationDialog({
       note: initialData?.note || "",
       quotation_items:
         initialData?.quotation_items || createInitialQuotationItems(),
+      auto_generate_quote_no:
+        !initialData?.quote_no || initialData?.quote_no === "", // Auto-generate if no existing quote_no
+      manual_quote_no: initialData?.quote_no || "",
     },
   });
 
@@ -608,7 +656,7 @@ export default function QuotationDialog({
     endDate.setMonth(endDate.getMonth() + data.validity_months);
 
     const quotationData: CreateQuotationData = {
-      quote_no: "", // Will be generated automatically by database trigger
+      quote_no: data.auto_generate_quote_no ? "" : data.manual_quote_no || "", // Empty string for auto-generation, manual value otherwise
       job_order_id: 0, // Will be set when job order is created
       end_date: endDate.toISOString().split("T")[0],
       company: data.company || "",
@@ -619,6 +667,8 @@ export default function QuotationDialog({
       labor_rate: data.labor_rate,
       total_quote: totalQuote,
       quotation_items: data.quotation_items || [],
+      auto_generate_quote_no: data.auto_generate_quote_no,
+      manual_quote_no: data.manual_quote_no,
     };
 
     // Manual sync: Update job order form with quotation materials when saving
@@ -644,7 +694,11 @@ export default function QuotationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-bold">Create Quotation</DialogTitle>
+          <DialogTitle className="font-bold">
+            {initialData?.quote_no
+              ? `Edit Quotation #${initialData.quote_no}`
+              : "Create Quotation"}
+          </DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -967,6 +1021,74 @@ export default function QuotationDialog({
                     </FormItem>
                   )}
                 />
+
+                {/* Quote Number Section */}
+                <div className="border-b py-2">
+                  <div className="space-y-0 flex justify-between items-center w-full mb-2">
+                    <FormLabel>Quote Number</FormLabel>
+                    <div className="flex items-center gap-2">
+                      <FormField
+                        control={form.control}
+                        name="auto_generate_quote_no"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <input
+                                type="checkbox"
+                                checked={field.value}
+                                onChange={(e) =>
+                                  field.onChange(e.target.checked)
+                                }
+                                className="rounded border-gray-300"
+                              />
+                            </FormControl>
+                            <FormLabel className="text-xs text-gray-600">
+                              Auto-generate
+                            </FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  {form.watch("auto_generate_quote_no") ? (
+                    <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
+                      {initialData?.quote_no ? (
+                        <span>
+                          Current quote number:{" "}
+                          <strong>{initialData.quote_no}</strong>{" "}
+                          (auto-generated)
+                        </span>
+                      ) : (
+                        <span>
+                          Quote number will be automatically generated (e.g.,
+                          00001, 00002, etc.)
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <FormField
+                      control={form.control}
+                      name="manual_quote_no"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter custom quote number"
+                              className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-full text-right"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage className="text-right" />
+                          <div className="text-xs text-gray-500 mt-1">
+                            Enter a unique quote number. System will validate
+                            uniqueness before saving.
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
 
                 <FormField
                   control={form.control}

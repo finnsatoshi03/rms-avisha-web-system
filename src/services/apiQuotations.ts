@@ -2,12 +2,32 @@ import { supabase } from "./supabase";
 import { CreateQuotationData } from "../lib/types";
 
 export async function createQuotation(quotationData: CreateQuotationData) {
-  const { quotation_items, ...quotation } = quotationData;
+  const {
+    quotation_items,
+    auto_generate_quote_no,
+    manual_quote_no,
+    ...quotation
+  } = quotationData;
+
+  // Handle quote number logic
+  let finalQuotation = { ...quotation };
+
+  if (
+    !auto_generate_quote_no &&
+    manual_quote_no &&
+    manual_quote_no.trim() !== ""
+  ) {
+    // Use manual quote number
+    finalQuotation.quote_no = manual_quote_no.trim();
+  } else {
+    // Let database trigger generate the quote number (set to empty string)
+    finalQuotation.quote_no = "";
+  }
 
   // First, create the quotation
   const { data: quotationResult, error: quotationError } = await supabase
     .from("quotations")
-    .insert([quotation])
+    .insert([finalQuotation])
     .select()
     .single();
 
@@ -81,12 +101,30 @@ export async function updateQuotation(
   quotationId: number,
   quotationData: Partial<CreateQuotationData>
 ) {
-  const { quotation_items, ...quotation } = quotationData;
+  const {
+    quotation_items,
+    auto_generate_quote_no,
+    manual_quote_no,
+    ...quotation
+  } = quotationData;
+
+  // Handle quote number logic
+  let finalQuotation = { ...quotation };
+
+  if (
+    !auto_generate_quote_no &&
+    manual_quote_no &&
+    manual_quote_no.trim() !== ""
+  ) {
+    // Use manual quote number
+    finalQuotation.quote_no = manual_quote_no.trim();
+  }
+  // If auto_generate_quote_no is true, don't update the quote_no (keep existing)
 
   // Update the quotation
   const { data: quotationResult, error: quotationError } = await supabase
     .from("quotations")
-    .update(quotation)
+    .update(finalQuotation)
     .eq("id", quotationId)
     .select()
     .single();
@@ -145,7 +183,7 @@ export function generateQuoteNumber(): string {
   return "";
 }
 
-// Get job orders that have quotations (status = "Quotation")
+// Get job orders that have quotations (any status with quotations)
 export async function getQuotationJobOrders({
   page = 1,
   limit = 10,
@@ -192,14 +230,17 @@ export async function getQuotationJobOrders({
         subtotal,
         discount,
         total_quote,
+        status,
+        is_active,
+        is_final,
         quotation_items (*)
       )
     `,
     { count: "exact" }
   );
 
-  // Filter only job orders with "Quotation" status
-  query = query.eq("status", "Quotation");
+  // Filter job orders that have quotations (any status)
+  query = query.not("quotations", "is", null);
 
   // Add warning filter if provided
   if (showWarningsOnly) {
@@ -309,4 +350,119 @@ export async function getQuotationJobOrders({
       totalCount: count,
     },
   };
+}
+
+// Add quotation to existing job order
+export async function addQuotationToJobOrder(
+  jobOrderId: number,
+  quotationData: Omit<CreateQuotationData, "job_order_id">
+) {
+  const quotation = {
+    ...quotationData,
+    job_order_id: jobOrderId,
+  };
+
+  return await createQuotation(quotation);
+}
+
+// Get all quotations for a job order with status information
+export async function getJobOrderQuotations(jobOrderId: number) {
+  const { data, error } = await supabase
+    .from("quotations")
+    .select(
+      `
+      *,
+      quotation_items (*)
+    `
+    )
+    .eq("job_order_id", jobOrderId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching job order quotations:", error);
+    throw new Error("Failed to fetch job order quotations");
+  }
+
+  return data;
+}
+
+// Update quotation status
+export async function updateQuotationStatus(
+  quotationId: number,
+  status: "draft" | "for_approval" | "approved" | "rejected" | "expired"
+) {
+  const { data, error } = await supabase
+    .from("quotations")
+    .update({ status })
+    .eq("id", quotationId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating quotation status:", error);
+    throw new Error("Failed to update quotation status");
+  }
+
+  return data;
+}
+
+// Set quotation as final (only one final quotation per job order)
+export async function setQuotationAsFinal(
+  quotationId: number,
+  jobOrderId: number
+) {
+  // First, set all other quotations for this job order as not final
+  await supabase
+    .from("quotations")
+    .update({ is_final: false })
+    .eq("job_order_id", jobOrderId)
+    .neq("id", quotationId);
+
+  // Then set this quotation as final
+  const { data, error } = await supabase
+    .from("quotations")
+    .update({ is_final: true })
+    .eq("id", quotationId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error setting quotation as final:", error);
+    throw new Error("Failed to set quotation as final");
+  }
+
+  return data;
+}
+
+// Get job order details for quotation creation
+export async function getJobOrderForQuotation(jobOrderId: number) {
+  const { data, error } = await supabase
+    .from("joborders")
+    .select(
+      `
+      *,
+      clients:client_id (*),
+      branches:branch_id (*),
+      materials (
+        id,
+        material_description,
+        quantity,
+        unit_price,
+        total_amount,
+        job_order_id,
+        material_id,
+        used
+      ),
+      users:technician_id (*)
+    `
+    )
+    .eq("id", jobOrderId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching job order for quotation:", error);
+    throw new Error("Failed to fetch job order details");
+  }
+
+  return data;
 }

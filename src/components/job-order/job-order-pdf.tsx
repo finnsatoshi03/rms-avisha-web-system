@@ -11,6 +11,7 @@ import { CreateJobOrderData } from "../../lib/types";
 import { formatMachineType } from "../../lib/helpers";
 import font1 from "/fonts/Montserrat-Bold.ttf";
 import font2 from "/fonts/Montserrat-Black.ttf";
+import font3 from "/fonts/Agency-FB.ttf";
 
 interface JobOrderPDFProps {
   data: CreateJobOrderData;
@@ -26,6 +27,11 @@ Font.register({
 Font.register({
   family: "Montserrat-Black",
   src: font2,
+});
+
+Font.register({
+  family: "Agency FB",
+  src: font3,
 });
 
 function Content({ data }: { data: CreateJobOrderData }) {

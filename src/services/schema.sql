@@ -255,6 +255,17 @@ CREATE TABLE IF NOT EXISTS quotation_items (
   CONSTRAINT quotation_items_quotation_id_fkey FOREIGN KEY (quotation_id) REFERENCES public.quotations(id) ON DELETE CASCADE
 );
 
+-- Add quotation status and active flag to quotations table
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'approved' CHECK (status IN ('approved'));
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS is_final BOOLEAN DEFAULT true;
+
+-- Create index for better performance on quotation queries
+CREATE INDEX IF NOT EXISTS idx_quotations_job_order_id ON quotations (job_order_id);
+CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations (status);
+CREATE INDEX IF NOT EXISTS idx_quotations_is_active ON quotations (is_active);
+CREATE INDEX IF NOT EXISTS idx_quotations_is_final ON quotations (is_final);
+
 -- Add material_id column to existing quotation_items table if it doesn't exist
 ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS material_id TEXT;
 
@@ -285,10 +296,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create trigger to automatically set quote_no on insert
+-- Create trigger to automatically set quote_no on insert (only if empty)
 CREATE OR REPLACE FUNCTION set_quote_number()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Only auto-generate if quote_no is empty or null
   IF NEW.quote_no IS NULL OR NEW.quote_no = '' THEN
     NEW.quote_no := generate_quote_no();
   END IF;

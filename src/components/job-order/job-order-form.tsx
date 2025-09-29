@@ -71,6 +71,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import QuotationDialog from "./quotation-dialog";
 import { CreateQuotationData } from "../../lib/types";
 import PrintSelectionDialog from "./print-selection-dialog";
+import QuotationPrintDialog from "./quotation-print-dialog";
+import QuotationDeleteDialog from "./quotation-delete-dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -334,6 +336,13 @@ export default function JobOrderForm({
   const [isCreatingQuotation, setIsCreatingQuotation] = useState(false);
   const [printSelectionDialogOpen, setPrintSelectionDialogOpen] =
     useState(false);
+  const [quotationPrintDialogOpen, setQuotationPrintDialogOpen] =
+    useState(false);
+  const [quotationDeleteDialogOpen, setQuotationDeleteDialogOpen] =
+    useState(false);
+  const [quotationToDelete, setQuotationToDelete] = useState<number | null>(
+    null
+  );
 
   const { isTaytay, isPasig, isAdmin, user } = useUser();
   const isTechnician = user?.user_metadata.role?.includes("technician");
@@ -515,10 +524,7 @@ export default function JobOrderForm({
   );
   const laborTotal =
     Number(form.watch("rate") || 0) + Number(form.watch("amount") || 0);
-  const grandTotal =
-    isCreatingQuotation && quotationData
-      ? quotationData.total_quote
-      : (totalMaterialsPrice ?? 0) + laborTotal;
+  const grandTotal = (totalMaterialsPrice ?? 0) + laborTotal;
   const { downpaymentValue, downpaymentError, handleDownpaymentChange } =
     useDownpayment(grandTotal, editValues.downpayment || undefined);
 
@@ -739,7 +745,7 @@ export default function JobOrderForm({
     }
   };
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     // Filter out any undefined or null material entries
     const filteredMaterials = values.materials
       ?.filter((material) => material.material && material.material_id)
@@ -822,6 +828,48 @@ export default function JobOrderForm({
         clientId,
         originalClientName: clients?.name || null,
       });
+
+      // Handle quotation creation/update for existing job orders
+      if (quotationData && isCreatingQuotation) {
+        try {
+          // Always set quotations as final
+          const finalQuotationData = {
+            ...quotationData,
+            status: "approved" as const,
+            is_final: true,
+            is_active: true,
+          };
+
+          if (existingQuotations && existingQuotations.length > 0) {
+            // Update existing quotation
+            const { updateQuotation } = await import(
+              "../../services/apiQuotations"
+            );
+            await updateQuotation(
+              existingQuotations[0].id!,
+              finalQuotationData
+            );
+            toast.success("Quotation updated successfully!");
+            // No print prompt for quotation edits
+          } else {
+            // Create new quotation - this is a new quotation being added to existing job order
+            const { addQuotationToJobOrder } = await import(
+              "../../services/apiQuotations"
+            );
+            await addQuotationToJobOrder(editId, finalQuotationData);
+            toast.success("Quotation created successfully!");
+
+            // Show print prompt for new quotation added to existing job order
+            setQuotationData(finalQuotationData);
+            setQuotationPrintDialogOpen(true);
+          }
+        } catch (error) {
+          console.error("Error saving quotation:", error);
+          toast.error(
+            "Job order updated but quotation failed. Please create quotation manually."
+          );
+        }
+      }
     } else {
       createJobOrder(submittedValues, {
         onSuccess: async (response) => {
@@ -838,6 +886,9 @@ export default function JobOrderForm({
               const quotationToCreate = {
                 ...quotationData,
                 job_order_id: response.jobOrder,
+                status: "approved" as const,
+                is_final: true,
+                is_active: true,
                 // quote_no will be generated automatically by database trigger
               };
 
@@ -847,6 +898,9 @@ export default function JobOrderForm({
                 ...quotationData,
                 quote_no: createdQuotation.quote_no,
                 job_order_id: createdQuotation.job_order_id,
+                status: "approved" as const,
+                is_final: true,
+                is_active: true,
               });
               toast.success("Quotation created successfully!");
             } catch (error) {
@@ -945,13 +999,41 @@ export default function JobOrderForm({
 
   // Quotation handlers
   const handleCreateQuotation = () => {
+    // If there's an existing quotation, load its data
+    if (existingQuotations && existingQuotations.length > 0) {
+      const quotation = existingQuotations[0];
+      setQuotationData({
+        job_order_id: editId!,
+        quote_no: quotation.quote_no,
+        end_date: quotation.end_date || "",
+        company: quotation.company || "",
+        address: quotation.address || "",
+        note: quotation.note || "",
+        subtotal: quotation.subtotal || 0,
+        discount: quotation.discount || 0,
+        labor_rate: quotation.labor_rate || 0,
+        total_quote: quotation.total_quote || 0,
+        quotation_items: quotation.quotation_items || [],
+      });
+      setIsCreatingQuotation(true);
+    }
     setQuotationDialogOpen(true);
   };
 
   const handleSaveQuotation = (quotation: CreateQuotationData) => {
-    setQuotationData(quotation);
+    // Always set quotations as final
+    const finalQuotation = {
+      ...quotation,
+      status: "approved" as const,
+      is_final: true,
+      is_active: true,
+    };
+
+    setQuotationData(finalQuotation);
     setIsCreatingQuotation(true);
     setQuotationDialogOpen(false);
+    // Mark form as changed to enable save button
+    setIsFormChanged(true);
   };
 
   const handlePrintSelection = (option: "quotation" | "job_order" | "both") => {
@@ -975,9 +1057,36 @@ export default function JobOrderForm({
     }
   };
 
-  const handleRemoveQuotation = () => {
-    setQuotationData(null);
-    setIsCreatingQuotation(false);
+  const handleDeleteQuotation = (quotationId: number) => {
+    setQuotationToDelete(quotationId);
+    setQuotationDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteQuotation = async () => {
+    if (!quotationToDelete) return;
+
+    try {
+      const { deleteQuotation } = await import("../../services/apiQuotations");
+      await deleteQuotation(quotationToDelete);
+
+      // Reset quotation state
+      setQuotationData(null);
+      setIsCreatingQuotation(false);
+
+      // Invalidate queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ["quotations", editId] });
+      queryClient.invalidateQueries({
+        queryKey: ["jobOrderQuotations", editId],
+      });
+
+      toast.success("Quotation removed successfully!");
+    } catch (error) {
+      console.error("Error deleting quotation:", error);
+      toast.error("Failed to remove quotation. Please try again.");
+    } finally {
+      setQuotationDeleteDialogOpen(false);
+      setQuotationToDelete(null);
+    }
   };
 
   const handleClientDataChange = (updatedClientData: {
@@ -1672,23 +1781,49 @@ export default function JobOrderForm({
                 <div className="mt-2">
                   <div className="flex items-center justify-between mb-1">
                     <h2 className="text-xs font-bold opacity-40">Quotation</h2>
-                    {quotationData && (
-                      <div className="flex items-center gap-2">
-                        {!editSession && (
-                          <Button
-                            type="button"
-                            variant="link"
-                            size="sm"
-                            onClick={handleRemoveQuotation}
-                            className="h-fit w-fit p-0 hover:text-red-500 gap-1"
-                          >
-                            Remove Quotation
-                            <X size={10} />
-                          </Button>
-                        )}
-                      </div>
-                    )}
                   </div>
+
+                  {/* Show existing quotation if any */}
+                  {existingQuotations && existingQuotations.length > 0 && (
+                    <div className="mb-3 px-3 py-2 bg-gray-50 border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">
+                            Quote #{existingQuotations[0].quote_no}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">
+                            ₱
+                            {formatNumberWithCommas(
+                              existingQuotations[0].total_quote
+                            )}
+                          </span>
+                          {!isFormReadonly && (
+                            <Button
+                              size="sm"
+                              variant="link"
+                              type="button"
+                              disabled={isFormReadonly}
+                              onClick={() =>
+                                handleDeleteQuotation(existingQuotations[0].id!)
+                              }
+                              className="text-red-600 p-0 w-fit h-fit hover:text-red-700 hover:bg-red-50"
+                            >
+                              <X size={14} />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        <span>
+                          Valid until:{" "}
+                          {formatReadableDate(existingQuotations[0].end_date)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex flex-col gap-2">
                     {(!isFormReadonly || quotationData) && (
                       <TooltipProvider delayDuration={100}>
@@ -1713,6 +1848,9 @@ export default function JobOrderForm({
                                 ? "View/Edit Quotation"
                                 : isCreatingQuotation
                                 ? "Edit Quotation"
+                                : existingQuotations &&
+                                  existingQuotations.length > 0
+                                ? "Edit Existing Quotation"
                                 : "Create Quotation"}
                               {quotationData && (
                                 <ChevronRight size={12} strokeWidth={1.5} />
@@ -1721,7 +1859,10 @@ export default function JobOrderForm({
                           </TooltipTrigger>
                           <TooltipContent className="max-w-xs">
                             <p className="text-xs">
-                              {quotationData
+                              {existingQuotations &&
+                              existingQuotations.length > 0
+                                ? "Edit the existing quotation for this job order. Only one quotation per job order is allowed."
+                                : quotationData
                                 ? "View or edit the existing quotation for this job order."
                                 : "Create a quotation for this job order. Client details can be edited within the quotation dialog."}
                             </p>
@@ -1735,7 +1876,6 @@ export default function JobOrderForm({
             </div>
           </div>
 
-          <Separator className="mt-6 mb-3 h-[0.5px]" />
           <div>
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-xs font-bold opacity-40">
@@ -1983,36 +2123,25 @@ export default function JobOrderForm({
               </h2>
               <div className="py-3 mb-3 border-dashed border-y-2 border-gray-300">
                 <p>Subtotal</p>
-                {quotationData ? (
-                  <div className="flex justify-between">
-                    <p className="opacity-60">Quotation</p>
-                    <p>₱{formatNumberWithCommas(quotationData.total_quote)}</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex justify-between">
-                      <p className="opacity-60">Labor</p>
-                      <p>
-                        {laborTotal > 0
-                          ? `₱${formatNumberWithCommas(laborTotal)}`
-                          : "---"}
-                      </p>
-                    </div>
-                    <div className="flex justify-between">
-                      <p className="opacity-60">Material</p>
-                      <p>
-                        {totalMaterialsPrice && totalMaterialsPrice > 0
-                          ? `₱${formatNumberWithCommas(totalMaterialsPrice)}`
-                          : "---"}
-                      </p>
-                    </div>
-                  </>
-                )}
+                <div className="flex justify-between">
+                  <p className="opacity-60">Labor</p>
+                  <p>
+                    {laborTotal > 0
+                      ? `₱${formatNumberWithCommas(laborTotal)}`
+                      : "---"}
+                  </p>
+                </div>
+                <div className="flex justify-between">
+                  <p className="opacity-60">Material</p>
+                  <p>
+                    {totalMaterialsPrice && totalMaterialsPrice > 0
+                      ? `₱${formatNumberWithCommas(totalMaterialsPrice)}`
+                      : "---"}
+                  </p>
+                </div>
                 <div className="flex justify-between gap-8">
                   <p className="opacity-60">Discount</p>
-                  {quotationData && quotationData.discount > 0 ? (
-                    <p>₱{formatNumberWithCommas(quotationData.discount)}</p>
-                  ) : selectedDiscount ? (
+                  {selectedDiscount ? (
                     <div className="flex items-center gap-1">
                       <Button
                         className="h-fit w-fit p-[1px] rounded-full"
@@ -2030,7 +2159,7 @@ export default function JobOrderForm({
                           e.preventDefault();
                           setDiscountDialogOpen(true);
                         }}
-                        disabled={readonly || isPending || !grandTotal}
+                        disabled={isFormReadonly || isPending || !grandTotal}
                       >
                         ₱{formatNumberWithCommas(selectedDiscount)}
                       </Button>
@@ -2043,7 +2172,7 @@ export default function JobOrderForm({
                         e.preventDefault();
                         setDiscountDialogOpen(true);
                       }}
-                      disabled={readonly || isPending || !grandTotal}
+                      disabled={isFormReadonly || isPending || !grandTotal}
                     >
                       Select a discount
                     </Button>
@@ -2051,14 +2180,7 @@ export default function JobOrderForm({
                 </div>
                 <div className="flex justify-between items-start gap-4">
                   <p className="opacity-60 gap-1">Downpayment</p>
-                  {isCreatingQuotation && quotationData ? (
-                    <div className="flex items-center gap-2">
-                      <p className="text-right text-gray-500">₱0.00</p>
-                      <span className="text-xs text-gray-500">
-                        (Disabled - Quotation Mode)
-                      </span>
-                    </div>
-                  ) : downpaymentValue || downpaymentInputVisible ? (
+                  {downpaymentValue || downpaymentInputVisible ? (
                     <div className="flex-col items-end justify-end w-[115px]">
                       {readonly ? (
                         <p className="text-right">
@@ -2094,7 +2216,7 @@ export default function JobOrderForm({
                         e.preventDefault();
                         handleAddDownpayment();
                       }}
-                      disabled={readonly || isPending || !grandTotal}
+                      disabled={isFormReadonly || isPending || !grandTotal}
                     >
                       Add downpayment
                     </Button>
@@ -2179,6 +2301,29 @@ export default function JobOrderForm({
         }}
         onSelectOption={handlePrintSelection}
         loading={isPrinting}
+      />
+
+      <QuotationPrintDialog
+        open={quotationPrintDialogOpen}
+        onClose={() => {
+          setQuotationPrintDialogOpen(false);
+          if (onClose) onClose();
+        }}
+        onPrint={() => {
+          if (quotationData) {
+            generateQuotationPDF(quotationData);
+          }
+          setQuotationPrintDialogOpen(false);
+          if (onClose) onClose();
+        }}
+        loading={isPrinting}
+      />
+
+      <QuotationDeleteDialog
+        open={quotationDeleteDialogOpen}
+        onOpenChange={setQuotationDeleteDialogOpen}
+        onConfirm={confirmDeleteQuotation}
+        loading={isPending}
       />
     </>
   );
