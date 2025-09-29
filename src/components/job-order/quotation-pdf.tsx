@@ -194,7 +194,7 @@ function SecondPageContent({ data }: { data: QuotationPDFProps["data"] }) {
           <Text style={styles.costTableHeaderCellMedium}>AMOUNT</Text>
         </View>
 
-        {data.quotation_items.map((item, index) => (
+        {data.quotation_items?.map((item, index) => (
           <View style={styles.costTableRow} key={index}>
             <Text style={styles.costTableDescriptionCell}>
               {item.description}
