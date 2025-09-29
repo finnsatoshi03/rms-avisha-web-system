@@ -27,8 +27,8 @@ export default function MergedPDF({
 
   const quotationPDFData = {
     ...quotationData,
-    quote_no: quotationData.quote_no || "TBD", // Ensure quote_no is always a string
-    end_date: endDate.toISOString().split("T")[0],
+    quote_no: quotationData.quote_no || "", // Use actual quote_no, no fallback
+    end_date: quotationData.end_date || endDate.toISOString().split("T")[0],
     clientData: {
       name: jobOrderData.name || "",
       contact_number: jobOrderData.contact_number || "",
@@ -39,7 +39,7 @@ export default function MergedPDF({
       problem_statement: jobOrderData.problem_statement || "",
     },
     branch_id: jobOrderData.branch_id || 1,
-    job_order_no: jobOrderData.order_no || `JO-${Date.now()}`,
+    job_order_no: jobOrderData.order_no || "", // Use actual job order number, no fallback
     date: new Date().toISOString().split("T")[0],
   };
 

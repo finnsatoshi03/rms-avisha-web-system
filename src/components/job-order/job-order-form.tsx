@@ -639,8 +639,9 @@ export default function JobOrderForm({
 
       const quotationPDFData = {
         ...quotationData,
-        quote_no: quotationData?.quote_no || "TBD", // Use generated quote_no or fallback
-        end_date: endDate.toISOString().split("T")[0],
+        quote_no: quotationData?.quote_no || "", // Use actual quote_no, no fallback
+        end_date:
+          quotationData?.end_date || endDate.toISOString().split("T")[0],
         clientData: {
           name: form.getValues("name") || "",
           contact_number: form.getValues("contact_number") || "",
@@ -651,7 +652,7 @@ export default function JobOrderForm({
           problem_statement: form.getValues("problem_statement") || "",
         },
         branch_id: watchedBranchId || 1,
-        job_order_no: `JO-${Date.now()}`, // Temporary job order number
+        job_order_no: quotationData?.job_order_no || "", // Use actual job order number
         date: new Date().toISOString().split("T")[0],
       };
 
@@ -856,11 +857,19 @@ export default function JobOrderForm({
             const { addQuotationToJobOrder } = await import(
               "../../services/apiQuotations"
             );
-            await addQuotationToJobOrder(editId, finalQuotationData);
+            const response = await addQuotationToJobOrder(
+              editId,
+              finalQuotationData
+            );
+            const finalUpdatedQuotationData = {
+              ...quotationData,
+              quote_no: response.quote_no,
+              job_order_no: response.job_order_no,
+            };
             toast.success("Quotation created successfully!");
 
             // Show print prompt for new quotation added to existing job order
-            setQuotationData(finalQuotationData);
+            setQuotationData(finalUpdatedQuotationData);
             setQuotationPrintDialogOpen(true);
           }
         } catch (error) {
@@ -894,15 +903,19 @@ export default function JobOrderForm({
 
               const createdQuotation = await createQuotation(quotationToCreate);
               // Update quotation data with the returned data (including generated quote_no)
-              setQuotationData({
+              const updatedQuotationData = {
                 ...quotationData,
                 quote_no: createdQuotation.quote_no,
                 job_order_id: createdQuotation.job_order_id,
+                job_order_no: createdQuotation.job_order_no,
                 status: "approved" as const,
                 is_final: true,
                 is_active: true,
-              });
+              };
+              setQuotationData(updatedQuotationData);
               toast.success("Quotation created successfully!");
+              // Set the updated quotation data for printing
+              setQuotationData(updatedQuotationData);
             } catch (error) {
               console.error("Error creating quotation:", error);
               toast.error(
@@ -1042,6 +1055,7 @@ export default function JobOrderForm({
     if (option === "quotation") {
       // Handle quotation printing
       if (quotationData) {
+        // Use the current quotation data from state which should have the updated quote_no
         generateQuotationPDF(quotationData);
       }
     } else if (option === "job_order") {

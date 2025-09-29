@@ -380,4 +380,5 @@ export type CreateQuotationData = {
   quotation_items?: QuotationItem[];
   auto_generate_quote_no?: boolean;
   manual_quote_no?: string;
+  job_order_no?: string;
 };

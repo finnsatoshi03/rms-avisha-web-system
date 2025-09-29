@@ -10,7 +10,7 @@ export async function createQuotation(quotationData: CreateQuotationData) {
   } = quotationData;
 
   // Handle quote number logic
-  let finalQuotation = { ...quotation };
+  const finalQuotation = { ...quotation };
 
   if (
     !auto_generate_quote_no &&
@@ -28,7 +28,12 @@ export async function createQuotation(quotationData: CreateQuotationData) {
   const { data: quotationResult, error: quotationError } = await supabase
     .from("quotations")
     .insert([finalQuotation])
-    .select()
+    .select(
+      `
+      *,
+      joborders:job_order_id (order_no)
+    `
+    )
     .single();
 
   if (quotationError) {
@@ -55,7 +60,11 @@ export async function createQuotation(quotationData: CreateQuotationData) {
     }
   }
 
-  return quotationResult;
+  // Add job_order_no to the response
+  return {
+    ...quotationResult,
+    job_order_no: quotationResult.joborders?.order_no || null,
+  };
 }
 
 export async function getQuotationsByJobOrder(jobOrderId: number) {
@@ -64,7 +73,8 @@ export async function getQuotationsByJobOrder(jobOrderId: number) {
     .select(
       `
       *,
-      quotation_items (*)
+      quotation_items (*),
+      joborders:job_order_id (order_no)
     `
     )
     .eq("job_order_id", jobOrderId);
@@ -74,7 +84,13 @@ export async function getQuotationsByJobOrder(jobOrderId: number) {
     throw new Error("Failed to fetch quotations");
   }
 
-  return data;
+  // Add job_order_no to each quotation in the response
+  return (
+    data?.map((quotation) => ({
+      ...quotation,
+      job_order_no: quotation.joborders?.order_no || null,
+    })) || []
+  );
 }
 
 export async function getQuotationById(quotationId: number) {
@@ -109,7 +125,7 @@ export async function updateQuotation(
   } = quotationData;
 
   // Handle quote number logic
-  let finalQuotation = { ...quotation };
+  const finalQuotation = { ...quotation };
 
   if (
     !auto_generate_quote_no &&
@@ -126,7 +142,12 @@ export async function updateQuotation(
     .from("quotations")
     .update(finalQuotation)
     .eq("id", quotationId)
-    .select()
+    .select(
+      `
+      *,
+      joborders:job_order_id (order_no)
+    `
+    )
     .single();
 
   if (quotationError) {
@@ -160,7 +181,11 @@ export async function updateQuotation(
     }
   }
 
-  return quotationResult;
+  // Add job_order_no to the response
+  return {
+    ...quotationResult,
+    job_order_no: quotationResult.joborders?.order_no || null,
+  };
 }
 
 export async function deleteQuotation(quotationId: number) {
