@@ -353,6 +353,7 @@ export type QuotationData = {
   note: string;
   subtotal: number;
   discount: number;
+  labor_rate: number;
   total_quote: number;
   created_at: string;
   updated_at: string;
@@ -368,6 +369,7 @@ export type CreateQuotationData = {
   note: string;
   subtotal: number;
   discount: number;
+  labor_rate: number;
   total_quote: number;
-  quotation_items: QuotationItem[];
+  quotation_items?: QuotationItem[];
 };

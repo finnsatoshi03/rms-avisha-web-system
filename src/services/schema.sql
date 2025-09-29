@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS quotations (
   note TEXT,
   subtotal NUMERIC DEFAULT 0,
   discount NUMERIC DEFAULT 0,
+  labor_rate NUMERIC DEFAULT 0,
   total_quote NUMERIC DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -256,6 +257,9 @@ CREATE TABLE IF NOT EXISTS quotation_items (
 
 -- Add material_id column to existing quotation_items table if it doesn't exist
 ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS material_id TEXT;
+
+-- Add labor_rate column to existing quotations table if it doesn't exist
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS labor_rate NUMERIC DEFAULT 0;
 
 -- Note: material_id is stored as TEXT to match frontend expectations
 -- Foreign key constraint is not added due to type mismatch (TEXT vs INTEGER)

@@ -60,7 +60,7 @@ function FirstPageContent() {
       <View style={styles.companyDescription}>
         <Text style={styles.companyTitle}>
           RMS Avisha Enterprises –{"\n"}
-          Printer, Laptop & Photocopier Repair and Rental Services{"\n"}
+          Printer, Laptop and Rental Services{"\n"}
           Expert Repairs | Reliable Support | Flexible Rental Solutions
         </Text>
 

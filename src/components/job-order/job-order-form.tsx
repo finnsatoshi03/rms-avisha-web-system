@@ -8,6 +8,7 @@ import { saveAs } from "file-saver";
 import toast from "react-hot-toast";
 import {
   Check,
+  ChevronRight,
   ChevronsUpDown,
   Clock,
   Edit,
@@ -465,6 +466,7 @@ export default function JobOrderForm({
         note: quotation.note || "",
         subtotal: quotation.subtotal || 0,
         discount: quotation.discount || 0,
+        labor_rate: quotation.labor_rate || 0,
         total_quote: quotation.total_quote || 0,
         quotation_items: quotation.quotation_items || [],
       });
@@ -1150,71 +1152,6 @@ export default function JobOrderForm({
                   : ""}
               </div>
             )}
-            {!isFormReadonly && (
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant={quotationData ? "default" : "outline"}
-                      size="sm"
-                      onClick={handleCreateQuotation}
-                      disabled={isPending || quotationsLoading}
-                      className={`px-3 py-1 h-fit text-xs flex items-center gap-1 ${
-                        quotationData
-                          ? "bg-green-600 hover:bg-green-700 text-white"
-                          : ""
-                      }`}
-                    >
-                      {quotationData ? (
-                        <Check size={12} strokeWidth={1.5} />
-                      ) : (
-                        <Plus size={12} strokeWidth={1.5} />
-                      )}
-                      {quotationData
-                        ? "View/Edit Quotation"
-                        : isCreatingQuotation
-                        ? "Edit Quotation"
-                        : "Create Quotation"}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="text-xs">
-                      {quotationData
-                        ? "View or edit the existing quotation for this job order."
-                        : "Create a quotation for this job order. Client details can be edited within the quotation dialog."}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-            {quotationData && (
-              <div className="px-3 py-1 bg-green-100 rounded-full text-green-700 text-xs w-fit flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>
-                  Quotation: ₱
-                  {formatNumberWithCommas(quotationData.total_quote)}
-                  {quotationData.quote_no && ` (${quotationData.quote_no})`}
-                </span>
-                {!editSession && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleRemoveQuotation}
-                    className="h-4 w-4 p-0 hover:bg-green-200"
-                  >
-                    <X size={10} />
-                  </Button>
-                )}
-              </div>
-            )}
-            {isCreatingQuotation && (
-              <div className="px-3 py-1 bg-purple-200 rounded-full text-purple-600 text-xs w-fit flex items-center gap-1">
-                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <span>Status: Quotation</span>
-              </div>
-            )}
             {readonly && !isEditMode && (
               <Button
                 type="button"
@@ -1731,9 +1668,73 @@ export default function JobOrderForm({
                     </FormItem>
                   )}
                 />
+                {/* Quotation Section */}
+                <div className="mt-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <h2 className="text-xs font-bold opacity-40">Quotation</h2>
+                    {quotationData && (
+                      <div className="flex items-center gap-2">
+                        {!editSession && (
+                          <Button
+                            type="button"
+                            variant="link"
+                            size="sm"
+                            onClick={handleRemoveQuotation}
+                            className="h-fit w-fit p-0 hover:text-red-500 gap-1"
+                          >
+                            Remove Quotation
+                            <X size={10} />
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {!isFormReadonly && (
+                      <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant={quotationData ? "default" : "outline"}
+                              size="sm"
+                              onClick={handleCreateQuotation}
+                              disabled={isPending || quotationsLoading}
+                              className={`px-3 py-1 w-full text-xs flex items-center gap-1 ${
+                                quotationData
+                                  ? "bg-green-600/10 hover:bg-green-700/10 text-black border"
+                                  : ""
+                              }`}
+                            >
+                              {!quotationData && (
+                                <Plus size={12} strokeWidth={1.5} />
+                              )}
+                              {quotationData
+                                ? "View/Edit Quotation"
+                                : isCreatingQuotation
+                                ? "Edit Quotation"
+                                : "Create Quotation"}
+                              {quotationData && (
+                                <ChevronRight size={12} strokeWidth={1.5} />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="text-xs">
+                              {quotationData
+                                ? "View or edit the existing quotation for this job order."
+                                : "Create a quotation for this job order. Client details can be edited within the quotation dialog."}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+
           <Separator className="mt-6 mb-3 h-[0.5px]" />
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -2164,6 +2165,10 @@ export default function JobOrderForm({
         jobOrderMaterials={reactiveMaterials}
         onMaterialsChange={handleMaterialsChange}
         selectedBranchId={watchedBranchId}
+        jobOrderRate={form.getValues("rate") || 0}
+        onLaborRateChange={(rate) => {
+          form.setValue("rate", rate);
+        }}
       />
 
       <PrintSelectionDialog

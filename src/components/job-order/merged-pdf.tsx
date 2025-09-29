@@ -46,7 +46,7 @@ export default function MergedPDF({
   return (
     <Document>
       {/* Job Order Pages */}
-      <JobOrderPDF data={jobOrderPDFData} type="both" contentOnly={true} />
+      <JobOrderPDF data={jobOrderPDFData} type="client" contentOnly={true} />
 
       {/* Quotation Pages */}
       <QuotationPDF data={quotationPDFData} type="both" contentOnly={true} />

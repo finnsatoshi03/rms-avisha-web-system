@@ -2,23 +2,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {
-  Plus,
-  Trash,
-  Clock,
-  X,
-  Check,
-  ChevronsUpDown,
-  Printer,
-} from "lucide-react";
+import { Plus, Trash, Clock, X, Check, ChevronsUpDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getMaterialStocks } from "../../services/apiMaterials";
 import { useBranchValidation } from "../../hooks/useBranchValidation";
 import { BranchWarning } from "../ui/branch-warning";
-import { pdf } from "@react-pdf/renderer";
-import QuotationPDF from "./quotation-pdf";
-import PrintDialog from "./print-dialog";
-import PrintSelectionDialog from "./print-selection-dialog";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import DiscountDialog from "./discount-option-dialog";
@@ -68,13 +56,12 @@ const quotationItemSchema = z.object({
 });
 
 const quotationSchema = z.object({
-  company: z.string().min(1, "Company is required"),
-  address: z.string().min(1, "Address is required"),
+  company: z.string().optional(),
+  address: z.string().optional(),
   validity_months: z.number().min(1, "Validity period is required"),
+  labor_rate: z.number().min(0, "Labor rate must be non-negative"),
   note: z.string().optional(),
-  quotation_items: z
-    .array(quotationItemSchema)
-    .min(1, "At least one item is required"),
+  quotation_items: z.array(quotationItemSchema).optional(),
 });
 
 type QuotationFormData = z.infer<typeof quotationSchema>;
@@ -117,12 +104,24 @@ interface QuotationDialogProps {
     }>
   ) => void;
   selectedBranchId?: number | null;
+  jobOrderRate?: number;
+  onLaborRateChange?: (rate: number) => void;
 }
 
 const validityOptions = [
   { label: "1 Month", value: 1 },
   { label: "2 Months", value: 2 },
   { label: "3 Months", value: 3 },
+];
+
+const rateOptions = [
+  { label: "Walk-in Service", value: 1500 },
+  { label: "Walk-in Check-up", value: 250 },
+  { label: "Walk-in CISS", value: 600 },
+  { label: "Office/Home Service", value: 2000 },
+  { label: "Office/Home Check-up", value: 500 },
+  { label: "Office/Home CISS", value: 1100 },
+  { label: "Return for Warranty", value: 0 },
 ];
 
 interface InventoryComboboxProps {
@@ -254,15 +253,14 @@ export default function QuotationDialog({
   jobOrderMaterials = [],
   onMaterialsChange,
   selectedBranchId,
+  jobOrderRate = 0,
+  onLaborRateChange,
 }: QuotationDialogProps) {
   const [subtotal, setSubtotal] = useState(0);
   const [discount, setDiscount] = useState(0);
+  const [laborRate, setLaborRate] = useState(0);
   const [totalQuote, setTotalQuote] = useState(0);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
-  const [printDialogOpen, setPrintDialogOpen] = useState(false);
-  const [printSelectionDialogOpen, setPrintSelectionDialogOpen] =
-    useState(false);
-  const [isPrinting, setIsPrinting] = useState(false);
   const [validityMonths, setValidityMonths] = useState(1);
   const [specifyInputValue, setSpecifyInputValue] = useState("");
   const [editedClientData, setEditedClientData] = useState(
@@ -321,17 +319,7 @@ export default function QuotationDialog({
       }
     });
 
-    // If no items from job order, add a default empty item
-    if (items.length === 0) {
-      items.push({
-        description: "",
-        qty: 1,
-        unit_price: 0,
-        amount: 0,
-        material_id: "",
-      });
-    }
-
+    // Return empty array if no items - quotation items are now optional
     return items;
   };
 
@@ -341,6 +329,7 @@ export default function QuotationDialog({
       company: initialData?.company || "",
       address: initialData?.address || "",
       validity_months: 1,
+      labor_rate: initialData?.labor_rate || jobOrderRate || 0,
       note: initialData?.note || "",
       quotation_items:
         initialData?.quotation_items || createInitialQuotationItems(),
@@ -353,6 +342,14 @@ export default function QuotationDialog({
   });
 
   const watchedItems = form.watch("quotation_items");
+
+  // Sync labor rate with job order rate
+  useEffect(() => {
+    if (jobOrderRate !== undefined && jobOrderRate !== laborRate) {
+      setLaborRate(jobOrderRate);
+      form.setValue("labor_rate", jobOrderRate);
+    }
+  }, [jobOrderRate, laborRate, form]);
 
   // Bidirectional sync with conflict prevention
   useEffect(() => {
@@ -415,18 +412,18 @@ export default function QuotationDialog({
 
   // Calculate totals when items change
   useEffect(() => {
-    const newSubtotal = watchedItems.reduce(
+    const newSubtotal = (watchedItems || []).reduce(
       (total, item) => total + (item.amount || 0),
       0
     );
     setSubtotal(newSubtotal);
-    setTotalQuote(newSubtotal - discount);
-  }, [watchedItems, discount]);
+    setTotalQuote(newSubtotal + laborRate - discount);
+  }, [watchedItems, discount, laborRate]);
 
-  // Update total when discount changes
+  // Update total when discount or labor rate changes
   useEffect(() => {
-    setTotalQuote(subtotal - discount);
-  }, [discount, subtotal]);
+    setTotalQuote(subtotal + laborRate - discount);
+  }, [discount, subtotal, laborRate]);
 
   // Watch for changes in individual item fields and recalculate
   const watchedItemsValues = form.watch("quotation_items");
@@ -437,16 +434,16 @@ export default function QuotationDialog({
         0
       );
       setSubtotal(newSubtotal);
-      setTotalQuote(newSubtotal - discount);
+      setTotalQuote(newSubtotal + laborRate - discount);
     }
-  }, [watchedItemsValues, discount]);
+  }, [watchedItemsValues, discount, laborRate]);
 
   const handleItemChange = (
     index: number,
     field: keyof QuotationItem,
     value: string | number
   ) => {
-    const items = [...watchedItems];
+    const items = [...(watchedItems || [])];
     items[index] = { ...items[index], [field]: value };
 
     // Auto-calculate amount when qty or unit_price changes
@@ -476,7 +473,7 @@ export default function QuotationDialog({
       0
     );
     setSubtotal(newSubtotal);
-    setTotalQuote(newSubtotal - discount);
+    setTotalQuote(newSubtotal + laborRate - discount);
 
     // Sync materials back to job order form
     handleMaterialsChange(items);
@@ -493,17 +490,17 @@ export default function QuotationDialog({
     // Sync materials after adding
     setTimeout(() => {
       const currentItems = form.getValues("quotation_items");
-      handleMaterialsChange(currentItems);
+      handleMaterialsChange(currentItems || []);
     }, 0);
   };
 
   const handleRemoveItem = (index: number) => {
-    if (fields.length > 1) {
+    if ((fields || []).length > 1) {
       remove(index);
       // Sync materials after removing
       setTimeout(() => {
         const currentItems = form.getValues("quotation_items");
-        handleMaterialsChange(currentItems);
+        handleMaterialsChange(currentItems || []);
       }, 0);
     }
   };
@@ -531,7 +528,7 @@ export default function QuotationDialog({
       form.setValue(`quotation_items.${index}.amount`, newAmount);
 
       // Trigger recalculation
-      const items = form.getValues("quotation_items");
+      const items = form.getValues("quotation_items") || [];
       const newSubtotal = items.reduce(
         (total, item) => total + (item.amount || 0),
         0
@@ -572,7 +569,9 @@ export default function QuotationDialog({
     }
   };
 
-  const handleMaterialsChange = (updatedMaterials: QuotationItem[]) => {
+  const handleMaterialsChange = (
+    updatedMaterials: QuotationItem[] | undefined
+  ) => {
     // Prevent infinite loops
     if (isSyncingRef.current) return;
 
@@ -582,7 +581,7 @@ export default function QuotationDialog({
     );
 
     // Convert quotation items to job order material format
-    const jobOrderMaterials = updatedMaterials.map((item) => ({
+    const jobOrderMaterials = (updatedMaterials || []).map((item) => ({
       material: item.description,
       quantity: item.qty,
       unitPrice: item.unit_price,
@@ -612,17 +611,18 @@ export default function QuotationDialog({
       quote_no: "", // Will be generated automatically by database trigger
       job_order_id: 0, // Will be set when job order is created
       end_date: endDate.toISOString().split("T")[0],
-      company: data.company,
-      address: data.address,
+      company: data.company || "",
+      address: data.address || "",
       note: data.note || "",
       subtotal,
       discount,
+      labor_rate: data.labor_rate,
       total_quote: totalQuote,
-      quotation_items: data.quotation_items,
+      quotation_items: data.quotation_items || [],
     };
 
     // Manual sync: Update job order form with quotation materials when saving
-    const validItems = data.quotation_items.filter(
+    const validItems = (data.quotation_items || []).filter(
       (item) => item.material_id && item.material_id !== ""
     );
     if (validItems.length > 0) {
@@ -631,63 +631,6 @@ export default function QuotationDialog({
 
     onSave(quotationData);
     onOpenChange(false); // Close the dialog after saving
-  };
-
-  const handlePrintSelection = (option: "quotation" | "job_order" | "both") => {
-    setPrintSelectionDialogOpen(false);
-
-    if (option === "quotation" || option === "both") {
-      setPrintDialogOpen(true);
-    } else if (option === "job_order") {
-      // For job order printing, we need to trigger the parent's print flow
-      // This will be handled by the parent component
-      onOpenChange(false);
-    }
-  };
-
-  const handlePrint = async (type: "company" | "client" | "both") => {
-    setIsPrinting(true);
-    try {
-      const formData = form.getValues();
-      const endDate = new Date();
-      endDate.setMonth(endDate.getMonth() + formData.validity_months);
-
-      const quotationData = {
-        quote_no: "", // Will be generated automatically by database trigger
-        job_order_id: 0,
-        end_date: endDate.toISOString().split("T")[0],
-        company: formData.company,
-        address: formData.address,
-        note: formData.note || "",
-        subtotal,
-        discount,
-        total_quote: totalQuote,
-        quotation_items: formData.quotation_items,
-        clientData: editedClientData,
-        branch_id: currentBranchId || 1,
-        job_order_no: `JO-${Date.now()}`, // Temporary job order number
-        date: new Date().toISOString().split("T")[0],
-      };
-
-      const blob = await pdf(
-        <QuotationPDF data={quotationData} type={type} />
-      ).toBlob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `quotation-${type}-${Date.now()}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      setPrintDialogOpen(false);
-      onOpenChange(false);
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-    } finally {
-      setIsPrinting(false);
-    }
   };
 
   const date = new Date().toLocaleDateString("en-US", {
@@ -939,6 +882,50 @@ export default function QuotationDialog({
               <div className="px-4 py-2 border rounded-xl space-y-4">
                 <FormField
                   control={form.control}
+                  name="labor_rate"
+                  render={({ field }) => (
+                    <FormItem className="border-b py-2">
+                      <div className="space-y-0 flex justify-between items-center w-full">
+                        <FormLabel>Labor Rate</FormLabel>
+                        <Select
+                          value={field.value?.toString() || ""}
+                          onValueChange={(value) => {
+                            const rateValue = Number(value);
+                            field.onChange(rateValue);
+                            setLaborRate(rateValue);
+                            // Sync back to job order form
+                            if (onLaborRateChange) {
+                              onLaborRateChange(rateValue);
+                            }
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
+                              <SelectValue placeholder="Select Service Type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent align="end">
+                            <SelectGroup>
+                              <SelectLabel>Service Type</SelectLabel>
+                              {rateOptions.map((option) => (
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value.toString()}
+                                >
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <FormMessage className="text-right" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name="validity_months"
                   render={({ field }) => (
                     <FormItem className="border-b py-2">
@@ -1015,7 +1002,7 @@ export default function QuotationDialog({
                 <h2 className="text-sm">Amount</h2>
                 <h2></h2>
 
-                {fields.map((field, index) => (
+                {(fields || []).map((field, index) => (
                   <React.Fragment key={field.id}>
                     <FormField
                       control={form.control}
@@ -1037,7 +1024,7 @@ export default function QuotationDialog({
                                 disabled={!hasValidBranch}
                                 branchId={currentBranchId}
                                 key={`inventory-${index}-${currentBranchId}`}
-                                quotationItems={watchedItems}
+                                quotationItems={watchedItems || []}
                               />
                               {!hasValidBranch && (
                                 <BranchWarning message={warningMessage} />
@@ -1108,9 +1095,10 @@ export default function QuotationDialog({
                     <div className="flex gap-1">
                       <p className="text-sm">₱</p>
                       <p className="text-sm">
-                        {isNaN(watchedItems[index]?.amount)
+                        {isNaN((watchedItems || [])[index]?.amount)
                           ? 0
-                          : watchedItems[index]?.amount?.toFixed(2) || "0.00"}
+                          : (watchedItems || [])[index]?.amount?.toFixed(2) ||
+                            "0.00"}
                       </p>
                     </div>
 
@@ -1120,7 +1108,7 @@ export default function QuotationDialog({
                       size="icon"
                       className="text-xs p-2 h-fit self-center w-fit justify-self-center"
                       onClick={() => handleRemoveItem(index)}
-                      disabled={fields.length === 1}
+                      disabled={(fields || []).length === 1}
                     >
                       <Trash size={12} strokeWidth={1.5} />
                     </Button>
@@ -1157,6 +1145,10 @@ export default function QuotationDialog({
                 <div className="flex justify-between">
                   <p className="opacity-60">Subtotal</p>
                   <p>₱{formatNumberWithCommas(subtotal)}</p>
+                </div>
+                <div className="flex justify-between">
+                  <p className="opacity-60">Labor Rate</p>
+                  <p>₱{formatNumberWithCommas(laborRate)}</p>
                 </div>
                 <div className="flex justify-between gap-8">
                   <p className="opacity-60">Discount</p>
@@ -1208,15 +1200,6 @@ export default function QuotationDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setPrintDialogOpen(true)}
-                className="flex items-center gap-2"
-              >
-                <Printer size={16} />
-                Print
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
                 onClick={() => onOpenChange(false)}
               >
                 Cancel
@@ -1231,24 +1214,6 @@ export default function QuotationDialog({
           onOpenChange={setDiscountDialogOpen}
           grandTotal={subtotal}
           onSelectDiscount={handleSelectDiscount}
-        />
-
-        <PrintDialog
-          open={printDialogOpen}
-          onOpenChange={setPrintDialogOpen}
-          onPrint={handlePrint}
-          title="Print Quotation"
-          loading={isPrinting}
-        />
-
-        <PrintSelectionDialog
-          open={printSelectionDialogOpen}
-          onClose={() => {
-            setPrintSelectionDialogOpen(false);
-            onOpenChange(false);
-          }}
-          onSelectOption={handlePrintSelection}
-          loading={isPrinting}
         />
       </DialogContent>
     </Dialog>

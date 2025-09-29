@@ -30,7 +30,7 @@ export type Status = {
 
 export const statuses: Status[] = [
   { value: "pending", label: "Pending", icon: CircleDashed },
-  { value: "quotation", label: "Quotation", icon: Receipt },
+  // { value: "quotation", label: "Quotation", icon: Receipt },
   { value: "for approval", label: "For Approval", icon: CircleDashed },
   { value: "repairing", label: "Repairing", icon: CircleDotDashed },
   { value: "waiting parts", label: "Waiting Parts", icon: CircleDotDashed },
