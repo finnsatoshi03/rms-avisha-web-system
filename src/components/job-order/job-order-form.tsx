@@ -1690,7 +1690,7 @@ export default function JobOrderForm({
                     )}
                   </div>
                   <div className="flex flex-col gap-2">
-                    {!isFormReadonly && (
+                    {(!isFormReadonly || quotationData) && (
                       <TooltipProvider delayDuration={100}>
                         <Tooltip>
                           <TooltipTrigger asChild>
