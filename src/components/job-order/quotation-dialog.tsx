@@ -91,6 +91,7 @@ const quotationSchema = z.object({
   address: z.string().optional(),
   validity_months: z.number().min(1, "Validity period is required"),
   labor_rate: z.number().min(0, "Labor rate must be non-negative"),
+  amount: z.number().min(0, "Amount must be non-negative"),
   note: z.string().optional(),
   quotation_items: z.array(quotationItemSchema).optional(),
   auto_generate_quote_no: z.boolean().default(true),
@@ -150,7 +151,9 @@ interface QuotationDialogProps {
   ) => void;
   selectedBranchId?: number | null;
   jobOrderRate?: number;
+  jobOrderAmount?: number;
   onLaborRateChange?: (rate: number) => void;
+  onAmountChange?: (amount: number) => void;
 }
 
 const validityOptions = [
@@ -299,11 +302,14 @@ export default function QuotationDialog({
   onMaterialsChange,
   selectedBranchId,
   jobOrderRate = 0,
+  jobOrderAmount = 0,
   onLaborRateChange,
+  onAmountChange,
 }: QuotationDialogProps) {
   const [subtotal, setSubtotal] = useState(0);
   const [discount, setDiscount] = useState(0);
   const [laborRate, setLaborRate] = useState(0);
+  const [amount, setAmount] = useState(0);
   const [totalQuote, setTotalQuote] = useState(0);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [validityMonths, setValidityMonths] = useState(1);
@@ -375,6 +381,7 @@ export default function QuotationDialog({
       address: initialData?.address || "",
       validity_months: 1,
       labor_rate: initialData?.labor_rate || jobOrderRate || 0,
+      amount: initialData?.amount || jobOrderAmount || 0,
       note: initialData?.note || "",
       quotation_items:
         initialData?.quotation_items || createInitialQuotationItems(),
@@ -391,13 +398,20 @@ export default function QuotationDialog({
 
   const watchedItems = form.watch("quotation_items");
 
-  // Sync labor rate with job order rate
+  // Sync labor rate and amount with job order
   useEffect(() => {
     if (jobOrderRate !== undefined && jobOrderRate !== laborRate) {
       setLaborRate(jobOrderRate);
       form.setValue("labor_rate", jobOrderRate);
     }
   }, [jobOrderRate, laborRate, form]);
+
+  useEffect(() => {
+    if (jobOrderAmount !== undefined && jobOrderAmount !== amount) {
+      setAmount(jobOrderAmount);
+      form.setValue("amount", jobOrderAmount);
+    }
+  }, [jobOrderAmount, amount, form]);
 
   // Bidirectional sync with conflict prevention
   useEffect(() => {
@@ -465,13 +479,13 @@ export default function QuotationDialog({
       0
     );
     setSubtotal(newSubtotal);
-    setTotalQuote(newSubtotal + laborRate - discount);
-  }, [watchedItems, discount, laborRate]);
+    setTotalQuote(newSubtotal + laborRate + amount - discount);
+  }, [watchedItems, discount, laborRate, amount]);
 
-  // Update total when discount or labor rate changes
+  // Update total when discount, labor rate, or amount changes
   useEffect(() => {
-    setTotalQuote(subtotal + laborRate - discount);
-  }, [discount, subtotal, laborRate]);
+    setTotalQuote(subtotal + laborRate + amount - discount);
+  }, [discount, subtotal, laborRate, amount]);
 
   // Watch for changes in individual item fields and recalculate
   const watchedItemsValues = form.watch("quotation_items");
@@ -482,9 +496,9 @@ export default function QuotationDialog({
         0
       );
       setSubtotal(newSubtotal);
-      setTotalQuote(newSubtotal + laborRate - discount);
+      setTotalQuote(newSubtotal + laborRate + amount - discount);
     }
-  }, [watchedItemsValues, discount, laborRate]);
+  }, [watchedItemsValues, discount, laborRate, amount]);
 
   const handleItemChange = (
     index: number,
@@ -521,7 +535,7 @@ export default function QuotationDialog({
       0
     );
     setSubtotal(newSubtotal);
-    setTotalQuote(newSubtotal + laborRate - discount);
+    setTotalQuote(newSubtotal + laborRate + amount - discount);
 
     // Sync materials back to job order form
     handleMaterialsChange(items);
@@ -582,7 +596,7 @@ export default function QuotationDialog({
         0
       );
       setSubtotal(newSubtotal);
-      setTotalQuote(newSubtotal - discount);
+      setTotalQuote(newSubtotal + laborRate + amount - discount);
 
       // Sync materials back to job order form
       handleMaterialsChange(items);
@@ -665,6 +679,7 @@ export default function QuotationDialog({
       subtotal,
       discount,
       labor_rate: data.labor_rate,
+      service_fee: data.labor_rate + data.amount,
       total_quote: totalQuote,
       quotation_items: data.quotation_items || [],
       auto_generate_quote_no: data.auto_generate_quote_no,
@@ -980,6 +995,43 @@ export default function QuotationDialog({
 
                 <FormField
                   control={form.control}
+                  name="amount"
+                  render={({ field }) => (
+                    <FormItem className="border-b py-2">
+                      <div className="space-y-0 flex justify-between items-center w-full">
+                        <FormLabel>Amount</FormLabel>
+                        <div className="flex items-center">
+                          <span className="absolute pointer-events-none text-sm mr-1">
+                            ₱
+                          </span>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              className="ml-3 border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
+                              {...field}
+                              onChange={(e) => {
+                                const amountValue = Number(e.target.value) || 0;
+                                field.onChange(amountValue);
+                                setAmount(amountValue);
+                                // Sync back to job order form
+                                if (onAmountChange) {
+                                  onAmountChange(amountValue);
+                                }
+                              }}
+                            />
+                          </FormControl>
+                        </div>
+                      </div>
+                      <FormMessage className="text-right" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name="validity_months"
                   render={({ field }) => (
                     <FormItem className="border-b py-2">
@@ -1271,6 +1323,10 @@ export default function QuotationDialog({
                 <div className="flex justify-between">
                   <p className="opacity-60">Labor Rate</p>
                   <p>₱{formatNumberWithCommas(laborRate)}</p>
+                </div>
+                <div className="flex justify-between">
+                  <p className="opacity-60">Amount</p>
+                  <p>₱{formatNumberWithCommas(amount)}</p>
                 </div>
                 <div className="flex justify-between gap-8">
                   <p className="opacity-60">Discount</p>

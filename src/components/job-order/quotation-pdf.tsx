@@ -228,6 +228,15 @@ function SecondPageContent({ data }: { data: QuotationPDFProps["data"] }) {
           </Text>
         </View>
 
+        <View style={styles.costTableRow}>
+          <Text style={styles.costTableDescriptionCell}></Text>
+          <Text style={styles.costTableCellSmall}></Text>
+          <Text style={styles.costTableSubtotalLabel}>SERVICE FEE</Text>
+          <Text style={styles.costTableCellMedium}>
+            {formatCurrency(data.service_fee)}
+          </Text>
+        </View>
+
         {data.discount > 0 && (
           <View style={styles.costTableRow}>
             <Text style={styles.costTableDescriptionCell}></Text>

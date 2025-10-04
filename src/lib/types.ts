@@ -354,6 +354,7 @@ export type QuotationData = {
   subtotal: number;
   discount: number;
   labor_rate: number;
+  service_fee: number;
   total_quote: number;
   status?: "draft" | "for_approval" | "approved" | "rejected" | "expired";
   is_active?: boolean;
@@ -373,6 +374,8 @@ export type CreateQuotationData = {
   subtotal: number;
   discount: number;
   labor_rate: number;
+  amount?: number; // Optional - used in quotation dialog, calculated as service_fee in database
+  service_fee: number; // Calculated as labor_rate + amount
   total_quote: number;
   status?: "draft" | "for_approval" | "approved" | "rejected" | "expired";
   is_active?: boolean;

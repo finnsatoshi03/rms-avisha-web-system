@@ -476,6 +476,10 @@ export default function JobOrderForm({
         subtotal: quotation.subtotal || 0,
         discount: quotation.discount || 0,
         labor_rate: quotation.labor_rate || 0,
+        amount: quotation.service_fee
+          ? quotation.service_fee - (quotation.labor_rate || 0)
+          : 0,
+        service_fee: quotation.service_fee || 0,
         total_quote: quotation.total_quote || 0,
         quotation_items: quotation.quotation_items || [],
       });
@@ -1031,6 +1035,10 @@ export default function JobOrderForm({
         subtotal: quotation.subtotal || 0,
         discount: quotation.discount || 0,
         labor_rate: quotation.labor_rate || 0,
+        amount: quotation.service_fee
+          ? quotation.service_fee - (quotation.labor_rate || 0)
+          : 0,
+        service_fee: quotation.service_fee || 0,
         total_quote: quotation.total_quote || 0,
         quotation_items: quotation.quotation_items || [],
       });
@@ -2308,8 +2316,12 @@ export default function JobOrderForm({
         onMaterialsChange={handleMaterialsChange}
         selectedBranchId={watchedBranchId}
         jobOrderRate={form.getValues("rate") || 0}
+        jobOrderAmount={form.getValues("amount") || 0}
         onLaborRateChange={(rate) => {
           form.setValue("rate", rate);
+        }}
+        onAmountChange={(amount) => {
+          form.setValue("amount", amount);
         }}
       />
 
