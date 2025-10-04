@@ -100,6 +100,7 @@ CREATE TABLE public.joborders (
   downpayment real,
   payment_details jsonb,
   warranty_months integer,
+  is_manual_rate boolean DEFAULT false,
   CONSTRAINT joborders_pkey PRIMARY KEY (id),
   CONSTRAINT JobOrder_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
   CONSTRAINT joborders_order_received_fkey FOREIGN KEY (order_received) REFERENCES public.users(id),

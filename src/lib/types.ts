@@ -201,6 +201,7 @@ export type JobOrderData = {
   order_received_user?: User;
   downpayment: null | number;
   payment_details: null | object;
+  is_manual_rate: null | boolean;
   [key: string]:
     | undefined
     | boolean
@@ -260,6 +261,7 @@ export type CreateJobOrderData = {
   downpayment?: number;
   payment_details?: object;
   isCreatingQuotation?: boolean;
+  is_manual_rate?: boolean;
 };
 
 export type MaterialStocks = {

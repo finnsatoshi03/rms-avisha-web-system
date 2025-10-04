@@ -65,6 +65,7 @@ import { useBranchValidation } from "../../hooks/useBranchValidation";
 import { BranchWarning } from "../ui/branch-warning";
 import DiscountDialog from "./discount-option-dialog";
 import { Checkbox } from "../ui/checkbox";
+import { Switch } from "../ui/switch";
 import { baseSchema } from "./jobOrderSchema";
 import { useDownpayment } from "./useDownpayment";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -327,6 +328,12 @@ export default function JobOrderForm({
   );
   const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(
     Boolean(editValues.downpayment && editValues.downpayment > 0)
+  );
+  const [isManualRate, setIsManualRate] = useState(
+    editSession ? Boolean(editValues.is_manual_rate) : false
+  );
+  const [savedFixedRate, setSavedFixedRate] = useState(
+    editSession ? Number(editValues.rate) || 0 : 0
   );
 
   // Quotation state
@@ -830,6 +837,7 @@ export default function JobOrderForm({
       amount: values.amount || 0,
       accessories: values.accessories || [],
       isCreatingQuotation: isCreatingQuotation,
+      is_manual_rate: isManualRate,
     };
 
     if (editSession) {
@@ -1688,32 +1696,101 @@ export default function JobOrderForm({
                     <FormItem className="border-b py-2">
                       <div className="space-y-0 flex justify-between items-center w-full">
                         <FormLabel>Rate</FormLabel>
-                        <Select
-                          value={field.value?.toString() || ""}
-                          onValueChange={(value) => {
-                            field.onChange(Number(value));
-                          }}
-                          disabled={isFormReadonly}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
-                              <SelectValue placeholder="Select a Service Type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent align="end">
-                            <SelectGroup>
-                              <SelectLabel>Service Type</SelectLabel>
-                              {rateOptions.map((option) => (
-                                <SelectItem
-                                  key={option.value}
-                                  value={option.value.toString()}
-                                >
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex flex-col items-end gap-2">
+                          <div
+                            className="group inline-flex items-center gap-2"
+                            data-state={isManualRate ? "checked" : "unchecked"}
+                          >
+                            <span
+                              className="group-data-[state=checked]:text-muted-foreground/70 cursor-pointer text-right text-xs font-medium"
+                              onClick={() => {
+                                if (!isFormReadonly) {
+                                  setIsManualRate(false);
+                                  // Restore saved fixed rate
+                                  if (savedFixedRate) {
+                                    field.onChange(savedFixedRate);
+                                  }
+                                }
+                              }}
+                            >
+                              Fixed
+                            </span>
+                            <Switch
+                              checked={isManualRate}
+                              onCheckedChange={(checked) => {
+                                if (!isFormReadonly) {
+                                  setIsManualRate(checked);
+                                  // When switching to fixed, restore saved rate
+                                  if (!checked && savedFixedRate) {
+                                    field.onChange(savedFixedRate);
+                                  }
+                                }
+                              }}
+                              disabled={isFormReadonly}
+                            />
+                            <span
+                              className="group-data-[state=unchecked]:text-muted-foreground/70 cursor-pointer text-left text-xs font-medium"
+                              onClick={() => {
+                                if (!isFormReadonly) {
+                                  setIsManualRate(true);
+                                }
+                              }}
+                            >
+                              Manual
+                            </span>
+                          </div>
+                          {!isManualRate ? (
+                            <Select
+                              value={field.value?.toString() || ""}
+                              onValueChange={(value) => {
+                                const rateValue = Number(value);
+                                field.onChange(rateValue);
+                                setSavedFixedRate(rateValue);
+                              }}
+                              disabled={isFormReadonly}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
+                                  <SelectValue placeholder="Select a Service Type" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent align="end">
+                                <SelectGroup>
+                                  <SelectLabel>Service Type</SelectLabel>
+                                  {rateOptions.map((option) => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value.toString()}
+                                    >
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="Enter rate"
+                                className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
+                                {...field}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(
+                                    /[^0-9.]/g,
+                                    ""
+                                  );
+                                  field.onChange(
+                                    value ? parseFloat(value) : ""
+                                  );
+                                }}
+                                disabled={isFormReadonly}
+                              />
+                            </FormControl>
+                          )}
+                        </div>
                       </div>
                       <FormMessage className="text-right" />
                     </FormItem>
@@ -2317,11 +2394,15 @@ export default function JobOrderForm({
         selectedBranchId={watchedBranchId}
         jobOrderRate={form.getValues("rate") || 0}
         jobOrderAmount={form.getValues("amount") || 0}
+        isManualRateMode={isManualRate}
         onLaborRateChange={(rate) => {
           form.setValue("rate", rate);
         }}
         onAmountChange={(amount) => {
           form.setValue("amount", amount);
+        }}
+        onRateModeChange={(isManual) => {
+          setIsManualRate(isManual);
         }}
       />
 

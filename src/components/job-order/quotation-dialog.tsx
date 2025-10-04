@@ -22,6 +22,7 @@ import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
+import { Switch } from "../ui/switch";
 import {
   Select,
   SelectContent,
@@ -154,6 +155,8 @@ interface QuotationDialogProps {
   jobOrderAmount?: number;
   onLaborRateChange?: (rate: number) => void;
   onAmountChange?: (amount: number) => void;
+  isManualRateMode?: boolean;
+  onRateModeChange?: (isManual: boolean) => void;
 }
 
 const validityOptions = [
@@ -305,6 +308,8 @@ export default function QuotationDialog({
   jobOrderAmount = 0,
   onLaborRateChange,
   onAmountChange,
+  isManualRateMode = false,
+  onRateModeChange,
 }: QuotationDialogProps) {
   const [subtotal, setSubtotal] = useState(0);
   const [discount, setDiscount] = useState(0);
@@ -312,7 +317,9 @@ export default function QuotationDialog({
   const [amount, setAmount] = useState(0);
   const [totalQuote, setTotalQuote] = useState(0);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
+  const [isManualRate, setIsManualRate] = useState(isManualRateMode);
   const [validityMonths, setValidityMonths] = useState(1);
+  const [savedFixedRate, setSavedFixedRate] = useState(jobOrderRate);
   const [specifyInputValue, setSpecifyInputValue] = useState("");
   const [editedClientData, setEditedClientData] = useState(
     clientData || {
@@ -412,6 +419,13 @@ export default function QuotationDialog({
       form.setValue("amount", jobOrderAmount);
     }
   }, [jobOrderAmount, amount, form]);
+
+  // Sync manual rate mode from job order form
+  useEffect(() => {
+    if (isManualRateMode !== isManualRate) {
+      setIsManualRate(isManualRateMode);
+    }
+  }, [isManualRateMode, isManualRate]);
 
   // Bidirectional sync with conflict prevention
   useEffect(() => {
@@ -956,37 +970,120 @@ export default function QuotationDialog({
                     <FormItem className="border-b py-2">
                       <div className="space-y-0 flex justify-between items-center w-full">
                         <FormLabel>Labor Rate</FormLabel>
-                        <Select
-                          value={field.value?.toString() || ""}
-                          onValueChange={(value) => {
-                            const rateValue = Number(value);
-                            field.onChange(rateValue);
-                            setLaborRate(rateValue);
-                            // Sync back to job order form
-                            if (onLaborRateChange) {
-                              onLaborRateChange(rateValue);
-                            }
-                          }}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
-                              <SelectValue placeholder="Select Service Type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent align="end">
-                            <SelectGroup>
-                              <SelectLabel>Service Type</SelectLabel>
-                              {rateOptions.map((option) => (
-                                <SelectItem
-                                  key={option.value}
-                                  value={option.value.toString()}
-                                >
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex flex-col items-end gap-2">
+                          <div
+                            className="group inline-flex items-center gap-2"
+                            data-state={isManualRate ? "checked" : "unchecked"}
+                          >
+                            <span
+                              className="group-data-[state=checked]:text-muted-foreground/70 cursor-pointer text-right text-xs font-medium"
+                              onClick={() => {
+                                setIsManualRate(false);
+                                if (onRateModeChange) {
+                                  onRateModeChange(false);
+                                }
+                                // Restore saved fixed rate
+                                if (savedFixedRate) {
+                                  field.onChange(savedFixedRate);
+                                  setLaborRate(savedFixedRate);
+                                  if (onLaborRateChange) {
+                                    onLaborRateChange(savedFixedRate);
+                                  }
+                                }
+                              }}
+                            >
+                              Fixed
+                            </span>
+                            <Switch
+                              checked={isManualRate}
+                              onCheckedChange={(checked) => {
+                                setIsManualRate(checked);
+                                if (onRateModeChange) {
+                                  onRateModeChange(checked);
+                                }
+                                // When switching to fixed, restore saved rate
+                                if (!checked && savedFixedRate) {
+                                  field.onChange(savedFixedRate);
+                                  setLaborRate(savedFixedRate);
+                                  if (onLaborRateChange) {
+                                    onLaborRateChange(savedFixedRate);
+                                  }
+                                }
+                              }}
+                            />
+                            <span
+                              className="group-data-[state=unchecked]:text-muted-foreground/70 cursor-pointer text-left text-xs font-medium"
+                              onClick={() => {
+                                setIsManualRate(true);
+                                if (onRateModeChange) {
+                                  onRateModeChange(true);
+                                }
+                              }}
+                            >
+                              Manual
+                            </span>
+                          </div>
+                          {!isManualRate ? (
+                            <Select
+                              value={field.value?.toString() || ""}
+                              onValueChange={(value) => {
+                                const rateValue = Number(value);
+                                field.onChange(rateValue);
+                                setLaborRate(rateValue);
+                                setSavedFixedRate(rateValue);
+                                // Sync back to job order form
+                                if (onLaborRateChange) {
+                                  onLaborRateChange(rateValue);
+                                }
+                              }}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
+                                  <SelectValue placeholder="Select Service Type" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent align="end">
+                                <SelectGroup>
+                                  <SelectLabel>Service Type</SelectLabel>
+                                  {rateOptions.map((option) => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value.toString()}
+                                    >
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="Enter rate"
+                                className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
+                                {...field}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(
+                                    /[^0-9.]/g,
+                                    ""
+                                  );
+                                  const rateValue = value
+                                    ? parseFloat(value)
+                                    : 0;
+                                  field.onChange(rateValue);
+                                  setLaborRate(rateValue);
+                                  // Sync back to job order form
+                                  if (onLaborRateChange) {
+                                    onLaborRateChange(rateValue);
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                          )}
+                        </div>
                       </div>
                       <FormMessage className="text-right" />
                     </FormItem>
