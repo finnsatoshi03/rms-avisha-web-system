@@ -304,6 +304,7 @@ async function upsertJobOrder(
     warranty_months: jobOrder.warranty_months || null,
     is_copy: jobOrder.is_copy ?? false,
     is_manual_rate: jobOrder.is_manual_rate ?? false,
+    include_quotation_items: jobOrder.include_quotation_items ?? false,
     technical_report: jobOrder.technical_report,
   };
 

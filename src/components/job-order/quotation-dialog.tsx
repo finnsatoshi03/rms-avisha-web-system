@@ -49,13 +49,28 @@ import { formatNumberWithCommas } from "../../lib/helpers";
 import { cn } from "../../lib/utils";
 import { supabase } from "../../services/supabase";
 
-const quotationItemSchema = z.object({
-  description: z.string().min(1, "Description is required"),
-  qty: z.number().min(1, "Quantity must be at least 1"),
-  unit_price: z.number().min(0, "Unit price must be non-negative"),
-  amount: z.number().min(0, "Amount must be non-negative"),
-  material_id: z.string().min(1, "Please select an inventory item"),
-});
+const quotationItemSchema = z
+  .object({
+    description: z.string().min(1, "Description is required"),
+    qty: z.number().min(1, "Quantity must be at least 1"),
+    unit_price: z.number().min(0, "Unit price must be non-negative"),
+    amount: z.number().min(0, "Amount must be non-negative"),
+    material_id: z.string().optional(),
+    is_manual: z.boolean().optional(),
+  })
+  .refine(
+    (data) => {
+      // If it's manual, material_id is optional, otherwise it's required
+      if (data.is_manual) {
+        return true; // Manual items don't need material_id
+      }
+      return data.material_id && data.material_id.trim() !== "";
+    },
+    {
+      message: "Please select an inventory item or enable manual input",
+      path: ["material_id"],
+    }
+  );
 
 // Function to validate quote number uniqueness
 const validateQuoteNumberUniqueness = async (
@@ -360,8 +375,20 @@ export default function QuotationDialog({
     }
   }, [clientData]);
 
-  // Create initial quotation items from job order materials (inventory-based only)
+  // Create initial quotation items from existing data or job order materials
   const createInitialQuotationItems = () => {
+    // If we have existing quotation items (editing mode), use them
+    if (
+      initialData?.quotation_items &&
+      initialData.quotation_items.length > 0
+    ) {
+      return initialData.quotation_items.map((item) => ({
+        ...item,
+        is_manual: item.is_manual ?? false, // Ensure is_manual is defined
+      }));
+    }
+
+    // Otherwise, create from job order materials (inventory-based only)
     const items: QuotationItem[] = [];
 
     // Add materials from job order that have material_id (inventory items)
@@ -373,6 +400,7 @@ export default function QuotationDialog({
           unit_price: material.unitPrice,
           amount: material.quantity * material.unitPrice,
           material_id: material.material_id,
+          is_manual: false, // Items from job order are inventory-based
         });
       }
     });
@@ -444,26 +472,48 @@ export default function QuotationDialog({
       return;
     }
 
+    // Skip sync if we're editing an existing quotation with items
+    if (
+      initialData?.quotation_items &&
+      initialData.quotation_items.length > 0
+    ) {
+      console.log("Skipping sync - editing existing quotation with items");
+      return;
+    }
+
     console.log("Starting sync from job order to quotation");
 
     // Debounce the sync to prevent conflicts with user input
     const timeoutId = setTimeout(() => {
-      const updatedItems: QuotationItem[] = jobOrderMaterials.map(
+      // Get current quotation items to preserve manual items
+      const currentItems = form.getValues("quotation_items") || [];
+
+      // Separate manual items from inventory items
+      const manualItems = currentItems.filter((item) => item.is_manual);
+
+      // Convert job order materials to quotation items (inventory only)
+      const inventoryItems: QuotationItem[] = jobOrderMaterials.map(
         (material) => ({
           description: material.material,
           qty: material.quantity,
           unit_price: material.unitPrice,
           amount: material.quantity * material.unitPrice,
           material_id: material.material_id,
+          is_manual: false, // Items from job order are inventory-based
         })
       );
 
-      console.log("Converting to quotation items:", updatedItems);
+      // Combine manual items with updated inventory items
+      const updatedItems = [...manualItems, ...inventoryItems];
+
+      console.log("Preserving manual items:", manualItems);
+      console.log("Adding inventory items:", inventoryItems);
+      console.log("Combined quotation items:", updatedItems);
 
       // Set sync flag
       isSyncingRef.current = true;
 
-      // Update quotation items with job order materials
+      // Update quotation items with combined items (manual + inventory)
       form.setValue("quotation_items", updatedItems);
 
       // Recalculate totals
@@ -474,7 +524,7 @@ export default function QuotationDialog({
       setSubtotal(newSubtotal);
       setTotalQuote(newSubtotal - discount);
 
-      console.log("Quotation dialog updated with new materials");
+      console.log("Quotation dialog updated with preserved manual items");
 
       // Reset sync flag after a short delay
       setTimeout(() => {
@@ -484,7 +534,7 @@ export default function QuotationDialog({
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [jobOrderMaterials, form, discount]);
+  }, [jobOrderMaterials, form, discount, initialData?.quotation_items]);
 
   // Calculate totals when items change
   useEffect(() => {
@@ -562,6 +612,7 @@ export default function QuotationDialog({
       unit_price: 0,
       amount: 0,
       material_id: "",
+      is_manual: false,
     });
     // Sync materials after adding
     setTimeout(() => {
@@ -617,6 +668,35 @@ export default function QuotationDialog({
     }
   };
 
+  const handleManualToggle = (index: number, isManual: boolean) => {
+    // Update the manual flag
+    form.setValue(`quotation_items.${index}.is_manual`, isManual);
+
+    if (isManual) {
+      // Clear material_id when switching to manual
+      form.setValue(`quotation_items.${index}.material_id`, "");
+      // Enable editing of description and unit_price
+    } else {
+      // Clear description and unit_price when switching to inventory
+      form.setValue(`quotation_items.${index}.description`, "");
+      form.setValue(`quotation_items.${index}.unit_price`, 0);
+      // Recalculate amount
+      form.setValue(`quotation_items.${index}.amount`, 0);
+    }
+
+    // Trigger recalculation
+    const items = form.getValues("quotation_items") || [];
+    const newSubtotal = items.reduce(
+      (total, item) => total + (item.amount || 0),
+      0
+    );
+    setSubtotal(newSubtotal);
+    setTotalQuote(newSubtotal + laborRate + amount - discount);
+
+    // Sync materials back to job order form
+    handleMaterialsChange(items);
+  };
+
   const handleSelectDiscount = (discount: number) => {
     setDiscount(discount);
     setDiscountDialogOpen(false);
@@ -656,15 +736,23 @@ export default function QuotationDialog({
       updatedMaterials
     );
 
+    // Only sync non-manual items to job order
+    const inventoryItems = (updatedMaterials || []).filter(
+      (item) => !item.is_manual && item.material_id
+    );
+
     // Convert quotation items to job order material format
-    const jobOrderMaterials = (updatedMaterials || []).map((item) => ({
+    const jobOrderMaterials = inventoryItems.map((item) => ({
       material: item.description,
       quantity: item.qty,
       unitPrice: item.unit_price,
-      material_id: item.material_id,
+      material_id: item.material_id!,
     }));
 
-    console.log("Converted to job order format:", jobOrderMaterials);
+    console.log(
+      "Converted to job order format (inventory only):",
+      jobOrderMaterials
+    );
 
     // Sync materials back to job order form
     if (onMaterialsChange) {
@@ -701,11 +789,12 @@ export default function QuotationDialog({
     };
 
     // Manual sync: Update job order form with quotation materials when saving
-    const validItems = (data.quotation_items || []).filter(
-      (item) => item.material_id && item.material_id !== ""
+    // Only sync inventory items (non-manual) to job order
+    const inventoryItems = (data.quotation_items || []).filter(
+      (item) => !item.is_manual && item.material_id && item.material_id !== ""
     );
-    if (validItems.length > 0) {
-      handleMaterialsChange(validItems);
+    if (inventoryItems.length > 0) {
+      handleMaterialsChange(inventoryItems);
     }
 
     onSave(quotationData);
@@ -1266,8 +1355,9 @@ export default function QuotationDialog({
               <h2 className="text-xs font-bold mb-1 opacity-40">
                 Quotation Items
               </h2>
-              <div className="grid grid-cols-[1fr_0.3fr_0.5fr_0.5fr_0.2fr] gap-4 px-4 py-3 border rounded-xl">
-                <h2 className="text-sm">Inventory Item</h2>
+              <div className="grid grid-cols-[0.2fr_1fr_0.3fr_0.5fr_0.5fr_0.2fr] gap-4 px-4 py-3 border rounded-xl">
+                <h2 className="text-sm">Type</h2>
+                <h2 className="text-sm">Item</h2>
                 <h2 className="text-sm">Qty</h2>
                 <h2 className="text-sm">Unit Price</h2>
                 <h2 className="text-sm">Amount</h2>
@@ -1275,32 +1365,70 @@ export default function QuotationDialog({
 
                 {(fields || []).map((field, index) => (
                   <React.Fragment key={field.id}>
+                    {/* Manual/Inventory Toggle */}
+                    <FormField
+                      control={form.control}
+                      name={`quotation_items.${index}.is_manual`}
+                      render={({ field }) => (
+                        <FormItem className="space-y-0 w-full">
+                          <FormControl>
+                            <div className="flex flex-col gap-0.5">
+                              <Switch
+                                checked={field.value || false}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked);
+                                  handleManualToggle(index, checked);
+                                }}
+                                className="scale-75"
+                              />
+                              <span className="text-xs text-gray-500">
+                                {field.value ? "Manual" : "Inventory"}
+                              </span>
+                            </div>
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Item Description/Selection */}
                     <FormField
                       control={form.control}
                       name={`quotation_items.${index}.description`}
-                      render={() => (
+                      render={({ field }) => (
                         <FormItem className="space-y-0 w-full">
                           <FormControl>
-                            <div className="flex items-center gap-2">
-                              <InventoryCombobox
-                                value={
-                                  form.getValues(
-                                    `quotation_items.${index}.material_id`
-                                  ) || ""
-                                }
-                                onChange={(value) =>
-                                  handleInventorySelection(index, value)
-                                }
-                                materials={materialStocks}
-                                disabled={!hasValidBranch}
-                                branchId={currentBranchId}
-                                key={`inventory-${index}-${currentBranchId}`}
-                                quotationItems={watchedItems || []}
+                            {form.watch(
+                              `quotation_items.${index}.is_manual`
+                            ) ? (
+                              // Manual input
+                              <Input
+                                placeholder="Enter item description"
+                                className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
+                                {...field}
                               />
-                              {!hasValidBranch && (
-                                <BranchWarning message={warningMessage} />
-                              )}
-                            </div>
+                            ) : (
+                              // Inventory selection
+                              <div className="flex items-center gap-2">
+                                <InventoryCombobox
+                                  value={
+                                    form.getValues(
+                                      `quotation_items.${index}.material_id`
+                                    ) || ""
+                                  }
+                                  onChange={(value) =>
+                                    handleInventorySelection(index, value)
+                                  }
+                                  materials={materialStocks}
+                                  disabled={!hasValidBranch}
+                                  branchId={currentBranchId}
+                                  key={`inventory-${index}-${currentBranchId}`}
+                                  quotationItems={watchedItems || []}
+                                />
+                                {!hasValidBranch && (
+                                  <BranchWarning message={warningMessage} />
+                                )}
+                              </div>
+                            )}
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1355,6 +1483,18 @@ export default function QuotationDialog({
                                     Number(e.target.value)
                                   )
                                 }
+                                disabled={
+                                  !form.watch(
+                                    `quotation_items.${index}.is_manual`
+                                  )
+                                }
+                                placeholder={
+                                  form.watch(
+                                    `quotation_items.${index}.is_manual`
+                                  )
+                                    ? "0.00"
+                                    : "Auto-filled"
+                                }
                               />
                             </div>
                           </FormControl>
@@ -1390,7 +1530,7 @@ export default function QuotationDialog({
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="border-dashed border-2 border-slate-800 col-span-2"
+                  className="border-dashed border-2 border-slate-800 col-span-3"
                   onClick={handleAddItem}
                 >
                   <Plus size={14} strokeWidth={1.5} className="mr-2" />

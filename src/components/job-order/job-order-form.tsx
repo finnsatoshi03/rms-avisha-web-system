@@ -50,6 +50,7 @@ import {
   JobOrderData,
   CreateJobOrderData,
   User,
+  QuotationItem,
 } from "../../lib/types";
 import PrintOptionsDialog from "./print-option-dialog";
 import {
@@ -350,6 +351,9 @@ export default function JobOrderForm({
   const [quotationToDelete, setQuotationToDelete] = useState<number | null>(
     null
   );
+  const [includeManualItemsInTotal, setIncludeManualItemsInTotal] = useState(
+    editSession ? Boolean(editValues.include_quotation_items) : false
+  );
 
   const { isTaytay, isPasig, isAdmin, user } = useUser();
   const isTechnician = user?.user_metadata.role?.includes("technician");
@@ -520,10 +524,27 @@ export default function JobOrderForm({
     month: "long",
     day: "numeric",
   });
-  const totalMaterialsPrice = materials?.reduce(
-    (total, { quantity = 0, unitPrice = 0 }) => total + quantity * unitPrice,
-    0
-  );
+  // Calculate total from job order materials (inventory items)
+  const inventoryMaterialsPrice =
+    materials?.reduce(
+      (total, { quantity = 0, unitPrice = 0 }) => total + quantity * unitPrice,
+      0
+    ) ?? 0;
+
+  // Calculate total from manual quotation items
+  const manualQuotationItemsPrice = useMemo(() => {
+    if (!quotationData?.quotation_items) return 0;
+
+    return quotationData.quotation_items
+      .filter((item) => item.is_manual) // Only manual items
+      .reduce((total, item) => total + (item.amount || 0), 0);
+  }, [quotationData?.quotation_items]);
+
+  // Combined material total (inventory + manual quotation items if included)
+  const totalMaterialsPrice =
+    inventoryMaterialsPrice +
+    (includeManualItemsInTotal ? manualQuotationItemsPrice : 0);
+
   const totalMaterialsCost = materials?.reduce(
     (total, { quantity = 0, material_id }) => {
       const cost =
@@ -535,7 +556,7 @@ export default function JobOrderForm({
   );
   const laborTotal =
     Number(form.watch("rate") || 0) + Number(form.watch("amount") || 0);
-  const grandTotal = (totalMaterialsPrice ?? 0) + laborTotal;
+  const grandTotal = totalMaterialsPrice + laborTotal;
   const { downpaymentValue, downpaymentError, handleDownpaymentChange } =
     useDownpayment(grandTotal, editValues.downpayment || undefined);
 
@@ -831,6 +852,7 @@ export default function JobOrderForm({
       brand_model: values.brand_model || "",
       serial_number: values.serial_number || "",
       machine_type: values.machine_type || "",
+      include_quotation_items: includeManualItemsInTotal,
       problem_statement: values.problem_statement || "",
       additional_comments: values.additional_comments || "",
       labor_description: values.labor_description || "",
@@ -1268,6 +1290,22 @@ export default function JobOrderForm({
 
     return () => subscription.unsubscribe();
   }, [form, initialFormValues]);
+
+  // Track checkbox changes to enable update button
+  useEffect(() => {
+    if (editSession) {
+      const hasCheckboxChanged =
+        includeManualItemsInTotal !==
+        Boolean(editValues.include_quotation_items);
+      if (hasCheckboxChanged) {
+        setIsFormChanged(true);
+      }
+    }
+  }, [
+    includeManualItemsInTotal,
+    editSession,
+    editValues.include_quotation_items,
+  ]);
 
   return (
     <>
@@ -1896,6 +1934,27 @@ export default function JobOrderForm({
                           <span className="text-sm font-medium">
                             Quote #{existingQuotations[0].quote_no}
                           </span>
+                          {/* Manual items indicator */}
+                          {existingQuotations[0].quotation_items?.some(
+                            (item: QuotationItem) => item.is_manual
+                          ) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <div className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full flex items-center gap-1">
+                                    <Info size={10} />
+                                    Manual Items
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">
+                                    This quotation contains manual items that
+                                    don't sync with inventory
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">
@@ -1987,9 +2046,78 @@ export default function JobOrderForm({
                 Material and Accessories
               </h2>
             </div>
+
+            {/* Read-only Materials Display (All Items: Inventory + Manual Quotation) */}
+            {quotationData?.quotation_items &&
+              quotationData.quotation_items.length > 0 && (
+                <div className="mb-4 px-4 py-3 bg-gray-50 border rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-semibold text-gray-700">
+                      All Materials (Read-only)
+                    </h3>
+                    <span className="text-xs text-gray-500">
+                      Updated via Quotation
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-[0.15fr_1fr_0.3fr_0.5fr_0.5fr] gap-4 text-xs">
+                    <h4 className="font-medium text-gray-600">Type</h4>
+                    <h4 className="font-medium text-gray-600">Material</h4>
+                    <h4 className="font-medium text-gray-600">Quantity</h4>
+                    <h4 className="font-medium text-gray-600">Unit Price</h4>
+                    <h4 className="font-medium text-gray-600">Amount</h4>
+
+                    {/* Inventory items from job order */}
+                    {materials?.map((material, index) => (
+                      <React.Fragment key={`inv-${index}`}>
+                        <div className="flex items-center">
+                          <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[10px]">
+                            Inventory
+                          </span>
+                        </div>
+                        <div className="text-gray-700">{material.material}</div>
+                        <div className="text-gray-700">{material.quantity}</div>
+                        <div className="text-gray-700">
+                          ₱{material.unitPrice?.toFixed(2)}
+                        </div>
+                        <div className="text-gray-700 font-medium">
+                          ₱
+                          {(
+                            (material.quantity || 0) * (material.unitPrice || 0)
+                          ).toFixed(2)}
+                        </div>
+                      </React.Fragment>
+                    ))}
+
+                    {/* Manual items from quotation */}
+                    {quotationData.quotation_items
+                      .filter((item) => item.is_manual)
+                      .map((item, index) => (
+                        <React.Fragment key={`manual-${index}`}>
+                          <div className="flex items-center">
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px]">
+                              Manual
+                            </span>
+                          </div>
+                          <div className="text-gray-700">
+                            {item.description}
+                          </div>
+                          <div className="text-gray-700">{item.qty}</div>
+                          <div className="text-gray-700">
+                            ₱{item.unit_price.toFixed(2)}
+                          </div>
+                          <div className="text-gray-700 font-medium">
+                            ₱{item.amount.toFixed(2)}
+                          </div>
+                        </React.Fragment>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+            {/* Editable Inventory Materials Section */}
             <div className="grid grid-cols-[0.2fr_1fr_0.3fr_0.5fr_0.5fr_0.2fr] gap-4 px-4 py-3 border rounded-xl">
               <h2 className="text-sm">Used</h2>
-              <h2 className="text-sm">Material</h2>
+              <h2 className="text-sm">Material (Inventory Only)</h2>
               <h2 className="text-sm">Quantity</h2>
               <h2 className="text-sm">Unit Price</h2>
               <h2 className="text-sm">Amount</h2>
@@ -2166,10 +2294,48 @@ export default function JobOrderForm({
               </Button>
               <div className="col-start-5">
                 <h3 className="text-sm font-bold">Material Total</h3>
-                <div className="flex items-center gap-1">
-                  <p className="text-sm font-bold">₱</p>
-                  <p className="text-sm">{totalMaterialsPrice?.toFixed(2)}</p>
-                </div>
+                {manualQuotationItemsPrice > 0 ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1 text-xs text-gray-600">
+                      <span>Inventory:</span>
+                      <span>₱{inventoryMaterialsPrice.toFixed(2)}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1 text-xs text-blue-600">
+                        <span>Quotation Only:</span>
+                        <span>₱{manualQuotationItemsPrice.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <Checkbox
+                          id="include-manual-items"
+                          checked={includeManualItemsInTotal}
+                          onCheckedChange={(checked) =>
+                            setIncludeManualItemsInTotal(Boolean(checked))
+                          }
+                          disabled={isFormReadonly}
+                          className="h-3 w-3"
+                        />
+                        <label
+                          htmlFor="include-manual-items"
+                          className="text-xs text-gray-600 cursor-pointer"
+                        >
+                          Include in total
+                        </label>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 pt-1 border-t">
+                      <p className="text-sm font-bold">₱</p>
+                      <p className="text-sm">
+                        {totalMaterialsPrice.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <p className="text-sm font-bold">₱</p>
+                    <p className="text-sm">{totalMaterialsPrice.toFixed(2)}</p>
+                  </div>
+                )}
               </div>
             </div>
             {form.formState.errors.materials && (

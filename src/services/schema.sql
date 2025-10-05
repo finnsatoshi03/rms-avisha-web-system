@@ -101,6 +101,7 @@ CREATE TABLE public.joborders (
   payment_details jsonb,
   warranty_months integer,
   is_manual_rate boolean DEFAULT false,
+  include_quotation_items boolean DEFAULT false,
   CONSTRAINT joborders_pkey PRIMARY KEY (id),
   CONSTRAINT JobOrder_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
   CONSTRAINT joborders_order_received_fkey FOREIGN KEY (order_received) REFERENCES public.users(id),
@@ -158,6 +159,7 @@ CREATE TABLE public.quotation_items (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   material_id text,
+  is_manual boolean DEFAULT false,
   CONSTRAINT quotation_items_pkey PRIMARY KEY (id),
   CONSTRAINT quotation_items_quotation_id_fkey FOREIGN KEY (quotation_id) REFERENCES public.quotations(id)
 );
@@ -176,10 +178,10 @@ CREATE TABLE public.quotations (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   labor_rate numeric DEFAULT 0,
-  service_fee numeric DEFAULT 0,
   status text DEFAULT 'draft'::text CHECK (status = ANY (ARRAY['draft'::text, 'for_approval'::text, 'approved'::text, 'rejected'::text, 'expired'::text])),
   is_active boolean DEFAULT true,
   is_final boolean DEFAULT false,
+  service_fee numeric DEFAULT '0'::numeric,
   CONSTRAINT quotations_pkey PRIMARY KEY (id),
   CONSTRAINT quotations_job_order_id_fkey FOREIGN KEY (job_order_id) REFERENCES public.joborders(id)
 );

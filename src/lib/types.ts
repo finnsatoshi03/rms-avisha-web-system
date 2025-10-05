@@ -202,6 +202,7 @@ export type JobOrderData = {
   downpayment: null | number;
   payment_details: null | object;
   is_manual_rate: null | boolean;
+  include_quotation_items: null | boolean;
   [key: string]:
     | undefined
     | boolean
@@ -262,6 +263,7 @@ export type CreateJobOrderData = {
   payment_details?: object;
   isCreatingQuotation?: boolean;
   is_manual_rate?: boolean;
+  include_quotation_items?: boolean;
 };
 
 export type MaterialStocks = {
@@ -341,7 +343,8 @@ export type QuotationItem = {
   qty: number;
   unit_price: number;
   amount: number;
-  material_id: string;
+  material_id?: string;
+  is_manual?: boolean;
 };
 
 export type QuotationData = {
