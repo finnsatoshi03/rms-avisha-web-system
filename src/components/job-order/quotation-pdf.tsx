@@ -123,6 +123,15 @@ function FirstPageContent() {
 }
 
 function SecondPageContent({ data }: { data: QuotationPDFProps["data"] }) {
+  // Calculate validity months from end_date
+  const startDate = new Date(data.date);
+  const endDate = new Date(data.end_date);
+  const validityMonths = Math.round(
+    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
+  );
+  const warrantyText =
+    validityMonths === 1 ? "1 MONTH" : `${validityMonths} MONTHS`;
+
   return (
     <>
       {/* Header with Logo and Quote Info Table */}
@@ -261,7 +270,7 @@ function SecondPageContent({ data }: { data: QuotationPDFProps["data"] }) {
       {/* Terms and Conditions */}
       <View style={styles.termsSection}>
         <Text style={styles.termsTitle}>NO WARRANTY PARTS CONSUMABLE</Text>
-        <Text style={styles.termsTitle}>SERVICE WARRANTY 1 MONTH</Text>
+        <Text style={styles.termsTitle}>SERVICE WARRANTY {warrantyText}</Text>
         <Text style={styles.termsText}>
           This quotation is not a contract or a bill. It is our best guess at
           the total price for the service and goods described above. The
@@ -291,7 +300,7 @@ function SecondPageContent({ data }: { data: QuotationPDFProps["data"] }) {
           <Text style={styles.customerAcceptanceLabel}>
             Signature Over Printed Name
           </Text>
-          <Text style={styles.customerAcceptanceLabel}>Date</Text>
+          <Text style={styles.customerAcceptanceLabelCentered}>Date</Text>
         </View>
       </View>
     </>
@@ -623,6 +632,12 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "bold",
     fontFamily: "Montserrat-Bold",
+  },
+  customerAcceptanceLabelCentered: {
+    fontSize: 9,
+    fontWeight: "bold",
+    fontFamily: "Montserrat-Bold",
+    marginRight: 72,
   },
   customerAcceptanceLine: {
     fontSize: 9,
