@@ -25,9 +25,9 @@ import { StatusChanger } from "./table/status-changer-dropdown";
 import { ConfirmDialog } from "./table/alert-dialog";
 import { EllipsisDropdown } from "./table/ellipsis-dropdown";
 import JobOrderForm from "./job-order/job-order-form";
-import JobOrderPDF from "./job-order/job-order-pdf";
+import { ExportDropdown } from "./table/export-dropdown";
 
-import { FileDown, Loader2, PenLine, Trash2, X } from "lucide-react";
+import { PenLine, Trash2, X } from "lucide-react";
 
 import {
   formatMachineType,
@@ -36,18 +36,17 @@ import {
 } from "../lib/helpers";
 import { CreateJobOrderData, JobOrderData, User } from "../lib/types";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteJobOrder,
   duplicateJobOrder,
   updateJobOrderPayment,
   updateJobOrderStatus,
 } from "../services/apiJobOrders";
+import { getQuotationsByJobOrder } from "../services/apiQuotations";
 import { useUser } from "./auth/useUser";
 
 import toast from "react-hot-toast";
-import { pdf } from "@react-pdf/renderer";
-import { saveAs } from "file-saver";
 import { Separator } from "@radix-ui/react-separator";
 import { TableCellWithHover } from "./job-order/cell-hover";
 import { PaymentDialog } from "./table/payment-dialog";
@@ -126,7 +125,12 @@ export default function Table({
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<JobOrderData | null>(null);
 
-  const [isExportLoading, setIsExportLoading] = useState(false);
+  // Fetch quotations for selected job order (only when single row is selected)
+  const { data: quotations = [] } = useQuery({
+    queryKey: ["quotations", selectedRows[0]],
+    queryFn: () => getQuotationsByJobOrder(selectedRows[0]),
+    enabled: selectedRows.length === 1,
+  });
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
@@ -431,89 +435,6 @@ export default function Table({
     });
   };
 
-  const handleExportPdf = (id: number) => {
-    const currentOrder: JobOrderData | undefined = orders.find(
-      (order) => order.id === id
-    );
-
-    if (!currentOrder) {
-      console.error("Order not found");
-      return;
-    }
-
-    setIsExportLoading(true);
-
-    let parsedAccessories: string[] = [];
-    if (typeof currentOrder.accessories === "string") {
-      try {
-        parsedAccessories = JSON.parse(currentOrder.accessories) as string[];
-      } catch (error) {
-        console.error("Failed to parse accessories", error);
-      }
-    }
-
-    // Find the technician by order_received ID
-    const orderReceivedTechnician = technicians.find(
-      (tech) => tech.id === currentOrder.order_received
-    );
-    const orderReceivedTechnicianName = orderReceivedTechnician
-      ? orderReceivedTechnician.fullname
-      : "---";
-
-    // Find the technician by technician_id
-    const technician = technicians.find(
-      (tech) => tech.id === currentOrder.technician_id
-    );
-    const technicianName = technician ? technician.fullname : "---";
-
-    const jobOrderData: CreateJobOrderData = {
-      order_no: currentOrder.order_no || "",
-      accessories: parsedAccessories,
-      additional_comments: currentOrder.additional_comments || "",
-      amount: currentOrder.amount ?? 0,
-      branch_id: currentOrder.branch_id ?? 0,
-      brand_model: currentOrder.brand_model || "",
-      contact_number: currentOrder.clients?.contact_number || "",
-      completed_at: currentOrder.completed_at || "",
-      date: currentOrder.created_at
-        ? new Date(currentOrder.created_at)
-        : new Date(),
-      email: currentOrder.clients?.email || "",
-      grand_total: currentOrder.grand_total ?? 0,
-      labor_description: currentOrder.labor_description || "",
-      labor_total: currentOrder.labor_total ?? 0,
-      machine_type: currentOrder.machine_type || "",
-      material_total: currentOrder.material_total ?? 0,
-      materials:
-        currentOrder.materials.map((material: any) => ({
-          material: material.material_description || "",
-          quantity: material.quantity ?? 0,
-          unitPrice: material.unit_price ?? 0,
-        })) || [],
-      name: currentOrder.clients?.name || "",
-      order_received: orderReceivedTechnicianName,
-      technician_id: technicianName,
-      problem_statement: currentOrder.problem_statement || "",
-      rate: currentOrder.rate ? currentOrder.rate : 0,
-      serial_number: currentOrder.serial_number || "",
-      sub_total: currentOrder.sub_total ?? 0,
-      payment_details: currentOrder.payment_details || {},
-      status: currentOrder.status || "",
-    };
-
-    const fileName = `JobOrder_${currentOrder.order_no}_${
-      currentOrder.clients?.name || "Client"
-    }.pdf`;
-    generatePDF(jobOrderData, fileName);
-  };
-
-  const generatePDF = async (data: CreateJobOrderData, fileName: string) => {
-    const doc = <JobOrderPDF data={data} />;
-    const asBlob = await pdf(doc).toBlob();
-    saveAs(asBlob, fileName);
-    setIsExportLoading(false);
-  };
-
   const shouldHighlightRow = (createdAt: string, status: string) => {
     const createdDate = new Date(createdAt);
     const twoDaysAgo = new Date();
@@ -570,36 +491,98 @@ export default function Table({
                   </p>
                 </div>
                 <div className="flex gap-2 md:ml-24 ml-0">
-                  {selectedRows.length === 1 && (
-                    <>
-                      <Button
-                        className="rounded-full bg-slate-700 gap-1"
-                        onClick={() => handleExportPdf(selectedRows[0])}
-                        disabled={isExportLoading}
-                      >
-                        {isExportLoading ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            <span className="hidden sm:block">
-                              Exporting PDF..
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <FileDown size={18} strokeWidth={1.5} />
-                            <span className="hidden sm:block">Export</span>
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        className="rounded-full bg-slate-700 gap-1"
-                        onClick={() => handleEditClick(selectedRows[0])}
-                      >
-                        <PenLine size={18} strokeWidth={1.5} />
-                        <span className="hidden sm:block">Edit</span>
-                      </Button>
-                    </>
-                  )}
+                  {selectedRows.length === 1 &&
+                    (() => {
+                      const currentOrder: JobOrderData | undefined =
+                        orders.find((order) => order.id === selectedRows[0]);
+
+                      if (!currentOrder) return null;
+
+                      let parsedAccessories: string[] = [];
+                      if (typeof currentOrder.accessories === "string") {
+                        try {
+                          parsedAccessories = JSON.parse(
+                            currentOrder.accessories
+                          ) as string[];
+                        } catch (error) {
+                          console.error("Failed to parse accessories", error);
+                        }
+                      }
+
+                      const orderReceivedTechnician = technicians.find(
+                        (tech) => tech.id === currentOrder.order_received
+                      );
+                      const orderReceivedTechnicianName =
+                        orderReceivedTechnician
+                          ? orderReceivedTechnician.fullname
+                          : "---";
+
+                      const technician = technicians.find(
+                        (tech) => tech.id === currentOrder.technician_id
+                      );
+                      const technicianName = technician
+                        ? technician.fullname
+                        : "---";
+
+                      const jobOrderData: CreateJobOrderData = {
+                        order_no: currentOrder.order_no || "",
+                        accessories: parsedAccessories,
+                        additional_comments:
+                          currentOrder.additional_comments || "",
+                        amount: currentOrder.amount ?? 0,
+                        branch_id: currentOrder.branch_id ?? 0,
+                        brand_model: currentOrder.brand_model || "",
+                        contact_number:
+                          currentOrder.clients?.contact_number || "",
+                        completed_at: currentOrder.completed_at || "",
+                        date: currentOrder.created_at
+                          ? new Date(currentOrder.created_at)
+                          : new Date(),
+                        email: currentOrder.clients?.email || "",
+                        grand_total: currentOrder.grand_total ?? 0,
+                        labor_description: currentOrder.labor_description || "",
+                        labor_total: currentOrder.labor_total ?? 0,
+                        machine_type: currentOrder.machine_type || "",
+                        material_total: currentOrder.material_total ?? 0,
+                        materials:
+                          currentOrder.materials.map((material: any) => ({
+                            material: material.material_description || "",
+                            quantity: material.quantity ?? 0,
+                            unitPrice: material.unit_price ?? 0,
+                          })) || [],
+                        name: currentOrder.clients?.name || "",
+                        order_received: orderReceivedTechnicianName,
+                        technician_id: technicianName,
+                        problem_statement: currentOrder.problem_statement || "",
+                        rate: currentOrder.rate ? currentOrder.rate : 0,
+                        serial_number: currentOrder.serial_number || "",
+                        sub_total: currentOrder.sub_total ?? 0,
+                        payment_details: currentOrder.payment_details || {},
+                        status: currentOrder.status || "",
+                      };
+
+                      const fileName = `JobOrder_${currentOrder.order_no}_${
+                        currentOrder.clients?.name || "Client"
+                      }.pdf`;
+
+                      return (
+                        <>
+                          <ExportDropdown
+                            jobOrderData={jobOrderData}
+                            quotations={quotations}
+                            fileName={fileName}
+                            branchId={currentOrder.branch_id}
+                          />
+                          <Button
+                            className="rounded-full bg-slate-700 gap-1"
+                            onClick={() => handleEditClick(selectedRows[0])}
+                          >
+                            <PenLine size={18} strokeWidth={1.5} />
+                            <span className="hidden sm:block">Edit</span>
+                          </Button>
+                        </>
+                      );
+                    })()}
                   <StatusChanger onChangeStatus={handleBulkStatusChange} />
                   {selectedRows.length > 0 && !isUser && (
                     <Button
