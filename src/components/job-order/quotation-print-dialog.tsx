@@ -1,11 +1,11 @@
 import { Button } from "../ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "../ui/dialog";
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../ui/alert-dialog";
 import { FileText, X } from "lucide-react";
 
 interface QuotationPrintDialogProps {
@@ -22,17 +22,17 @@ export default function QuotationPrintDialog({
   loading,
 }: QuotationPrintDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-fit">
-        <DialogHeader className="items-center">
-          <DialogTitle className="text-xl font-extrabold">
+    <AlertDialog open={open} onOpenChange={onClose}>
+      <AlertDialogContent className="w-fit">
+        <AlertDialogHeader className="items-center">
+          <AlertDialogTitle className="text-xl font-extrabold">
             Print Quotation
-          </DialogTitle>
-          <DialogDescription className="text-center text-xs">
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-center text-xs">
             A new quotation has been created for this job order. Would you like
             to print it?
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
         <div className="flex flex-col gap-2">
           <Button
             className="text-left justify-start h-fit gap-4"
@@ -57,7 +57,7 @@ export default function QuotationPrintDialog({
             </div>
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
