@@ -172,6 +172,8 @@ interface QuotationDialogProps {
   onAmountChange?: (amount: number) => void;
   isManualRateMode?: boolean;
   onRateModeChange?: (isManual: boolean) => void;
+  jobOrderWarrantyMonths?: number;
+  onWarrantyMonthsChange?: (months: number) => void;
 }
 
 const validityOptions = [
@@ -325,6 +327,8 @@ export default function QuotationDialog({
   onAmountChange,
   isManualRateMode = false,
   onRateModeChange,
+  jobOrderWarrantyMonths = 1,
+  onWarrantyMonthsChange,
 }: QuotationDialogProps) {
   const [subtotal, setSubtotal] = useState(0);
   const [discount, setDiscount] = useState(0);
@@ -333,7 +337,9 @@ export default function QuotationDialog({
   const [totalQuote, setTotalQuote] = useState(0);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [isManualRate, setIsManualRate] = useState(isManualRateMode);
-  const [validityMonths, setValidityMonths] = useState(1);
+  const [validityMonths, setValidityMonths] = useState(
+    jobOrderWarrantyMonths || 1
+  );
   const [savedFixedRate, setSavedFixedRate] = useState(jobOrderRate);
   const [specifyInputValue, setSpecifyInputValue] = useState("");
   const [editedClientData, setEditedClientData] = useState(
@@ -414,7 +420,7 @@ export default function QuotationDialog({
     defaultValues: {
       company: initialData?.company || "",
       address: initialData?.address || "",
-      validity_months: 1,
+      validity_months: jobOrderWarrantyMonths || 1,
       labor_rate: initialData?.labor_rate || jobOrderRate || 0,
       amount: initialData?.amount || jobOrderAmount || 0,
       note: initialData?.note || "",
@@ -454,6 +460,18 @@ export default function QuotationDialog({
       setIsManualRate(isManualRateMode);
     }
   }, [isManualRateMode, isManualRate]);
+
+  // Sync warranty/validity months from job order to quotation (Job Order -> Quotation)
+  useEffect(() => {
+    const currentValidityMonths = form.getValues("validity_months");
+    if (
+      jobOrderWarrantyMonths !== undefined &&
+      jobOrderWarrantyMonths !== currentValidityMonths
+    ) {
+      setValidityMonths(jobOrderWarrantyMonths);
+      form.setValue("validity_months", jobOrderWarrantyMonths);
+    }
+  }, [jobOrderWarrantyMonths, form]);
 
   // Bidirectional sync with conflict prevention
   useEffect(() => {
@@ -1228,8 +1246,12 @@ export default function QuotationDialog({
                             const months = Number(value);
                             field.onChange(months);
                             setValidityMonths(months);
+                            // Sync back to job order form (Quotation -> Job Order)
+                            if (onWarrantyMonthsChange) {
+                              onWarrantyMonthsChange(months);
+                            }
                           }}
-                          defaultValue={field.value?.toString() || "1"}
+                          value={field.value?.toString() || "1"}
                         >
                           <FormControl>
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">

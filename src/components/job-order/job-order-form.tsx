@@ -1897,7 +1897,7 @@ export default function JobOrderForm({
                           onValueChange={(value) => {
                             field.onChange(Number(value));
                           }}
-                          defaultValue={field.value?.toString() || "1"}
+                          value={field.value?.toString() || "1"}
                           disabled={isFormReadonly}
                         >
                           <FormControl>
@@ -2569,6 +2569,10 @@ export default function JobOrderForm({
         }}
         onRateModeChange={(isManual) => {
           setIsManualRate(isManual);
+        }}
+        jobOrderWarrantyMonths={form.getValues("warranty_months") || 1}
+        onWarrantyMonthsChange={(months) => {
+          form.setValue("warranty_months", months);
         }}
       />
 
