@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Button } from "../ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "../ui/dialog";
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogFooter,
+} from "../ui/alert-dialog";
 import { Building2, Loader2, SaveAll, UserRound } from "lucide-react";
 
 interface PrintDialogProps {
@@ -41,16 +41,18 @@ export default function PrintDialog({
   const buttonStyle = "text-left justify-start h-fit gap-4";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[400px]">
-        <DialogHeader className="items-center">
-          <DialogTitle className="text-xl font-extrabold">{title}</DialogTitle>
-          <DialogDescription className="text-center text-xs">
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent className="w-[400px]">
+        <AlertDialogHeader className="items-center">
+          <AlertDialogTitle className="text-xl font-extrabold">
+            {title}
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-center text-xs">
             Choose how you would like to print the document. You can print a
             copy for the company, a copy for the client, or both. If you don't
             want to print, simply select the option below.
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
         <div className="flex flex-col gap-2">
           <Button
             className={buttonStyle}
@@ -86,7 +88,7 @@ export default function PrintDialog({
             </div>
           </Button>
         </div>
-        <DialogFooter>
+        <AlertDialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Don't Print
           </Button>
@@ -104,8 +106,8 @@ export default function PrintDialog({
               "Print"
             )}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

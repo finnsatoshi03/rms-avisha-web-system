@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Button } from "../ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "../ui/dialog";
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogFooter,
+} from "../ui/alert-dialog";
 import { Building2, Loader2, SaveAll, UserRound } from "lucide-react";
 
 interface PrintOptionsDialogProps {
@@ -38,18 +38,18 @@ export default function PrintOptionsDialog({
   const buttonStyle = "text-left justify-start h-fit gap-4";
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[400px]">
-        <DialogHeader className="items-center">
-          <DialogTitle className="text-xl font-extrabold">
+    <AlertDialog open={open} onOpenChange={onClose}>
+      <AlertDialogContent className="w-[400px]">
+        <AlertDialogHeader className="items-center">
+          <AlertDialogTitle className="text-xl font-extrabold">
             Print Options
-          </DialogTitle>
-          <DialogDescription className="text-center text-xs">
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-center text-xs">
             Choose how you would like to print the job order. You can print a
             copy for the company, a copy for the client, or both. If you don't
             want to print, simply select the option below.
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
         <div className="flex flex-col gap-2">
           <Button
             className={buttonStyle}
@@ -85,7 +85,7 @@ export default function PrintOptionsDialog({
             </div>
           </Button>
         </div>
-        <DialogFooter>
+        <AlertDialogFooter>
           <Button variant="secondary" onClick={onClose}>
             Don't Print
           </Button>
@@ -103,8 +103,8 @@ export default function PrintOptionsDialog({
               "Print"
             )}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

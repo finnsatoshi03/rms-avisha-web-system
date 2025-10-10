@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Button } from "../ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "../ui/dialog";
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogFooter,
+} from "../ui/alert-dialog";
 import { FileText, ClipboardList, SaveAll, Loader2 } from "lucide-react";
 
 interface PrintSelectionDialogProps {
@@ -38,18 +38,18 @@ export default function PrintSelectionDialog({
   const buttonStyle = "text-left justify-start h-fit gap-4";
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-fit">
-        <DialogHeader className="items-center">
-          <DialogTitle className="text-xl font-extrabold">
+    <AlertDialog open={open} onOpenChange={onClose}>
+      <AlertDialogContent className="w-fit">
+        <AlertDialogHeader className="items-center">
+          <AlertDialogTitle className="text-xl font-extrabold">
             Print Selection
-          </DialogTitle>
-          <DialogDescription className="text-center text-xs">
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-center text-xs">
             Choose what you would like to print. You can print the quotation,
             the job order, or both. If you don't want to print, simply select
             the option below.
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
         <div className="flex flex-col gap-2">
           <Button
             className={buttonStyle}
@@ -85,7 +85,7 @@ export default function PrintSelectionDialog({
             </div>
           </Button>
         </div>
-        <DialogFooter>
+        <AlertDialogFooter>
           <Button variant="secondary" onClick={onClose}>
             Don't Print
           </Button>
@@ -103,8 +103,8 @@ export default function PrintSelectionDialog({
               "Continue"
             )}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
