@@ -11,7 +11,9 @@ export function useUser() {
     isLoading,
     user,
     isAdmin:
-      user?.email === "avisha@email.com" || user?.email === "admin@admin.com",
+      user?.email === "avisha@email.com" ||
+      user?.email === "admin@admin.com" ||
+      user?.email === "dev@dev.com",
     isTaytay: user?.email === "manager.taytay@rmsavisha.com",
     isPasig: user?.email === "manager.pasig@rmsavisha.com",
     isUser:
