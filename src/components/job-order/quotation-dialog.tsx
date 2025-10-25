@@ -540,7 +540,7 @@ export default function QuotationDialog({
         0
       );
       setSubtotal(newSubtotal);
-      setTotalQuote(newSubtotal - discount);
+      setTotalQuote(newSubtotal - discount + laborRate);
 
       console.log("Quotation dialog updated with preserved manual items");
 
@@ -552,7 +552,14 @@ export default function QuotationDialog({
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [jobOrderMaterials, form, discount, initialData?.quotation_items]);
+  }, [
+    jobOrderMaterials,
+    form,
+    discount,
+    initialData?.quotation_items,
+    laborRate,
+    amount,
+  ]);
 
   // Calculate totals when items change
   useEffect(() => {
