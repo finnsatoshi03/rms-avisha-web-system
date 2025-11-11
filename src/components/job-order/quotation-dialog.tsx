@@ -177,6 +177,7 @@ interface QuotationDialogProps {
 }
 
 const validityOptions = [
+  { label: "No warranty", value: 0 },
   { label: "1 Month", value: 1 },
   { label: "2 Months", value: 2 },
   { label: "3 Months", value: 3 },
@@ -338,7 +339,7 @@ export default function QuotationDialog({
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [isManualRate, setIsManualRate] = useState(isManualRateMode);
   const [validityMonths, setValidityMonths] = useState(
-    jobOrderWarrantyMonths || 1
+    jobOrderWarrantyMonths ?? 1
   );
   const [savedFixedRate, setSavedFixedRate] = useState(jobOrderRate);
   const [specifyInputValue, setSpecifyInputValue] = useState("");
@@ -420,7 +421,7 @@ export default function QuotationDialog({
     defaultValues: {
       company: initialData?.company || "",
       address: initialData?.address || "",
-      validity_months: jobOrderWarrantyMonths || 1,
+      validity_months: jobOrderWarrantyMonths ?? 1,
       labor_rate: initialData?.labor_rate || jobOrderRate || 0,
       amount: initialData?.amount || jobOrderAmount || 0,
       note: initialData?.note || "",
@@ -1258,7 +1259,7 @@ export default function QuotationDialog({
                               onWarrantyMonthsChange(months);
                             }
                           }}
-                          value={field.value?.toString() || "1"}
+                          value={field.value !== undefined ? field.value.toString() : "1"}
                         >
                           <FormControl>
                             <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">

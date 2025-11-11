@@ -299,7 +299,7 @@ export default function JobOrderForm({
     labor_description: editValues.labor_description || "",
     amount: editValues.amount || 0,
     accessories: editValues.accessories || [],
-    warranty_months: editValues.warranty_months || 1,
+    warranty_months: editValues.warranty_months ?? 0,
   };
 
   const accessoriesString = editValuesWithClient.accessories;
@@ -847,8 +847,9 @@ export default function JobOrderForm({
           : isAdmin || userIsGeneral
           ? values.branch_id || 0
           : 0,
-      warranty: editValues.warranty || undefined,
-      warranty_months: values.warranty_months || 1,
+      warranty: editSession ? editValues.warranty ?? undefined : undefined,
+      warranty_months:
+        values.warranty_months !== undefined ? values.warranty_months : 1,
       brand_model: values.brand_model || "",
       serial_number: values.serial_number || "",
       machine_type: values.machine_type || "",
@@ -2570,7 +2571,7 @@ export default function JobOrderForm({
         onRateModeChange={(isManual) => {
           setIsManualRate(isManual);
         }}
-        jobOrderWarrantyMonths={form.getValues("warranty_months") || 1}
+        jobOrderWarrantyMonths={form.getValues("warranty_months") ?? 1}
         onWarrantyMonthsChange={(months) => {
           form.setValue("warranty_months", months);
         }}

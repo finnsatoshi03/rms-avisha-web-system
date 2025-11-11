@@ -721,8 +721,6 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
                 new Date().getDate() + jobOrder.warranty_months * 30
               )
             )
-          : status.toLowerCase() === "completed"
-          ? new Date(new Date().setDate(new Date().getDate() + 30)) // Default 1 month
           : null;
 
       const { error } = await supabase
