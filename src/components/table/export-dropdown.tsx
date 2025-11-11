@@ -77,6 +77,16 @@ export const ExportDropdown = ({
       const endDate = new Date();
       endDate.setMonth(endDate.getMonth() + 1);
 
+      // Recalculate total_quote to ensure accuracy
+      // Formula: subtotal + labor_rate + (service_fee - labor_rate) - discount
+      // service_fee contains labor_rate + amount, so we extract amount by: service_fee - labor_rate
+      const subtotal = quotation.subtotal || 0;
+      const discount = quotation.discount || 0;
+      const laborRate = quotation.labor_rate || 0;
+      const serviceFee = quotation.service_fee || 0;
+      const amount = serviceFee - laborRate; // Extract the amount portion
+      const recalculatedTotal = subtotal + laborRate + amount - discount;
+
       const quotationPDFData: CreateQuotationData & {
         clientData: {
           name: string;
@@ -98,11 +108,11 @@ export const ExportDropdown = ({
         company: quotation.company || "",
         address: quotation.address || "",
         note: quotation.note || "",
-        subtotal: quotation.subtotal || 0,
-        discount: quotation.discount || 0,
-        labor_rate: quotation.labor_rate || 0,
-        service_fee: quotation.service_fee || 0,
-        total_quote: quotation.total_quote || 0,
+        subtotal: subtotal,
+        discount: discount,
+        labor_rate: laborRate,
+        service_fee: serviceFee,
+        total_quote: recalculatedTotal,
         quotation_items: quotation.quotation_items || [],
         clientData: {
           name: jobOrderData.name || "",
