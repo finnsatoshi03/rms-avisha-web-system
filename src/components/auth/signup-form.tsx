@@ -18,22 +18,29 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Button } from "../ui/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSignup } from "./useSignup";
+import { useUser } from "./useUser";
 
 interface FormData {
   fullname: string;
   email: string;
-  password: string;
-  confirmPassword: string;
+  password?: string;
+  confirmPassword?: string;
   branch: string;
 }
 
 const formSchema = z.object({
   fullname: z.string().min(2, "Fullname must be at least 2 characters."),
   email: z.string().email("Invalid type of email address."),
-  password: z.string().min(8, "Password must be at least 8 characters."),
-  confirmPassword: z.string(),
+  password: z
+    .string()
+    .optional()
+    .refine(
+      (value) => !value || value.length >= 8,
+      "Password must be at least 8 characters."
+    ),
+  confirmPassword: z.string().optional(),
   branch: z.string().min(1, "Branch is required."),
 });
 
@@ -41,12 +48,24 @@ const formResolver = (data: FormData) => {
   try {
     formSchema.parse(data);
 
-    if (data.password !== data.confirmPassword) {
+    if (data.password && data.password !== data.confirmPassword) {
       return {
         errors: {
           confirmPassword: {
             type: "manual",
             message: "Passwords must match.",
+          },
+        },
+        values: data,
+      };
+    }
+
+    if (!data.password && data.confirmPassword) {
+      return {
+        errors: {
+          password: {
+            type: "manual",
+            message: "Enter a password before confirming.",
           },
         },
         values: data,
@@ -62,6 +81,7 @@ const formResolver = (data: FormData) => {
 
 export default function SignupForm() {
   const { signup, isLoading } = useSignup();
+  const { isManager, branchId: currentUserBranchId } = useUser();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -76,15 +96,25 @@ export default function SignupForm() {
     },
   });
 
+  useEffect(() => {
+    if (isManager && currentUserBranchId) {
+      form.setValue("branch", String(currentUserBranchId));
+    }
+  }, [form, isManager, currentUserBranchId]);
+
   function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!values.email || !values.password) return;
+    if (!values.email) return;
+
+    const branchId =
+      values.branch === "all" ? null : Number.parseInt(values.branch, 10);
 
     signup(
       {
         fullname: values.fullname,
         email: values.email,
-        password: values.password,
-        role: `technician - ${values.branch} branch`,
+        password: values.password?.trim() ? values.password : undefined,
+        role: "technician",
+        branchId,
       },
       { onSettled: () => form.reset() }
     );
@@ -102,16 +132,22 @@ export default function SignupForm() {
               <FormControl>
                 <Select
                   {...field}
-                  disabled={isLoading}
+                  disabled={
+                    isLoading || (isManager && currentUserBranchId !== null)
+                  }
                   onValueChange={(value) => field.onChange(value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select your branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="taytay">Taytay</SelectItem>
-                    <SelectItem value="pasig">Pasig</SelectItem>
-                    <SelectItem value="general">All Branch</SelectItem>
+                    {(!isManager || currentUserBranchId === 1) && (
+                      <SelectItem value="1">Taytay</SelectItem>
+                    )}
+                    {(!isManager || currentUserBranchId === 2) && (
+                      <SelectItem value="2">Pasig</SelectItem>
+                    )}
+                    {!isManager && <SelectItem value="all">All Branches</SelectItem>}
                   </SelectContent>
                 </Select>
               </FormControl>
@@ -162,7 +198,7 @@ export default function SignupForm() {
               <FormControl>
                 <div className="relative">
                   <Input
-                    placeholder="Enter your desired password"
+                    placeholder="Optional: set temporary password"
                     type={showPassword ? "text" : "password"}
                     {...field}
                     disabled={isLoading}
@@ -193,7 +229,7 @@ export default function SignupForm() {
               <FormControl>
                 <div className="relative">
                   <Input
-                    placeholder="Confirm your password"
+                    placeholder="Confirm temporary password"
                     type={showConfirmPassword ? "text" : "password"}
                     {...field}
                     disabled={isLoading}

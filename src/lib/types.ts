@@ -158,7 +158,11 @@ export type User = {
   email: string;
   fullname: null | string;
   id: string;
-  role: null | string;
+  role: "admin" | "manager" | "technician";
+  branch_id: number | null;
+  deleted?: boolean;
+  must_change_password?: boolean;
+  created_at?: string | Date;
 };
 
 export type JobOrderData = {

@@ -15,6 +15,7 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { useState } from "react";
 import { useLogin } from "./useLogin";
+import { Link } from "react-router-dom";
 
 const formSchema = z.object({
   username: z.string().min(2, {
@@ -99,6 +100,14 @@ export default function LoginForm() {
             </FormItem>
           )}
         />
+        <div className="mt-2 text-right">
+          <Link
+            to="/forgot-password"
+            className="text-sm !p-0 hover:!bg-transparent hover:!text-inherit hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <div className="mt-6">
           <Button
             type="submit"

@@ -29,7 +29,7 @@ import {
 export default function Technicians() {
   const queryClient = useQueryClient();
 
-  const { isAdmin, isTaytay, isPasig } = useUser();
+  const { isAdmin, isManager, branchId: currentUserBranchId } = useUser();
 
   const { data, isLoading } = useQuery({
     queryKey: ["technicians", { fetchAll: false }],
@@ -76,74 +76,26 @@ export default function Technicians() {
 
   useEffect(() => {
     if (data) {
-      const filteredTechnicians = data.filter(
-        (technician) =>
-          technician.email !== "avisha@email.com" &&
-          !technician.email.includes("manager")
-      );
-      setTechnicians(filteredTechnicians);
-    }
-  }, [data]);
+      let scopedUsers = data;
 
-  useEffect(() => {
-    if (data) {
-      let filteredTechnicians = data;
-
-      // Apply branch-specific filtering
-      if (isTaytay) {
-        filteredTechnicians = data.filter(
-          (technician) =>
-            technician.role?.includes("taytay") ||
-            technician.email?.includes("taytay") ||
-            technician.role?.includes("general") ||
-            technician.email === "avisha@email.com"
-        );
-      } else if (isPasig) {
-        filteredTechnicians = data.filter(
-          (technician) =>
-            technician.role?.includes("pasig") ||
-            technician.email?.includes("pasig") ||
-            technician.role?.includes("general") ||
-            technician.email === "avisha@email.com"
-        );
-      } else if (!isAdmin) {
-        // If no specific branch and not admin, apply a default filter
-        filteredTechnicians = data.filter(
-          (technician) =>
-            technician.role?.includes("general") ||
-            technician.email === "avisha@email.com"
+      if (isManager && !isAdmin) {
+        scopedUsers = data.filter(
+          (staff) =>
+            staff.branch_id === currentUserBranchId || staff.branch_id === null
         );
       }
 
-      // Further categorization for UI display
-      const admins = filteredTechnicians.filter(
-        (tech) =>
-          tech.role?.includes("admin") || tech.email === "avisha@email.com"
-      );
-
-      const managers = filteredTechnicians.filter(
-        (tech) =>
-          tech.role?.includes("manager") ||
-          tech.email?.includes("manager") ||
-          tech.role?.includes("taytay") ||
-          tech.role?.includes("pasig")
-      );
-
-      const techniciansOnly = filteredTechnicians.filter(
-        (tech) =>
-          !tech.role?.includes("admin") &&
-          tech.email !== "avisha@email.com" &&
-          !tech.role?.includes("manager") &&
-          !tech.email?.includes("manager") &&
-          !tech.role?.includes("taytay") &&
-          !tech.role?.includes("pasig")
+      const admins = scopedUsers.filter((staff) => staff.role === "admin");
+      const managers = scopedUsers.filter((staff) => staff.role === "manager");
+      const techniciansOnly = scopedUsers.filter(
+        (staff) => staff.role === "technician"
       );
 
       setAdminTechnicians(admins);
       setManagerTechnicians(managers);
       setTechnicians(techniciansOnly);
     }
-  }, [data, isAdmin, isTaytay, isPasig]);
+  }, [data, isAdmin, isManager, currentUserBranchId]);
 
   const filteredAdmins = adminTechnicians.filter(
     (tech) =>

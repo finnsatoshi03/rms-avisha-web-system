@@ -24,8 +24,14 @@ export default function TechnicianCard({
     });
   };
 
-  const isTechnician = technician.role?.includes("technician");
-  const isManager = technician.email?.includes("manager");
+  const isTechnician = technician.role === "technician";
+  const isManager = technician.role === "manager";
+  const branchLabel =
+    technician.branch_id === 1
+      ? "Taytay"
+      : technician.branch_id === 2
+      ? "Pasig"
+      : "All Branches";
 
   // Calculate the last repair date
   const lastRepairDate = technician.joborders.reduce((latestDate, jobOrder) => {
@@ -88,7 +94,9 @@ export default function TechnicianCard({
               currency: "PHP",
             }).format(totalRevenue)}
           </p>
-          <p className="text-xs opacity-70">{technician.role}</p>
+          <p className="text-xs opacity-70">
+            {technician.role} • {branchLabel}
+          </p>
         </div>
         <Button className="h-fit text-sm" onClick={handleViewMore}>
           View More

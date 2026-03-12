@@ -101,7 +101,7 @@ export function RentalForm({
   const borderClass = "border-b border-slate-200";
   const inputClass = inputResetClass + " " + borderClass;
 
-  const { isTaytay, isPasig, isAdmin, user } = useUser();
+  const { isAdmin, branchId: currentUserBranchId } = useUser();
   const { mutate: createRental, isPending } = useCreateRental();
 
   const [showDownpayment, setShowDownpayment] = useState(false);
@@ -114,13 +114,7 @@ export function RentalForm({
     month: "long",
     day: "numeric",
   });
-  const isTechnician = user?.user_metadata.role?.includes("technician");
-
-  const userIsPasig =
-    isTechnician && user?.user_metadata.role?.includes("pasig");
-  const userIsTaytay =
-    isTechnician && user?.user_metadata.role?.includes("taytay");
-  const userIsGeneral = isTechnician && !userIsPasig && !userIsTaytay;
+  const canSelectBranch = isAdmin || currentUserBranchId === null;
 
   const form = useForm<RentalFormType>({
     resolver: zodResolver(rentalSchema),
@@ -151,17 +145,7 @@ export function RentalForm({
   const watchDeposit = form.watch("payment_terms.deposit");
   const watchDownpayment = form.watch("payment_terms.downpayment");
   const branchId =
-    isAdmin || userIsGeneral
-      ? form.watch("branch_id")
-      : userIsTaytay
-      ? 1
-      : userIsPasig
-      ? 2
-      : isTaytay
-      ? 1
-      : isPasig
-      ? 2
-      : 0;
+    canSelectBranch ? form.watch("branch_id") : (currentUserBranchId ?? 0);
 
   // Calculate total amount before downpayment
   const calculateTotalBeforeDownpayment = useCallback(() => {
@@ -405,7 +389,7 @@ export function RentalForm({
         <div className="space-y-2">
           <h2 className="text-xs mt-2 font-bold opacity-40">Rental Details</h2>
           <div className="grid grid-cols-2 gap-4">
-            {(isAdmin || userIsGeneral) && (
+            {canSelectBranch && (
               <FormField
                 control={form.control}
                 name="branch_id"

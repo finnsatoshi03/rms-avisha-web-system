@@ -19,6 +19,9 @@ import Quotations from "./pages/Quotations";
 import Clients from "./pages/Clients";
 // import Settings from "./pages/Settings";
 import Login from "./pages/Login";
+import AuthCallback from "./pages/AuthCallback";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import ProtectedRoute from "./components/protected-route";
 import Technicians from "./pages/Technicians";
 import TechnicianDetailPage from "./pages/TechnicianDetailPage";
@@ -83,6 +86,9 @@ export default function App() {
           </Route>
 
           <Route path="login" element={<Login />} />
+          <Route path="forgot-password" element={<ForgotPassword />} />
+          <Route path="auth/callback" element={<AuthCallback />} />
+          <Route path="auth/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

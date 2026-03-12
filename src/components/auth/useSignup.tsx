@@ -5,14 +5,28 @@ import toast from "react-hot-toast";
 export function useSignup() {
   const { mutate: signup, isPending: isLoading } = useMutation({
     mutationFn: signupApi,
-    onSuccess: () => {
-      toast.success(
-        "Account created successfully. Please check your email to verify your technician's account."
-      );
+    onSuccess: (result, variables) => {
+      if (result?.invite_sent === false) {
+        toast.error(
+          `Account created, but invite email failed: ${
+            result.invite_error || "Please send password reset manually."
+          }`
+        );
+        return;
+      }
+
+      if (variables.password?.trim()) {
+        toast.success(
+          "Account created. Invite sent. Share the temporary password securely; user will be forced to change it after first login."
+        );
+        return;
+      }
+
+      toast.success("Account created. Invite sent. User will set password on first access.");
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.log(error.message);
-      toast.error("Failed to create account. Please try again.");
+      toast.error(error.message || "Failed to create account. Please try again.");
     },
   });
 

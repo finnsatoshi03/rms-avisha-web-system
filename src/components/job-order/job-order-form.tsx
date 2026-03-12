@@ -355,16 +355,14 @@ export default function JobOrderForm({
     editSession ? Boolean(editValues.include_quotation_items) : false
   );
 
-  const { isTaytay, isPasig, isAdmin, user } = useUser();
-  const isTechnician = user?.user_metadata.role?.includes("technician");
+  const {
+    isAdmin,
+    isManager,
+    branchId: currentUserBranchId,
+    user,
+  } = useUser();
   const currentTechnicianId = user?.id;
-
-  // Determine branch based on the user's roles
-  const userIsPasig =
-    isTechnician && user?.user_metadata.role?.includes("pasig");
-  const userIsTaytay =
-    isTechnician && user?.user_metadata.role?.includes("taytay");
-  const userIsGeneral = isTechnician && !userIsPasig && !userIsTaytay;
+  const canSelectBranch = isAdmin || currentUserBranchId === null;
 
   // Create
   const { mutate: createJobOrder, isPending: isCreating } = useMutation({
@@ -398,7 +396,7 @@ export default function JobOrderForm({
   });
   // console.log(editValuesWithClient.materials);
 
-  const extendedBaseSchema = isAdmin
+  const extendedBaseSchema = canSelectBranch
     ? baseSchema.extend({
         branch_id: z.number().min(1, "Branch is required"),
       })
@@ -564,34 +562,19 @@ export default function JobOrderForm({
     grandTotal - (selectedDiscount ?? 0) - (downpaymentValue ?? 0);
 
   const filteredTechnicians = useMemo(() => {
-    if (userIsGeneral || isFormReadonly) {
+    if (isFormReadonly) {
       return technicians;
     }
-    if (branchId === 1 || userIsTaytay) {
+    if (branchId === 1 || branchId === 2) {
       return technicians.filter(
         (technician) =>
-          technician.role?.includes("taytay") ||
-          technician.email?.includes("taytay") ||
-          technician.role?.includes("general") ||
-          technician.email === "avisha@email.com"
+          technician.branch_id === branchId || technician.branch_id === null
       );
-    } else if (branchId === 2 || userIsPasig) {
-      return technicians.filter(
-        (technician) =>
-          technician.role?.includes("pasig") ||
-          technician.email?.includes("pasig") ||
-          technician.role?.includes("general") ||
-          technician.email === "avisha@email.com"
-      );
-    } else {
-      return technicians;
     }
+    return technicians;
   }, [
     technicians,
     branchId,
-    userIsPasig,
-    userIsTaytay,
-    userIsGeneral,
     isFormReadonly,
   ]);
 
@@ -839,14 +822,7 @@ export default function JobOrderForm({
       date: editSession
         ? String(jobOrderToEdit.created_at)
         : new Date().toISOString(),
-      branch_id:
-        isTaytay || userIsTaytay
-          ? 1
-          : isPasig || userIsPasig
-          ? 2
-          : isAdmin || userIsGeneral
-          ? values.branch_id || 0
-          : 0,
+      branch_id: branchId ?? currentUserBranchId ?? values.branch_id ?? 0,
       warranty: editSession ? editValues.warranty ?? undefined : undefined,
       warranty_months:
         values.warranty_months !== undefined ? values.warranty_months : 1,
@@ -1391,7 +1367,7 @@ export default function JobOrderForm({
             </h2>
             <div className="grid md:grid-cols-3 grid-cols-1 gap-2 px-4 py-2 border rounded-xl">
               {/* Hide contact number based on security conditions */}
-              {!(editSession && !isAdmin && !isTaytay && !isPasig) && (
+              {!(editSession && !isAdmin && !isManager) && (
                 <FormField
                   control={form.control}
                   name="contact_number"
@@ -1453,14 +1429,13 @@ export default function JobOrderForm({
                           defaultValue={field.value ?? undefined}
                           disabled={
                             readonly ||
-                            ((isAdmin || userIsGeneral) &&
-                              !form.watch("branch_id"))
+                            (canSelectBranch && !form.watch("branch_id"))
                           }
                         >
                           <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0">
                             <SelectValue
                               placeholder={
-                                isAdmin && !form.watch("branch_id")
+                                canSelectBranch && !form.watch("branch_id")
                                   ? "Select a branch first"
                                   : "Select Receiver"
                               }
@@ -1499,7 +1474,7 @@ export default function JobOrderForm({
                 <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
                   Order Details
                 </h2>
-                {(isAdmin || userIsGeneral) && (
+                {canSelectBranch && (
                   <FormField
                     control={form.control}
                     name="branch_id"

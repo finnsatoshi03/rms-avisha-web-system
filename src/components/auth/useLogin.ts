@@ -10,8 +10,8 @@ export function useLogin() {
   const { mutate: login, isPending: isLoading } = useMutation({
     mutationFn: ({ email, password }: { email: string; password: string }) =>
       loginApi({ email, password }),
-    onSuccess: (user) => {
-      queryClient.setQueryData(["user"], user.user);
+    onSuccess: (result) => {
+      queryClient.setQueryData(["user"], result.user);
       navigate("/dashboard/job-order", { replace: true });
 
       window.history.pushState(null, document.title, window.location.href);

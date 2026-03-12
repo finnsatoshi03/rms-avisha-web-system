@@ -159,7 +159,7 @@ export default function UpdateUserDataForm() {
                   <div className="flex items-center gap-4">
                     <Avatar className="h-20 w-20 border-2 border-gray-200">
                       <AvatarImage
-                        src={previewUrl || currentAvatar}
+                        src={previewUrl || currentAvatar || undefined}
                         alt="Profile preview"
                       />
                       <AvatarFallback className="bg-gradient-to-br from-blue-100 to-indigo-100">

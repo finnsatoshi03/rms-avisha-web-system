@@ -10,24 +10,36 @@ export default function ProtectedRoute({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isUser, isPasig, isTaytay, isAdmin, isLoading } = useUser();
+  const { isTechnician, isManager, isAdmin, isLoading, user } = useUser();
 
   useEffect(() => {
     if (isLoading) return;
 
-    // Redirect to login if no valid role is found
-    if (!isUser && !isAdmin && !isTaytay && !isPasig) {
+    if (!user || (!isAdmin && !isManager && !isTechnician)) {
       navigate("/login");
-    } else if (isUser) {
-      // Allow only specific paths for `isUser`
+      return;
+    }
+
+    if (isTechnician) {
       const allowedPaths = ["/technician-dashboard", "/job-orders", "/account"];
       if (!allowedPaths.includes(location.pathname)) {
         navigate("/technician-dashboard");
       }
-    } else if (!isUser && location.pathname === "/technician-dashboard") {
+      return;
+    }
+
+    if (location.pathname === "/technician-dashboard") {
       navigate("/dashboard/job-order");
     }
-  }, [isUser, isAdmin, isTaytay, isPasig, isLoading, navigate, location]);
+  }, [
+    isTechnician,
+    isManager,
+    isAdmin,
+    isLoading,
+    navigate,
+    location,
+    user,
+  ]);
 
   if (isLoading) {
     return (
@@ -37,6 +49,5 @@ export default function ProtectedRoute({
     );
   }
 
-  // Allow access to children components if authenticated and date is correct
-  return isUser || isAdmin || isPasig || isTaytay ? children : null;
+  return isTechnician || isManager || isAdmin ? children : null;
 }

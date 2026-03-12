@@ -9,6 +9,7 @@ import {
 } from "../components/ui/sidebar";
 import { Separator } from "../components/ui/separator";
 import NavigationSearch from "../components/navigation-search";
+import InitialPasswordSetup from "../components/auth/initial-password-setup";
 
 // Breadcrumb configuration
 const breadcrumbConfig: Record<string, string> = {
@@ -90,6 +91,10 @@ export default function AppLayout() {
       return;
     }
 
+    if (user.must_change_password) {
+      return;
+    }
+
     // Force redirect if trying to bypass
     if (shouldBlockAccess) {
       navigate("/manager-re-auth", { replace: true });
@@ -107,11 +112,16 @@ export default function AppLayout() {
     shouldBlockAccess,
     isDashboardRoute,
     isManagerReAuthRoute,
+    user?.must_change_password,
   ]);
 
   // Block rendering entirely if user is not authenticated
   if (!user) {
     return null;
+  }
+
+  if (user.must_change_password) {
+    return <InitialPasswordSetup fullname={user.fullname} email={user.email} />;
   }
 
   // Block dashboard access completely until re-authentication

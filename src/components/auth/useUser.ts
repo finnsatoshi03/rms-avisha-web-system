@@ -7,17 +7,26 @@ export function useUser() {
     queryFn: getCurrentUser,
   });
 
+  const role = user?.role;
+  const branchId = user?.branch_id ?? null;
+  const mustChangePassword = user?.must_change_password ?? false;
+  const isAdmin = role === "admin";
+  const isManager = role === "manager";
+  const isTechnician = role === "technician";
+  const isTaytay = isManager && branchId === 1;
+  const isPasig = isManager && branchId === 2;
+
   return {
     isLoading,
     user,
-    isAdmin:
-      user?.email === "avisha@email.com" ||
-      user?.email === "admin@admin.com" ||
-      user?.email === "dev@dev.com",
-    isTaytay: user?.email === "manager.taytay@rmsavisha.com",
-    isPasig: user?.email === "manager.pasig@rmsavisha.com",
-    isUser:
-      (user?.user_metadata?.role?.includes("technician") ?? false) ||
-      user?.email === "tech1@tech.com",
+    role,
+    branchId,
+    mustChangePassword,
+    isAdmin,
+    isManager,
+    isTechnician,
+    isTaytay,
+    isPasig,
+    isUser: isTechnician, // backwards-compatible alias
   };
 }

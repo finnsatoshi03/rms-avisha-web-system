@@ -1,27 +1,15 @@
 import { useUser } from "../components/auth/useUser";
 
 export const useBranchValidation = (selectedBranchId?: number | null) => {
-  const { isTaytay, isPasig, isAdmin, user } = useUser();
-
-  // Determine branch based on user roles
-  const userIsPasig = user?.user_metadata.role?.includes("pasig");
-  const userIsTaytay = user?.user_metadata.role?.includes("taytay");
-  const userIsGeneral =
-    user?.user_metadata.role?.includes("technician") &&
-    !userIsPasig &&
-    !userIsTaytay;
+  const { isAdmin, branchId: currentUserBranchId } = useUser();
 
   const getBranchId = (): number | null => {
-    // If a branch is explicitly selected (from form), use that
     if (selectedBranchId !== undefined && selectedBranchId !== null) {
       return selectedBranchId;
     }
 
-    // Otherwise, use role-based branch assignment
-    if (isTaytay || userIsTaytay) return 1;
-    if (isPasig || userIsPasig) return 2;
-    if (isAdmin || userIsGeneral) return null; // Admin can select any branch
-    return null; // No branch assigned
+    if (isAdmin) return null;
+    return currentUserBranchId ?? null;
   };
 
   const hasValidBranch = (): boolean => {
