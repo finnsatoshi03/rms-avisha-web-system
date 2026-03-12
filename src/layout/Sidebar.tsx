@@ -150,7 +150,7 @@ export default function AppSidebar({
                   <Collapsible open={isHomeOpen} onOpenChange={setIsHomeOpen}>
                     <CollapsibleTrigger asChild>
                       <SidebarMenuButton
-                        className="w-full justify-between opacity-50"
+                        className="w-full justify-between"
                         tooltip="Home"
                       >
                         <div className="flex items-center gap-2">
@@ -212,7 +212,7 @@ export default function AppSidebar({
                   >
                     <CollapsibleTrigger asChild>
                       <SidebarMenuButton
-                        className="w-full justify-between opacity-50"
+                        className="w-full justify-between"
                         tooltip="Job Orders"
                       >
                         <div className="flex items-center gap-2">

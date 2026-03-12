@@ -4,16 +4,13 @@ import { useState, useEffect } from "react";
 import { ArrowRightIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogClose,
 } from "../ui/dialog";
 import { Skeleton } from "../ui/skeleton";
 import { getChangelogsForRole } from "../../services/apiChangelog";
@@ -22,14 +19,20 @@ interface ChangelogDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userRole: string;
+  currentChangelogVersion: string | null;
+  onMarkAsRead?: () => void;
 }
 
 export default function ChangelogDialog({
   open,
   onOpenChange,
   userRole,
+  currentChangelogVersion,
+  onMarkAsRead,
 }: ChangelogDialogProps) {
   const [step, setStep] = useState(1);
+  const globalSeenChangelogVersionKey = "seen_changelog_version";
+  const roleSeenChangelogVersionKey = `seen_changelog_version_${userRole}`;
 
   // Fetch changelogs for the user's role
   const { data: changelogs, isLoading } = useQuery({
@@ -48,28 +51,34 @@ export default function ChangelogDialog({
     }
   };
 
+  const markAsRead = () => {
+    if (currentChangelogVersion) {
+      localStorage.setItem(roleSeenChangelogVersionKey, currentChangelogVersion);
+      localStorage.setItem(
+        globalSeenChangelogVersionKey,
+        currentChangelogVersion
+      );
+    }
+
+    onMarkAsRead?.();
+  };
+
   const handleSkip = () => {
-    // Mark all changelogs as viewed
-    const viewedChangelogs = filteredChangelogs.map((item) =>
-      item.id.toString()
-    );
-    localStorage.setItem(
-      `changelog_viewed_${userRole}`,
-      JSON.stringify(viewedChangelogs)
-    );
+    markAsRead();
     onOpenChange(false);
   };
 
   const handleFinish = () => {
-    // Mark all changelogs as viewed
-    const viewedChangelogs = filteredChangelogs.map((item) =>
-      item.id.toString()
-    );
-    localStorage.setItem(
-      `changelog_viewed_${userRole}`,
-      JSON.stringify(viewedChangelogs)
-    );
+    markAsRead();
     onOpenChange(false);
+  };
+
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      markAsRead();
+    }
+
+    onOpenChange(nextOpen);
   };
 
   // Reset step when dialog opens
@@ -81,7 +90,7 @@ export default function ChangelogDialog({
 
   if (isLoading) {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent
           className="gap-0 p-0 [&>button:last-child]:text-white"
           onPointerDownOutside={(e) => e.preventDefault()}
@@ -105,10 +114,10 @@ export default function ChangelogDialog({
                 <Skeleton className="size-1.5 rounded-full" />
                 <Skeleton className="size-1.5 rounded-full" />
               </div>
-              <DialogFooter>
+              <div className="flex items-center justify-end gap-2 list-none">
                 <Skeleton className="h-9 w-16" />
                 <Skeleton className="h-9 w-16" />
-              </DialogFooter>
+              </div>
             </div>
           </div>
         </DialogContent>
@@ -123,7 +132,7 @@ export default function ChangelogDialog({
   const currentChangelog = filteredChangelogs[step - 1];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
         className="gap-0 p-0 [&>button:last-child]:text-white max-h-[90vh] flex flex-col"
         onPointerDownOutside={(e) => e.preventDefault()}
@@ -166,45 +175,28 @@ export default function ChangelogDialog({
             </ul>
           </div>
 
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="flex justify-center space-x-1.5 max-sm:order-1">
-              {[...Array(totalSteps)].map((_, index) => (
-                <div
-                  key={index}
-                  className={cn(
-                    "bg-primary size-1.5 rounded-full",
-                    index + 1 === step ? "bg-primary" : "opacity-20"
-                  )}
+          <div className="flex items-center justify-end gap-2 list-none">
+            <Button type="button" variant="ghost" onClick={handleSkip}>
+              Close
+            </Button>
+            {step < totalSteps ? (
+              <Button
+                className="group"
+                type="button"
+                onClick={handleContinue}
+              >
+                Next
+                <ArrowRightIcon
+                  className="-me-1 opacity-60 transition-transform group-hover:translate-x-0.5"
+                  size={16}
+                  aria-hidden="true"
                 />
-              ))}
-            </div>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button type="button" variant="ghost" onClick={handleSkip}>
-                  Skip
-                </Button>
-              </DialogClose>
-              {step < totalSteps ? (
-                <Button
-                  className="group"
-                  type="button"
-                  onClick={handleContinue}
-                >
-                  Next
-                  <ArrowRightIcon
-                    className="-me-1 opacity-60 transition-transform group-hover:translate-x-0.5"
-                    size={16}
-                    aria-hidden="true"
-                  />
-                </Button>
-              ) : (
-                <DialogClose asChild>
-                  <Button type="button" onClick={handleFinish}>
-                    Okay
-                  </Button>
-                </DialogClose>
-              )}
-            </DialogFooter>
+              </Button>
+            ) : (
+              <Button type="button" onClick={handleFinish}>
+                Got it
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>

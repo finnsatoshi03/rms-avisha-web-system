@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getChangelogsForRole } from "../services/apiChangelog";
 
 export const useChangelog = (userRole: string) => {
+  const globalSeenChangelogVersionKey = "seen_changelog_version";
+  const roleSeenChangelogVersionKey = `seen_changelog_version_${userRole}`;
   const [hasNewChangelogs, setHasNewChangelogs] = useState(false);
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
 
@@ -13,21 +15,39 @@ export const useChangelog = (userRole: string) => {
     enabled: !!userRole,
   });
 
+  const currentChangelogVersion = useMemo(() => {
+    if (!changelogs || changelogs.length === 0) {
+      return null;
+    }
+
+    return changelogs[0].version;
+  }, [changelogs]);
+
+  const markCurrentAsRead = useCallback(() => {
+    if (!userRole || !currentChangelogVersion) return;
+
+    localStorage.setItem(roleSeenChangelogVersionKey, currentChangelogVersion);
+    localStorage.setItem(globalSeenChangelogVersionKey, currentChangelogVersion);
+    setHasNewChangelogs(false);
+  }, [
+    userRole,
+    currentChangelogVersion,
+    roleSeenChangelogVersionKey,
+    globalSeenChangelogVersionKey,
+  ]);
+
   useEffect(() => {
-    if (!userRole || !changelogs || isLoading) return;
+    if (!userRole || isLoading) return;
 
-    // Get viewed changelogs for this user role
-    const viewedChangelogsKey = `changelog_viewed_${userRole}`;
-    const viewedChangelogs = JSON.parse(
-      localStorage.getItem(viewedChangelogsKey) || "[]"
-    );
+    if (!currentChangelogVersion) {
+      setHasNewChangelogs(false);
+      return;
+    }
 
-    // Check if there are any unviewed changelogs
-    const unviewedChangelogs = changelogs.filter(
-      (changelog) => !viewedChangelogs.includes(changelog.id.toString())
-    );
-
-    const hasNew = unviewedChangelogs.length > 0;
+    const seenChangelogVersion =
+      localStorage.getItem(roleSeenChangelogVersionKey) ||
+      localStorage.getItem(globalSeenChangelogVersionKey);
+    const hasNew = seenChangelogVersion !== currentChangelogVersion;
     setHasNewChangelogs(hasNew);
 
     // Auto-open dialog if there are new changelogs and dialog is not already open
@@ -39,10 +59,18 @@ export const useChangelog = (userRole: string) => {
 
       return () => clearTimeout(timer);
     }
-  }, [userRole, changelogs, isLoading, isChangelogOpen]);
+  }, [
+    userRole,
+    currentChangelogVersion,
+    isLoading,
+    isChangelogOpen,
+    roleSeenChangelogVersionKey,
+    globalSeenChangelogVersionKey,
+  ]);
 
   const openChangelog = () => {
     setIsChangelogOpen(true);
+    markCurrentAsRead();
   };
 
   const closeChangelog = () => {
@@ -54,5 +82,7 @@ export const useChangelog = (userRole: string) => {
     isChangelogOpen,
     openChangelog,
     closeChangelog,
+    currentChangelogVersion,
+    markCurrentAsRead,
   };
 };

@@ -19,8 +19,14 @@ export default function ChangelogTrigger() {
   };
 
   const userRole = getUserRole();
-  const { hasNewChangelogs, isChangelogOpen, openChangelog, closeChangelog } =
-    useChangelog(userRole);
+  const {
+    hasNewChangelogs,
+    isChangelogOpen,
+    openChangelog,
+    closeChangelog,
+    currentChangelogVersion,
+    markCurrentAsRead,
+  } = useChangelog(userRole);
 
   if (!user) return null;
 
@@ -50,8 +56,14 @@ export default function ChangelogTrigger() {
 
       <ChangelogDialog
         open={isChangelogOpen}
-        onOpenChange={closeChangelog}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            closeChangelog();
+          }
+        }}
         userRole={userRole}
+        currentChangelogVersion={currentChangelogVersion}
+        onMarkAsRead={markCurrentAsRead}
       />
     </>
   );
