@@ -10,6 +10,8 @@ import {
 import { Separator } from "../components/ui/separator";
 import NavigationSearch from "../components/navigation-search";
 import InitialPasswordSetup from "../components/auth/initial-password-setup";
+import { DevConsoleProvider } from "../components/dev-console/dev-console-context";
+import DevUsers from "../pages/DevUsers";
 
 // Breadcrumb configuration
 const breadcrumbConfig: Record<string, string> = {
@@ -139,43 +141,46 @@ export default function AppLayout() {
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar isUser={isUser} />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-          <div className="flex items-center justify-between w-full px-4">
-            {/* Left side - Sidebar trigger and breadcrumbs */}
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="-ml-1" />
-              <Separator orientation="vertical" className="mr-2 h-4" />
-              <div className="flex items-center gap-2 text-sm font-medium">
-                {breadcrumbs.map((crumb, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <span
-                      className={index === 0 ? "text-muted-foreground" : ""}
-                    >
-                      {crumb}
-                    </span>
-                    {index < breadcrumbs.length - 1 && <span>/</span>}
-                  </div>
-                ))}
+    <DevConsoleProvider>
+      <SidebarProvider>
+        <AppSidebar isUser={isUser} />
+        <SidebarInset>
+          <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+            <div className="flex items-center justify-between w-full px-4">
+              {/* Left side - Sidebar trigger and breadcrumbs */}
+              <div className="flex items-center gap-2">
+                <SidebarTrigger className="-ml-1" />
+                <Separator orientation="vertical" className="mr-2 h-4" />
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  {breadcrumbs.map((crumb, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <span
+                        className={index === 0 ? "text-muted-foreground" : ""}
+                      >
+                        {crumb}
+                      </span>
+                      {index < breadcrumbs.length - 1 && <span>/</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right side - Search and User Profile */}
+              <div className="flex items-center gap-3">
+                <NavigationSearch />
               </div>
             </div>
-
-            {/* Right side - Search and User Profile */}
-            <div className="flex items-center gap-3">
-              <NavigationSearch />
+          </header>
+          <div className="flex flex-1 flex-col gap-4 pt-0">
+            <div className="h-[calc(100vh-6rem)]">
+              <div className="h-full px-6">
+                <Outlet />
+              </div>
             </div>
           </div>
-        </header>
-        <div className="flex flex-1 flex-col gap-4 pt-0">
-          <div className="h-[calc(100vh-6rem)]">
-            <div className="h-full px-6">
-              <Outlet />
-            </div>
-          </div>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+        <DevUsers />
+      </SidebarProvider>
+    </DevConsoleProvider>
   );
 }

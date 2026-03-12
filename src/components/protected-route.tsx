@@ -10,31 +10,40 @@ export default function ProtectedRoute({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isTechnician, isManager, isAdmin, isLoading, user } = useUser();
+  const { isTechnician, isManager, isAdmin, isDev, isLoading, user } =
+    useUser();
 
   useEffect(() => {
     if (isLoading) return;
 
-    if (!user || (!isAdmin && !isManager && !isTechnician)) {
+    if (!user || (!isAdmin && !isManager && !isTechnician && !isDev)) {
       navigate("/login");
+      return;
+    }
+
+    if (location.pathname.startsWith("/dev") && !isDev) {
+      navigate(isTechnician ? "/technician-dashboard" : "/dashboard/job-order", {
+        replace: true,
+      });
       return;
     }
 
     if (isTechnician) {
       const allowedPaths = ["/technician-dashboard", "/job-orders", "/account"];
       if (!allowedPaths.includes(location.pathname)) {
-        navigate("/technician-dashboard");
+        navigate("/technician-dashboard", { replace: true });
       }
       return;
     }
 
     if (location.pathname === "/technician-dashboard") {
-      navigate("/dashboard/job-order");
+      navigate("/dashboard/job-order", { replace: true });
     }
   }, [
     isTechnician,
     isManager,
     isAdmin,
+    isDev,
     isLoading,
     navigate,
     location,
@@ -49,5 +58,5 @@ export default function ProtectedRoute({
     );
   }
 
-  return isTechnician || isManager || isAdmin ? children : null;
+  return isTechnician || isManager || isAdmin || isDev ? children : null;
 }

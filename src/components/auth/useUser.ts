@@ -10,7 +10,8 @@ export function useUser() {
   const role = user?.role;
   const branchId = user?.branch_id ?? null;
   const mustChangePassword = user?.must_change_password ?? false;
-  const isAdmin = role === "admin";
+  const isDev = role === "dev";
+  const isAdmin = role === "admin" || isDev;
   const isManager = role === "manager";
   const isTechnician = role === "technician";
   const isTaytay = isManager && branchId === 1;
@@ -22,6 +23,7 @@ export function useUser() {
     role,
     branchId,
     mustChangePassword,
+    isDev,
     isAdmin,
     isManager,
     isTechnician,

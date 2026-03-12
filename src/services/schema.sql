@@ -230,7 +230,7 @@ CREATE TABLE public.users (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_branch_id_check CHECK (((branch_id IS NULL) OR (branch_id = ANY (ARRAY[1, 2])))),
-  CONSTRAINT users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'manager'::text, 'technician'::text]))),
+  CONSTRAINT users_role_check CHECK ((role = ANY (ARRAY['dev'::text, 'admin'::text, 'manager'::text, 'technician'::text]))),
   CONSTRAINT users_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id),
   CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );

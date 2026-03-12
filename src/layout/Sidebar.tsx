@@ -8,6 +8,7 @@ import {
   Printer,
   ReceiptText,
   Settings,
+  ShieldCheck,
   UserRoundCog,
   UsersRound,
   WalletMinimal,
@@ -45,6 +46,7 @@ import { cn } from "../lib/utils";
 import { useUser } from "../components/auth/useUser";
 import { useState } from "react";
 import { SettingsDialog } from "../components/settings/settings-dialog";
+import { useDevConsole } from "../components/dev-console/dev-console-context";
 
 interface SidebarProps {
   className?: string;
@@ -125,7 +127,8 @@ export default function AppSidebar({
   isUser,
   onClose,
 }: SidebarProps) {
-  const { user } = useUser();
+  const { user, isDev } = useUser();
+  const { openConsole } = useDevConsole();
   const [open, setOpen] = useState(false);
   const [isHomeOpen, setIsHomeOpen] = useState(true);
   const [isJobOrdersOpen, setIsJobOrdersOpen] = useState(false);
@@ -381,6 +384,20 @@ export default function AppSidebar({
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                {isDev && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      tooltip="Dev Console"
+                      onClick={() => {
+                        openConsole();
+                        handleNavClick();
+                      }}
+                    >
+                      <ShieldCheck size={20} />
+                      <span>Dev Console</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </>
             ) : (
               <>

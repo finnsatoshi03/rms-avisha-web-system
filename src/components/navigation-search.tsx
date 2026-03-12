@@ -27,6 +27,7 @@ import {
   Printer,
   ReceiptText,
   Settings,
+  ShieldCheck,
   UserRoundCog,
   UsersRound,
   WalletMinimal,
@@ -38,6 +39,7 @@ import { Separator } from "./ui/separator";
 import { SettingsDialog } from "./settings/settings-dialog";
 import ChangelogTrigger from "./changelog/changelog-trigger";
 import ChangelogAdmin from "./changelog/changelog-admin";
+import { useDevConsole } from "./dev-console/dev-console-context";
 
 // Navigation items configuration
 const navigationItems = [
@@ -126,6 +128,12 @@ const navigationItems = [
         path: "changelog-admin-dialog",
         keywords: ["changelog", "admin", "updates", "version", "release"],
       },
+      {
+        icon: ShieldCheck,
+        title: "Dev Console",
+        path: "dev-console-dialog",
+        keywords: ["developer console", "manage admins", "manage managers"],
+      },
     ],
   },
 ];
@@ -140,7 +148,8 @@ const NavigationSearch: React.FC = () => {
   >("account");
   const [search, setSearch] = useState("");
   const navigate = useNavigate();
-  const { user, isUser, isAdmin } = useUser();
+  const { openConsole } = useDevConsole();
+  const { user, isUser, isAdmin, isDev } = useUser();
 
   // Handle Ctrl+K shortcut and Escape key
   useEffect(() => {
@@ -184,19 +193,29 @@ const NavigationSearch: React.FC = () => {
       ];
     }
 
-    // For admin users, show all items including changelog admin
-    if (isAdmin) {
+    // For dev users, show all items including dev panel
+    if (isDev) {
       return navigationItems;
     }
 
-    // For other users, filter out changelog admin
+    // For admin users, show all except dev panel
+    if (isAdmin) {
+      return navigationItems.map((group) => ({
+        ...group,
+        items: group.items.filter((item) => item.path !== "dev-console-dialog"),
+      }));
+    }
+
+    // For other users, filter out changelog admin and dev panel
     return navigationItems.map((group) => ({
       ...group,
       items: group.items.filter(
-        (item) => item.path !== "changelog-admin-dialog"
+        (item) =>
+          item.path !== "changelog-admin-dialog" &&
+          item.path !== "dev-console-dialog"
       ),
     }));
-  }, [isUser, isAdmin]);
+  }, [isUser, isAdmin, isDev]);
 
   // Filter items based on search
   const filteredItems = React.useMemo(() => {
@@ -228,6 +247,8 @@ const NavigationSearch: React.FC = () => {
       setSettingsOpen(true);
     } else if (path === "changelog-admin-dialog") {
       setChangelogAdminOpen(true);
+    } else if (path === "dev-console-dialog") {
+      openConsole();
     } else {
       navigate(path);
     }

@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-type AppRole = "admin" | "manager" | "technician";
+type AppRole = "dev" | "admin" | "manager" | "technician";
 
 type CreateUserPayload = {
   fullname?: string;
@@ -27,7 +27,23 @@ const json = (status: number, body: unknown) =>
   });
 
 const isValidRole = (value: unknown): value is AppRole =>
-  value === "admin" || value === "manager" || value === "technician";
+  value === "dev" ||
+  value === "admin" ||
+  value === "manager" ||
+  value === "technician";
+
+const normalizeRole = (value: unknown): AppRole => {
+  if (
+    value === "dev" ||
+    value === "admin" ||
+    value === "manager" ||
+    value === "technician"
+  ) {
+    return value;
+  }
+
+  return "technician";
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -71,9 +87,12 @@ Deno.serve(async (req: Request) => {
     return json(403, { error: "Caller account is not allowed to create users." });
   }
 
-  const callerRole = callerProfile.role as AppRole;
-  if (callerRole !== "admin" && callerRole !== "manager") {
-    return json(403, { error: "Only admins and managers can create users." });
+  const callerRole = normalizeRole(callerProfile.role);
+
+  if (callerRole !== "dev" && callerRole !== "admin" && callerRole !== "manager") {
+    return json(403, {
+      error: "Only dev, admin, and manager accounts can create users.",
+    });
   }
 
   let payload: CreateUserPayload;

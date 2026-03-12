@@ -1,7 +1,7 @@
 import { User as SupabaseAuthUser, UserAttributes } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 
-export type AppUserRole = "admin" | "manager" | "technician";
+export type AppUserRole = "dev" | "admin" | "manager" | "technician";
 
 type UserProfileRow = {
   id: string;
@@ -33,7 +33,12 @@ export type CurrentUser = {
   auth_user: SupabaseAuthUser;
 };
 
-const VALID_ROLES = new Set<AppUserRole>(["admin", "manager", "technician"]);
+const VALID_ROLES = new Set<AppUserRole>([
+  "dev",
+  "admin",
+  "manager",
+  "technician",
+]);
 
 function normalizeRole(role: string | null): AppUserRole {
   if (role && VALID_ROLES.has(role as AppUserRole)) {

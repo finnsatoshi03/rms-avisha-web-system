@@ -158,7 +158,7 @@ export type User = {
   email: string;
   fullname: null | string;
   id: string;
-  role: "admin" | "manager" | "technician";
+  role: "dev" | "admin" | "manager" | "technician";
   branch_id: number | null;
   deleted?: boolean;
   must_change_password?: boolean;
