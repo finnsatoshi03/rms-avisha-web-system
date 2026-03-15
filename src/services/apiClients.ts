@@ -1,4 +1,5 @@
 import { Client } from "../lib/types";
+import { withEffectiveUserEmail } from "../lib/effective-user-email";
 import { supabase } from "./supabase";
 
 export async function getClientsWithJobOrders() {
@@ -36,9 +37,17 @@ export async function getClientsWithJobOrders() {
       throw new Error("Error fetching job orders");
     }
 
+    const normalizedJobOrders = (jobOrders || []).map((jobOrder) => ({
+      ...jobOrder,
+      users: withEffectiveUserEmail(jobOrder.users as any) ?? jobOrder.users,
+      order_received_user:
+        withEffectiveUserEmail(jobOrder.order_received_user as any) ??
+        jobOrder.order_received_user,
+    }));
+
     const clientWithJobOrders = clients.map((client) => ({
       ...client,
-      joborders: jobOrders.filter(
+      joborders: normalizedJobOrders.filter(
         (jobOrder) => jobOrder.client_id === client.id
       ),
     }));

@@ -99,7 +99,7 @@ function shouldBlockLegacyLogin(
   profile: UserProfileRow
 ): boolean {
   const migratedEmail = normalizeEmail(profile.migrated_email);
-  if (!migratedEmail || profile.migration_status !== "completed") {
+  if (!migratedEmail) {
     return false;
   }
 

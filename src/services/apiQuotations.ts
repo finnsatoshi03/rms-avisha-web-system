@@ -1,5 +1,18 @@
 import { supabase } from "./supabase";
 import { CreateQuotationData } from "../lib/types";
+import { withEffectiveUserEmail } from "../lib/effective-user-email";
+
+function normalizeJobOrderUsers<T extends { users?: unknown; order_received_user?: unknown }>(
+  joborders: T[] | null | undefined
+) {
+  return (joborders ?? []).map((joborder) => ({
+    ...joborder,
+    users: withEffectiveUserEmail(joborder.users as any) ?? joborder.users,
+    order_received_user:
+      withEffectiveUserEmail(joborder.order_received_user as any) ??
+      joborder.order_received_user,
+  }));
+}
 
 export async function createQuotation(quotationData: CreateQuotationData) {
   const {
@@ -329,7 +342,9 @@ export async function getQuotationJobOrders({
     const { data: matchingTechnicians, error: techError } = await supabase
       .from("users")
       .select("id")
-      .ilike("fullname", `%${term}%`);
+      .or(
+        `fullname.ilike.%${term}%,email.ilike.%${term}%,migrated_email.ilike.%${term}%`
+      );
 
     if (techError) {
       console.error("Error searching technicians:", techError);
@@ -370,7 +385,7 @@ export async function getQuotationJobOrders({
   }
 
   return {
-    data: data || [],
+    data: normalizeJobOrderUsers(data),
     meta: {
       totalCount: count,
     },
@@ -489,5 +504,15 @@ export async function getJobOrderForQuotation(jobOrderId: number) {
     throw new Error("Failed to fetch job order details");
   }
 
-  return data;
+  if (!data) {
+    return data;
+  }
+
+  return {
+    ...data,
+    users: withEffectiveUserEmail(data.users as any) ?? data.users,
+    order_received_user:
+      withEffectiveUserEmail((data as any).order_received_user) ??
+      (data as any).order_received_user,
+  };
 }

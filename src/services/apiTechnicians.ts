@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { withEffectiveUserEmail } from "../lib/effective-user-email";
 
 export async function getTechnicians({
   fetchAll = false,
@@ -40,7 +41,16 @@ export async function getTechnicians({
     throw new Error("Technicians could not be fetched");
   }
 
-  return users;
+  return (users || []).map((user) => ({
+    ...(withEffectiveUserEmail(user as any) ?? user),
+    joborders: (user.joborders || []).map((joborder: any) => ({
+      ...joborder,
+      users: withEffectiveUserEmail(joborder.users as any) ?? joborder.users,
+      order_received_user:
+        withEffectiveUserEmail(joborder.order_received_user as any) ??
+        joborder.order_received_user,
+    })),
+  }));
 }
 
 export async function deleteTechnician(ids: string[]) {

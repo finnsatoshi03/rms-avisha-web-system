@@ -1,7 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { SupabaseClient } from "@supabase/supabase-js";
 import { CreateJobOrderData, MaterialItem } from "../lib/types";
+import { withEffectiveUserEmail } from "../lib/effective-user-email";
 import { supabase } from "./supabase";
+
+function normalizeJobOrderUsers<T extends { users?: unknown; order_received_user?: unknown }>(
+  joborders: T[] | null | undefined
+) {
+  return (joborders ?? []).map((joborder) => ({
+    ...joborder,
+    users: withEffectiveUserEmail(joborder.users as any) ?? joborder.users,
+    order_received_user:
+      withEffectiveUserEmail(joborder.order_received_user as any) ??
+      joborder.order_received_user,
+  }));
+}
 
 export async function getJobOrders() {
   const { data: joborders, error } = await supabase.from("joborders").select(`
@@ -26,7 +39,7 @@ export async function getJobOrders() {
     throw new Error("Job Orders could not be fetched");
   }
 
-  return joborders;
+  return normalizeJobOrderUsers(joborders);
 }
 
 export async function getJobOrdersFiltered({
@@ -149,25 +162,30 @@ export async function getJobOrdersFiltered({
           `contact_number.ilike.%${term}%`
       );
 
+    const { data: matchingTechnicians, error: techError } = await supabase
+      .from("users")
+      .select("id")
+      .or(
+        `fullname.ilike.%${term}%,email.ilike.%${term}%,migrated_email.ilike.%${term}%`
+      );
+
+    let orConditions = jobOrderConditions;
+
     if (clientError) {
-      query = query.or(jobOrderConditions);
+      console.error("Error searching clients:", clientError);
     } else if (matchingClients && matchingClients.length > 0) {
       const clientIds = matchingClients.map((client) => client.id);
-
-      let orConditions = jobOrderConditions;
-
-      if (clientIds.length > 0) {
-        if (orConditions) {
-          orConditions += `,client_id.in.(${clientIds.join(",")})`;
-        } else {
-          orConditions = `client_id.in.(${clientIds.join(",")})`;
-        }
-      }
-
-      query = query.or(orConditions);
-    } else {
-      query = query.or(jobOrderConditions);
+      orConditions += `,client_id.in.(${clientIds.join(",")})`;
     }
+
+    if (techError) {
+      console.error("Error searching technicians:", techError);
+    } else if (matchingTechnicians && matchingTechnicians.length > 0) {
+      const technicianIds = matchingTechnicians.map((tech) => tech.id);
+      orConditions += `,technician_id.in.(${technicianIds.join(",")})`;
+    }
+
+    query = query.or(orConditions);
   }
 
   const {
@@ -181,7 +199,7 @@ export async function getJobOrdersFiltered({
     throw new Error("Job Orders could not be fetched");
   }
 
-  return { data: joborders, meta: { totalCount: count } };
+  return { data: normalizeJobOrderUsers(joborders), meta: { totalCount: count } };
 }
 
 export async function upsertClient(
