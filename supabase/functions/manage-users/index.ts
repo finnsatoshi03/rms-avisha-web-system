@@ -157,7 +157,7 @@ Deno.serve(async (req: Request) => {
     const oldEmail = normalizeEmail(payload.old_email);
     const newEmail = normalizeEmail(payload.new_email);
     const setPrimary = payload.set_primary !== false;
-    const sharedManagerMode = payload.shared_manager_mode === true;
+    const requestedSharedManagerMode = payload.shared_manager_mode === true;
 
     if (!oldEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(oldEmail)) {
       return json(400, { error: "A valid old_email is required." });
@@ -319,18 +319,15 @@ Deno.serve(async (req: Request) => {
     const links = existingLinks ?? [];
     const linksOtherUsers = links.some((link) => link.user_id !== sourceUser.id);
     const isManagerSource = normalizeRole(sourceUser.role) === "manager";
+    const sourceAlreadySharedManager = sourceUser.shared_manager === true;
+    const sharedManagerMode =
+      isManagerSource &&
+      (requestedSharedManagerMode || sourceAlreadySharedManager || linksOtherUsers);
 
     if (linksOtherUsers && !isManagerSource) {
       return json(400, {
         error:
           "Target email is already linked to another account. Only manager accounts can share a target login.",
-      });
-    }
-
-    if (linksOtherUsers && isManagerSource && !sharedManagerMode) {
-      return json(400, {
-        error:
-          "Target email already links multiple manager profiles. Set shared_manager_mode=true for this migration.",
       });
     }
 
@@ -420,6 +417,42 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    if (sharedManagerMode) {
+      const { data: linkedUsers, error: linkedUsersError } = await adminClient
+        .from("user_auth_links")
+        .select("user_id")
+        .eq("auth_user_id", targetAuthUserId);
+
+      if (linkedUsersError) {
+        return json(500, {
+          error: `Failed to inspect linked users for shared manager sync: ${linkedUsersError.message}`,
+        });
+      }
+
+      const linkedUserIds = Array.from(
+        new Set(
+          (linkedUsers ?? [])
+            .map((link) => link.user_id)
+            .filter((userId): userId is string => typeof userId === "string")
+        )
+      );
+
+      if (linkedUserIds.length > 0) {
+        const { error: syncSharedManagersError } = await adminClient
+          .from("users")
+          .update({ shared_manager: true, branch_id: null })
+          .in("id", linkedUserIds)
+          .eq("role", "manager")
+          .eq("deleted", false);
+
+        if (syncSharedManagersError) {
+          return json(500, {
+            error: `Failed to sync shared manager profiles: ${syncSharedManagersError.message}`,
+          });
+        }
+      }
+    }
+
     const requestOrigin = req.headers.get("origin");
     const appUrl = (
       Deno.env.get("APP_URL") ||
@@ -447,7 +480,7 @@ Deno.serve(async (req: Request) => {
       new_email: newEmail,
       new_auth_user_id: targetAuthUserId,
       created_target_auth_user: createdTargetAuthUser,
-      shared_manager_mode: isManagerSource && sharedManagerMode,
+      shared_manager_mode: sharedManagerMode,
       migration_status: "invited",
       invite_sent: !inviteError,
       invite_error: inviteError?.message ?? null,
