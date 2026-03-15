@@ -11,6 +11,14 @@ import { Textarea } from "../components/ui/textarea";
 import { Label } from "../components/ui/label";
 import { ConfirmDialog } from "../components/table/alert-dialog";
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -45,6 +53,7 @@ import {
 import {
   BranchPdfHeaderFields,
   composeBranchPdfHeader,
+  isSupportLine,
   parseBranchPdfHeader,
 } from "../lib/branch-pdf-header";
 
@@ -107,20 +116,27 @@ function toForm(branch: BranchRecord): BranchFormState {
 function BranchFormFields({
   form,
   setForm,
+  disableName = false,
   disablePrefix = false,
 }: {
   form: BranchFormState;
   setForm: (value: BranchFormState) => void;
+  disableName?: boolean;
   disablePrefix?: boolean;
 }) {
   const headerPreview = composeBranchPdfHeader(toHeaderFields(form));
+  const headerPreviewLines = headerPreview
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const footerPreview = form.pdf_footer.trim() || DEFAULT_FOOTER;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-[1fr_auto] gap-6">
         <div className="space-y-0">
           <Label className={`${form.name ? "opacity-60" : "opacity-100"}`}>
-            Branch Name
+            Branch Name {disableName ? "(Locked)" : ""}
           </Label>
           <Input
             value={form.name}
@@ -131,8 +147,14 @@ function BranchFormFields({
               })
             }
             placeholder="e.g., Cainta"
+            disabled={disableName}
             className="border-0 border-b p-0 h-fit focus-visible:border-b-black focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none mb-2"
           />
+          {disableName ? (
+            <p className="text-xs text-muted-foreground">
+              Branch name is locked because this branch already has job orders.
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-0 min-w-[180px]">
@@ -307,11 +329,47 @@ function BranchFormFields({
           />
         </div>
 
-        <div className="rounded-md border bg-white p-3">
-          <p className="text-xs font-semibold mb-1">Header Preview</p>
-          <pre className="text-xs text-muted-foreground whitespace-pre-wrap break-words font-sans">
-            {headerPreview || "No header content yet."}
-          </pre>
+        <div className="rounded-md border bg-white overflow-hidden">
+          <div className="px-3 py-2 border-b bg-slate-50 text-xs font-semibold">
+            PDF Preview
+          </div>
+          <div className="p-4">
+            <div className="mx-auto w-full max-w-[560px] rounded-md border border-dashed bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b">
+                <div className="flex items-center justify-center gap-4">
+                  <img
+                    src="/RMS-Logo.png"
+                    alt="RMS Logo"
+                    className="h-10 w-auto object-contain"
+                  />
+                  <div className="text-[10px] leading-tight">
+                    {headerPreviewLines.length > 0 ? (
+                      headerPreviewLines.map((line, index) => (
+                        <p
+                          key={`${line}-${index}`}
+                          className={isSupportLine(line) ? "text-primaryRed" : "text-slate-700"}
+                        >
+                          {line}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="text-muted-foreground italic">
+                        Header will appear here.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-[72px] flex items-center justify-center text-[10px] text-slate-400 bg-slate-50/40">
+                Job Order Content Area
+              </div>
+
+              <div className="border-t px-4 py-2 text-center text-sm font-extrabold uppercase tracking-wide">
+                {footerPreview}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -346,6 +404,8 @@ export default function Branches() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [editConfirmOpen, setEditConfirmOpen] = useState(false);
+  const [editConfirmInput, setEditConfirmInput] = useState("");
 
   const [createForm, setCreateForm] = useState<BranchFormState>(EMPTY_FORM);
   const [editForm, setEditForm] = useState<BranchFormState>(EMPTY_FORM);
@@ -409,6 +469,8 @@ export default function Branches() {
     }) => updateBranch(branchId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["branches"] });
+      setEditConfirmOpen(false);
+      setEditConfirmInput("");
       setEditOpen(false);
       setSelectedBranch(null);
       toast.success("Branch updated.");
@@ -489,16 +551,16 @@ export default function Branches() {
     setCheckingBranchId(selectedBranch.id);
     try {
       const latestCounts = await getBranchDependencyCounts(selectedBranch.id);
-      if (hasBranchDependencies(latestCounts)) {
-        toast.error("Cannot edit branch. Existing records depend on this branch.");
-        setEditOpen(false);
+      const hasJobOrders = Number(latestCounts.joborders_count || 0) > 0;
+      if (hasJobOrders && name !== selectedBranch.name) {
+        toast.error("Branch name cannot be changed once job orders exist.");
         return;
       }
 
       editMutation.mutate({
         branchId: selectedBranch.id,
         payload: {
-          name,
+          name: hasJobOrders ? selectedBranch.name : name,
           pdf_header: composeBranchPdfHeader(toHeaderFields(editForm)),
           pdf_footer: editForm.pdf_footer,
         },
@@ -547,6 +609,28 @@ export default function Branches() {
   const handleItemsPerPageChange = (items: number) => {
     setItemsPerPage(items);
     setCurrentPage(1);
+  };
+
+  const selectedBranchJobOrderCount =
+    selectedBranch && jobOrderCounts
+      ? Number(jobOrderCounts[selectedBranch.id] ?? 0)
+      : 0;
+  const isEditIdentityLocked = selectedBranchJobOrderCount > 0;
+  const editConfirmTargetName = selectedBranch?.name ?? "";
+  const isEditConfirmMatch =
+    editConfirmInput.trim().toLowerCase() === editConfirmTargetName.trim().toLowerCase();
+
+  const handleRequestEditSave = () => {
+    if (!selectedBranch) return;
+
+    const name = editForm.name.trim();
+    if (!name) {
+      toast.error("Branch name is required.");
+      return;
+    }
+
+    setEditConfirmInput("");
+    setEditConfirmOpen(true);
   };
 
   if (!isAdmin) {
@@ -611,7 +695,7 @@ export default function Branches() {
               </div>
             </DialogTrigger>
 
-            <DialogContent className="sm:max-w-3xl">
+            <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
               <DialogHeader>
                 <DialogTitle className="font-bold">Add New Branch</DialogTitle>
                 <DialogDescription>
@@ -619,9 +703,11 @@ export default function Branches() {
                 </DialogDescription>
               </DialogHeader>
 
-              <BranchFormFields form={createForm} setForm={setCreateForm} />
+              <div className="flex-1 overflow-y-auto pr-1">
+                <BranchFormFields form={createForm} setForm={setCreateForm} />
+              </div>
 
-              <DialogFooter className="space-x-4">
+              <DialogFooter className="space-x-4 border-t pt-3 bg-background">
                 <Button
                   className="h-fit py-1"
                   variant="outline"
@@ -672,7 +758,7 @@ export default function Branches() {
                 const jobOrderCount = jobOrderCounts?.[branch.id] ?? 0;
                 const counts = dependencyByBranch[branch.id];
                 const locked = counts ? hasBranchDependencies(counts) : true;
-                const canEdit = !locked;
+                const canEdit = true;
                 const canDelete = !locked;
                 const isChecking = checkingBranchId === branch.id;
 
@@ -683,11 +769,11 @@ export default function Branches() {
                     <TableCell>
                       {branch.created_at
                         ? new Date(branch.created_at).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                            timeZone: "Asia/Singapore",
-                          })
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          timeZone: "Asia/Singapore",
+                        })
                         : "-"}
                     </TableCell>
                     <TableCell>{jobOrderCount}</TableCell>
@@ -748,25 +834,40 @@ export default function Branches() {
         onOpenChange={(open) => {
           setEditOpen(open);
           if (!open) {
+            setEditConfirmOpen(false);
+            setEditConfirmInput("");
             setSelectedBranch(null);
           }
         }}
       >
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-bold">Edit Branch</DialogTitle>
             <DialogDescription>
-              Prefix is locked to protect existing job order numbers.
+              {isEditIdentityLocked
+                ? "This branch has job orders. Branch name and prefix are locked to preserve historical numbering."
+                : "Prefix is locked to protect historical job order numbering."}
             </DialogDescription>
           </DialogHeader>
 
-          <BranchFormFields form={editForm} setForm={setEditForm} disablePrefix />
+          <div className="flex-1 overflow-y-auto pr-1">
+            <BranchFormFields
+              form={editForm}
+              setForm={setEditForm}
+              disableName={isEditIdentityLocked}
+              disablePrefix
+            />
+          </div>
 
-          <DialogFooter className="space-x-4">
+          <DialogFooter className="space-x-4 border-t pt-3 bg-background">
             <Button className="h-fit py-1" variant="outline" onClick={() => setEditOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEdit} disabled={editMutation.isPending} className="h-fit py-1">
+            <Button
+              onClick={handleRequestEditSave}
+              disabled={editMutation.isPending}
+              className="h-fit py-1"
+            >
               {editMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -779,6 +880,49 @@ export default function Branches() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={editConfirmOpen} onOpenChange={setEditConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Branch Update</AlertDialogTitle>
+            <AlertDialogDescription>
+              This update affects future documents generated for this branch.
+              Type the branch name to confirm this change.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-2">
+            <Label>Type "{editConfirmTargetName}" to confirm</Label>
+            <Input
+              value={editConfirmInput}
+              onChange={(event) => setEditConfirmInput(event.target.value)}
+              placeholder={editConfirmTargetName}
+              autoFocus
+            />
+          </div>
+
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setEditConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                void handleEdit();
+              }}
+              disabled={!isEditConfirmMatch || editMutation.isPending}
+            >
+              {editMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Confirm Update"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ConfirmDialog
         isOpen={deleteOpen}
