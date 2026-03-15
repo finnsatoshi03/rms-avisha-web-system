@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import Loader from "../components/ui/loader";
 import { getCurrentUser } from "../services/apiAuth";
 import { supabase } from "../services/supabase";
+import { useBranchSession } from "../components/auth/branch-session-context";
 
 const OTP_TYPES: EmailOtpType[] = [
   "signup",
@@ -27,6 +28,7 @@ function getOtpType(value: string | null): EmailOtpType | null {
 
 export default function AuthCallback() {
   const navigate = useNavigate();
+  const { clearActiveBranchSelection } = useBranchSession();
 
   useEffect(() => {
     let isActive = true;
@@ -70,6 +72,8 @@ export default function AuthCallback() {
           return;
         }
 
+        clearActiveBranchSelection();
+
         if (isRecoveryFlow) {
           navigate("/auth/reset-password", { replace: true });
           return;
@@ -95,7 +99,7 @@ export default function AuthCallback() {
     return () => {
       isActive = false;
     };
-  }, [navigate]);
+  }, [clearActiveBranchSelection, navigate]);
 
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-slate-100">

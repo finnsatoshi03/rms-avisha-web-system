@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: callerProfile, error: callerProfileError } = await adminClient
     .from("users")
-    .select("id, role, branch_id, deleted")
+    .select("id, role, branch_id, shared_manager, deleted")
     .eq("id", caller.id)
     .single();
 
@@ -126,11 +126,19 @@ Deno.serve(async (req: Request) => {
   }
 
   if (callerRole === "manager") {
-    if (callerProfile.branch_id !== 1 && callerProfile.branch_id !== 2) {
+    const isSharedManager = callerProfile.shared_manager === true;
+
+    if (branchId !== 1 && branchId !== 2) {
+      return json(403, {
+        error: "Managers can only create technician accounts for Taytay or Pasig.",
+      });
+    }
+
+    if (!isSharedManager && callerProfile.branch_id !== 1 && callerProfile.branch_id !== 2) {
       return json(403, { error: "Manager account is missing a valid branch assignment." });
     }
 
-    if (branchId !== callerProfile.branch_id) {
+    if (!isSharedManager && branchId !== callerProfile.branch_id) {
       return json(403, {
         error: "Managers can only create technician accounts for their own branch.",
       });
@@ -166,6 +174,7 @@ Deno.serve(async (req: Request) => {
       email,
       role: "technician",
       branch_id: branchId,
+      shared_manager: false,
       deleted: false,
       must_change_password: true,
     },

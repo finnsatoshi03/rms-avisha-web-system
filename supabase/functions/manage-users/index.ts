@@ -15,6 +15,7 @@ type RequestPayload = {
   email?: string;
   role?: PrivilegedRole | ManageableRole;
   branch_id?: number | null;
+  shared_manager?: boolean;
   password?: string;
   user_id?: string;
   deleted?: boolean;
@@ -120,7 +121,7 @@ Deno.serve(async (req: Request) => {
   if (action === "list_privileged_users" || action === "list_managers") {
     const { data, error } = await adminClient
       .from("users")
-      .select("id, fullname, email, role, branch_id, deleted, created_at")
+      .select("id, fullname, email, role, branch_id, shared_manager, deleted, created_at")
       .in("role", ["admin", "manager"])
       .order("created_at", { ascending: false });
 
@@ -144,6 +145,7 @@ Deno.serve(async (req: Request) => {
     const hasProvidedPassword = Boolean(password && password.length >= 8);
     const branchId =
       typeof payload.branch_id === "number" ? payload.branch_id : null;
+    const isSharedManager = payload.shared_manager === true;
 
     if (!fullname || fullname.length < 2) {
       return json(400, { error: "Fullname must be at least 2 characters." });
@@ -159,7 +161,13 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    if (role === "manager" && (branchId !== 1 && branchId !== 2)) {
+    if (role === "manager" && isSharedManager && branchId !== null) {
+      return json(400, {
+        error: "Shared manager accounts must have branch_id = null.",
+      });
+    }
+
+    if (role === "manager" && !isSharedManager && (branchId !== 1 && branchId !== 2)) {
       return json(400, {
         error: "Branch is required for manager and must be 1 or 2.",
       });
@@ -194,7 +202,9 @@ Deno.serve(async (req: Request) => {
     }
 
     const createdUser = createdUserData.user;
-    const profileBranchId = role === "admin" ? null : branchId;
+    const profileSharedManager = role === "manager" && isSharedManager;
+    const profileBranchId =
+      role === "admin" || profileSharedManager ? null : branchId;
 
     const { error: insertProfileError } = await adminClient.from("users").upsert(
       {
@@ -203,6 +213,7 @@ Deno.serve(async (req: Request) => {
         email,
         role,
         branch_id: profileBranchId,
+        shared_manager: profileSharedManager,
         deleted: false,
         must_change_password: true,
       },
@@ -230,6 +241,7 @@ Deno.serve(async (req: Request) => {
         data: {
           fullname,
           role,
+          shared_manager: profileSharedManager,
           temporary_password_provided: hasProvidedPassword,
         },
         redirectTo,
@@ -241,6 +253,7 @@ Deno.serve(async (req: Request) => {
       email,
       role,
       branch_id: profileBranchId,
+      shared_manager: profileSharedManager,
       invite_sent: !inviteError,
       invite_error: inviteError?.message ?? null,
     });
@@ -252,6 +265,8 @@ Deno.serve(async (req: Request) => {
     const deleted = payload.deleted;
     const branchId =
       payload.branch_id === undefined ? undefined : payload.branch_id;
+    const sharedManager =
+      payload.shared_manager === undefined ? undefined : payload.shared_manager;
 
     if (!userId) {
       return json(400, { error: "user_id is required." });
@@ -269,9 +284,15 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    if (sharedManager !== undefined && typeof sharedManager !== "boolean") {
+      return json(400, {
+        error: "Invalid shared_manager. Allowed values: true or false.",
+      });
+    }
+
     const { data: existingUser, error: existingUserError } = await adminClient
       .from("users")
-      .select("id, email, role, branch_id, deleted")
+      .select("id, email, role, branch_id, shared_manager, deleted")
       .eq("id", userId)
       .single();
 
@@ -286,23 +307,35 @@ Deno.serve(async (req: Request) => {
     const nextRole = role ?? normalizeRole(existingUser.role);
     let nextBranchId =
       branchId !== undefined ? branchId : (existingUser.branch_id as number | null);
+    let nextSharedManager =
+      sharedManager !== undefined
+        ? sharedManager
+        : (existingUser.shared_manager as boolean);
     const nextDeleted =
       typeof deleted === "boolean" ? deleted : (existingUser.deleted as boolean);
 
     if (nextRole === "admin") {
       nextBranchId = null;
+      nextSharedManager = false;
     }
 
-    if (nextRole === "manager" && (nextBranchId !== 1 && nextBranchId !== 2)) {
-      return json(400, {
-        error: "Manager accounts must have branch_id = 1 or 2.",
-      });
+    if (nextRole === "manager") {
+      if (nextSharedManager) {
+        nextBranchId = null;
+      } else if (nextBranchId !== 1 && nextBranchId !== 2) {
+        return json(400, {
+          error: "Manager accounts must have branch_id = 1 or 2 when shared_manager is false.",
+        });
+      }
     }
 
-    if (nextRole === "technician" && !isValidBranchId(nextBranchId)) {
-      return json(400, {
-        error: "Technician branch_id must be null, 1, or 2.",
-      });
+    if (nextRole === "technician") {
+      nextSharedManager = false;
+      if (!isValidBranchId(nextBranchId)) {
+        return json(400, {
+          error: "Technician branch_id must be null, 1, or 2.",
+        });
+      }
     }
 
     const { data: updatedUser, error: updateError } = await adminClient
@@ -310,10 +343,11 @@ Deno.serve(async (req: Request) => {
       .update({
         role: nextRole,
         branch_id: nextBranchId,
+        shared_manager: nextSharedManager,
         deleted: nextDeleted,
       })
       .eq("id", userId)
-      .select("id, fullname, email, role, branch_id, deleted, created_at")
+      .select("id, fullname, email, role, branch_id, shared_manager, deleted, created_at")
       .single();
 
     if (updateError || !updatedUser) {

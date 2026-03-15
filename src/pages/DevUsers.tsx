@@ -50,6 +50,7 @@ type CreateDraft = {
   email: string;
   role: "admin" | "manager" | null;
   branch_id: 1 | 2 | null;
+  shared_manager: boolean;
 };
 
 type IndexedUser = {
@@ -72,6 +73,7 @@ const EMPTY_CREATE_DRAFT: CreateDraft = {
   email: "",
   role: null,
   branch_id: null,
+  shared_manager: false,
 };
 const TONE_CLASS_MAP: Record<ConsoleTone, string> = {
   default: "text-zinc-200",
@@ -90,6 +92,9 @@ const getBranchName = (branchId: number | null) => {
   if (branchId === 2) return "pasig";
   return "all-branches";
 };
+
+const getManagerScopeLabel = (user: ManagedUserRecord) =>
+  user.shared_manager ? "shared" : getBranchName(user.branch_id);
 
 const normalizeBranchSelection = (value: string): 1 | 2 | null => {
   const normalized = value.trim().toLowerCase();
@@ -129,6 +134,7 @@ export default function DevUsers() {
   const [createDraft, setCreateDraft] = useState<CreateDraft>(EMPTY_CREATE_DRAFT);
 
   const nextLineIdRef = useRef(1);
+  const commandTokenRef = useRef(0);
   const historyCursorRef = useRef<number | null>(null);
   const promptInputRef = useRef<HTMLInputElement>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
@@ -171,6 +177,7 @@ export default function DevUsers() {
 
   const resetConsoleState = useCallback(() => {
     nextLineIdRef.current = 1;
+    commandTokenRef.current += 1;
     historyCursorRef.current = null;
     setLines([]);
     setIsBootComplete(false);
@@ -186,7 +193,7 @@ export default function DevUsers() {
   }, []);
 
   const focusActiveInput = useCallback(() => {
-    if (!isConsoleOpen || !isBootComplete || isRunningCommand) return;
+    if (!isConsoleOpen || !isBootComplete) return;
 
     if (isCreateMode(mode)) {
       createInputRef.current?.focus();
@@ -194,7 +201,7 @@ export default function DevUsers() {
     }
 
     promptInputRef.current?.focus();
-  }, [isBootComplete, isConsoleOpen, isRunningCommand, mode]);
+  }, [isBootComplete, isConsoleOpen, mode]);
 
   const showUserActions = useCallback(
     (user: ManagedUserRecord) => {
@@ -206,8 +213,8 @@ export default function DevUsers() {
       appendLines([
         "",
         `User: ${user.fullname || user.email || "-"}`,
-        `Role: ${toTitleCase(user.role)}`,
-        `Branch: ${toTitleCase(getBranchName(user.branch_id))}`,
+        `Role: ${toTitleCase(user.role)}${user.shared_manager ? " (Shared)" : ""}`,
+        `Branch: ${toTitleCase(getManagerScopeLabel(user))}`,
         {
           text: `Status: ${user.deleted ? "Deactivated" : "Active"}`,
           tone: user.deleted ? "warning" : "muted",
@@ -261,12 +268,13 @@ export default function DevUsers() {
     appendLines([
       { text: "Available commands:", tone: "muted" },
       "/list     - list admin and manager accounts",
-      "/create   - create a new admin or manager account",
+      "/create   - create admin, manager, or shared manager account",
       "/help     - show available commands",
     ]);
   }, [appendLines, mode, selectedUser]);
 
   const runListCommand = useCallback(async () => {
+    const token = ++commandTokenRef.current;
     setIsRunningCommand(true);
     setMode("command");
     setSelectedUser(null);
@@ -277,6 +285,8 @@ export default function DevUsers() {
 
     try {
       const users = await getPrivilegedUsers();
+      if (commandTokenRef.current !== token) return;
+
       const managers = users
         .filter((user) => user.role === "manager")
         .sort(sortByIdentity);
@@ -295,7 +305,7 @@ export default function DevUsers() {
           const status = user.deleted ? " | status: deactivated" : "";
           nextSelectableUsers.push({ index: runningIndex, user });
           appendLine(
-            `${runningIndex}. ${user.fullname || user.email || "-"} | branch: ${getBranchName(user.branch_id)}${status}`
+            `${runningIndex}. ${user.fullname || user.email || "-"} | branch: ${getManagerScopeLabel(user)}${status}`
           );
           runningIndex += 1;
         });
@@ -322,12 +332,16 @@ export default function DevUsers() {
         setMode("command");
       }
     } catch (error) {
+      if (commandTokenRef.current !== token) return;
+
       const message =
         error instanceof Error ? error.message : "Failed to load users.";
       appendLine(`✖ ${message}`, "error");
       setMode("command");
     } finally {
-      setIsRunningCommand(false);
+      if (commandTokenRef.current === token) {
+        setIsRunningCommand(false);
+      }
     }
   }, [appendLine, appendLines]);
 
@@ -336,11 +350,14 @@ export default function DevUsers() {
       payload: Parameters<typeof updateManagedUser>[0],
       successMessage: string
     ) => {
+      const token = ++commandTokenRef.current;
       setIsRunningCommand(true);
       appendLine("Applying update...", "muted");
 
       try {
         const result = await updateManagedUser(payload);
+        if (commandTokenRef.current !== token) return;
+
         const updatedUser = result.user;
         appendLine(`✔ ${successMessage}`, "success");
 
@@ -364,11 +381,15 @@ export default function DevUsers() {
         setBranchSelectionMode(null);
         showUserActions(updatedUser);
       } catch (error) {
+        if (commandTokenRef.current !== token) return;
+
         const message =
           error instanceof Error ? error.message : "Failed to update user.";
         appendLine(`✖ ${message}`, "error");
       } finally {
-        setIsRunningCommand(false);
+        if (commandTokenRef.current === token) {
+          setIsRunningCommand(false);
+        }
       }
     },
     [appendLine, appendLines, showUserActions]
@@ -377,17 +398,18 @@ export default function DevUsers() {
   const submitCreateDraft = useCallback(
     async (draft: CreateDraft) => {
       if (!draft.role) {
-        appendLine("✖ role must be admin or manager", "error");
+        appendLine("✖ role must be admin, manager, or shared-manager", "error");
         setMode("command");
         return;
       }
 
-      if (draft.role === "manager" && !draft.branch_id) {
+      if (draft.role === "manager" && !draft.shared_manager && !draft.branch_id) {
         appendLine("✖ branch must be taytay or pasig", "error");
         setMode("create-branch");
         return;
       }
 
+      const token = ++commandTokenRef.current;
       setIsRunningCommand(true);
       appendLine("Creating user...", "muted");
 
@@ -396,10 +418,18 @@ export default function DevUsers() {
           fullname: draft.fullname.trim(),
           email: draft.email.trim().toLowerCase(),
           role: draft.role,
-          branch_id: draft.role === "manager" ? draft.branch_id : null,
+          branch_id:
+            draft.role === "manager" && !draft.shared_manager
+              ? draft.branch_id
+              : null,
+          shared_manager: draft.role === "manager" && draft.shared_manager,
         });
+        if (commandTokenRef.current !== token) return;
 
         appendLine("✔ user created successfully", "success");
+        if (result.role === "manager" && result.shared_manager) {
+          appendLine("mode : shared manager", "muted");
+        }
         if (result.invite_sent === false) {
           appendLine(
             `✖ ${result.invite_error || "invite email failed"}`,
@@ -409,16 +439,20 @@ export default function DevUsers() {
           appendLine("invite email sent", "success");
         }
       } catch (error) {
+        if (commandTokenRef.current !== token) return;
+
         const message =
           error instanceof Error ? error.message : "Failed to create user.";
         appendLine(`✖ ${message}`, "error");
       } finally {
-        setCreateDraft(EMPTY_CREATE_DRAFT);
-        setCreateInputValue("");
-        setSelectedUser(null);
-        setBranchSelectionMode(null);
-        setMode("command");
-        setIsRunningCommand(false);
+        if (commandTokenRef.current === token) {
+          setCreateDraft(EMPTY_CREATE_DRAFT);
+          setCreateInputValue("");
+          setSelectedUser(null);
+          setBranchSelectionMode(null);
+          setMode("command");
+          setIsRunningCommand(false);
+        }
       }
     },
     [appendLine]
@@ -439,6 +473,37 @@ export default function DevUsers() {
     setMode("command");
     appendLine("⚠ create workflow cancelled", "warning");
   }, [appendLine]);
+
+  const abortCurrentCommand = useCallback(() => {
+    if (!isBootComplete) return;
+
+    const hasAbortableWork =
+      isRunningCommand ||
+      mode !== "command" ||
+      promptValue.trim().length > 0 ||
+      createInputValue.trim().length > 0;
+
+    if (!hasAbortableWork) return;
+
+    commandTokenRef.current += 1;
+    historyCursorRef.current = null;
+    setIsRunningCommand(false);
+    setPromptValue("");
+    setCreateInputValue("");
+    setMode("command");
+    setCreateDraft(EMPTY_CREATE_DRAFT);
+    setSelectedUser(null);
+    setSelectableUsers([]);
+    setBranchSelectionMode(null);
+    appendLine("^C", "warning");
+  }, [
+    appendLine,
+    createInputValue,
+    isBootComplete,
+    isRunningCommand,
+    mode,
+    promptValue,
+  ]);
 
   useEffect(() => {
     if (!isConsoleOpen) return;
@@ -692,15 +757,31 @@ export default function DevUsers() {
         }
 
         if (branchSelectionMode === "change-branch") {
+          const wasSharedManager = selectedUser.shared_manager === true;
           await runUpdateCommand(
-            { user_id: selectedUser.id, branch_id: branchId },
-            `Manager branch changed to ${toTitleCase(getBranchName(branchId))}.`
+            {
+              user_id: selectedUser.id,
+              branch_id: branchId,
+              shared_manager: false,
+            },
+            wasSharedManager
+              ? `Shared manager converted to branch manager (${toTitleCase(
+                  getBranchName(branchId)
+                )}).`
+              : `Manager branch changed to ${toTitleCase(
+                  getBranchName(branchId)
+                )}.`
           );
           return;
         }
 
         await runUpdateCommand(
-          { user_id: selectedUser.id, role: "manager", branch_id: branchId },
+          {
+            user_id: selectedUser.id,
+            role: "manager",
+            branch_id: branchId,
+            shared_manager: false,
+          },
           `Admin converted to manager (${toTitleCase(getBranchName(branchId))}).`
         );
         return;
@@ -752,6 +833,12 @@ export default function DevUsers() {
   ]);
 
   const onPromptKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
+      event.preventDefault();
+      abortCurrentCommand();
+      return;
+    }
+
     if (event.key === "Enter") {
       event.preventDefault();
       void submitPromptInput();
@@ -835,13 +922,38 @@ export default function DevUsers() {
 
     if (mode === "create-role") {
       if (!submitted) {
-        appendLine("✖ role must be admin or manager", "error");
+        appendLine("✖ role must be admin, manager, or shared-manager", "error");
         return;
       }
 
       const normalizedRole = submitted.toLowerCase();
-      if (normalizedRole !== "admin" && normalizedRole !== "manager") {
-        appendLine("✖ role must be admin or manager", "error");
+      const isSharedManagerRole =
+        normalizedRole === "shared-manager" ||
+        normalizedRole === "shared_manager" ||
+        normalizedRole === "shared manager" ||
+        normalizedRole === "shared";
+
+      if (
+        normalizedRole !== "admin" &&
+        normalizedRole !== "manager" &&
+        !isSharedManagerRole
+      ) {
+        appendLine("✖ role must be admin, manager, or shared-manager", "error");
+        return;
+      }
+
+      if (isSharedManagerRole) {
+        const nextDraft: CreateDraft = {
+          ...createDraft,
+          role: "manager",
+          branch_id: null,
+          shared_manager: true,
+        };
+
+        setCreateDraft(nextDraft);
+        appendLine("role : manager (shared)");
+        setCreateInputValue("");
+        await submitCreateDraft(nextDraft);
         return;
       }
 
@@ -850,6 +962,7 @@ export default function DevUsers() {
           ...current,
           role: "manager",
           branch_id: null,
+          shared_manager: false,
         }));
         appendLine("role : manager");
         setCreateInputValue("");
@@ -861,6 +974,7 @@ export default function DevUsers() {
         ...createDraft,
         role: "admin",
         branch_id: null,
+        shared_manager: false,
       };
 
       setCreateDraft(nextDraft);
@@ -886,6 +1000,7 @@ export default function DevUsers() {
         ...createDraft,
         role: "manager",
         branch_id: branchId,
+        shared_manager: false,
       };
 
       setCreateDraft(nextDraft);
@@ -905,6 +1020,12 @@ export default function DevUsers() {
   ]);
 
   const onCreateInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
+      event.preventDefault();
+      abortCurrentCommand();
+      return;
+    }
+
     if (event.key === "Enter") {
       event.preventDefault();
       void submitCreateInput();
@@ -915,7 +1036,8 @@ export default function DevUsers() {
   const createPromptLabel = useMemo(() => {
     if (mode === "create-fullname") return "fullname :";
     if (mode === "create-email") return "email :";
-    if (mode === "create-role") return "role (admin / manager) :";
+    if (mode === "create-role")
+      return "role (admin / manager / shared-manager) :";
     return "branch (taytay / pasig) :";
   }, [mode]);
 
@@ -1009,7 +1131,7 @@ export default function DevUsers() {
                         historyCursorRef.current = null;
                       }}
                       onKeyDown={onPromptKeyDown}
-                      disabled={isRunningCommand}
+                      readOnly={isRunningCommand}
                       spellCheck={false}
                       autoComplete="off"
                       className="flex-1 bg-transparent border-none outline-none text-zinc-100 caret-zinc-100"
@@ -1031,7 +1153,7 @@ export default function DevUsers() {
                     value={createInputValue}
                     onChange={(event) => setCreateInputValue(event.target.value)}
                     onKeyDown={onCreateInputKeyDown}
-                    disabled={isRunningCommand}
+                    readOnly={isRunningCommand}
                     spellCheck={false}
                     autoComplete="off"
                     className="flex-1 bg-transparent border-none outline-none text-zinc-100 caret-zinc-100"

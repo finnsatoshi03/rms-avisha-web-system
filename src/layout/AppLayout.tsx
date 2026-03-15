@@ -12,6 +12,9 @@ import NavigationSearch from "../components/navigation-search";
 import InitialPasswordSetup from "../components/auth/initial-password-setup";
 import { DevConsoleProvider } from "../components/dev-console/dev-console-context";
 import DevUsers from "../pages/DevUsers";
+import { useBranchSession } from "../components/auth/branch-session-context";
+import SharedManagerBranchGateway from "../components/auth/shared-manager-branch-gateway";
+import SharedManagerBranchSwitcher from "../components/auth/shared-manager-branch-switcher";
 
 // Breadcrumb configuration
 const breadcrumbConfig: Record<string, string> = {
@@ -66,7 +69,14 @@ const generateBreadcrumbs = (pathname: string) => {
 };
 
 export default function AppLayout() {
-  const { isUser, user, isAdmin } = useUser();
+  const {
+    isUser,
+    user,
+    isAdmin,
+    isSharedManager,
+    requiresBranchSelection,
+  } = useUser();
+  const { setActiveBranchSelection } = useBranchSession();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -85,11 +95,16 @@ export default function AppLayout() {
     isDashboardRoute &&
     !isManagerReAuthenticated &&
     !isManagerReAuthRoute &&
-    !isAdmin;
+    !isAdmin &&
+    !requiresBranchSelection;
 
   useEffect(() => {
     if (!user) {
       navigate("/login");
+      return;
+    }
+
+    if (requiresBranchSelection) {
       return;
     }
 
@@ -114,6 +129,7 @@ export default function AppLayout() {
     shouldBlockAccess,
     isDashboardRoute,
     isManagerReAuthRoute,
+    requiresBranchSelection,
     user?.must_change_password,
   ]);
 
@@ -124,6 +140,16 @@ export default function AppLayout() {
 
   if (user.must_change_password) {
     return <InitialPasswordSetup fullname={user.fullname} email={user.email} />;
+  }
+
+  if (isSharedManager && requiresBranchSelection) {
+    return (
+      <SharedManagerBranchGateway
+        onSelectBranch={(branchId) => {
+          setActiveBranchSelection(user.id, branchId);
+        }}
+      />
+    );
   }
 
   // Block dashboard access completely until re-authentication
@@ -167,6 +193,7 @@ export default function AppLayout() {
 
               {/* Right side - Search and User Profile */}
               <div className="flex items-center gap-3">
+                {isSharedManager ? <SharedManagerBranchSwitcher /> : null}
                 <NavigationSearch />
               </div>
             </div>

@@ -160,6 +160,7 @@ export type User = {
   id: string;
   role: "dev" | "admin" | "manager" | "technician";
   branch_id: number | null;
+  shared_manager?: boolean;
   deleted?: boolean;
   must_change_password?: boolean;
   created_at?: string | Date;

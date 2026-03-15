@@ -33,6 +33,7 @@ import ManagerReAuth from "./components/auth/manager-reauth";
 // import Rental from "./pages/Rental";
 import NotFound from "./pages/NotFound";
 import Maintenance from "./pages/Maintenance";
+import { BranchSessionProvider } from "./components/auth/branch-session-context";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,50 +49,52 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ReactQueryDevtools initialIsOpen={false} />
-      <BrowserRouter>
-        <Routes>
-          <Route
-            index
-            element={<Navigate replace to="dashboard/job-order" />}
-          />
-          <Route
-            element={
-              <ProtectedRoute>
-                <AppLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="dashboard/job-order" element={<Dashboard />} />
-            <Route path="dashboard/rental" element={<DashboardRental />} />
+      <BranchSessionProvider>
+        <ReactQueryDevtools initialIsOpen={false} />
+        <BrowserRouter>
+          <Routes>
             <Route
-              path="technician-dashboard"
-              element={<TechnicianDashboard />}
+              index
+              element={<Navigate replace to="dashboard/job-order" />}
             />
-            <Route path="manager-re-auth" element={<ManagerReAuth />} />
-            <Route path="job-orders" element={<JobOrders />} />
-            <Route path="quotations" element={<Quotations />} />
-            <Route path="rental" element={<Maintenance />} />
-            <Route path="billing-statement" element={<Maintenance />} />
-            <Route path="clients" element={<Clients />} />
-            <Route path="materials" element={<Materials />} />
-            <Route path="expenses" element={<Expenses />} />
-            <Route path="settings" element={<Maintenance />} />
-            <Route path="technicians" element={<Technicians />} />
             <Route
-              path="technicians/:technicianName"
-              element={<TechnicianDetailPage />}
-            />
-            <Route path="account" element={<Account />} />
-          </Route>
+              element={
+                <ProtectedRoute>
+                  <AppLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="dashboard/job-order" element={<Dashboard />} />
+              <Route path="dashboard/rental" element={<DashboardRental />} />
+              <Route
+                path="technician-dashboard"
+                element={<TechnicianDashboard />}
+              />
+              <Route path="manager-re-auth" element={<ManagerReAuth />} />
+              <Route path="job-orders" element={<JobOrders />} />
+              <Route path="quotations" element={<Quotations />} />
+              <Route path="rental" element={<Maintenance />} />
+              <Route path="billing-statement" element={<Maintenance />} />
+              <Route path="clients" element={<Clients />} />
+              <Route path="materials" element={<Materials />} />
+              <Route path="expenses" element={<Expenses />} />
+              <Route path="settings" element={<Maintenance />} />
+              <Route path="technicians" element={<Technicians />} />
+              <Route
+                path="technicians/:technicianName"
+                element={<TechnicianDetailPage />}
+              />
+              <Route path="account" element={<Account />} />
+            </Route>
 
-          <Route path="login" element={<Login />} />
-          <Route path="forgot-password" element={<ForgotPassword />} />
-          <Route path="auth/callback" element={<AuthCallback />} />
-          <Route path="auth/reset-password" element={<ResetPassword />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+            <Route path="login" element={<Login />} />
+            <Route path="forgot-password" element={<ForgotPassword />} />
+            <Route path="auth/callback" element={<AuthCallback />} />
+            <Route path="auth/reset-password" element={<ResetPassword />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </BranchSessionProvider>
 
       <Toaster
         position="top-center"

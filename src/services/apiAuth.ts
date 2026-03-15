@@ -10,6 +10,7 @@ type UserProfileRow = {
   avatar: string | null;
   role: AppUserRole;
   branch_id: number | null;
+  shared_manager: boolean;
   deleted: boolean;
   must_change_password: boolean;
   created_at: string | null;
@@ -20,6 +21,7 @@ export type CurrentUser = {
   email: string | null;
   role: AppUserRole;
   branch_id: number | null;
+  shared_manager: boolean;
   deleted: boolean;
   must_change_password: boolean;
   fullname: string | null;
@@ -58,6 +60,7 @@ function buildCurrentUser(
     email: authUser.email ?? profile.email ?? null,
     role,
     branch_id: profile.branch_id,
+    shared_manager: Boolean(profile.shared_manager),
     deleted: profile.deleted,
     must_change_password: profile.must_change_password,
     fullname: profile.fullname,
@@ -76,7 +79,7 @@ async function getProfileById(userId: string): Promise<UserProfileRow> {
   const { data, error } = await supabase
     .from("users")
     .select(
-      "id, email, fullname, avatar, role, branch_id, deleted, must_change_password, created_at"
+      "id, email, fullname, avatar, role, branch_id, shared_manager, deleted, must_change_password, created_at"
     )
     .eq("id", userId)
     .single();
@@ -88,6 +91,7 @@ async function getProfileById(userId: string): Promise<UserProfileRow> {
   return {
     ...data,
     role: normalizeRole(data.role),
+    shared_manager: Boolean(data.shared_manager),
   } as UserProfileRow;
 }
 

@@ -1,7 +1,7 @@
 import { useUser } from "../components/auth/useUser";
 
 export const useBranchValidation = (selectedBranchId?: number | null) => {
-  const { isAdmin, branchId: currentUserBranchId } = useUser();
+  const { isAdmin, isSharedManager, branchId: currentUserBranchId } = useUser();
 
   const getBranchId = (): number | null => {
     if (selectedBranchId !== undefined && selectedBranchId !== null) {
@@ -26,6 +26,10 @@ export const useBranchValidation = (selectedBranchId?: number | null) => {
 
   const getBranchWarningMessage = (): string => {
     if (!hasValidBranch()) {
+      if (isSharedManager) {
+        return "No active branch selected for this session. Choose a branch to continue.";
+      }
+
       return "No branch assigned. Please select a branch before selecting inventory items.";
     }
     return "";

@@ -9,6 +9,7 @@ export type ManagedUserRecord = {
   email: string | null;
   role: ManageableRole;
   branch_id: number | null;
+  shared_manager: boolean;
   deleted: boolean;
   created_at: string | null;
 };
@@ -17,13 +18,57 @@ type FunctionError = {
   error?: string;
 };
 
+type FunctionErrorResponse = {
+  error?: string;
+  message?: string;
+};
+
+type ErrorWithContext = Error & {
+  context?: unknown;
+};
+
+async function resolveFunctionInvokeError(error: unknown): Promise<string> {
+  if (!(error instanceof Error)) {
+    return "Failed to call manage-users function.";
+  }
+
+  const context = (error as ErrorWithContext).context;
+  if (context instanceof Response) {
+    try {
+      const contentType = context.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const parsed = (await context
+          .clone()
+          .json()) as FunctionErrorResponse | null;
+        if (typeof parsed?.error === "string" && parsed.error.trim()) {
+          return parsed.error.trim();
+        }
+        if (typeof parsed?.message === "string" && parsed.message.trim()) {
+          return parsed.message.trim();
+        }
+      } else {
+        const text = (await context.clone().text()).trim();
+        if (text) {
+          return text;
+        }
+      }
+    } catch {
+      // Fall back to status/message below when response parsing fails.
+    }
+
+    return `Manage-users request failed (HTTP ${context.status}).`;
+  }
+
+  return error.message || "Failed to call manage-users function.";
+}
+
 async function invokeManageUsers<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("manage-users", {
     body,
   });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(await resolveFunctionInvokeError(error));
   }
 
   const functionError = data as FunctionError | null;
@@ -50,12 +95,14 @@ export async function createPrivilegedUser({
   email,
   role,
   branch_id,
+  shared_manager,
   password,
 }: {
   fullname: string;
   email: string;
   role: PrivilegedRole;
   branch_id: number | null;
+  shared_manager?: boolean;
   password?: string;
 }) {
   return invokeManageUsers<{
@@ -63,6 +110,7 @@ export async function createPrivilegedUser({
     role: PrivilegedRole;
     email: string;
     branch_id: number | null;
+    shared_manager: boolean;
     invite_sent: boolean;
     invite_error: string | null;
   }>({
@@ -71,6 +119,7 @@ export async function createPrivilegedUser({
     email,
     role,
     branch_id,
+    shared_manager: Boolean(shared_manager),
     password: password?.trim() ? password : undefined,
   });
 }
@@ -79,11 +128,13 @@ export async function updateManagedUser({
   user_id,
   role,
   branch_id,
+  shared_manager,
   deleted,
 }: {
   user_id: string;
   role?: ManageableRole;
   branch_id?: number | null;
+  shared_manager?: boolean;
   deleted?: boolean;
 }) {
   return invokeManageUsers<{
@@ -93,6 +144,7 @@ export async function updateManagedUser({
     user_id,
     role,
     branch_id,
+    shared_manager,
     deleted,
   });
 }

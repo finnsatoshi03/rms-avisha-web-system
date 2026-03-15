@@ -225,6 +225,7 @@ CREATE TABLE public.users (
   avatar text,
   fullname text,
   branch_id integer,
+  shared_manager boolean DEFAULT false,
   deleted boolean DEFAULT false,
   must_change_password boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT now(),

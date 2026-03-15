@@ -1,14 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser } from "../../services/apiAuth";
+import { useBranchSession } from "./branch-session-context";
 
 export function useUser() {
+  const { activeBranchSelection } = useBranchSession();
   const { isLoading, data: user } = useQuery({
     queryKey: ["user"],
     queryFn: getCurrentUser,
   });
 
   const role = user?.role;
-  const branchId = user?.branch_id ?? null;
+  const rawBranchId = user?.branch_id ?? null;
+  const isSharedManager = role === "manager" && Boolean(user?.shared_manager);
+  const activeBranchId =
+    user?.id && activeBranchSelection?.userId === user.id
+      ? activeBranchSelection.branchId
+      : null;
+  const branchId = isSharedManager ? activeBranchId : rawBranchId;
+  const requiresBranchSelection = isSharedManager && branchId === null;
   const mustChangePassword = user?.must_change_password ?? false;
   const isDev = role === "dev";
   const isAdmin = role === "admin" || isDev;
@@ -22,6 +31,10 @@ export function useUser() {
     user,
     role,
     branchId,
+    rawBranchId,
+    activeBranchId,
+    isSharedManager,
+    requiresBranchSelection,
     mustChangePassword,
     isDev,
     isAdmin,
