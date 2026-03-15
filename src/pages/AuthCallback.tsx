@@ -44,8 +44,11 @@ export default function AuthCallback() {
         const tokenType = getOtpType(
           queryParams.get("type") || hashParams.get("type")
         );
-        const isRecoveryFlow =
-          flow === "recovery" || tokenType === "recovery";
+        const requiresPasswordSetupFlow =
+          flow === "recovery" ||
+          flow === "invite" ||
+          tokenType === "recovery" ||
+          tokenType === "invite";
 
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -74,7 +77,7 @@ export default function AuthCallback() {
 
         clearActiveBranchSelection();
 
-        if (isRecoveryFlow) {
+        if (requiresPasswordSetupFlow) {
           navigate("/auth/reset-password", { replace: true });
           return;
         }

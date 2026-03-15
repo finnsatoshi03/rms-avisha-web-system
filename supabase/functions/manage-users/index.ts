@@ -401,6 +401,7 @@ Deno.serve(async (req: Request) => {
       migrated_email: newEmail,
       migration_status: "invited",
       migration_completed_at: null,
+      must_change_password: true,
     };
 
     if (isManagerSource && sharedManagerMode) {
