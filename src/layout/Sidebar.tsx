@@ -14,6 +14,7 @@ import {
   WalletMinimal,
   Wrench,
   Calendar,
+  ChevronRight,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import {
@@ -160,11 +161,10 @@ export default function AppSidebar({
                           <Home size={20} />
                           <span>Home</span>
                         </div>
-                        <ChevronDown
+                        <ChevronRight
                           size={16}
-                          className={`transition-transform ${
-                            isHomeOpen ? "rotate-180" : ""
-                          }`}
+                          className={`transition-transform ${isHomeOpen ? "rotate-90" : ""
+                            }`}
                         />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
@@ -179,7 +179,7 @@ export default function AppSidebar({
                                 cn(
                                   "w-full",
                                   isActive &&
-                                    "bg-sidebar-accent text-sidebar-accent-foreground"
+                                  "bg-sidebar-accent text-sidebar-accent-foreground"
                                 )
                               }
                             >
@@ -196,7 +196,7 @@ export default function AppSidebar({
                                 cn(
                                   "w-full",
                                   isActive &&
-                                    "bg-sidebar-accent text-sidebar-accent-foreground"
+                                  "bg-sidebar-accent text-sidebar-accent-foreground"
                                 )
                               }
                             >
@@ -222,11 +222,10 @@ export default function AppSidebar({
                           <Printer size={20} />
                           <span>Job Orders</span>
                         </div>
-                        <ChevronDown
+                        <ChevronRight
                           size={16}
-                          className={`transition-transform ${
-                            isJobOrdersOpen ? "rotate-180" : ""
-                          }`}
+                          className={`transition-transform ${isJobOrdersOpen ? "rotate-90" : ""
+                            }`}
                         />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
@@ -241,7 +240,7 @@ export default function AppSidebar({
                                 cn(
                                   "w-full",
                                   isActive &&
-                                    "bg-sidebar-accent text-sidebar-accent-foreground"
+                                  "bg-sidebar-accent text-sidebar-accent-foreground"
                                 )
                               }
                             >
@@ -258,7 +257,7 @@ export default function AppSidebar({
                                 cn(
                                   "w-full",
                                   isActive &&
-                                    "bg-sidebar-accent text-sidebar-accent-foreground"
+                                  "bg-sidebar-accent text-sidebar-accent-foreground"
                                 )
                               }
                             >
@@ -280,7 +279,7 @@ export default function AppSidebar({
                         cn(
                           "w-full",
                           isActive &&
-                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         )
                       }
                     >
@@ -299,7 +298,7 @@ export default function AppSidebar({
                         cn(
                           "w-full",
                           isActive &&
-                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         )
                       }
                     >
@@ -318,7 +317,7 @@ export default function AppSidebar({
                         cn(
                           "w-full",
                           isActive &&
-                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         )
                       }
                     >
@@ -337,7 +336,7 @@ export default function AppSidebar({
                         cn(
                           "w-full",
                           isActive &&
-                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         )
                       }
                     >
@@ -356,7 +355,7 @@ export default function AppSidebar({
                         cn(
                           "w-full",
                           isActive &&
-                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         )
                       }
                     >
@@ -375,7 +374,7 @@ export default function AppSidebar({
                         cn(
                           "w-full",
                           isActive &&
-                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         )
                       }
                     >
@@ -410,7 +409,7 @@ export default function AppSidebar({
                         cn(
                           "w-full",
                           isActive &&
-                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         )
                       }
                     >
@@ -435,9 +434,8 @@ export default function AppSidebar({
                         </div>
                         <ChevronDown
                           size={16}
-                          className={`transition-transform ${
-                            isJobOrdersOpen ? "rotate-180" : ""
-                          }`}
+                          className={`transition-transform ${isJobOrdersOpen ? "rotate-180" : ""
+                            }`}
                         />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
@@ -452,7 +450,7 @@ export default function AppSidebar({
                                 cn(
                                   "w-full",
                                   isActive &&
-                                    "bg-sidebar-accent text-sidebar-accent-foreground"
+                                  "bg-sidebar-accent text-sidebar-accent-foreground"
                                 )
                               }
                             >
@@ -469,7 +467,7 @@ export default function AppSidebar({
                                 cn(
                                   "w-full",
                                   isActive &&
-                                    "bg-sidebar-accent text-sidebar-accent-foreground"
+                                  "bg-sidebar-accent text-sidebar-accent-foreground"
                                 )
                               }
                             >
