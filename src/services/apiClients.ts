@@ -2,6 +2,11 @@ import { Client } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
 import { supabase } from "./supabase";
 
+type UserEmailShape = {
+  email?: string | null;
+  migrated_email?: string | null;
+};
+
 export async function getClientsWithJobOrders() {
   try {
     const { data: clients, error: clientError } = await supabase
@@ -39,9 +44,11 @@ export async function getClientsWithJobOrders() {
 
     const normalizedJobOrders = (jobOrders || []).map((jobOrder) => ({
       ...jobOrder,
-      users: withEffectiveUserEmail(jobOrder.users as any) ?? jobOrder.users,
+      users:
+        withEffectiveUserEmail(jobOrder.users as UserEmailShape) ??
+        jobOrder.users,
       order_received_user:
-        withEffectiveUserEmail(jobOrder.order_received_user as any) ??
+        withEffectiveUserEmail(jobOrder.order_received_user as UserEmailShape) ??
         jobOrder.order_received_user,
     }));
 

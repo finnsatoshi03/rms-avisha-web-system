@@ -17,17 +17,14 @@ import {
 
 type BranchOption = {
   id: number;
-  location: string;
+  name?: string;
+  location?: string;
 };
-
-const FALLBACK_BRANCHES: BranchOption[] = [
-  { id: 1, location: "Taytay" },
-  { id: 2, location: "Pasig" },
-];
 
 const getBranchLabel = (branchId: number | null, branches: BranchOption[]) => {
   if (!branchId) return "Select branch";
-  return branches.find((branch) => branch.id === branchId)?.location ?? "Branch";
+  const matched = branches.find((branch) => branch.id === branchId);
+  return matched?.name ?? matched?.location ?? "Branch";
 };
 
 export default function SharedManagerBranchSwitcher() {
@@ -43,8 +40,7 @@ export default function SharedManagerBranchSwitcher() {
     enabled: isSharedManager,
   });
 
-  const selectableBranches =
-    branches && branches.length > 0 ? branches : FALLBACK_BRANCHES;
+  const selectableBranches = branches && branches.length > 0 ? branches : [];
 
   const activeBranchLabel = useMemo(
     () => getBranchLabel(activeBranchId ?? null, selectableBranches),
@@ -94,11 +90,14 @@ export default function SharedManagerBranchSwitcher() {
               }}
               className="justify-between"
             >
-              <span>{branch.location} Branch</span>
+              <span>{branch.name ?? branch.location ?? "Branch"} Branch</span>
               {isActive ? <Check size={14} className="text-primary" /> : null}
             </DropdownMenuItem>
           );
         })}
+        {selectableBranches.length === 0 ? (
+          <DropdownMenuItem disabled>No branches available</DropdownMenuItem>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

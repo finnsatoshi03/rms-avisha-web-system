@@ -9,13 +9,13 @@ import { JobOrderData } from "../../lib/types";
 import toast from "react-hot-toast";
 
 interface ExportDialogProps {
-  branchLocation: string | null;
+  branchId: number | null;
   technicianId?: string | number | undefined;
   isUser: boolean;
 }
 
 const ExportDialog = ({
-  branchLocation,
+  branchId,
   technicianId,
   isUser,
 }: ExportDialogProps) => {
@@ -36,7 +36,7 @@ const ExportDialog = ({
         page: 1,
         limit: 10000, // Large limit to get all records in date range
         searchTerm: "",
-        branchLocation,
+        branchId,
         technicianId: isUser ? technicianId : undefined,
         statusFilters: [],
         startDate,

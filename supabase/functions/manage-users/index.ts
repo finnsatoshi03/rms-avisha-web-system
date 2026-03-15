@@ -49,7 +49,7 @@ const isPrivilegedRole = (value: unknown): value is PrivilegedRole =>
   value === "admin" || value === "manager";
 
 const isValidBranchId = (value: unknown): value is number | null =>
-  value === null || value === 1 || value === 2;
+  value === null || (typeof value === "number" && Number.isInteger(value) && value > 0);
 
 const normalizeRole = (value: unknown): AppRole => {
   if (
@@ -133,6 +133,28 @@ Deno.serve(async (req: Request) => {
   }
 
   const action = payload.action;
+  let cachedBranchIds: Set<number> | null = null;
+  const getBranchIds = async (): Promise<Set<number>> => {
+    if (cachedBranchIds) {
+      return cachedBranchIds;
+    }
+
+    const { data: branches, error: branchesError } = await adminClient
+      .from("branches")
+      .select("id");
+
+    if (branchesError) {
+      throw new Error(`Failed to load branches: ${branchesError.message}`);
+    }
+
+    cachedBranchIds = new Set(
+      (branches ?? [])
+        .map((branch) => branch.id)
+        .filter((id): id is number => typeof id === "number")
+    );
+
+    return cachedBranchIds;
+  };
 
   if (action === "list_privileged_users" || action === "list_managers") {
     const { data, error } = await adminClient
@@ -511,15 +533,41 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    if (branchId !== null && !isValidBranchId(branchId)) {
+      return json(400, {
+        error: "Invalid branch_id. Allowed values: null or a positive integer.",
+      });
+    }
+
+    let availableBranchIds: Set<number>;
+    try {
+      availableBranchIds = await getBranchIds();
+    } catch (error) {
+      return json(500, {
+        error: error instanceof Error ? error.message : "Failed to validate branch_id.",
+      });
+    }
+
     if (role === "manager" && isSharedManager && branchId !== null) {
       return json(400, {
         error: "Shared manager accounts must have branch_id = null.",
       });
     }
 
-    if (role === "manager" && !isSharedManager && (branchId !== 1 && branchId !== 2)) {
+    if (role === "manager" && !isSharedManager && branchId === null) {
       return json(400, {
-        error: "Branch is required for manager and must be 1 or 2.",
+        error: "Branch is required for non-shared manager accounts.",
+      });
+    }
+
+    if (
+      role === "manager" &&
+      !isSharedManager &&
+      branchId !== null &&
+      !availableBranchIds.has(branchId)
+    ) {
+      return json(400, {
+        error: "Invalid branch_id. Branch does not exist.",
       });
     }
 
@@ -633,7 +681,26 @@ Deno.serve(async (req: Request) => {
 
     if (branchId !== undefined && !isValidBranchId(branchId)) {
       return json(400, {
-        error: "Invalid branch_id. Allowed values: null, 1, 2.",
+        error: "Invalid branch_id. Allowed values: null or a positive integer.",
+      });
+    }
+
+    let availableBranchIds: Set<number>;
+    try {
+      availableBranchIds = await getBranchIds();
+    } catch (error) {
+      return json(500, {
+        error: error instanceof Error ? error.message : "Failed to validate branch_id.",
+      });
+    }
+
+    if (
+      branchId !== undefined &&
+      branchId !== null &&
+      !availableBranchIds.has(branchId)
+    ) {
+      return json(400, {
+        error: "Invalid branch_id. Branch does not exist.",
       });
     }
 
@@ -675,18 +742,26 @@ Deno.serve(async (req: Request) => {
     if (nextRole === "manager") {
       if (nextSharedManager) {
         nextBranchId = null;
-      } else if (nextBranchId !== 1 && nextBranchId !== 2) {
+      } else if (
+        nextBranchId === null ||
+        !isValidBranchId(nextBranchId) ||
+        !availableBranchIds.has(nextBranchId)
+      ) {
         return json(400, {
-          error: "Manager accounts must have branch_id = 1 or 2 when shared_manager is false.",
+          error:
+            "Manager accounts must have a valid existing branch_id when shared_manager is false.",
         });
       }
     }
 
     if (nextRole === "technician") {
       nextSharedManager = false;
-      if (!isValidBranchId(nextBranchId)) {
+      if (
+        !isValidBranchId(nextBranchId) ||
+        (nextBranchId !== null && !availableBranchIds.has(nextBranchId))
+      ) {
         return json(400, {
-          error: "Technician branch_id must be null, 1, or 2.",
+          error: "Technician branch_id must be null or an existing branch id.",
         });
       }
     }

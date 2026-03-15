@@ -2,15 +2,29 @@ import { supabase } from "./supabase";
 import { CreateQuotationData } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
 
-function normalizeJobOrderUsers<T extends { users?: unknown; order_received_user?: unknown }>(
+type UserEmailShape = {
+  email?: string | null;
+  migrated_email?: string | null;
+};
+
+function normalizeUserEmail<T>(user: T): T {
+  if (!user || typeof user !== "object") {
+    return user;
+  }
+
+  return (withEffectiveUserEmail(user as T & UserEmailShape) ?? user) as T;
+}
+
+function normalizeJobOrderUsers<
+  T extends { users?: unknown; order_received_user?: unknown },
+>(
   joborders: T[] | null | undefined
 ) {
   return (joborders ?? []).map((joborder) => ({
     ...joborder,
-    users: withEffectiveUserEmail(joborder.users as any) ?? joborder.users,
+    users: normalizeUserEmail(joborder.users),
     order_received_user:
-      withEffectiveUserEmail(joborder.order_received_user as any) ??
-      joborder.order_received_user,
+      normalizeUserEmail(joborder.order_received_user),
   }));
 }
 
@@ -23,7 +37,8 @@ export async function createQuotation(quotationData: CreateQuotationData) {
   } = quotationData;
 
   // Handle quote number logic
-  const finalQuotation = { ...quotation };
+  const finalQuotation: Record<string, unknown> = { ...quotation };
+  delete finalQuotation.branch;
 
   if (
     !auto_generate_quote_no &&
@@ -138,7 +153,8 @@ export async function updateQuotation(
   } = quotationData;
 
   // Handle quote number logic
-  const finalQuotation = { ...quotation };
+  const finalQuotation: Record<string, unknown> = { ...quotation };
+  delete finalQuotation.branch;
 
   if (
     !auto_generate_quote_no &&
@@ -226,14 +242,14 @@ export async function getQuotationJobOrders({
   page = 1,
   limit = 10,
   searchTerm = "",
-  branchLocation = null,
+  branchId = null,
   technicianId = undefined,
   showWarningsOnly = false,
 }: {
   page?: number;
   limit?: number;
   searchTerm?: string;
-  branchLocation?: string | null;
+  branchId?: number | null;
   technicianId?: string | number | undefined;
   showWarningsOnly?: boolean;
 } = {}) {
@@ -290,18 +306,9 @@ export async function getQuotationJobOrders({
     query = query.lt("created_at", twoDaysAgoISO);
   }
 
-  // Add branch location filter if provided
-  if (branchLocation) {
-    // Need to filter using a join for branch location
-    const { data: branchIds, error: branchError } = await supabase
-      .from("branches")
-      .select("id")
-      .eq("location", branchLocation);
-
-    if (!branchError && branchIds && branchIds.length > 0) {
-      const ids = branchIds.map((branch) => branch.id);
-      query = query.in("branch_id", ids);
-    }
+  // Add branch filter if provided
+  if (branchId) {
+    query = query.eq("branch_id", branchId);
   }
 
   // Add technician filter if provided
@@ -508,11 +515,13 @@ export async function getJobOrderForQuotation(jobOrderId: number) {
     return data;
   }
 
+  const orderReceivedUser = (
+    data as { order_received_user?: unknown }
+  ).order_received_user;
+
   return {
     ...data,
-    users: withEffectiveUserEmail(data.users as any) ?? data.users,
-    order_received_user:
-      withEffectiveUserEmail((data as any).order_received_user) ??
-      (data as any).order_received_user,
+    users: normalizeUserEmail(data.users),
+    order_received_user: normalizeUserEmail(orderReceivedUser),
   };
 }

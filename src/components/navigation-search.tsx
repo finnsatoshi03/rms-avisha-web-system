@@ -22,6 +22,7 @@ import {
 import {
   Search,
   Archive,
+  Building2,
   Handshake,
   Home,
   Printer,
@@ -104,6 +105,12 @@ const navigationItems = [
         title: "Technicians",
         path: "/technicians",
         keywords: ["technicians", "staff", "workers", "employees"],
+      },
+      {
+        icon: Building2,
+        title: "Branch Management",
+        path: "/branches",
+        keywords: ["branch", "branches", "prefix", "pdf header", "pdf footer"],
       },
     ],
   },
@@ -212,7 +219,8 @@ const NavigationSearch: React.FC = () => {
       items: group.items.filter(
         (item) =>
           item.path !== "changelog-admin-dialog" &&
-          item.path !== "dev-console-dialog"
+          item.path !== "dev-console-dialog" &&
+          item.path !== "/branches"
       ),
     }));
   }, [isUser, isAdmin, isDev]);

@@ -30,24 +30,24 @@ import { useUser } from "../components/auth/useUser";
 
 export default function Expenses() {
   const { expenses: expenseData, isLoading } = useExpenses();
-  const { isAdmin, isTaytay, isPasig } = useUser();
+  const { isAdmin, isManager, branchId: currentBranchId } = useUser();
 
   const expenses: ExpensesType[] = useMemo(() => {
     if (!expenseData) return [];
 
-    let branchId: number;
-    if (isTaytay) {
-      branchId = 1;
-    } else if (isPasig) {
-      branchId = 2;
-    } else if (isAdmin) {
+    if (isAdmin) {
       // Admin sees all branches, no filtering needed
       return expenseData;
     }
 
-    // Filter based on branch_id for Taytay and Pasig
-    return expenseData?.filter((expense) => expense.branch_id === branchId);
-  }, [expenseData, isTaytay, isPasig, isAdmin]);
+    if (isManager && currentBranchId !== null) {
+      return expenseData?.filter(
+        (expense) => expense.branch_id === currentBranchId
+      );
+    }
+
+    return expenseData;
+  }, [expenseData, isAdmin, isManager, currentBranchId]);
 
   const defaultToDate = endOfMonth(new Date());
 

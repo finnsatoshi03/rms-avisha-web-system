@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, Search, X } from "lucide-react";
 
 import ColumnVisibilityDropdown from "../components/column-visibility-drop-down";
@@ -7,14 +8,13 @@ import HeaderText from "../components/ui/headerText";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { Separator } from "../components/ui/separator";
-
-import { MaterialStocks, Sort } from "../lib/types";
-import MaterialsTable from "../components/materials/table";
-import { useQuery } from "@tanstack/react-query";
-import { getMaterialStocks } from "../services/apiMaterials";
 import Loader from "../components/ui/loader";
-
+import MaterialsTable from "../components/materials/table";
 import MaterialForm from "../components/materials/material-form";
+import { useUser } from "../components/auth/useUser";
+import { MaterialStocks, Sort } from "../lib/types";
+import { getMaterialStocks } from "../services/apiMaterials";
+import { getBranches } from "../services/apiBranches";
 import {
   Dialog,
   DialogContent,
@@ -22,13 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../components/ui/dialog";
-import { useUser } from "../components/auth/useUser";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "../components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 
 const viewColumns = [
   {
@@ -42,60 +36,49 @@ const viewColumns = [
 ];
 
 export default function Materials() {
-  const { isTaytay, isAdmin } = useUser();
+  const { isAdmin, isManager, branchId: currentBranchId } = useUser();
 
-  const { data: stocks, isLoading } = useQuery({
+  const { data: stocks, isLoading: isStocksLoading } = useQuery({
     queryKey: ["materialStocks", { fetchAll: false }],
     queryFn: () => getMaterialStocks({ fetchAll: false }),
   });
 
-  const taytayMaterials = useMemo(() => {
-    if (!stocks) return [];
-    return stocks.filter((stock: MaterialStocks) => stock.branch_id === 1);
-  }, [stocks]);
-
-  const pasigMaterials = useMemo(() => {
-    if (!stocks) return [];
-    return stocks.filter((stock: MaterialStocks) => stock.branch_id === 2);
-  }, [stocks]);
+  const { data: branches = [], isLoading: isBranchesLoading } = useQuery({
+    queryKey: ["branches", "materials-page"],
+    queryFn: getBranches,
+  });
 
   const [searchTerm, setSearchTerm] = useState("");
   const [sorts, setSorts] = useState<Sort[]>([]);
-  const [filteredTaytayData, setFilteredTaytayData] = useState<
-    MaterialStocks[]
-  >(taytayMaterials || []);
-  const [filteredPasigData, setFilteredPasigData] = useState<MaterialStocks[]>(
-    pasigMaterials || []
-  );
   const [visibleColumns, setVisibleColumns] = useState<string[]>(
     viewColumns.map((col) => col.key)
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [paginatedTaytayData, setPaginatedTaytayData] = useState<
-    MaterialStocks[]
-  >([]);
-  const [paginatedPasigData, setPaginatedPasigData] = useState<
-    MaterialStocks[]
-  >([]);
-
   const [openModal, setOpenModal] = useState(false);
+  const [activeBranchTab, setActiveBranchTab] = useState<string>("");
 
   useEffect(() => {
-    if (taytayMaterials) {
-      setFilteredTaytayData(filterAndSortData(taytayMaterials));
+    if (!isAdmin) {
+      return;
     }
-    if (pasigMaterials) {
-      setFilteredPasigData(filterAndSortData(pasigMaterials));
-    }
-  }, [taytayMaterials, pasigMaterials, searchTerm, sorts]);
 
-  useEffect(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    setPaginatedTaytayData(filteredTaytayData.slice(startIndex, endIndex));
-    setPaginatedPasigData(filteredPasigData.slice(startIndex, endIndex));
-  }, [filteredTaytayData, filteredPasigData, currentPage, itemsPerPage]);
+    if (!activeBranchTab && branches.length > 0) {
+      setActiveBranchTab(String(branches[0].id));
+    }
+  }, [activeBranchTab, branches, isAdmin]);
+
+  const selectedBranchId = useMemo(() => {
+    if (isAdmin) {
+      return activeBranchTab ? Number(activeBranchTab) : null;
+    }
+
+    if (isManager) {
+      return currentBranchId;
+    }
+
+    return null;
+  }, [activeBranchTab, currentBranchId, isAdmin, isManager]);
 
   const filterAndSortData = (data: MaterialStocks[] | undefined) => {
     if (!data) return [];
@@ -108,12 +91,14 @@ export default function Materials() {
         item.stocks,
         item.category,
         item.price,
-        new Date(item.last_stocks_added).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          timeZone: "Asia/Singapore",
-        }),
+        item.last_stocks_added
+          ? new Date(item.last_stocks_added).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              timeZone: "Asia/Singapore",
+            })
+          : "",
       ]
         .join(" ")
         .toLowerCase();
@@ -128,8 +113,8 @@ export default function Materials() {
         let bValue = b[sort.key];
 
         if (sort.key === "last_in") {
-          aValue = new Date(a.last_stocks_added).getTime();
-          bValue = new Date(b.last_stocks_added).getTime();
+          aValue = new Date(a.last_stocks_added as string | Date).getTime();
+          bValue = new Date(b.last_stocks_added as string | Date).getTime();
         } else {
           aValue = String(aValue).toLowerCase();
           bValue = String(bValue).toLowerCase();
@@ -147,6 +132,23 @@ export default function Materials() {
 
     return sortedData;
   };
+
+  const scopedStocks = useMemo(() => {
+    if (!stocks) return [];
+    if (selectedBranchId === null) return stocks;
+    return stocks.filter((stock: MaterialStocks) => stock.branch_id === selectedBranchId);
+  }, [selectedBranchId, stocks]);
+
+  const filteredData = useMemo(
+    () => filterAndSortData(scopedStocks),
+    [scopedStocks, searchTerm, sorts]
+  );
+
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredData.slice(startIndex, endIndex);
+  }, [currentPage, filteredData, itemsPerPage]);
 
   const applySorts = (newSorts: Sort[]) => {
     setSorts(newSorts);
@@ -181,15 +183,16 @@ export default function Materials() {
 
   const handleItemsPerPageChange = (items: number) => {
     setItemsPerPage(items);
-    setCurrentPage(1); // Reset to first page when items per page changes
+    setCurrentPage(1);
   };
 
-  if (isLoading)
+  if (isStocksLoading || isBranchesLoading) {
     return (
       <div className="h-full w-full flex items-center justify-center">
         <Loader />
       </div>
     );
+  }
 
   return (
     <div className="h-[calc(100%-1rem)]">
@@ -200,7 +203,10 @@ export default function Materials() {
           <div className="relative">
             <Input
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(event) => {
+                setSearchTerm(event.target.value);
+                setCurrentPage(1);
+              }}
               className="border-gray-400 h-fit py-1 pl-8 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all ease-in-out duration-500 relative focus-within:w-[300px]"
               placeholder="Search.."
             />
@@ -247,50 +253,49 @@ export default function Materials() {
           handleToggleColumn={handleToggleColumn}
         />
       </div>
+
       {isAdmin ? (
-        <Tabs defaultValue="taytay" className="h-[calc(100%-2rem)]">
+        branches.length === 0 ? (
+          <div className="border rounded-lg p-6 text-sm text-muted-foreground">
+            No branches found. Create a branch first to manage inventory.
+          </div>
+        ) : (
+        <Tabs
+          value={activeBranchTab}
+          onValueChange={(value) => {
+            setActiveBranchTab(value);
+            setCurrentPage(1);
+          }}
+          className="h-[calc(100%-2rem)]"
+        >
           <TabsList className="rounded-b-none">
-            <TabsTrigger value="taytay">Taytay</TabsTrigger>
-            <TabsTrigger value="pasig">Pasig</TabsTrigger>
+            {branches.map((branch) => (
+              <TabsTrigger key={branch.id} value={String(branch.id)}>
+                {branch.name}
+              </TabsTrigger>
+            ))}
           </TabsList>
-          <TabsContent value="taytay" asChild>
-            <MaterialsTable
-              data={paginatedTaytayData}
-              visibleColumns={visibleColumns}
-              currentPage={currentPage}
-              itemsPerPage={itemsPerPage}
-              totalItems={filteredTaytayData.length}
-              handlePageChange={handlePageChange}
-              handleItemsPerPageChange={handleItemsPerPageChange}
-              handleSortChange={handleSortChange}
-              handleColumnVisibilityChange={handleColumnVisibilityChange}
-              currentSort={sorts}
-            />
-          </TabsContent>
-          <TabsContent value="pasig" asChild>
-            <MaterialsTable
-              data={paginatedPasigData}
-              visibleColumns={visibleColumns}
-              currentPage={currentPage}
-              itemsPerPage={itemsPerPage}
-              totalItems={filteredPasigData.length}
-              handlePageChange={handlePageChange}
-              handleItemsPerPageChange={handleItemsPerPageChange}
-              handleSortChange={handleSortChange}
-              handleColumnVisibilityChange={handleColumnVisibilityChange}
-              currentSort={sorts}
-            />
-          </TabsContent>
+          <MaterialsTable
+            data={paginatedData}
+            visibleColumns={visibleColumns}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            totalItems={filteredData.length}
+            handlePageChange={handlePageChange}
+            handleItemsPerPageChange={handleItemsPerPageChange}
+            handleSortChange={handleSortChange}
+            handleColumnVisibilityChange={handleColumnVisibilityChange}
+            currentSort={sorts}
+          />
         </Tabs>
+        )
       ) : (
         <MaterialsTable
-          data={isTaytay ? paginatedTaytayData : paginatedPasigData}
+          data={paginatedData}
           visibleColumns={visibleColumns}
           currentPage={currentPage}
           itemsPerPage={itemsPerPage}
-          totalItems={
-            isTaytay ? filteredTaytayData.length : filteredPasigData.length
-          }
+          totalItems={filteredData.length}
           handlePageChange={handlePageChange}
           handleItemsPerPageChange={handleItemsPerPageChange}
           handleSortChange={handleSortChange}

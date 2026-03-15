@@ -8,12 +8,12 @@ import { useUser } from "../auth/useUser";
 import ChangelogDialog from "./changelog-dialog";
 
 export default function ChangelogTrigger() {
-  const { user, isAdmin, isTaytay, isPasig, isUser } = useUser();
+  const { user, isAdmin, isManager, isUser } = useUser();
 
   // Determine user role based on your actual role system
   const getUserRole = () => {
     if (isAdmin) return "admin";
-    if (isTaytay || isPasig) return "manager";
+    if (isManager) return "manager";
     if (isUser) return "technician";
     return "user";
   };

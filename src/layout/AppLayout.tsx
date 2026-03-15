@@ -26,6 +26,7 @@ const breadcrumbConfig: Record<string, string> = {
   clients: "Clients",
   materials: "Materials",
   expenses: "Expenses",
+  branches: "Branch Management",
   settings: "Settings",
   technicians: "Technicians",
   account: "Account",

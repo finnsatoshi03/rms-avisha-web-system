@@ -50,7 +50,7 @@ type CreateDraft = {
   fullname: string;
   email: string;
   role: "admin" | "manager" | null;
-  branch_id: 1 | 2 | null;
+  branch_id: number | null;
   shared_manager: boolean;
 };
 
@@ -89,19 +89,18 @@ const toTitleCase = (value: string) =>
   value.length > 0 ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
 
 const getBranchName = (branchId: number | null) => {
-  if (branchId === 1) return "taytay";
-  if (branchId === 2) return "pasig";
+  if (typeof branchId === "number") return `branch-${branchId}`;
   return "all-branches";
 };
 
 const getManagerScopeLabel = (user: ManagedUserRecord) =>
   user.shared_manager ? "shared" : getBranchName(user.branch_id);
 
-const normalizeBranchSelection = (value: string): 1 | 2 | null => {
+const normalizeBranchSelection = (value: string): number | null => {
   const normalized = value.trim().toLowerCase();
-  if (normalized === "1" || normalized === "taytay") return 1;
-  if (normalized === "2" || normalized === "pasig") return 2;
-  return null;
+  const parsed = Number.parseInt(normalized, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
 };
 
 const sortByIdentity = (left: ManagedUserRecord, right: ManagedUserRecord) => {
@@ -250,8 +249,7 @@ export default function DevUsers() {
     if (mode === "select-branch") {
       appendLines([
         { text: "Branch selection:", tone: "muted" },
-        "1. taytay",
-        "2. pasig",
+        "Enter branch id (numeric)",
         "/back",
       ]);
       return;
@@ -468,7 +466,7 @@ export default function DevUsers() {
       }
 
       if (draft.role === "manager" && !draft.shared_manager && !draft.branch_id) {
-        appendLine("✖ branch must be taytay or pasig", "error");
+        appendLine("✖ branch must be a valid branch id", "error");
         setMode("create-branch");
         return;
       }
@@ -762,8 +760,7 @@ export default function DevUsers() {
             appendLines([
               "",
               { text: "Select branch:", tone: "muted" },
-              "1. taytay",
-              "2. pasig",
+              "Enter target branch id (numeric)",
             ]);
             return;
           }
@@ -800,8 +797,7 @@ export default function DevUsers() {
             appendLines([
               "",
               { text: "Select branch:", tone: "muted" },
-              "1. taytay",
-              "2. pasig",
+              "Enter target branch id (numeric)",
             ]);
             return;
           }
@@ -844,7 +840,7 @@ export default function DevUsers() {
 
         const branchId = normalizeBranchSelection(submitted);
         if (!branchId) {
-          appendLine("✖ invalid branch. Use 1 (taytay) or 2 (pasig).", "error");
+          appendLine("✖ invalid branch id. Enter a positive integer.", "error");
           return;
         }
 
@@ -1079,13 +1075,13 @@ export default function DevUsers() {
 
     if (mode === "create-branch") {
       if (!submitted) {
-        appendLine("✖ branch must be taytay or pasig", "error");
+        appendLine("✖ branch must be a valid branch id", "error");
         return;
       }
 
       const branchId = normalizeBranchSelection(submitted);
       if (!branchId) {
-        appendLine("✖ branch must be taytay or pasig", "error");
+        appendLine("✖ branch must be a valid branch id", "error");
         return;
       }
 
@@ -1131,7 +1127,7 @@ export default function DevUsers() {
     if (mode === "create-email") return "email :";
     if (mode === "create-role")
       return "role (admin / manager / shared-manager) :";
-    return "branch (taytay / pasig) :";
+    return "branch id (numeric) :";
   }, [mode]);
 
   const modalSizeClass = isMaximized

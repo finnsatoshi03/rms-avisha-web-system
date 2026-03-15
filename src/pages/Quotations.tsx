@@ -50,7 +50,8 @@ interface JobOrderResponse {
 
 export default function Quotations() {
   const queryClient = useQueryClient();
-  const { isTaytay, isPasig, isUser, isAdmin, user } = useUser();
+  const { isManager, branchId: currentBranchId, isUser, isAdmin, user } =
+    useUser();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -90,12 +91,7 @@ export default function Quotations() {
     };
   }, [searchTerm, debouncedSearch]);
 
-  // Get branch location filter based on user role
-  const getBranchLocation = () => {
-    if (isTaytay) return "Taytay";
-    if (isPasig) return "Pasig";
-    return null;
-  };
+  const getBranchId = () => (isManager ? currentBranchId ?? null : null);
 
   // Include role-based filtering in API call for quotations
   const { data, isLoading, isFetching } = useQuery<JobOrderResponse>({
@@ -104,8 +100,8 @@ export default function Quotations() {
       currentPage,
       itemsPerPage,
       debouncedSearchTerm,
-      isTaytay,
-      isPasig,
+      isManager,
+      currentBranchId,
       isUser,
       user?.id,
       showWarningsOnly,
@@ -115,7 +111,7 @@ export default function Quotations() {
         page: currentPage,
         limit: itemsPerPage,
         searchTerm: debouncedSearchTerm,
-        branchLocation: getBranchLocation(),
+        branchId: getBranchId(),
         technicianId: isUser ? user?.id : undefined,
         showWarningsOnly: showWarningsOnly,
       }),
@@ -127,8 +123,8 @@ export default function Quotations() {
     setCurrentPage(1);
   }, [
     debouncedSearchTerm,
-    isTaytay,
-    isPasig,
+    isManager,
+    currentBranchId,
     isUser,
     user?.id,
     showWarningsOnly,
@@ -357,13 +353,13 @@ export default function Quotations() {
         </div>
         <div className="flex items-center gap-2">
           <ExportDialog
-            branchLocation={getBranchLocation()}
+            branchId={getBranchId()}
             technicianId={user?.id}
             isUser={isUser}
           />
-          {(isAdmin || isTaytay || isPasig) && (
+          {(isAdmin || isManager) && (
             <BatchDeleteDialog
-              branchLocation={getBranchLocation()}
+              branchId={getBranchId()}
               technicianId={user?.id}
               isUser={isUser}
               onSuccess={() => {

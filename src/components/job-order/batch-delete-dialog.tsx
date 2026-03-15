@@ -12,14 +12,14 @@ import { JobOrderData } from "../../lib/types";
 import toast from "react-hot-toast";
 
 interface BatchDeleteDialogProps {
-  branchLocation: string | null;
+  branchId: number | null;
   technicianId?: string | number | undefined;
   isUser: boolean;
   onSuccess?: () => void;
 }
 
 const BatchDeleteDialog = ({
-  branchLocation,
+  branchId,
   technicianId,
   isUser,
   onSuccess,
@@ -41,7 +41,7 @@ const BatchDeleteDialog = ({
       "job-orders-preview",
       deleteDateFrom,
       deleteDateTo,
-      branchLocation,
+      branchId,
       technicianId,
       isUser,
     ],
@@ -52,7 +52,7 @@ const BatchDeleteDialog = ({
         page: 1,
         limit: 1000,
         searchTerm: "",
-        branchLocation,
+        branchId,
         technicianId: isUser ? technicianId : undefined,
         statusFilters: [],
         startDate: deleteDateFrom,

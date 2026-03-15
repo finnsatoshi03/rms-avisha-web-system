@@ -21,6 +21,8 @@ import { Button } from "../ui/button";
 import { useEffect, useState } from "react";
 import { useSignup } from "./useSignup";
 import { useUser } from "./useUser";
+import { useQuery } from "@tanstack/react-query";
+import { getBranches } from "../../services/apiBranches";
 
 interface FormData {
   fullname: string;
@@ -82,6 +84,10 @@ const formResolver = (data: FormData) => {
 export default function SignupForm() {
   const { signup, isLoading } = useSignup();
   const { isManager, branchId: currentUserBranchId } = useUser();
+  const { data: branches } = useQuery({
+    queryKey: ["branches", "signup-form"],
+    queryFn: getBranches,
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -101,6 +107,11 @@ export default function SignupForm() {
       form.setValue("branch", String(currentUserBranchId));
     }
   }, [form, isManager, currentUserBranchId]);
+
+  const selectableBranches = (branches || []).filter((branch) => {
+    if (!isManager) return true;
+    return currentUserBranchId !== null && branch.id === currentUserBranchId;
+  });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     if (!values.email) return;
@@ -141,12 +152,11 @@ export default function SignupForm() {
                     <SelectValue placeholder="Select your branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(!isManager || currentUserBranchId === 1) && (
-                      <SelectItem value="1">Taytay</SelectItem>
-                    )}
-                    {(!isManager || currentUserBranchId === 2) && (
-                      <SelectItem value="2">Pasig</SelectItem>
-                    )}
+                    {selectableBranches.map((branch) => (
+                      <SelectItem key={branch.id} value={String(branch.id)}>
+                        {branch.name}
+                      </SelectItem>
+                    ))}
                     {!isManager && <SelectItem value="all">All Branches</SelectItem>}
                   </SelectContent>
                 </Select>

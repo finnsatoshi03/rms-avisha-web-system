@@ -8,6 +8,10 @@ import {
   View,
 } from "@react-pdf/renderer";
 import { CreateQuotationData } from "../../lib/types";
+import {
+  getBranchPdfHeaderLinesWithFallback,
+  isSupportLine,
+} from "../../lib/branch-pdf-header";
 import font1 from "/fonts/Montserrat-Bold.ttf";
 import font2 from "/fonts/Montserrat-Black.ttf";
 
@@ -47,6 +51,15 @@ const formatCurrency = (value: number | string | undefined): string => {
   const numValue = typeof value === "string" ? parseFloat(value) : value || 0;
   return isNaN(numValue) ? "0.00" : numValue.toFixed(2);
 };
+
+const DEFAULT_FOOTER_TEXT = "No Copy no claim";
+
+const getBranchHeaderLines = (data: QuotationPDFProps["data"]): string[] => {
+  return getBranchPdfHeaderLinesWithFallback(data.branch_id, data.branch?.pdf_header);
+};
+
+const getBranchFooterText = (data: QuotationPDFProps["data"]): string =>
+  data.branch?.pdf_footer?.trim() || DEFAULT_FOOTER_TEXT;
 
 function FirstPageContent() {
   return (
@@ -123,6 +136,8 @@ function FirstPageContent() {
 }
 
 function SecondPageContent({ data }: { data: QuotationPDFProps["data"] }) {
+  const branchHeaderLines = getBranchHeaderLines(data);
+
   // Calculate validity months from end_date
   const startDate = new Date(data.date);
   const endDate = new Date(data.end_date);
@@ -136,7 +151,24 @@ function SecondPageContent({ data }: { data: QuotationPDFProps["data"] }) {
     <>
       {/* Header with Logo and Quote Info Table */}
       <View style={styles.secondPageHeader}>
-        <Image style={styles.headerLogo} src="./RMS-Logo.png" />
+        <View>
+          <Image style={styles.headerLogo} src="./RMS-Logo.png" />
+          {branchHeaderLines.length > 0 ? (
+            <View style={styles.branchHeaderTextBlock}>
+              {branchHeaderLines.map((line, index) => (
+                <Text
+                  key={`${line}-${index}`}
+                  style={{
+                    ...styles.branchHeaderTextLine,
+                    ...(isSupportLine(line) ? styles.branchSupportTextLine : {}),
+                  }}
+                >
+                  {line}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
 
         <View style={styles.quoteInfoTable}>
           {/* Header Row */}
@@ -314,6 +346,8 @@ export default function QuotationPDF({
   type,
   contentOnly = false,
 }: QuotationPDFProps) {
+  const footerText = getBranchFooterText(data);
+
   const printBoth = (
     <>
       <Page style={styles.page}>
@@ -322,7 +356,7 @@ export default function QuotationPDF({
       <Page style={styles.page}>
         <Watermark />
         <SecondPageContent data={data} />
-        <Text style={styles.footer}>No Copy no claim</Text>
+        <Text style={styles.footer}>{footerText}</Text>
       </Page>
     </>
   );
@@ -338,7 +372,7 @@ export default function QuotationPDF({
         <Page style={styles.page}>
           <Watermark />
           <SecondPageContent data={data} />
-          <Text style={styles.footer}>No Copy no claim</Text>
+          <Text style={styles.footer}>{footerText}</Text>
         </Page>
       )}
       {!type || type === "both" ? printBoth : null}
@@ -460,6 +494,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: 20,
+  },
+  branchHeaderTextBlock: {
+    marginTop: 4,
+    maxWidth: 260,
+  },
+  branchHeaderTextLine: {
+    fontSize: 8,
+    lineHeight: 1.2,
+  },
+  branchSupportTextLine: {
+    color: "#f12924",
   },
   quoteInfoTable: {
     border: "1px solid black",

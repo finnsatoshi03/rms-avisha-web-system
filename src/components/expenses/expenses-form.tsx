@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Loader2 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
 import { z } from "zod";
@@ -21,6 +21,7 @@ import { Button } from "../ui/button";
 import { Expenses } from "../../lib/types";
 import { createEditExpense } from "../../services/apiExpenses";
 import { useUser } from "../auth/useUser";
+import { getBranches } from "../../services/apiBranches";
 import {
   Select,
   SelectContent,
@@ -46,7 +47,12 @@ export default function ExpensesForm({
 }) {
   const editSession = Boolean(expenseToEdit?.id);
   const queryClient = useQueryClient();
-  const { isAdmin, isTaytay, isPasig } = useUser();
+  const { isAdmin, isManager, branchId: currentUserBranchId } = useUser();
+  const { data: branches } = useQuery({
+    queryKey: ["branches", "expenses-form"],
+    queryFn: getBranches,
+    enabled: isAdmin,
+  });
 
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -102,13 +108,11 @@ export default function ExpensesForm({
   });
 
   const onSubmit = (values: z.infer<typeof extendedFormSchema>) => {
-    const branchId = isTaytay
-      ? 1
-      : isPasig
-      ? 2
-      : isAdmin
+    const branchId = isAdmin
       ? values.branch_id
-      : 0;
+      : isManager
+      ? currentUserBranchId ?? undefined
+      : undefined;
 
     const submittedValues = {
       ...values,
@@ -166,9 +170,12 @@ export default function ExpensesForm({
                   </FormControl>
                   <SelectContent align="end">
                     <SelectGroup>
-                      <SelectLabel>Branches</SelectLabel>
-                      <SelectItem value="1">Taytay</SelectItem>
-                      <SelectItem value="2">Pasig</SelectItem>
+                    <SelectLabel>Branches</SelectLabel>
+                      {(branches || []).map((branch) => (
+                        <SelectItem key={branch.id} value={String(branch.id)}>
+                          {branch.name}
+                        </SelectItem>
+                      ))}
                     </SelectGroup>
                   </SelectContent>
                 </Select>

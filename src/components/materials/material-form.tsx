@@ -12,12 +12,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "../ui/input";
 import { DialogFooter } from "../ui/dialog";
 import { Button } from "../ui/button";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MaterialStocks } from "../../lib/types";
 import toast from "react-hot-toast";
 import { createEditMaterialStock } from "../../services/apiMaterials";
 import { Loader2 } from "lucide-react";
 import { useUser } from "../auth/useUser";
+import { getBranches } from "../../services/apiBranches";
 import { Select } from "@radix-ui/react-select";
 import {
   SelectContent,
@@ -50,7 +51,12 @@ const formSchema = z
 
 export default function MaterialForm({ onClose }: { onClose?: () => void }) {
   const queryClient = useQueryClient();
-  const { isTaytay, isAdmin } = useUser();
+  const { isAdmin, isManager, branchId: currentUserBranchId } = useUser();
+  const { data: branches } = useQuery({
+    queryKey: ["branches", "materials-form"],
+    queryFn: getBranches,
+    enabled: isAdmin,
+  });
 
   const { mutate: mutateMaterialStock, isPending } = useMutation({
     mutationFn: (newMaterial: Partial<MaterialStocks>) =>
@@ -82,7 +88,11 @@ export default function MaterialForm({ onClose }: { onClose?: () => void }) {
     const finalValues: Partial<MaterialStocks> = {
       ...values,
       material_name: values.name,
-      branch_id: isAdmin ? values.branch_id : isTaytay ? 1 : 2,
+      branch_id: isAdmin
+        ? values.branch_id
+        : isManager
+        ? currentUserBranchId ?? undefined
+        : undefined,
       category: values?.tags || "",
     };
     delete finalValues.name;
@@ -123,8 +133,11 @@ export default function MaterialForm({ onClose }: { onClose?: () => void }) {
                     <SelectContent align="end">
                       <SelectGroup>
                         <SelectLabel>Branches</SelectLabel>
-                        <SelectItem value="1">Taytay</SelectItem>
-                        <SelectItem value="2">Pasig</SelectItem>
+                        {(branches || []).map((branch) => (
+                          <SelectItem key={branch.id} value={String(branch.id)}>
+                            {branch.name}
+                          </SelectItem>
+                        ))}
                       </SelectGroup>
                     </SelectContent>
                   </Select>

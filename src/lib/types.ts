@@ -131,7 +131,12 @@ export interface GraphicsCardOptionsProps extends AccessoryOptionsProps {}
 
 type Branch = {
   id: number;
-  location: string;
+  name?: string;
+  location?: string;
+  prefix?: string;
+  pdf_header?: string | null;
+  pdf_footer?: string | null;
+  created_at?: string | Date | null;
 };
 
 export type Client = {
@@ -273,6 +278,7 @@ export type CreateJobOrderData = {
   isCreatingQuotation?: boolean;
   is_manual_rate?: boolean;
   include_quotation_items?: boolean;
+  branch?: Branch;
 };
 
 export type MaterialStocks = {
@@ -398,4 +404,5 @@ export type CreateQuotationData = {
   auto_generate_quote_no?: boolean;
   manual_quote_no?: string;
   job_order_no?: string;
+  branch?: Branch;
 };

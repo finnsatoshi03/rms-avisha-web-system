@@ -32,6 +32,9 @@ const isValidRole = (value: unknown): value is AppRole =>
   value === "manager" ||
   value === "technician";
 
+const isValidBranchId = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value > 0;
+
 const normalizeRole = (value: unknown): AppRole => {
   if (
     value === "dev" ||
@@ -105,7 +108,8 @@ Deno.serve(async (req: Request) => {
   const fullname = payload.fullname?.trim();
   const email = payload.email?.trim().toLowerCase();
   const role = payload.role;
-  const branchId = payload.branch_id ?? null;
+  const branchId =
+    payload.branch_id === undefined ? null : payload.branch_id;
   const password = payload.password?.trim();
   const hasProvidedPassword = Boolean(password && password.length >= 8);
 
@@ -121,24 +125,47 @@ Deno.serve(async (req: Request) => {
     return json(400, { error: "Only technician accounts can be created in this flow." });
   }
 
-  if (branchId !== null && branchId !== 1 && branchId !== 2) {
-    return json(400, { error: "Invalid branch_id. Allowed values are 1, 2, or null." });
+  if (branchId !== null && !isValidBranchId(branchId)) {
+    return json(400, {
+      error: "Invalid branch_id. Allowed values are null or a positive integer.",
+    });
+  }
+
+  const { data: branchRows, error: branchError } = await adminClient
+    .from("branches")
+    .select("id");
+
+  if (branchError) {
+    return json(500, { error: `Failed to validate branches: ${branchError.message}` });
+  }
+
+  const availableBranchIds = new Set(
+    (branchRows ?? [])
+      .map((branch) => branch.id)
+      .filter((id): id is number => typeof id === "number")
+  );
+
+  if (branchId !== null && !availableBranchIds.has(branchId)) {
+    return json(400, { error: "Invalid branch_id. Branch does not exist." });
   }
 
   if (callerRole === "manager") {
     const isSharedManager = callerProfile.shared_manager === true;
+    const callerBranchId = isValidBranchId(callerProfile.branch_id)
+      ? callerProfile.branch_id
+      : null;
 
-    if (branchId !== 1 && branchId !== 2) {
+    if (branchId === null) {
       return json(403, {
-        error: "Managers can only create technician accounts for Taytay or Pasig.",
+        error: "Managers must assign a branch when creating technician accounts.",
       });
     }
 
-    if (!isSharedManager && callerProfile.branch_id !== 1 && callerProfile.branch_id !== 2) {
+    if (!isSharedManager && callerBranchId === null) {
       return json(403, { error: "Manager account is missing a valid branch assignment." });
     }
 
-    if (!isSharedManager && branchId !== callerProfile.branch_id) {
+    if (!isSharedManager && branchId !== callerBranchId) {
       return json(403, {
         error: "Managers can only create technician accounts for their own branch.",
       });

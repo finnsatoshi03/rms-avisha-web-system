@@ -46,7 +46,7 @@ export async function getJobOrdersFiltered({
   page = 1,
   limit = 10,
   searchTerm = "",
-  branchLocation = null,
+  branchId = null,
   technicianId = undefined,
   statusFilters = [],
   startDate = undefined,
@@ -56,7 +56,7 @@ export async function getJobOrdersFiltered({
   page?: number;
   limit?: number;
   searchTerm?: string;
-  branchLocation?: string | null;
+  branchId?: number | null;
   technicianId?: string | number | undefined;
   statusFilters?: string[];
   startDate?: string;
@@ -105,18 +105,9 @@ export async function getJobOrdersFiltered({
     query = query.eq("status", "Pending").lt("created_at", twoDaysAgoISO);
   }
 
-  // Add branch location filter if provided
-  if (branchLocation) {
-    // Need to filter using a join for branch location
-    const { data: branchIds, error: branchError } = await supabase
-      .from("branches")
-      .select("id")
-      .eq("location", branchLocation);
-
-    if (!branchError && branchIds && branchIds.length > 0) {
-      const ids = branchIds.map((branch) => branch.id);
-      query = query.in("branch_id", ids);
-    }
+  // Add branch filter if provided
+  if (branchId) {
+    query = query.eq("branch_id", branchId);
   }
 
   // Add technician filter if provided

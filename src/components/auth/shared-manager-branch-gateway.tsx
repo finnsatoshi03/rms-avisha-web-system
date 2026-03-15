@@ -10,11 +10,6 @@ import { Button } from "../ui/button";
 import Loader from "../ui/loader";
 import { getBranches } from "../../services/apiBranches";
 
-const FALLBACK_BRANCHES = [
-  { id: 1, location: "Taytay" },
-  { id: 2, location: "Pasig" },
-];
-
 export default function SharedManagerBranchGateway({
   onSelectBranch,
 }: {
@@ -27,8 +22,7 @@ export default function SharedManagerBranchGateway({
     retry: 1,
   });
 
-  const selectableBranches =
-    branches && branches.length > 0 ? branches : FALLBACK_BRANCHES;
+  const selectableBranches = branches && branches.length > 0 ? branches : [];
 
   return (
     <AlertDialog open>
@@ -51,7 +45,7 @@ export default function SharedManagerBranchGateway({
             <Loader />
             <p className="text-sm text-muted-foreground">Loading branches...</p>
           </div>
-        ) : (
+        ) : selectableBranches.length > 0 ? (
           <div className="grid gap-2">
             {selectableBranches.map((branch) => (
               <Button
@@ -60,10 +54,14 @@ export default function SharedManagerBranchGateway({
                 className="w-full justify-start"
                 onClick={() => onSelectBranch(branch.id)}
               >
-                {branch.location} Branch
+                {(branch.name ?? branch.location ?? "Branch")} Branch
               </Button>
             ))}
           </div>
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            No branches available.
+          </p>
         )}
 
         <p className="text-xs text-muted-foreground text-center">

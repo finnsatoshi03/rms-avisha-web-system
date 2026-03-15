@@ -38,7 +38,8 @@ export default function MergedPDF({
       machine_type: jobOrderData.machine_type || "",
       problem_statement: jobOrderData.problem_statement || "",
     },
-    branch_id: jobOrderData.branch_id || 1,
+    branch_id: jobOrderData.branch_id || 0,
+    branch: quotationData.branch ?? jobOrderData.branch,
     job_order_no: jobOrderData.order_no || "", // Use actual job order number, no fallback
     date: new Date().toISOString().split("T")[0],
   };

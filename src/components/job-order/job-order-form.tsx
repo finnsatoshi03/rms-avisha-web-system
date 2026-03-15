@@ -61,6 +61,7 @@ import {
 import { createEditJobOrder } from "../../services/apiJobOrders";
 import { getMaterialStocks } from "../../services/apiMaterials";
 import { getQuotationsByJobOrder } from "../../services/apiQuotations";
+import { getBranches } from "../../services/apiBranches";
 import { useUser } from "../auth/useUser";
 import { useBranchValidation } from "../../hooks/useBranchValidation";
 import { BranchWarning } from "../ui/branch-warning";
@@ -455,6 +456,11 @@ export default function JobOrderForm({
     queryFn: () => getMaterialStocks({ fetchAll: true }),
   });
 
+  const { data: branches } = useQuery({
+    queryKey: ["branches", "job-order-form"],
+    queryFn: getBranches,
+  });
+
   // Fetch existing quotations for this job order
   const { data: existingQuotations, isLoading: quotationsLoading } = useQuery({
     queryKey: ["quotations", editId],
@@ -565,7 +571,7 @@ export default function JobOrderForm({
     if (isFormReadonly) {
       return technicians;
     }
-    if (branchId === 1 || branchId === 2) {
+    if (branchId !== null) {
       return technicians.filter(
         (technician) =>
           technician.branch_id === branchId || technician.branch_id === null
@@ -577,6 +583,11 @@ export default function JobOrderForm({
     branchId,
     isFormReadonly,
   ]);
+
+  const resolveBranchForPdf = (id: number | null | undefined) => {
+    if (id === null || id === undefined) return undefined;
+    return (branches || []).find((branch) => branch.id === id);
+  };
 
   const handleAddDownpayment = () => {
     setDownpaymentInputVisible(true);
@@ -616,6 +627,7 @@ export default function JobOrderForm({
       ...data,
       order_received: orderReceivedTechnicianName,
       technician_id: technicianName,
+      branch: resolveBranchForPdf(data.branch_id),
     };
 
     const doc = <JobOrderPDF data={pdfData} type={type} />;
@@ -666,7 +678,8 @@ export default function JobOrderForm({
           machine_type: form.getValues("machine_type") || "",
           problem_statement: form.getValues("problem_statement") || "",
         },
-        branch_id: watchedBranchId || 1,
+        branch_id: watchedBranchId ?? currentUserBranchId ?? 0,
+        branch: resolveBranchForPdf(watchedBranchId ?? currentUserBranchId),
         job_order_no: quotationData?.job_order_no || "", // Use actual job order number
         date: new Date().toISOString().split("T")[0],
       };
@@ -712,6 +725,7 @@ export default function JobOrderForm({
       ...quotationData,
       job_order_no: quotationData.job_order_no || "",
       quote_no: quotationData.quote_no || "",
+      branch: resolveBranchForPdf(jobOrderData.branch_id),
     };
 
     try {
@@ -731,7 +745,10 @@ export default function JobOrderForm({
 
       const doc = (
         <MergedPDF
-          jobOrderData={jobOrderData}
+          jobOrderData={{
+            ...jobOrderData,
+            branch: resolveBranchForPdf(jobOrderData.branch_id),
+          }}
           quotationData={quotationPDFData}
           orderReceivedTechnicianName={orderReceivedTechnicianName || "---"}
           technicianName={technicianName || "---"}
@@ -1494,9 +1511,9 @@ export default function JobOrderForm({
                                 <SelectValue
                                   placeholder={`${
                                     form.watch("branch_id")
-                                      ? field.value === 1
-                                        ? "Taytay"
-                                        : "Pasig"
+                                      ? (branches || []).find(
+                                          (branch) => branch.id === field.value
+                                        )?.name || `Branch ${field.value}`
                                       : "Select a branch"
                                   }`}
                                 />
@@ -1505,8 +1522,14 @@ export default function JobOrderForm({
                             <SelectContent align="end">
                               <SelectGroup>
                                 <SelectLabel>Branches</SelectLabel>
-                                <SelectItem value="1">Taytay</SelectItem>
-                                <SelectItem value="2">Pasig</SelectItem>
+                                {(branches || []).map((branch) => (
+                                  <SelectItem
+                                    key={branch.id}
+                                    value={String(branch.id)}
+                                  >
+                                    {branch.name}
+                                  </SelectItem>
+                                ))}
                               </SelectGroup>
                             </SelectContent>
                           </Select>

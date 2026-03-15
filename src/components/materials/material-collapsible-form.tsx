@@ -382,7 +382,9 @@ export default function MaterialCollapsibleForm({
                 variant={"outline"}
                 onClick={(e) => {
                   e.preventDefault();
-                  onClose && onClose();
+                  if (onClose) {
+                    onClose();
+                  }
                 }}
               >
                 Cancel

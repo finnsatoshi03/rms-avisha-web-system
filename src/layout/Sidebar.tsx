@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import {
   Archive,
+  Building2,
   ChevronDown,
   EllipsisVertical,
   Handshake,
@@ -128,7 +129,7 @@ export default function AppSidebar({
   isUser,
   onClose,
 }: SidebarProps) {
-  const { user, isDev } = useUser();
+  const { user, isDev, isAdmin } = useUser();
   const { openConsole } = useDevConsole();
   const [open, setOpen] = useState(false);
   const [isHomeOpen, setIsHomeOpen] = useState(true);
@@ -383,6 +384,26 @@ export default function AppSidebar({
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                {isAdmin && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip="Branch Management">
+                      <NavLink
+                        to="branches"
+                        onClick={handleNavClick}
+                        className={({ isActive }) =>
+                          cn(
+                            "w-full",
+                            isActive &&
+                              "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          )
+                        }
+                      >
+                        <Building2 size={20} />
+                        <span>Branch Management</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 {isDev && (
                   <SidebarMenuItem>
                     <SidebarMenuButton

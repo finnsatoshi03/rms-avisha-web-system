@@ -19,8 +19,7 @@ export const useBranchValidation = (selectedBranchId?: number | null) => {
 
   const getBranchName = (): string => {
     const branchId = getBranchId();
-    if (branchId === 1) return "Taytay";
-    if (branchId === 2) return "Pasig";
+    if (branchId !== null) return `Branch ${branchId}`;
     return "No Branch Assigned";
   };
 

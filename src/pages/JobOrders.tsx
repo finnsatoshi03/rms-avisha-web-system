@@ -74,7 +74,8 @@ interface JobOrderResponse {
 
 export default function JobOrders() {
   const queryClient = useQueryClient();
-  const { isTaytay, isPasig, isUser, isAdmin, user } = useUser();
+  const { isManager, branchId: currentBranchId, isUser, isAdmin, user } =
+    useUser();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -115,12 +116,7 @@ export default function JobOrders() {
     };
   }, [searchTerm, debouncedSearch]);
 
-  // Get branch location filter based on user role
-  const getBranchLocation = () => {
-    if (isTaytay) return "Taytay";
-    if (isPasig) return "Pasig";
-    return null;
-  };
+  const getBranchId = () => (isManager ? currentBranchId ?? null : null);
 
   // Include role-based filtering in API call
   const { data, isLoading, isFetching } = useQuery<JobOrderResponse>({
@@ -129,8 +125,8 @@ export default function JobOrders() {
       currentPage,
       itemsPerPage,
       debouncedSearchTerm,
-      isTaytay,
-      isPasig,
+      isManager,
+      currentBranchId,
       isUser,
       user?.id,
       selectedStatusFilters, // Add status filters to query key
@@ -141,7 +137,7 @@ export default function JobOrders() {
         page: currentPage,
         limit: itemsPerPage,
         searchTerm: debouncedSearchTerm,
-        branchLocation: getBranchLocation(),
+        branchId: getBranchId(),
         technicianId: isUser ? user?.id : undefined,
         statusFilters: selectedStatusFilters, // Pass status filters to API
         showWarningsOnly: showWarningsOnly, // Pass warning filter to API
@@ -154,8 +150,8 @@ export default function JobOrders() {
     setCurrentPage(1);
   }, [
     debouncedSearchTerm,
-    isTaytay,
-    isPasig,
+    isManager,
+    currentBranchId,
     isUser,
     user?.id,
     selectedStatusFilters,
@@ -414,13 +410,13 @@ export default function JobOrders() {
         </div>
         <div className="flex items-center gap-2">
           <ExportDialog
-            branchLocation={getBranchLocation()}
+            branchId={getBranchId()}
             technicianId={user?.id}
             isUser={isUser}
           />
-          {(isAdmin || isTaytay || isPasig) && (
+          {(isAdmin || isManager) && (
             <BatchDeleteDialog
-              branchLocation={getBranchLocation()}
+              branchId={getBranchId()}
               technicianId={user?.id}
               isUser={isUser}
               onSuccess={() => {

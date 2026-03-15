@@ -29,6 +29,7 @@ import TechnicianDetailPage from "./pages/TechnicianDetailPage";
 import Account from "./pages/Account";
 import Materials from "./pages/Materials";
 import Expenses from "./pages/Expenses";
+import Branches from "./pages/Branches";
 import ManagerReAuth from "./components/auth/manager-reauth";
 // import BillingStatement from "./pages/BillingStatement";
 // import Rental from "./pages/Rental";
@@ -79,6 +80,7 @@ export default function App() {
               <Route path="clients" element={<Clients />} />
               <Route path="materials" element={<Materials />} />
               <Route path="expenses" element={<Expenses />} />
+              <Route path="branches" element={<Branches />} />
               <Route path="settings" element={<Maintenance />} />
               <Route path="technicians" element={<Technicians />} />
               <Route

@@ -45,17 +45,17 @@ import FinancialChart from "../components/dashboard/financial-chart";
 import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
-  const { isTaytay, isPasig, isUser } = useUser();
+  const { isManager, branchId: currentBranchId, isUser } = useUser();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (
-      (isTaytay || isPasig) &&
+      isManager &&
       !localStorage.getItem("managerReAuthenticated")
     ) {
       navigate("/manager-re-auth");
     }
-  }, [isTaytay, isPasig, navigate]);
+  }, [isManager, navigate]);
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["job_orders"],
@@ -70,31 +70,25 @@ export default function Dashboard() {
 
   const job_orders = useMemo(() => {
     if (!orders) return [];
-    return orders.filter((order: JobOrderData) =>
-      isTaytay
-        ? order.branches.location === "Taytay"
-        : isPasig
-        ? order.branches.location === "Pasig"
-        : true
-    );
-  }, [orders, isTaytay, isPasig]);
+    if (isManager && currentBranchId !== null) {
+      return orders.filter(
+        (order: JobOrderData) => order.branch_id === currentBranchId
+      );
+    }
+
+    return orders;
+  }, [orders, isManager, currentBranchId]);
 
   const { expenses: expenseData, isLoading: isExpensesLoading } = useExpenses();
   const expenses: ExpensesType[] = useMemo(() => {
     if (!expenseData) return [];
 
-    let branchId: number;
-    if (isTaytay) {
-      branchId = 1;
-    } else if (isPasig) {
-      branchId = 2;
-    } else {
+    if (!isManager || currentBranchId === null) {
       return expenseData;
     }
 
-    // Filter based on branch_id for Taytay and Pasig
-    return expenseData?.filter((expense) => expense.branch_id === branchId);
-  }, [expenseData, isTaytay, isPasig]);
+    return expenseData?.filter((expense) => expense.branch_id === currentBranchId);
+  }, [expenseData, isManager, currentBranchId]);
 
   const [reportsData, setReportsData] = useState<OverviewData[]>([]);
   const [overviewData, setOverviewData] = useState<OverviewData[]>([]);
@@ -584,7 +578,7 @@ export default function Dashboard() {
             metrics={filteredMetrics}
           />
         ) : null}
-        {(currentTab === "report" || isTaytay || isPasig) && (
+        {(currentTab === "report" || isManager) && (
           <DatePickerWithRange
             isAnalytics
             defaultFromDate={defaultFromDate}
@@ -597,7 +591,7 @@ export default function Dashboard() {
       {currentTab === "overview" && (
         <h2 className="text-sm opacity-60">{currentDate}</h2>
       )}
-      {!isTaytay && !isPasig && !isUser ? (
+      {!isManager && !isUser ? (
         <DashboardTabs setCurrentTab={setCurrentTab}>
           {job_orders && job_orders.length === 0 ? (
             <div className="h-full w-full flex items-center justify-center">

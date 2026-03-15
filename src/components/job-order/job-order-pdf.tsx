@@ -9,6 +9,10 @@ import {
 } from "@react-pdf/renderer";
 import { CreateJobOrderData } from "../../lib/types";
 import { formatMachineType } from "../../lib/helpers";
+import {
+  getBranchPdfHeaderLinesWithFallback,
+  isSupportLine,
+} from "../../lib/branch-pdf-header";
 import font1 from "/fonts/Montserrat-Bold.ttf";
 import font2 from "/fonts/Montserrat-Black.ttf";
 import font3 from "/fonts/Agency-FB.ttf";
@@ -17,6 +21,20 @@ interface JobOrderPDFProps {
   data: CreateJobOrderData;
   type?: "company" | "client" | "both" | null;
   contentOnly?: boolean;
+}
+
+const DEFAULT_FOOTER_TEXT = "No Copy no claim";
+
+function getBranchHeaderLines(data: CreateJobOrderData): string[] {
+  return getBranchPdfHeaderLinesWithFallback(
+    data.branch_id,
+    data.branch?.pdf_header
+  );
+}
+
+function getBranchFooterText(data: CreateJobOrderData): string {
+  const configuredFooter = data.branch?.pdf_footer?.trim() || "";
+  return configuredFooter || DEFAULT_FOOTER_TEXT;
 }
 
 Font.register({
@@ -36,6 +54,7 @@ Font.register({
 
 function Content({ data }: { data: CreateJobOrderData }) {
   const paymentDetails = data.payment_details || {};
+  const headerLines = getBranchHeaderLines(data);
 
   const formattedPaymentDetails = Object.entries(paymentDetails)
     .map(([method, amount]) => `${method}: ${amount}`)
@@ -46,24 +65,11 @@ function Content({ data }: { data: CreateJobOrderData }) {
       <View style={styles.header}>
         <Image style={styles.headerLogo} src="./RMS-Logo.png" />
         <View style={styles.headerText}>
-          <Text>
-            {data.branch_id === 1
-              ? "EVERLASTING BLDG, 172"
-              : "ACM BUILDING ORTIGAS AVE., BRGY"}
-          </Text>
-          <Text>
-            {data.branch_id === 1
-              ? "Rizal Ave, Taytay, 1920 Rizal"
-              : "STA LUCIA DE CASTRO PASIG CITY"}
-          </Text>
-          <Text style={{ color: "#f12924" }}>
-            Call {data.branch_id === 1 ? "(02) 8983-3684" : "(02) 8254-9823"}{" "}
-            Text {data.branch_id === 1 ? "(09)43-606-4129" : "(09)66-774-5227"}
-          </Text>
-          <Text style={{ color: "#f12924" }}>
-            CUSTOMER SERVICE:{" "}
-            {data.branch_id === 1 ? "(02) 8254-4828" : "(02) 8254-9823"}
-          </Text>
+          {headerLines.map((line, index) => (
+            <Text key={`${line}-${index}`} style={isSupportLine(line) ? { color: "#f12924" } : undefined}>
+              {line}
+            </Text>
+          ))}
         </View>
       </View>
       <View style={styles.tableContainer}>
@@ -441,26 +447,14 @@ function Content({ data }: { data: CreateJobOrderData }) {
           <View style={styles.warrantyHeader}>
             <Image style={{ width: 100 }} src="./RMS-Logo.png" />
             <View style={{ fontSize: 9 }}>
-              <Text>
-                {data.branch_id === 1
-                  ? "EVERLASTING BLDG, 172"
-                  : "ACM BUILDING ORTIGAS AVE., BRGY"}
-              </Text>
-              <Text>
-                {data.branch_id === 1
-                  ? "Rizal Ave, Taytay, 1920 Rizal"
-                  : "STA LUCIA DE CASTRO PASIG CITY"}
-              </Text>
-              <Text style={{ color: "#f12924" }}>
-                Call{" "}
-                {data.branch_id === 1 ? "(02) 8983-3684" : "(02) 8254-9823"}{" "}
-                Text{" "}
-                {data.branch_id === 1 ? "(09)43-606-4129" : "(09)66-774-5227"}
-              </Text>
-              <Text style={{ color: "#f12924" }}>
-                CUSTOMER SERVICE:{" "}
-                {data.branch_id === 1 ? "(02) 8254-4828" : "(02) 8254-9823"}
-              </Text>
+              {headerLines.map((line, index) => (
+                <Text
+                  key={`warranty-${line}-${index}`}
+                  style={isSupportLine(line) ? { color: "#f12924" } : undefined}
+                >
+                  {line}
+                </Text>
+              ))}
             </View>
           </View>
 
@@ -584,6 +578,8 @@ export default function JobOrderPDF({
   type,
   contentOnly = false,
 }: JobOrderPDFProps) {
+  const footerText = getBranchFooterText(data);
+
   const printBoth = (
     <>
       <Page style={styles.page}>
@@ -592,7 +588,7 @@ export default function JobOrderPDF({
       <Page style={styles.page}>
         <Watermark />
         <Content data={data} />
-        <Text style={styles.footer}>No Copy no claim</Text>
+        <Text style={styles.footer}>{footerText}</Text>
       </Page>
     </>
   );
@@ -608,7 +604,7 @@ export default function JobOrderPDF({
         <Page style={styles.page}>
           <Watermark />
           <Content data={data} />
-          <Text style={styles.footer}>No Copy no claim</Text>
+          <Text style={styles.footer}>{footerText}</Text>
         </Page>
       )}
       {!type || type === "both" ? printBoth : null}

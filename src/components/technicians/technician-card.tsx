@@ -27,10 +27,8 @@ export default function TechnicianCard({
   const isTechnician = technician.role === "technician";
   const isManager = technician.role === "manager";
   const branchLabel =
-    technician.branch_id === 1
-      ? "Taytay"
-      : technician.branch_id === 2
-      ? "Pasig"
+    technician.branch_id !== null
+      ? `Branch ${technician.branch_id}`
       : "All Branches";
 
   // Calculate the last repair date

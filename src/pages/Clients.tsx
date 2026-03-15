@@ -1,4 +1,3 @@
-// @ts-nocheck // for build only remove on development
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -58,7 +57,7 @@ const lastOrder = (client: Client) => {
 };
 
 export default function Clients() {
-  const { isTaytay, isPasig } = useUser();
+  const { isManager, branchId: currentBranchId } = useUser();
 
   const { data: c, isLoading } = useQuery({
     queryKey: ["client"],
@@ -76,13 +75,11 @@ export default function Clients() {
           : Object.values(client.joborders);
 
         const filteredJobOrders = jobOrders.filter((joborder: JobOrderData) => {
-          if (isTaytay) {
-            return joborder?.branches?.location === "Taytay";
-          } else if (isPasig) {
-            return joborder?.branches?.location === "Pasig";
-          } else {
-            return true;
+          if (isManager && currentBranchId !== null) {
+            return joborder?.branch_id === currentBranchId;
           }
+
+          return true;
         });
 
         return filteredJobOrders.length > 0
@@ -90,7 +87,7 @@ export default function Clients() {
           : null;
       })
       .filter((client) => client !== null);
-  }, [c, isTaytay, isPasig]);
+  }, [c, isManager, currentBranchId]);
 
   const [sorts, setSorts] = useState<Sort[]>([]);
   const [searchTerm, setSearchTerm] = useState("");

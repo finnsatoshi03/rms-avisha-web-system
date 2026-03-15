@@ -1,6 +1,11 @@
 import { supabase } from "./supabase";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
 
+type UserEmailShape = {
+  email?: string | null;
+  migrated_email?: string | null;
+};
+
 export async function getTechnicians({
   fetchAll = false,
 }: { fetchAll?: boolean } = {}) {
@@ -42,14 +47,18 @@ export async function getTechnicians({
   }
 
   return (users || []).map((user) => ({
-    ...(withEffectiveUserEmail(user as any) ?? user),
-    joborders: (user.joborders || []).map((joborder: any) => ({
+    ...(withEffectiveUserEmail(user as UserEmailShape) ?? user),
+    joborders: (user.joborders || []).map(
+      (joborder: { users?: unknown; order_received_user?: unknown }) => ({
       ...joborder,
-      users: withEffectiveUserEmail(joborder.users as any) ?? joborder.users,
+      users:
+        withEffectiveUserEmail(joborder.users as UserEmailShape) ??
+        joborder.users,
       order_received_user:
-        withEffectiveUserEmail(joborder.order_received_user as any) ??
+        withEffectiveUserEmail(joborder.order_received_user as UserEmailShape) ??
         joborder.order_received_user,
-    })),
+      })
+    ),
   }));
 }
 
