@@ -23,6 +23,7 @@ import AuthCallback from "./pages/AuthCallback";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import ProtectedRoute from "./components/protected-route";
+import PublicRoute from "./components/public-route";
 import Technicians from "./pages/Technicians";
 import TechnicianDetailPage from "./pages/TechnicianDetailPage";
 import Account from "./pages/Account";
@@ -87,8 +88,22 @@ export default function App() {
               <Route path="account" element={<Account />} />
             </Route>
 
-            <Route path="login" element={<Login />} />
-            <Route path="forgot-password" element={<ForgotPassword />} />
+            <Route
+              path="login"
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="forgot-password"
+              element={
+                <PublicRoute>
+                  <ForgotPassword />
+                </PublicRoute>
+              }
+            />
             <Route path="auth/callback" element={<AuthCallback />} />
             <Route path="auth/reset-password" element={<ResetPassword />} />
             <Route path="*" element={<NotFound />} />
