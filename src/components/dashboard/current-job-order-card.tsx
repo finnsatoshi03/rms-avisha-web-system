@@ -60,7 +60,7 @@ export default function CurrentJobOrderCard({
                     : jobOrder?.order_received_user?.email[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <p className="text-sm">
+              <p className="text-sm truncate">
                 {jobOrder?.order_received_user?.fullname
                   ? formatName(jobOrder.order_received_user.fullname)
                   : jobOrder?.order_received_user?.email}

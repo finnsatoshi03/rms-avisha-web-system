@@ -1,7 +1,7 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import AppSidebar from "./Sidebar";
 import { useUser } from "../components/auth/useUser";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   SidebarInset,
   SidebarProvider,
@@ -15,6 +15,7 @@ import DevUsers from "../pages/DevUsers";
 import { useBranchSession } from "../components/auth/branch-session-context";
 import SharedManagerBranchGateway from "../components/auth/shared-manager-branch-gateway";
 import SharedManagerBranchSwitcher from "../components/auth/shared-manager-branch-switcher";
+import AccountMigrationNotice from "../components/auth/account-migration-notice";
 
 // Breadcrumb configuration
 const breadcrumbConfig: Record<string, string> = {
@@ -79,10 +80,16 @@ export default function AppLayout() {
   const { setActiveBranchSelection } = useBranchSession();
   const location = useLocation();
   const navigate = useNavigate();
+  const [isMigrationNoticeDismissed, setIsMigrationNoticeDismissed] =
+    useState(false);
 
   const breadcrumbs = useMemo(() => {
     return generateBreadcrumbs(location.pathname);
   }, [location.pathname]);
+
+  useEffect(() => {
+    setIsMigrationNoticeDismissed(false);
+  }, [user?.id, user?.migrated_email, user?.migration_status]);
 
   // Comprehensive protection check - moved outside useEffect
   const isDashboardRoute = location.pathname.startsWith("/dashboard");
@@ -166,9 +173,22 @@ export default function AppLayout() {
     );
   }
 
+  const shouldShowMigrationNotice = Boolean(
+    user.migration_notice_required &&
+      user.migrated_email &&
+      !isMigrationNoticeDismissed
+  );
+
   return (
     <DevConsoleProvider>
       <SidebarProvider>
+        {shouldShowMigrationNotice ? (
+          <AccountMigrationNotice
+            open
+            migratedEmail={user.migrated_email!}
+            onAcknowledge={() => setIsMigrationNoticeDismissed(true)}
+          />
+        ) : null}
         <AppSidebar isUser={isUser} />
         <SidebarInset>
           <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">

@@ -16,6 +16,7 @@ import {
   createPrivilegedUser,
   getPrivilegedUsers,
   type ManagedUserRecord,
+  prepareEmailMigration,
   updateManagedUser,
 } from "../services/apiDevUsers";
 
@@ -269,6 +270,7 @@ export default function DevUsers() {
       { text: "Available commands:", tone: "muted" },
       "/list     - list admin and manager accounts",
       "/create   - create admin, manager, or shared manager account",
+      "/migrate-email <old> <new> [shared] [secondary] - prepare email migration",
       "/help     - show available commands",
     ]);
   }, [appendLines, mode, selectedUser]);
@@ -393,6 +395,68 @@ export default function DevUsers() {
       }
     },
     [appendLine, appendLines, showUserActions]
+  );
+
+  const runPrepareMigrationCommand = useCallback(
+    async ({
+      oldEmail,
+      newEmail,
+      sharedManagerMode,
+      setPrimary,
+    }: {
+      oldEmail: string;
+      newEmail: string;
+      sharedManagerMode: boolean;
+      setPrimary: boolean;
+    }) => {
+      const token = ++commandTokenRef.current;
+      setIsRunningCommand(true);
+      appendLine("Preparing email migration...", "muted");
+
+      try {
+        const result = await prepareEmailMigration({
+          old_email: oldEmail,
+          new_email: newEmail,
+          shared_manager_mode: sharedManagerMode,
+          set_primary: setPrimary,
+        });
+        if (commandTokenRef.current !== token) return;
+
+        appendLine("✔ migration prepared", "success");
+        appendLine(`old email : ${result.old_email}`);
+        appendLine(`new email : ${result.new_email}`);
+        appendLine(`new auth id: ${result.new_auth_user_id}`, "muted");
+        appendLine(
+          `link mode : ${result.shared_manager_mode ? "shared manager" : "standard"}`,
+          "muted"
+        );
+        appendLine(
+          `primary link: ${setPrimary ? "yes" : "no (secondary profile link)"}`,
+          "muted"
+        );
+
+        if (result.invite_sent === false) {
+          appendLine(
+            `✖ invite email issue: ${result.invite_error || "unknown error"}`,
+            "warning"
+          );
+        } else {
+          appendLine("invite email sent", "success");
+        }
+      } catch (error) {
+        if (commandTokenRef.current !== token) return;
+
+        const message =
+          error instanceof Error ? error.message : "Failed to prepare migration.";
+        appendLine(`✖ ${message}`, "error");
+      } finally {
+        if (commandTokenRef.current === token) {
+          setIsRunningCommand(false);
+          setMode("command");
+        }
+      }
+    },
+    [appendLine]
   );
 
   const submitCreateDraft = useCallback(
@@ -552,7 +616,7 @@ export default function DevUsers() {
   }, [focusActiveInput, mode]);
 
   const availableCommands = useMemo(() => {
-    const commands = ["/help", "/list", "/create"];
+    const commands = ["/help", "/list", "/create", "/migrate-email"];
 
     if (mode !== "command") {
       commands.push("/back");
@@ -599,6 +663,34 @@ export default function DevUsers() {
 
       if (normalized === "/create") {
         startCreateFlow();
+        return;
+      }
+
+      if (normalized.startsWith("/migrate-email")) {
+        const parts = submitted.split(/\s+/).filter(Boolean);
+        if (parts.length < 3) {
+          appendLines([
+            { text: "Usage:", tone: "muted" },
+            "/migrate-email <old_email> <new_email> [shared] [secondary]",
+            "flags:",
+            "shared    -> allow shared-manager login mapping",
+            "secondary -> link as non-primary profile for the new auth account",
+          ]);
+          return;
+        }
+
+        const oldEmail = parts[1].toLowerCase();
+        const newEmail = parts[2].toLowerCase();
+        const normalizedFlags = parts.slice(3).map((flag) => flag.toLowerCase());
+        const sharedManagerMode = normalizedFlags.includes("shared");
+        const setPrimary = !normalizedFlags.includes("secondary");
+
+        await runPrepareMigrationCommand({
+          oldEmail,
+          newEmail,
+          sharedManagerMode,
+          setPrimary,
+        });
         return;
       }
 
@@ -801,6 +893,7 @@ export default function DevUsers() {
       selectedUser,
       showUserActions,
       startCreateFlow,
+      runPrepareMigrationCommand,
     ]
   );
 

@@ -148,3 +148,33 @@ export async function updateManagedUser({
     deleted,
   });
 }
+
+export async function prepareEmailMigration({
+  old_email,
+  new_email,
+  set_primary,
+  shared_manager_mode,
+}: {
+  old_email: string;
+  new_email: string;
+  set_primary?: boolean;
+  shared_manager_mode?: boolean;
+}) {
+  return invokeManageUsers<{
+    old_user_id: string;
+    old_email: string;
+    new_email: string;
+    new_auth_user_id: string;
+    created_target_auth_user: boolean;
+    shared_manager_mode: boolean;
+    migration_status: "invited";
+    invite_sent: boolean;
+    invite_error: string | null;
+  }>({
+    action: "prepare_email_migration",
+    old_email,
+    new_email,
+    set_primary,
+    shared_manager_mode,
+  });
+}

@@ -177,6 +177,9 @@ Deno.serve(async (req: Request) => {
       shared_manager: false,
       deleted: false,
       must_change_password: true,
+      migrated_email: null,
+      migration_status: "completed",
+      migration_completed_at: new Date().toISOString(),
     },
     { onConflict: "id" }
   );

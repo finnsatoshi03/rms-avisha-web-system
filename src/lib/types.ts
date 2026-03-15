@@ -163,6 +163,10 @@ export type User = {
   shared_manager?: boolean;
   deleted?: boolean;
   must_change_password?: boolean;
+  migrated_email?: string | null;
+  migration_status?: "pending" | "invited" | "completed" | null;
+  migration_completed_at?: string | Date | null;
+  migration_notice_required?: boolean;
   created_at?: string | Date;
 };
 

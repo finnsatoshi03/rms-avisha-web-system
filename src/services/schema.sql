@@ -228,10 +228,23 @@ CREATE TABLE public.users (
   shared_manager boolean DEFAULT false,
   deleted boolean DEFAULT false,
   must_change_password boolean DEFAULT false,
+  migrated_email text,
+  migration_status text DEFAULT 'pending'::text,
+  migration_completed_at timestamp with time zone,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_branch_id_check CHECK (((branch_id IS NULL) OR (branch_id = ANY (ARRAY[1, 2])))),
+  CONSTRAINT users_migration_status_check CHECK ((migration_status = ANY (ARRAY['pending'::text, 'invited'::text, 'completed'::text]))),
   CONSTRAINT users_role_check CHECK ((role = ANY (ARRAY['dev'::text, 'admin'::text, 'manager'::text, 'technician'::text]))),
   CONSTRAINT users_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id),
   CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.user_auth_links (
+  auth_user_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  is_primary boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT user_auth_links_pkey PRIMARY KEY (auth_user_id, user_id),
+  CONSTRAINT user_auth_links_auth_user_id_fkey FOREIGN KEY (auth_user_id) REFERENCES auth.users(id),
+  CONSTRAINT user_auth_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );

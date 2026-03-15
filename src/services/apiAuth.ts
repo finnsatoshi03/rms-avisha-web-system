@@ -2,6 +2,7 @@ import { User as SupabaseAuthUser, UserAttributes } from "@supabase/supabase-js"
 import { supabase } from "./supabase";
 
 export type AppUserRole = "dev" | "admin" | "manager" | "technician";
+export type MigrationStatus = "pending" | "invited" | "completed";
 
 type UserProfileRow = {
   id: string;
@@ -13,6 +14,9 @@ type UserProfileRow = {
   shared_manager: boolean;
   deleted: boolean;
   must_change_password: boolean;
+  migrated_email: string | null;
+  migration_status: MigrationStatus;
+  migration_completed_at: string | null;
   created_at: string | null;
 };
 
@@ -24,6 +28,10 @@ export type CurrentUser = {
   shared_manager: boolean;
   deleted: boolean;
   must_change_password: boolean;
+  migrated_email: string | null;
+  migration_status: MigrationStatus;
+  migration_completed_at: string | null;
+  migration_notice_required: boolean;
   fullname: string | null;
   avatar: string | null;
   created_at: string | null;
@@ -49,11 +57,65 @@ function normalizeRole(role: string | null): AppUserRole {
   return "technician";
 }
 
+function normalizeMigrationStatus(status: string | null): MigrationStatus {
+  if (status === "invited" || status === "completed") {
+    return status;
+  }
+  return "pending";
+}
+
+function normalizeEmail(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase();
+  return normalized || null;
+}
+
+function normalizeProfileRow(
+  data: Omit<UserProfileRow, "role" | "shared_manager" | "migration_status"> & {
+    role: string | null;
+    shared_manager: unknown;
+    migration_status: string | null;
+  }
+): UserProfileRow {
+  return {
+    ...data,
+    role: normalizeRole(data.role),
+    shared_manager: Boolean(data.shared_manager),
+    migration_status: normalizeMigrationStatus(data.migration_status),
+    migrated_email: normalizeEmail(data.migrated_email),
+  };
+}
+
+function isUsingMigratedEmail(
+  authUser: SupabaseAuthUser,
+  profile: UserProfileRow
+): boolean {
+  const authEmail = normalizeEmail(authUser.email);
+  const migratedEmail = normalizeEmail(profile.migrated_email);
+  return Boolean(authEmail && migratedEmail && authEmail === migratedEmail);
+}
+
+function shouldBlockLegacyLogin(
+  authUser: SupabaseAuthUser,
+  profile: UserProfileRow
+): boolean {
+  const migratedEmail = normalizeEmail(profile.migrated_email);
+  if (!migratedEmail || profile.migration_status !== "completed") {
+    return false;
+  }
+
+  const authEmail = normalizeEmail(authUser.email);
+  return authEmail !== migratedEmail;
+}
+
 function buildCurrentUser(
   authUser: SupabaseAuthUser,
   profile: UserProfileRow
 ): CurrentUser {
   const role = normalizeRole(profile.role);
+  const migrationNoticeRequired =
+    Boolean(profile.migrated_email) &&
+    profile.migration_status !== "completed" &&
+    !isUsingMigratedEmail(authUser, profile);
 
   return {
     id: authUser.id,
@@ -63,6 +125,10 @@ function buildCurrentUser(
     shared_manager: Boolean(profile.shared_manager),
     deleted: profile.deleted,
     must_change_password: profile.must_change_password,
+    migrated_email: profile.migrated_email,
+    migration_status: profile.migration_status,
+    migration_completed_at: profile.migration_completed_at,
+    migration_notice_required: migrationNoticeRequired,
     fullname: profile.fullname,
     avatar: profile.avatar,
     created_at: profile.created_at,
@@ -79,7 +145,7 @@ async function getProfileById(userId: string): Promise<UserProfileRow> {
   const { data, error } = await supabase
     .from("users")
     .select(
-      "id, email, fullname, avatar, role, branch_id, shared_manager, deleted, must_change_password, created_at"
+      "id, email, fullname, avatar, role, branch_id, shared_manager, deleted, must_change_password, migrated_email, migration_status, migration_completed_at, created_at"
     )
     .eq("id", userId)
     .single();
@@ -88,11 +154,30 @@ async function getProfileById(userId: string): Promise<UserProfileRow> {
     throw new Error("User profile not found");
   }
 
-  return {
-    ...data,
-    role: normalizeRole(data.role),
-    shared_manager: Boolean(data.shared_manager),
-  } as UserProfileRow;
+  return normalizeProfileRow(data);
+}
+
+async function resolveProfileByAuthId(authUserId: string): Promise<UserProfileRow> {
+  const { data, error } = await supabase.rpc("resolve_user_profile_for_auth", {
+    p_auth_user_id: authUserId,
+  });
+
+  const resolved = Array.isArray(data) ? data[0] : data;
+  if (!error && resolved) {
+    return normalizeProfileRow(resolved);
+  }
+
+  return getProfileById(authUserId);
+}
+
+async function markMigrationCompletedForAuth(authUserId: string) {
+  const { error } = await supabase.rpc("mark_migration_completed_for_auth", {
+    p_auth_user_id: authUserId,
+  });
+
+  if (error) {
+    console.error("Failed to mark migration as completed:", error.message);
+  }
 }
 
 export async function signup({
@@ -180,7 +265,16 @@ export async function login({
     );
   }
 
-  const profile = await getProfileById(authData.user.id);
+  await markMigrationCompletedForAuth(authData.user.id);
+  const profile = await resolveProfileByAuthId(authData.user.id);
+
+  if (shouldBlockLegacyLogin(authData.user, profile)) {
+    await supabase.auth.signOut();
+    throw new Error(
+      `This legacy email is no longer active. Sign in using ${profile.migrated_email}.`
+    );
+  }
+
   if (profile.deleted) {
     await supabase.auth.signOut();
     throw new Error(
@@ -209,7 +303,14 @@ export async function getCurrentUser() {
   }
 
   try {
-    const profile = await getProfileById(data.user.id);
+    await markMigrationCompletedForAuth(data.user.id);
+    const profile = await resolveProfileByAuthId(data.user.id);
+
+    if (shouldBlockLegacyLogin(data.user, profile)) {
+      await supabase.auth.signOut();
+      return null;
+    }
+
     if (profile.deleted) {
       await supabase.auth.signOut();
       return null;
