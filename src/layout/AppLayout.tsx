@@ -21,7 +21,6 @@ import AccountMigrationNotice from "../components/auth/account-migration-notice"
 const breadcrumbConfig: Record<string, string> = {
   dashboard: "Dashboard",
   "job-order": "Job Order",
-  rental: "Rental",
   "job-orders": "Job Orders",
   clients: "Clients",
   materials: "Materials",
@@ -31,7 +30,6 @@ const breadcrumbConfig: Record<string, string> = {
   technicians: "Technicians",
   account: "Account",
   "manager-re-auth": "Manager Re-Authentication",
-  "billing-statement": "Billing Statement",
 };
 
 const generateBreadcrumbs = (pathname: string) => {

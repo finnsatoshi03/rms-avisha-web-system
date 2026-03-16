@@ -12,7 +12,6 @@ import "./styles/loader.css";
 
 import AppLayout from "./layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
-import DashboardRental from "./pages/DashboardRental";
 import TechnicianDashboard from "./pages/TechnicianDashboard";
 import JobOrders from "./pages/JobOrders";
 import Quotations from "./pages/Quotations";
@@ -31,8 +30,6 @@ import Materials from "./pages/Materials";
 import Expenses from "./pages/Expenses";
 import Branches from "./pages/Branches";
 import ManagerReAuth from "./components/auth/manager-reauth";
-// import BillingStatement from "./pages/BillingStatement";
-// import Rental from "./pages/Rental";
 import NotFound from "./pages/NotFound";
 import Maintenance from "./pages/Maintenance";
 import { BranchSessionProvider } from "./components/auth/branch-session-context";
@@ -67,7 +64,6 @@ export default function App() {
               }
             >
               <Route path="dashboard/job-order" element={<Dashboard />} />
-              <Route path="dashboard/rental" element={<DashboardRental />} />
               <Route
                 path="technician-dashboard"
                 element={<TechnicianDashboard />}
@@ -75,8 +71,6 @@ export default function App() {
               <Route path="manager-re-auth" element={<ManagerReAuth />} />
               <Route path="job-orders" element={<JobOrders />} />
               <Route path="quotations" element={<Quotations />} />
-              <Route path="rental" element={<Maintenance />} />
-              <Route path="billing-statement" element={<Maintenance />} />
               <Route path="clients" element={<Clients />} />
               <Route path="materials" element={<Materials />} />
               <Route path="expenses" element={<Expenses />} />

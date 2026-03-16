@@ -4,10 +4,8 @@ import {
   Building2,
   ChevronDown,
   EllipsisVertical,
-  Handshake,
   Home,
   Printer,
-  ReceiptText,
   Settings,
   ShieldCheck,
   UserRoundCog,
@@ -132,7 +130,6 @@ export default function AppSidebar({
   const { user, isDev, isAdmin } = useUser();
   const { openConsole } = useDevConsole();
   const [open, setOpen] = useState(false);
-  const [isHomeOpen, setIsHomeOpen] = useState(true);
   const [isJobOrdersOpen, setIsJobOrdersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -152,62 +149,22 @@ export default function AppSidebar({
             {!isUser ? (
               <>
                 <SidebarMenuItem>
-                  <Collapsible open={isHomeOpen} onOpenChange={setIsHomeOpen}>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton
-                        className="w-full justify-between"
-                        tooltip="Home"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Home size={20} />
-                          <span>Home</span>
-                        </div>
-                        <ChevronRight
-                          size={16}
-                          className={`transition-transform ${isHomeOpen ? "rotate-90" : ""
-                            }`}
-                        />
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild>
-                            <NavLink
-                              to="dashboard/job-order"
-                              onClick={handleNavClick}
-                              className={({ isActive }) =>
-                                cn(
-                                  "w-full",
-                                  isActive &&
-                                  "bg-sidebar-accent text-sidebar-accent-foreground"
-                                )
-                              }
-                            >
-                              Job Order
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild>
-                            <NavLink
-                              to="dashboard/rental"
-                              onClick={handleNavClick}
-                              className={({ isActive }) =>
-                                cn(
-                                  "w-full",
-                                  isActive &&
-                                  "bg-sidebar-accent text-sidebar-accent-foreground"
-                                )
-                              }
-                            >
-                              Rental
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </Collapsible>
+                  <SidebarMenuButton asChild tooltip="Home">
+                    <NavLink
+                      to="dashboard/job-order"
+                      onClick={handleNavClick}
+                      className={({ isActive }) =>
+                        cn(
+                          "w-full",
+                          isActive &&
+                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                        )
+                      }
+                    >
+                      <Home size={20} />
+                      <span>Home</span>
+                    </NavLink>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <Collapsible
@@ -269,44 +226,6 @@ export default function AppSidebar({
                       </SidebarMenuSub>
                     </CollapsibleContent>
                   </Collapsible>
-                </SidebarMenuItem>
-
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Rental">
-                    <NavLink
-                      to="rental"
-                      onClick={handleNavClick}
-                      className={({ isActive }) =>
-                        cn(
-                          "w-full",
-                          isActive &&
-                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                        )
-                      }
-                    >
-                      <Handshake size={20} />
-                      <span>Rental</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Billing Statement">
-                    <NavLink
-                      to="billing-statement"
-                      onClick={handleNavClick}
-                      className={({ isActive }) =>
-                        cn(
-                          "w-full",
-                          isActive &&
-                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                        )
-                      }
-                    >
-                      <ReceiptText size={20} />
-                      <span>Billing Statement</span>
-                    </NavLink>
-                  </SidebarMenuButton>
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>

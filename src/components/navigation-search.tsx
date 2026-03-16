@@ -23,10 +23,8 @@ import {
   Search,
   Archive,
   Building2,
-  Handshake,
   Home,
   Printer,
-  ReceiptText,
   Settings,
   ShieldCheck,
   UserRoundCog,
@@ -53,12 +51,6 @@ const navigationItems = [
         path: "/dashboard/job-order",
         keywords: ["job order dashboard", "job", "dashboard"],
       },
-      {
-        icon: Handshake,
-        title: "Rental Dashboard",
-        path: "/dashboard/rental",
-        keywords: ["rental dashboard", "rental", "dashboard"],
-      },
     ],
   },
   {
@@ -69,18 +61,6 @@ const navigationItems = [
         title: "Job Orders",
         path: "/job-orders",
         keywords: ["job orders", "jobs", "orders", "work"],
-      },
-      {
-        icon: Handshake,
-        title: "Rental",
-        path: "/rental",
-        keywords: ["rental", "rent", "lease"],
-      },
-      {
-        icon: ReceiptText,
-        title: "Billing Statement",
-        path: "/billing-statement",
-        keywords: ["billing", "statement", "invoice", "bill"],
       },
       {
         icon: Archive,
