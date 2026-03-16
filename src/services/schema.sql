@@ -231,12 +231,15 @@ CREATE TABLE public.users (
   migrated_email text,
   migration_status text DEFAULT 'pending'::text,
   migration_completed_at timestamp with time zone,
+  migrated_to uuid,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_branch_id_check CHECK (((branch_id IS NULL) OR (branch_id = ANY (ARRAY[1, 2])))),
+  CONSTRAINT users_migrated_to_check CHECK (((migrated_to IS NULL) OR (migrated_to <> id))),
   CONSTRAINT users_migration_status_check CHECK ((migration_status = ANY (ARRAY['pending'::text, 'invited'::text, 'completed'::text]))),
   CONSTRAINT users_role_check CHECK ((role = ANY (ARRAY['dev'::text, 'admin'::text, 'manager'::text, 'technician'::text]))),
   CONSTRAINT users_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id),
+  CONSTRAINT users_migrated_to_fkey FOREIGN KEY (migrated_to) REFERENCES public.users(id),
   CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.user_auth_links (

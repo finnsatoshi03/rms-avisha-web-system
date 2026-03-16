@@ -13,6 +13,7 @@ type UserProfileRow = {
   branch_id: number | null;
   shared_manager: boolean;
   deleted: boolean;
+  migrated_to: string | null;
   must_change_password: boolean;
   migrated_email: string | null;
   migration_status: MigrationStatus;
@@ -27,6 +28,7 @@ export type CurrentUser = {
   branch_id: number | null;
   shared_manager: boolean;
   deleted: boolean;
+  migrated_to: string | null;
   must_change_password: boolean;
   migrated_email: string | null;
   migration_status: MigrationStatus;
@@ -80,6 +82,7 @@ function normalizeProfileRow(
     ...data,
     role: normalizeRole(data.role),
     shared_manager: Boolean(data.shared_manager),
+    migrated_to: data.migrated_to ?? null,
     migration_status: normalizeMigrationStatus(data.migration_status),
     migrated_email: normalizeEmail(data.migrated_email),
   };
@@ -107,6 +110,10 @@ function shouldBlockLegacyLogin(
   return authEmail !== migratedEmail;
 }
 
+function isLegacyProfile(profile: UserProfileRow): boolean {
+  return Boolean(profile.migrated_to);
+}
+
 function buildCurrentUser(
   authUser: SupabaseAuthUser,
   profile: UserProfileRow
@@ -118,12 +125,13 @@ function buildCurrentUser(
     !isUsingMigratedEmail(authUser, profile);
 
   return {
-    id: authUser.id,
+    id: profile.id,
     email: authUser.email ?? profile.email ?? null,
     role,
     branch_id: profile.branch_id,
     shared_manager: Boolean(profile.shared_manager),
     deleted: profile.deleted,
+    migrated_to: profile.migrated_to,
     must_change_password: profile.must_change_password,
     migrated_email: profile.migrated_email,
     migration_status: profile.migration_status,
@@ -145,7 +153,7 @@ async function getProfileById(userId: string): Promise<UserProfileRow> {
   const { data, error } = await supabase
     .from("users")
     .select(
-      "id, email, fullname, avatar, role, branch_id, shared_manager, deleted, must_change_password, migrated_email, migration_status, migration_completed_at, created_at"
+      "id, email, fullname, avatar, role, branch_id, shared_manager, deleted, migrated_to, must_change_password, migrated_email, migration_status, migration_completed_at, created_at"
     )
     .eq("id", userId)
     .single();
@@ -268,6 +276,13 @@ export async function login({
   await markMigrationCompletedForAuth(authData.user.id);
   const profile = await resolveProfileByAuthId(authData.user.id);
 
+  if (isLegacyProfile(profile)) {
+    await supabase.auth.signOut();
+    throw new Error(
+      "This account has been migrated to a new profile. Please use the active account."
+    );
+  }
+
   if (shouldBlockLegacyLogin(authData.user, profile)) {
     await supabase.auth.signOut();
     throw new Error(
@@ -305,6 +320,11 @@ export async function getCurrentUser() {
   try {
     await markMigrationCompletedForAuth(data.user.id);
     const profile = await resolveProfileByAuthId(data.user.id);
+
+    if (isLegacyProfile(profile)) {
+      await supabase.auth.signOut();
+      return null;
+    }
 
     if (shouldBlockLegacyLogin(data.user, profile)) {
       await supabase.auth.signOut();
@@ -346,6 +366,8 @@ export async function updateUser({
     throw new Error("Unable to load current user.");
   }
 
+  const profile = await resolveProfileByAuthId(authUser.id);
+
   const updateData: UserAttributes = {};
   if (password) updateData.password = password;
   if (fullname) updateData.data = { fullname };
@@ -359,7 +381,7 @@ export async function updateUser({
     const { error: profileError } = await supabase
       .from("users")
       .update({ must_change_password: false })
-      .eq("id", authUser.id);
+      .eq("id", profile.id);
 
     if (profileError) throw new Error(profileError.message);
   }
@@ -368,7 +390,7 @@ export async function updateUser({
     const { error: profileError } = await supabase
       .from("users")
       .update({ fullname })
-      .eq("id", authUser.id);
+      .eq("id", profile.id);
 
     if (profileError) throw new Error(profileError.message);
   }
@@ -395,7 +417,7 @@ export async function updateUser({
     const { error: profileError } = await supabase
       .from("users")
       .update({ avatar: avatarUrl })
-      .eq("id", authUser.id);
+      .eq("id", profile.id);
 
     if (profileError) throw new Error(profileError.message);
   }
@@ -412,10 +434,23 @@ export async function updatePassword({
   newPassword: string;
   userId: string;
 }) {
+  void userId;
+
+  const {
+    data: { user: authUser },
+    error: getUserError,
+  } = await supabase.auth.getUser();
+
+  if (getUserError || !authUser) {
+    throw new Error("Unable to load current user.");
+  }
+
+  const profile = await resolveProfileByAuthId(authUser.id);
+
   const { data, error } = await supabase.rpc("update_password", {
     current_plain_password: currentPassword,
     new_plain_password: newPassword,
-    current_id: userId,
+    current_id: authUser.id,
   });
 
   if (error) {
@@ -430,7 +465,7 @@ export async function updatePassword({
     const { error: profileError } = await supabase
       .from("users")
       .update({ must_change_password: false })
-      .eq("id", userId);
+      .eq("id", profile.id);
 
     if (profileError) {
       throw new Error(profileError.message);
@@ -456,6 +491,8 @@ export async function setInitialPassword({
     throw new Error("Unable to load current user.");
   }
 
+  const profile = await resolveProfileByAuthId(authUser.id);
+
   const { error: authUpdateError } = await supabase.auth.updateUser({
     password,
   });
@@ -467,7 +504,7 @@ export async function setInitialPassword({
   const { error: profileError } = await supabase
     .from("users")
     .update({ must_change_password: false })
-    .eq("id", authUser.id);
+    .eq("id", profile.id);
 
   if (profileError) {
     throw new Error(profileError.message);

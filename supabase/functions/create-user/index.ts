@@ -82,11 +82,16 @@ Deno.serve(async (req: Request) => {
 
   const { data: callerProfile, error: callerProfileError } = await adminClient
     .from("users")
-    .select("id, role, branch_id, shared_manager, deleted")
+    .select("id, role, branch_id, shared_manager, deleted, migrated_to")
     .eq("id", caller.id)
     .single();
 
-  if (callerProfileError || !callerProfile || callerProfile.deleted) {
+  if (
+    callerProfileError ||
+    !callerProfile ||
+    callerProfile.deleted ||
+    callerProfile.migrated_to
+  ) {
     return json(403, { error: "Caller account is not allowed to create users." });
   }
 
@@ -203,6 +208,7 @@ Deno.serve(async (req: Request) => {
       branch_id: branchId,
       shared_manager: false,
       deleted: false,
+      migrated_to: null,
       must_change_password: true,
       migrated_email: null,
       migration_status: "completed",

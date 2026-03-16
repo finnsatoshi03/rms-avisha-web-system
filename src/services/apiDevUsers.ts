@@ -11,6 +11,7 @@ export type ManagedUserRecord = {
   branch_id: number | null;
   shared_manager: boolean;
   deleted: boolean;
+  migrated_to?: string | null;
   created_at: string | null;
 };
 

@@ -111,11 +111,16 @@ Deno.serve(async (req: Request) => {
 
   const { data: callerProfile, error: callerProfileError } = await adminClient
     .from("users")
-    .select("id, role, deleted")
+    .select("id, role, deleted, migrated_to")
     .eq("id", callerAuthUser.id)
     .single();
 
-  if (callerProfileError || !callerProfile || callerProfile.deleted) {
+  if (
+    callerProfileError ||
+    !callerProfile ||
+    callerProfile.deleted ||
+    callerProfile.migrated_to
+  ) {
     return json(403, { error: "Caller is not allowed to manage users." });
   }
 
@@ -191,7 +196,9 @@ Deno.serve(async (req: Request) => {
 
     const { data: oldMatches, error: oldUserError } = await adminClient
       .from("users")
-      .select("id, email, fullname, role, branch_id, shared_manager, deleted")
+      .select(
+        "id, email, fullname, role, branch_id, shared_manager, deleted, migrated_to"
+      )
       .ilike("email", oldEmail)
       .limit(2);
 
@@ -215,6 +222,10 @@ Deno.serve(async (req: Request) => {
 
     if (sourceUser.deleted) {
       return json(400, { error: "Cannot migrate a deleted source account." });
+    }
+
+    if (sourceUser.migrated_to) {
+      return json(400, { error: "Source account is already marked as legacy." });
     }
 
     let targetAuthUserId: string | null = null;
@@ -271,6 +282,7 @@ Deno.serve(async (req: Request) => {
           .select("id")
           .ilike("email", newEmail)
           .eq("deleted", false)
+          .is("migrated_to", null)
           .limit(2);
 
       if (profileEmailMatchError) {
@@ -365,7 +377,19 @@ Deno.serve(async (req: Request) => {
       );
 
       if (targetShadowProfile && !shadowProfileIsLinked) {
-        await adminClient.from("users").delete().eq("id", targetAuthUserId);
+        const { error: hideShadowProfileError } = await adminClient
+          .from("users")
+          .update({
+            deleted: true,
+            migrated_to: sourceUser.id,
+          })
+          .eq("id", targetAuthUserId);
+
+        if (hideShadowProfileError) {
+          return json(500, {
+            error: `Failed to mark shadow profile as legacy: ${hideShadowProfileError.message}`,
+          });
+        }
       }
     }
 
@@ -465,7 +489,8 @@ Deno.serve(async (req: Request) => {
           .update({ shared_manager: true, branch_id: null })
           .in("id", linkedUserIds)
           .eq("role", "manager")
-          .eq("deleted", false);
+          .eq("deleted", false)
+          .is("migrated_to", null);
 
         if (syncSharedManagersError) {
           return json(500, {
@@ -613,6 +638,7 @@ Deno.serve(async (req: Request) => {
         branch_id: profileBranchId,
         shared_manager: profileSharedManager,
         deleted: false,
+        migrated_to: null,
         must_change_password: true,
         migrated_email: null,
         migration_status: "completed",
@@ -712,7 +738,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: existingUser, error: existingUserError } = await adminClient
       .from("users")
-      .select("id, email, role, branch_id, shared_manager, deleted")
+      .select("id, email, role, branch_id, shared_manager, deleted, migrated_to")
       .eq("id", userId)
       .single();
 
@@ -722,6 +748,10 @@ Deno.serve(async (req: Request) => {
 
     if (normalizeRole(existingUser.role) === "dev") {
       return json(403, { error: "Dev accounts cannot be modified." });
+    }
+
+    if (existingUser.migrated_to) {
+      return json(400, { error: "Legacy accounts cannot be modified directly." });
     }
 
     const nextRole = role ?? normalizeRole(existingUser.role);
@@ -775,7 +805,9 @@ Deno.serve(async (req: Request) => {
         deleted: nextDeleted,
       })
       .eq("id", userId)
-      .select("id, fullname, email, role, branch_id, shared_manager, deleted, created_at")
+      .select(
+        "id, fullname, email, role, branch_id, shared_manager, deleted, migrated_to, created_at"
+      )
       .single();
 
     if (updateError || !updatedUser) {

@@ -167,6 +167,7 @@ export type User = {
   branch_id: number | null;
   shared_manager?: boolean;
   deleted?: boolean;
+  migrated_to?: string | null;
   must_change_password?: boolean;
   migrated_email?: string | null;
   migration_status?: "pending" | "invited" | "completed" | null;

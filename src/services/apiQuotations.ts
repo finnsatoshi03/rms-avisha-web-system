@@ -349,6 +349,8 @@ export async function getQuotationJobOrders({
     const { data: matchingTechnicians, error: techError } = await supabase
       .from("users")
       .select("id")
+      .eq("deleted", false)
+      .is("migrated_to", null)
       .or(
         `fullname.ilike.%${term}%,email.ilike.%${term}%,migrated_email.ilike.%${term}%`
       );
