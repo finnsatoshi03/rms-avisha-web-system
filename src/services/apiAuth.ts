@@ -1,4 +1,8 @@
-import { User as SupabaseAuthUser, UserAttributes } from "@supabase/supabase-js";
+import {
+  AuthError,
+  User as SupabaseAuthUser,
+  UserAttributes,
+} from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 
 export type AppUserRole = "dev" | "admin" | "manager" | "technician";
@@ -19,6 +23,14 @@ type UserProfileRow = {
   migration_status: MigrationStatus;
   migration_completed_at: string | null;
   created_at: string | null;
+};
+
+type MigratedLoginHintRow = {
+  legacy_auth_user_id: string;
+  legacy_email: string | null;
+  canonical_user_id: string | null;
+  canonical_email: string | null;
+  migrated_email: string | null;
 };
 
 export type CurrentUser = {
@@ -69,6 +81,88 @@ function normalizeMigrationStatus(status: string | null): MigrationStatus {
 function normalizeEmail(value: string | null | undefined): string | null {
   const normalized = value?.trim().toLowerCase();
   return normalized || null;
+}
+
+function isBannedAuthError(error: AuthError): boolean {
+  const normalizedMessage = error.message?.toLowerCase() ?? "";
+  const normalizedCode = (error.code ?? "").toLowerCase();
+
+  return normalizedMessage.includes("banned") || normalizedCode.includes("banned");
+}
+
+async function getMigratedLoginHint(
+  loginEmail: string
+): Promise<MigratedLoginHintRow | null> {
+  const normalizedLoginEmail = normalizeEmail(loginEmail);
+  if (!normalizedLoginEmail) {
+    return null;
+  }
+
+  const { data, error } = await supabase.rpc("resolve_migrated_login_hint", {
+    p_login_email: normalizedLoginEmail,
+  });
+
+  if (error) {
+    console.error("Failed to resolve migrated login hint:", error.message);
+    return null;
+  }
+
+  const resolved = Array.isArray(data) ? data[0] : data;
+  if (!resolved) {
+    return null;
+  }
+
+  return resolved as MigratedLoginHintRow;
+}
+
+function shouldAutoClearMigratedMustChangePassword(
+  authUser: SupabaseAuthUser,
+  profile: UserProfileRow
+): boolean {
+  if (!profile.must_change_password) {
+    return false;
+  }
+
+  if (profile.deleted || profile.migrated_to) {
+    return false;
+  }
+
+  if (profile.migration_status !== "completed") {
+    return false;
+  }
+
+  if (authUser.id === profile.id) {
+    return false;
+  }
+
+  return isUsingMigratedEmail(authUser, profile);
+}
+
+async function reconcileMustChangePasswordForMigratedLogin(
+  authUser: SupabaseAuthUser,
+  profile: UserProfileRow
+): Promise<UserProfileRow> {
+  if (!shouldAutoClearMigratedMustChangePassword(authUser, profile)) {
+    return profile;
+  }
+
+  const { error } = await supabase
+    .from("users")
+    .update({ must_change_password: false })
+    .eq("id", profile.id);
+
+  if (error) {
+    console.error(
+      "Failed to clear stale must_change_password flag:",
+      error.message
+    );
+    return profile;
+  }
+
+  return {
+    ...profile,
+    must_change_password: false,
+  };
 }
 
 function normalizeProfileRow(
@@ -263,6 +357,21 @@ export async function login({
     });
 
   if (authError) {
+    const migratedHint = await getMigratedLoginHint(email);
+    const migratedHintEmail = normalizeEmail(migratedHint?.migrated_email);
+
+    if (migratedHintEmail) {
+      throw new Error(
+        `This account has been migrated and can no longer sign in. Use ${migratedHintEmail} instead.`
+      );
+    }
+
+    if (isBannedAuthError(authError)) {
+      throw new Error(
+        "This account can no longer sign in because it was migrated. Please use your active migrated email."
+      );
+    }
+
     throw new Error(authError.message);
   }
 
@@ -274,12 +383,19 @@ export async function login({
   }
 
   await markMigrationCompletedForAuth(authData.user.id);
-  const profile = await resolveProfileByAuthId(authData.user.id);
+  const resolvedProfile = await resolveProfileByAuthId(authData.user.id);
+  const profile = await reconcileMustChangePasswordForMigratedLogin(
+    authData.user,
+    resolvedProfile
+  );
 
   if (isLegacyProfile(profile)) {
     await supabase.auth.signOut();
+    const migratedEmail = normalizeEmail(profile.migrated_email);
     throw new Error(
-      "This account has been migrated to a new profile. Please use the active account."
+      migratedEmail
+        ? `This account has been migrated and can no longer sign in. Use ${migratedEmail} instead.`
+        : "This account has been migrated to a new profile. Please use the active account."
     );
   }
 
@@ -319,7 +435,11 @@ export async function getCurrentUser() {
 
   try {
     await markMigrationCompletedForAuth(data.user.id);
-    const profile = await resolveProfileByAuthId(data.user.id);
+    const resolvedProfile = await resolveProfileByAuthId(data.user.id);
+    const profile = await reconcileMustChangePasswordForMigratedLogin(
+      data.user,
+      resolvedProfile
+    );
 
     if (isLegacyProfile(profile)) {
       await supabase.auth.signOut();
