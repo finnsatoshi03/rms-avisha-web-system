@@ -1,5 +1,0 @@
-import Maintenance from "./Maintenance";
-
-export default function BillingStatement() {
-  return <Maintenance />;
-}

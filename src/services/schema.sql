@@ -1,36 +1,6 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
-CREATE TABLE public.billing_items (
-  id bigint NOT NULL,
-  billing_statement_id bigint,
-  item_type text CHECK (item_type = ANY (ARRAY['RENTAL'::text, 'SERVICE'::text, 'MATERIAL'::text])),
-  reference_id bigint,
-  amount numeric,
-  description text,
-  created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT billing_items_pkey PRIMARY KEY (id),
-  CONSTRAINT billing_items_billing_statement_id_fkey FOREIGN KEY (billing_statement_id) REFERENCES public.billing_statements(id)
-);
-CREATE TABLE public.billing_statements (
-  id bigint NOT NULL,
-  statement_number text NOT NULL,
-  category text CHECK (category = ANY (ARRAY['RENTAL'::text, 'SERVICE'::text])),
-  client_id bigint,
-  billing_period_start date,
-  billing_period_end date,
-  previous_balance numeric DEFAULT 0,
-  current_charges numeric DEFAULT 0,
-  total_payments numeric DEFAULT 0,
-  total_due numeric DEFAULT 0,
-  created_at timestamp without time zone DEFAULT now(),
-  due_date timestamp without time zone,
-  status text,
-  branch_id integer,
-  CONSTRAINT billing_statements_pkey PRIMARY KEY (id),
-  CONSTRAINT billing_statements_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
-  CONSTRAINT billing_statements_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id)
-);
 CREATE TABLE public.branches (
   id integer NOT NULL DEFAULT nextval('branches_id_seq'::regclass),
   location character varying NOT NULL,
@@ -136,18 +106,6 @@ CREATE TABLE public.materials (
   CONSTRAINT materials_pkey PRIMARY KEY (id),
   CONSTRAINT materials_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.material_stocks(id),
   CONSTRAINT materials_job_order_id_fkey FOREIGN KEY (job_order_id) REFERENCES public.joborders(id)
-);
-CREATE TABLE public.payment_records (
-  id bigint NOT NULL,
-  billing_statement_id bigint,
-  amount numeric,
-  payment_date timestamp without time zone,
-  payment_method text,
-  reference_number text,
-  status text,
-  created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT payment_records_pkey PRIMARY KEY (id),
-  CONSTRAINT payment_records_billing_statement_id_fkey FOREIGN KEY (billing_statement_id) REFERENCES public.billing_statements(id)
 );
 CREATE TABLE public.quotation_items (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
