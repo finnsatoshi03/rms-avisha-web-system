@@ -45,7 +45,9 @@ import AccessoriesSection from "./accessories-section";
 import JobOrderPDF from "./job-order-pdf";
 import QuotationPDF from "./quotation-pdf";
 import MergedPDF from "./merged-pdf";
+import ClientAutoSuggest from "./client-auto-suggest";
 import {
+  Client,
   MaterialItem,
   JobOrderData,
   CreateJobOrderData,
@@ -311,6 +313,9 @@ export default function JobOrderForm({
 
   const queryClient = useQueryClient();
   const [contactNumber, setContactNumber] = useState("+63 ");
+  const [selectedClient, setSelectedClient] = useState<Client | null>(
+    editSession && clients ? (clients as Client) : null
+  );
   const [selectedMachineType, setSelectedMachineType] = useState(
     editSession ? editValuesWithClient?.machine_type : ""
   );
@@ -421,9 +426,10 @@ export default function JobOrderForm({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: editSession
-      ? { ...editValuesWithClient, technical_report: existingTechnicalReport }
+      ? { ...editValuesWithClient, client_id: clientId || undefined, technical_report: existingTechnicalReport }
       : {
           branch_id: undefined,
+          client_id: undefined,
           name: "",
           contact_number: "",
           email: "",
@@ -823,6 +829,7 @@ export default function JobOrderForm({
     // Update the materials field with the filtered materials
     const submittedValues: CreateJobOrderData = {
       ...values,
+      client_id: selectedClient?.id || values.client_id || null,
       materials: filteredMaterials,
       order_received:
         values.order_received?.trim() === "" ? null : values.order_received,
@@ -1360,24 +1367,53 @@ export default function JobOrderForm({
               </>
             )}
           </div>
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormControl>
-                  <Input
-                    className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-3xl text-3xl font-bold rounded-none mb-2"
-                    placeholder="Client Name"
-                    autoFocus
-                    disabled={isFormReadonly || onWarranty}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {isFormReadonly ? (
+            <div className="text-3xl font-bold mb-2">
+              {selectedClient?.name || form.getValues("name") || "—"}
+              {selectedClient?.type === "company" && (
+                <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full align-middle">
+                  company
+                </span>
+              )}
+            </div>
+          ) : (
+            <FormField
+              control={form.control}
+              name="name"
+              render={() => (
+                <FormItem className="mb-2">
+                  <FormControl>
+                    <ClientAutoSuggest
+                      selectedClient={selectedClient}
+                      onClientSelect={(client) => {
+                        setSelectedClient(client);
+                        form.setValue("name", client.name);
+                        form.setValue("client_id", client.id);
+                        form.setValue("contact_number", client.contact_number || "+63 ");
+                        setContactNumber(client.contact_number || "+63 ");
+                        form.setValue("email", client.email || "");
+                        form.clearErrors("name");
+                        form.clearErrors("contact_number");
+                      }}
+                      onClientCreate={(client) => {
+                        setSelectedClient(client);
+                        form.setValue("name", client.name);
+                        form.setValue("client_id", client.id);
+                        form.setValue("contact_number", client.contact_number || "+63 ");
+                        setContactNumber(client.contact_number || "+63 ");
+                        form.setValue("email", client.email || "");
+                        form.clearErrors("name");
+                        form.clearErrors("contact_number");
+                      }}
+                      disabled={onWarranty}
+                      initialName={form.getValues("name")}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
           <div>
             <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">
               Basic Information

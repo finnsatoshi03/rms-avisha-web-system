@@ -11,7 +11,8 @@ export async function getClientsWithJobOrders() {
   try {
     const { data: clients, error: clientError } = await supabase
       .from("clients")
-      .select("*");
+      .select("*")
+      .eq("is_active", true);
 
     if (clientError) {
       console.error(clientError);
@@ -67,7 +68,10 @@ export async function getClientsWithJobOrders() {
 }
 
 export async function getClients() {
-  const { data: clients, error } = await supabase.from("clients").select("*");
+  const { data: clients, error } = await supabase
+    .from("clients")
+    .select("*")
+    .eq("is_active", true);
 
   if (error) {
     console.error(error);
@@ -92,45 +96,37 @@ export async function getClient(id: string) {
   return client;
 }
 
+export async function searchClients(searchTerm: string): Promise<Client[]> {
+  if (!searchTerm || searchTerm.trim().length < 2) return [];
+
+  const { data, error } = await supabase.rpc("search_clients", {
+    search_term: searchTerm.trim(),
+    result_limit: 10,
+  });
+
+  if (error) {
+    console.error("Error searching clients:", error);
+    throw new Error("Error searching clients");
+  }
+
+  return data || [];
+}
+
 export async function createClient(
-  data: Omit<Client, "id" | "created_at">
+  data: Partial<Client> & { name: string }
 ): Promise<Client> {
-  // Check if a client with the same name already exists
-  const { data: existingClient, error: existingClientError } = await supabase
-    .from("clients")
-    .select("id")
-    .eq("name", data.name)
-    .single();
-
-  if (existingClientError && existingClientError.code !== "PGRST116") {
-    console.error(existingClientError);
-    throw new Error("Error checking existing client");
-  }
-
-  if (existingClient) {
-    // Update the existing client with the latest data
-    const { data: updatedClient, error: updateError } = await supabase
-      .from("clients")
-      .update({
-        contact_number: data.contact_number,
-        email: data.email,
-      })
-      .eq("id", existingClient.id)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error(updateError);
-      throw new Error("Existing client could not be updated with new data");
-    }
-
-    return updatedClient;
-  }
-
-  // Create a new client if one with the same name doesn't exist
   const { data: newClient, error } = await supabase
     .from("clients")
-    .insert([data])
+    .insert([
+      {
+        name: data.name,
+        contact_number: data.contact_number || "",
+        email: data.email || "",
+        type: data.type || "individual",
+        address: data.address || null,
+        notes: data.notes || null,
+      },
+    ])
     .select()
     .single();
 
@@ -140,4 +136,23 @@ export async function createClient(
   }
 
   return newClient;
+}
+
+export async function updateClient(
+  id: number,
+  data: Partial<Client>
+): Promise<Client> {
+  const { data: updatedClient, error } = await supabase
+    .from("clients")
+    .update(data)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    throw new Error("Error updating client");
+  }
+
+  return updatedClient;
 }

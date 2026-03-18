@@ -134,7 +134,10 @@ export default function ClientsTable({
         <TableHeader>
           <TableRow className="bg-slate-100 border-none">
             <TableHead className="w-[3%]">#</TableHead>
-            <TableHead className="w-[30%]">Name</TableHead>
+            <TableHead className="w-[25%]">Name</TableHead>
+            {visibleColumns.includes("type") && (
+              <TableHead className="w-[8%]">Type</TableHead>
+            )}
             <TableHead className="w-[10%]">Orders</TableHead>
             {visibleColumns.includes("total_spent") && (
               <TableHead className="w-[10%]">
@@ -222,6 +225,19 @@ export default function ClientsTable({
                           </span>
                         ))}
                       </TableCell>
+                      {visibleColumns.includes("type") && (
+                        <TableCell>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${
+                              client.type === "company"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {client.type || "individual"}
+                          </span>
+                        </TableCell>
+                      )}
                       <TableCell>
                         {client.joborders
                           ? Object.keys(client.joborders).length

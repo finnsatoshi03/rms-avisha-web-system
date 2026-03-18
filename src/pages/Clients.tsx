@@ -11,12 +11,24 @@ import Loader from "../components/ui/loader";
 
 import { Client, JobOrderData, Sort } from "../lib/types";
 import { getClientsWithJobOrders } from "../services/apiClients";
+import { getBranches } from "../services/apiBranches";
 import ClientsTable from "../components/clients/table";
 import { formatTimeAgo } from "../lib/helpers";
 import { Input } from "../components/ui/input";
 import { useUser } from "../components/auth/useUser";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 
 const viewColumns = [
+  {
+    key: "type",
+    title: "Type",
+  },
   {
     key: "total_spent",
     title: "Total Spent",
@@ -58,11 +70,21 @@ const lastOrder = (client: Client) => {
 
 export default function Clients() {
   const { isManager, branchId: currentBranchId } = useUser();
+  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
 
   const { data: c, isLoading } = useQuery({
     queryKey: ["client"],
     queryFn: getClientsWithJobOrders,
   });
+
+  const { data: branches } = useQuery({
+    queryKey: ["branches", "clients-page"],
+    queryFn: getBranches,
+  });
+
+  // Determine effective branch filter
+  const effectiveBranchId = isManager ? currentBranchId : selectedBranchId;
+
   const clients = useMemo(() => {
     if (!c) return [];
 
@@ -75,10 +97,9 @@ export default function Clients() {
           : Object.values(client.joborders);
 
         const filteredJobOrders = jobOrders.filter((joborder: JobOrderData) => {
-          if (isManager && currentBranchId !== null) {
-            return joborder?.branch_id === currentBranchId;
+          if (effectiveBranchId !== null) {
+            return joborder?.branch_id === effectiveBranchId;
           }
-
           return true;
         });
 
@@ -87,7 +108,7 @@ export default function Clients() {
           : null;
       })
       .filter((client) => client !== null);
-  }, [c, isManager, currentBranchId]);
+  }, [c, effectiveBranchId]);
 
   const [sorts, setSorts] = useState<Sort[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -205,6 +226,7 @@ export default function Clients() {
   const resetFiltersAndSort = () => {
     setSorts([]);
     setSearchTerm("");
+    if (!isManager) setSelectedBranchId(null);
   };
   const handleToggleColumn = (key: string) => {
     setVisibleColumns((prev) =>
@@ -254,13 +276,33 @@ export default function Clients() {
             />
             <Search className="absolute left-3 top-2 opacity-60" size={14} />
           </div>
+          {!isManager && branches && branches.length > 0 && (
+            <Select
+              value={selectedBranchId !== null ? String(selectedBranchId) : "all"}
+              onValueChange={(val) =>
+                setSelectedBranchId(val === "all" ? null : Number(val))
+              }
+            >
+              <SelectTrigger className="w-[160px] h-fit px-2 py-1 border border-gray-400 rounded-lg text-gray-700 text-sm">
+                <SelectValue placeholder="All Branches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Branches</SelectItem>
+                {branches.map((branch: any) => (
+                  <SelectItem key={branch.id} value={String(branch.id)}>
+                    {branch.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <SortButton
             applySorts={applySorts}
             sortCount={sorts.length}
             currentSort={sorts}
             isClientsTable
           />
-          {(searchTerm || sorts.length > 0) && (
+          {(searchTerm || sorts.length > 0 || selectedBranchId !== null) && (
             <Button
               variant="ghost"
               className="h-fit w-fit p-0 px-3 py-1.5 gap-1 rounded-lg"

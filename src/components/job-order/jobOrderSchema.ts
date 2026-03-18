@@ -10,12 +10,10 @@ const materialSchema = z.object({
 
 export const baseSchema = z.object({
   branch_id: z.number().optional(),
+  client_id: z.number().optional().nullable(),
   name: z
     .string()
     .min(2, "Name must be at least 2 characters.")
-    .regex(/^[A-Za-z\s]+$/, {
-      message: "Name must only contain letters and spaces.",
-    })
     .trim()
     .min(1, "Name is required."),
   contact_number: z

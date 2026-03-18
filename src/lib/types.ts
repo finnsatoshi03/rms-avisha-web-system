@@ -140,11 +140,16 @@ type Branch = {
 };
 
 export type Client = {
-  contact_number: string;
-  created_at: string;
-  email: string;
   id: number;
   name: string;
+  contact_number: string;
+  email: string;
+  type: "individual" | "company";
+  address: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
   joborders?: Record<string, JobOrderData> | JobOrderData[];
 };
 
@@ -249,6 +254,7 @@ export type CreateJobOrderData = {
   amount?: number;
   branch_id: number;
   brand_model: string;
+  client_id?: number | null;
   contact_number: string;
   completed_at?: string | Date;
   date: string | Date;
@@ -263,6 +269,8 @@ export type CreateJobOrderData = {
   material_total: number;
   materials?: Partial<CreateMaterial>[];
   name: string;
+  address?: string;
+  client_type?: "individual" | "company";
   order_received?: null | string;
   problem_statement: string;
   rate: number;

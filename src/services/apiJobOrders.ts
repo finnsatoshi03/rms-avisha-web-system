@@ -206,14 +206,13 @@ export async function upsertClient(
   clientId: number | null
 ): Promise<number> {
   if (clientId) {
-    // Always update with the latest client data
+    // Update existing client with latest contact info
     const { data: clientData, error: clientError } = await supabase
       .from("clients")
       .update({
         name: client.name,
         contact_number: client.contact_number,
         email: client.email,
-        created_at: client.date,
       })
       .eq("id", clientId)
       .select()
@@ -226,40 +225,7 @@ export async function upsertClient(
 
     return clientData.id;
   } else {
-    // Check if a client with the same name already exists
-    const { data: existingClient, error: existingClientError } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("name", client.name)
-      .single();
-
-    if (existingClientError && existingClientError.code !== "PGRST116") {
-      console.log(existingClientError);
-      throw new Error("Error checking existing client");
-    }
-
-    if (existingClient) {
-      // Update the existing client with the latest data
-      const { data: updatedClient, error: updateError } = await supabase
-        .from("clients")
-        .update({
-          contact_number: client.contact_number,
-          email: client.email,
-          created_at: client.date,
-        })
-        .eq("id", existingClient.id)
-        .select()
-        .single();
-
-      if (updateError) {
-        console.log(updateError);
-        throw new Error("Existing client could not be updated with new data");
-      }
-
-      return updatedClient.id;
-    }
-
-    // If client does not exist, create a new one
+    // Create a new client
     const { data: clientData, error: clientError } = await supabase
       .from("clients")
       .insert([
@@ -267,7 +233,6 @@ export async function upsertClient(
           name: client.name,
           contact_number: client.contact_number,
           email: client.email,
-          created_at: client.date,
         },
       ])
       .select()
@@ -554,8 +519,11 @@ export async function createEditJobOrder(
       date: newJobOrder.date,
     };
 
+    // If client_id was provided by auto-suggest, use it directly and update contact info
     let finalClientId;
-    if (clientId && clientData.name !== originalClientName) {
+    if (newJobOrder.client_id) {
+      finalClientId = await upsertClient(supabase, clientData, newJobOrder.client_id);
+    } else if (clientId && clientData.name !== originalClientName) {
       finalClientId = await upsertClient(supabase, clientData, null);
       newJobOrder.is_copy = false;
     } else {
@@ -827,17 +795,17 @@ export async function deleteJobOrder(ids: number[]) {
         !remainingJobOrders.some((jobOrder) => jobOrder.client_id === clientId)
     );
 
-    // Delete the clients that no longer have job orders
+    // Soft-delete clients that no longer have job orders
     if (clientsToDelete.length > 0) {
       const { error: clientError } = await supabase
         .from("clients")
-        .delete()
+        .update({ is_active: false })
         .in("id", clientsToDelete);
 
       if (clientError) {
         console.log(clientError);
         throw new Error(
-          `Clients with IDs ${clientsToDelete} could not be deleted`
+          `Clients with IDs ${clientsToDelete} could not be deactivated`
         );
       }
     }
