@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getClient, getClients, searchClients } from "../../services/apiClients";
+import { getClient, getClients, searchClients, ClientSearchResult } from "../../services/apiClients";
 
 export function useClients() {
   const {
@@ -40,7 +40,7 @@ export function useSearchClients(searchTerm: string) {
     data: results,
     error,
     isLoading,
-  } = useQuery({
+  } = useQuery<ClientSearchResult[]>({
     queryKey: ["clients-search", searchTerm],
     queryFn: () => searchClients(searchTerm),
     enabled: searchTerm.trim().length >= 2,

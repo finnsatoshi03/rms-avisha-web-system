@@ -2,6 +2,11 @@ import { Client } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
 import { supabase } from "./supabase";
 
+export type ClientSearchResult = Client & {
+  score: number;
+  match_type: "exact" | "contains" | "similar" | "sounds_like" | "close_spelling";
+};
+
 type UserEmailShape = {
   email?: string | null;
   migrated_email?: string | null;
@@ -96,7 +101,7 @@ export async function getClient(id: string) {
   return client;
 }
 
-export async function searchClients(searchTerm: string): Promise<Client[]> {
+export async function searchClients(searchTerm: string): Promise<ClientSearchResult[]> {
   if (!searchTerm || searchTerm.trim().length < 2) return [];
 
   const { data, error } = await supabase.rpc("search_clients", {
@@ -109,7 +114,7 @@ export async function searchClients(searchTerm: string): Promise<Client[]> {
     throw new Error("Error searching clients");
   }
 
-  return data || [];
+  return (data || []) as ClientSearchResult[];
 }
 
 export async function createClient(

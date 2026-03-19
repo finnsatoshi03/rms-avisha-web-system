@@ -1,15 +1,14 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, ChevronsUpDown, Plus, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Client } from "../../lib/types";
-import { searchClients, createClient } from "../../services/apiClients";
+import { searchClients, createClient, ClientSearchResult } from "../../services/apiClients";
 import { cn } from "../../lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Button } from "../ui/button";
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -32,6 +31,41 @@ interface ClientAutoSuggestProps {
   initialName?: string;
 }
 
+const MATCH_BADGES: Record<string, { label: string; className: string } | null> = {
+  exact: null,
+  contains: null,
+  similar: { label: "Similar spelling", className: "bg-amber-50 text-amber-700 border-amber-200" },
+  sounds_like: { label: "Sounds like", className: "bg-purple-50 text-purple-700 border-purple-200" },
+  close_spelling: { label: "Close match", className: "bg-sky-50 text-sky-700 border-sky-200" },
+};
+
+function HighlightedName({ name, searchTerm, matchType }: { name: string; searchTerm: string; matchType: string }) {
+  // Only highlight for exact/contains matches
+  if (matchType !== "exact" && matchType !== "contains") {
+    return <span>{name}</span>;
+  }
+
+  const termLower = searchTerm.toLowerCase();
+  const nameLower = name.toLowerCase();
+  const idx = nameLower.indexOf(termLower);
+
+  if (idx === -1 || !searchTerm.trim()) {
+    return <span>{name}</span>;
+  }
+
+  const before = name.slice(0, idx);
+  const match = name.slice(idx, idx + searchTerm.length);
+  const after = name.slice(idx + searchTerm.length);
+
+  return (
+    <span>
+      {before}
+      <span className="font-bold text-foreground underline underline-offset-2 decoration-primary/40">{match}</span>
+      {after}
+    </span>
+  );
+}
+
 export default function ClientAutoSuggest({
   selectedClient,
   onClientSelect,
@@ -41,7 +75,7 @@ export default function ClientAutoSuggest({
 }: ClientAutoSuggestProps) {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState(initialName);
-  const [results, setResults] = useState<Client[]>([]);
+  const [results, setResults] = useState<ClientSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -53,12 +87,10 @@ export default function ClientAutoSuggest({
   const [newClientPhone, setNewClientPhone] = useState("+63 ");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [newClientAddress, setNewClientAddress] = useState("");
-  const [newClientType, setNewClientType] = useState<"individual" | "company">(
-    "individual"
-  );
+  const [newClientType, setNewClientType] = useState<"individual" | "company">("individual");
 
   // Duplicate detection state
-  const [potentialDuplicates, setPotentialDuplicates] = useState<Client[]>([]);
+  const [potentialDuplicates, setPotentialDuplicates] = useState<ClientSearchResult[]>([]);
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [confirmedCreate, setConfirmedCreate] = useState(false);
@@ -90,6 +122,20 @@ export default function ClientAutoSuggest({
     };
   }, [searchValue, handleSearch]);
 
+  // Split results into direct and fuzzy groups
+  const { directResults, fuzzyResults } = useMemo(() => {
+    const direct: ClientSearchResult[] = [];
+    const fuzzy: ClientSearchResult[] = [];
+    for (const r of results) {
+      if (r.match_type === "exact" || r.match_type === "contains") {
+        direct.push(r);
+      } else {
+        fuzzy.push(r);
+      }
+    }
+    return { directResults: direct, fuzzyResults: fuzzy };
+  }, [results]);
+
   // Check for duplicates when name or phone changes in the create form
   useEffect(() => {
     if (dupDebounceRef.current) clearTimeout(dupDebounceRef.current);
@@ -104,18 +150,15 @@ export default function ClientAutoSuggest({
     dupDebounceRef.current = setTimeout(async () => {
       setIsCheckingDuplicates(true);
       try {
-        // Search by name
         const nameResults = newClientName.trim().length >= 2
           ? await searchClients(newClientName.trim())
           : [];
 
-        // Search by phone if it's long enough
         const phoneDigits = newClientPhone.replace(/\D/g, "").slice(2);
         const phoneResults = phoneDigits.length >= 4
           ? await searchClients(phoneDigits)
           : [];
 
-        // Merge and deduplicate
         const allResults = [...nameResults];
         for (const pr of phoneResults) {
           if (!allResults.some((r) => r.id === pr.id)) {
@@ -150,7 +193,7 @@ export default function ClientAutoSuggest({
     if (!value.startsWith("+63 ")) {
       value = "+63 ";
     }
-    const digits = value.replace(/\D/g, "").slice(2); // Remove +63
+    const digits = value.replace(/\D/g, "").slice(2);
     if (digits.length <= 10) {
       const formatted =
         "+63 " +
@@ -164,7 +207,6 @@ export default function ClientAutoSuggest({
   const handleCreateClient = async () => {
     if (!newClientName.trim()) return;
 
-    // If there are potential duplicates and user hasn't confirmed, show warning
     if (potentialDuplicates.length > 0 && !confirmedCreate) {
       setShowDuplicateWarning(true);
       return;
@@ -175,9 +217,7 @@ export default function ClientAutoSuggest({
       const client = await createClient({
         name: newClientName
           .split(" ")
-          .map(
-            (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-          )
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
           .join(" "),
         contact_number: newClientPhone,
         email: newClientEmail,
@@ -214,6 +254,54 @@ export default function ClientAutoSuggest({
     setShowCreateForm(true);
   };
 
+  const renderResultItem = (client: ClientSearchResult) => {
+    const badge = MATCH_BADGES[client.match_type];
+    return (
+      <CommandItem
+        key={client.id}
+        value={String(client.id)}
+        onSelect={() => handleSelect(client)}
+        className="flex flex-col items-start gap-0.5 py-2"
+      >
+        <div className="flex items-center w-full">
+          <Check
+            className={cn(
+              "mr-2 h-4 w-4 flex-shrink-0",
+              selectedClient?.id === client.id ? "opacity-100" : "opacity-0"
+            )}
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium truncate">
+                <HighlightedName
+                  name={client.name}
+                  searchTerm={searchValue}
+                  matchType={client.match_type}
+                />
+                {client.type === "company" && (
+                  <span className="ml-1.5 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                    company
+                  </span>
+                )}
+              </span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {badge && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${badge.className}`}>
+                    {badge.label}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground flex gap-3">
+              {client.contact_number && <span>{client.contact_number}</span>}
+              {client.email && <span>{client.email}</span>}
+            </div>
+          </div>
+        </div>
+      </CommandItem>
+    );
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -235,7 +323,7 @@ export default function ClientAutoSuggest({
           <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 w-[400px]" align="start">
+      <PopoverContent className="p-0 w-[420px]" align="start">
         {!showCreateForm ? (
           <Command shouldFilter={false}>
             <CommandInput
@@ -246,55 +334,40 @@ export default function ClientAutoSuggest({
             {isSearching ? (
               <div className="flex items-center justify-center py-6">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="ml-2 text-sm text-muted-foreground">
-                  Searching...
-                </span>
+                <span className="ml-2 text-sm text-muted-foreground">Searching...</span>
+              </div>
+            ) : results.length === 0 && searchValue.trim().length >= 2 ? (
+              <div className="py-6 text-center">
+                <p className="text-sm text-muted-foreground">No matching clients found</p>
               </div>
             ) : (
-              <>
-                <CommandEmpty>
-                  <span className="text-sm text-muted-foreground">
-                    No clients found.
-                  </span>
-                </CommandEmpty>
-                <CommandGroup className="max-h-[250px] overflow-y-auto">
-                  {results.map((client) => (
-                    <CommandItem
-                      key={client.id}
-                      value={String(client.id)}
-                      onSelect={() => handleSelect(client)}
-                      className="flex flex-col items-start gap-0.5 py-2"
-                    >
-                      <div className="flex items-center w-full">
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4 flex-shrink-0",
-                            selectedClient?.id === client.id
-                              ? "opacity-100"
-                              : "opacity-0"
-                          )}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">
-                            {client.name}
-                            {client.type === "company" && (
-                              <span className="ml-1.5 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
-                                company
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground flex gap-3">
-                            {client.contact_number && (
-                              <span>{client.contact_number}</span>
-                            )}
-                            {client.email && <span>{client.email}</span>}
-                          </div>
-                        </div>
-                      </div>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
+              <div className="max-h-[300px] overflow-y-auto">
+                {/* Direct matches (exact + contains) */}
+                {directResults.length > 0 && (
+                  <CommandGroup>
+                    {directResults.map(renderResultItem)}
+                  </CommandGroup>
+                )}
+
+                {/* Divider between direct and fuzzy */}
+                {directResults.length > 0 && fuzzyResults.length > 0 && (
+                  <div className="relative px-2 py-1.5">
+                    <div className="absolute inset-0 flex items-center px-4">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs">
+                      <span className="bg-popover px-2 text-muted-foreground">Did you mean?</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Fuzzy matches */}
+                {fuzzyResults.length > 0 && (
+                  <CommandGroup>
+                    {fuzzyResults.map(renderResultItem)}
+                  </CommandGroup>
+                )}
+              </div>
             )}
             <div className="border-t p-1">
               <Button
@@ -321,9 +394,7 @@ export default function ClientAutoSuggest({
                     <p className="font-semibold text-amber-800">
                       Possible existing client{potentialDuplicates.length > 1 ? "s" : ""} found
                     </p>
-                    <p className="text-amber-700 mt-0.5">
-                      Did you mean one of these?
-                    </p>
+                    <p className="text-amber-700 mt-0.5">Did you mean one of these?</p>
                   </div>
                 </div>
                 <div className="space-y-1 ml-6">
@@ -336,8 +407,11 @@ export default function ClientAutoSuggest({
                     >
                       <span className="font-medium">{dup.name}</span>
                       {dup.contact_number && (
-                        <span className="text-muted-foreground ml-2">
-                          {dup.contact_number}
+                        <span className="text-muted-foreground ml-2">{dup.contact_number}</span>
+                      )}
+                      {dup.match_type && MATCH_BADGES[dup.match_type] && (
+                        <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-full border ${MATCH_BADGES[dup.match_type]!.className}`}>
+                          {MATCH_BADGES[dup.match_type]!.label}
                         </span>
                       )}
                     </button>
@@ -372,9 +446,7 @@ export default function ClientAutoSuggest({
                 <Label className="text-xs">Type</Label>
                 <Select
                   value={newClientType}
-                  onValueChange={(val) =>
-                    setNewClientType(val as "individual" | "company")
-                  }
+                  onValueChange={(val) => setNewClientType(val as "individual" | "company")}
                 >
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue />
@@ -431,12 +503,8 @@ export default function ClientAutoSuggest({
                 onClick={handleCreateClient}
                 disabled={!newClientName.trim() || isCreating || isCheckingDuplicates}
               >
-                {isCreating ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                ) : null}
-                {potentialDuplicates.length > 0 && !confirmedCreate
-                  ? "Check & Create"
-                  : "Create"}
+                {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                {potentialDuplicates.length > 0 && !confirmedCreate ? "Check & Create" : "Create"}
               </Button>
             </div>
           </div>
