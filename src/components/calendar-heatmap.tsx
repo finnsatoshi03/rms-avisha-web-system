@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import { format } from "date-fns";
 import CalendarHeatmap from "react-calendar-heatmap";
 

@@ -26,7 +26,6 @@ export default function GuidedTour({
   featureKey,
   active,
   onComplete,
-  onSkip,
 }: GuidedTourProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);

@@ -177,9 +177,8 @@ const MaterialCombobox: React.FC<MaterialComboboxProps> = ({
     (material) => String(material.id) === value
   );
   const selectedMaterialName = selectedMaterial
-    ? `${selectedMaterial.material_name}${
-        selectedMaterial.brand ? ` - ${selectedMaterial.brand}` : ""
-      }`
+    ? `${selectedMaterial.material_name}${selectedMaterial.brand ? ` - ${selectedMaterial.brand}` : ""
+    }`
     : "Select material";
 
   return (
@@ -420,8 +419,8 @@ export default function JobOrderForm({
 
   const extendedBaseSchema = canSelectBranch
     ? baseSchema.extend({
-        branch_id: z.number().min(1, "Branch is required"),
-      })
+      branch_id: z.number().min(1, "Branch is required"),
+    })
     : baseSchema;
 
   const formSchema = extendedBaseSchema.superRefine((data, ctx) => {
@@ -444,27 +443,27 @@ export default function JobOrderForm({
     defaultValues: editSession
       ? { ...editValuesWithClient, client_id: clientId || undefined, technical_report: existingTechnicalReport }
       : {
-          branch_id: undefined,
-          client_id: undefined,
-          name: "",
-          contact_number: "",
-          email: "",
-          order_received: "",
-          brand_model: "",
-          serial_number: "",
-          machine_type: "",
-          problem_statement: "",
-          additional_comments: "",
-          labor_description: "",
-          rate: 0,
-          amount: undefined,
-          materials: [],
-          accessories: [],
-          technician_id: "",
-          technical_report: "",
-          downpayment: undefined,
-          warranty_months: 1,
-        },
+        branch_id: undefined,
+        client_id: undefined,
+        name: "",
+        contact_number: "",
+        email: "",
+        order_received: "",
+        brand_model: "",
+        serial_number: "",
+        machine_type: "",
+        problem_statement: "",
+        additional_comments: "",
+        labor_description: "",
+        rate: 0,
+        amount: undefined,
+        materials: [],
+        accessories: [],
+        technician_id: "",
+        technical_report: "",
+        downpayment: undefined,
+        warranty_months: 1,
+      },
   });
 
   const watchedBranchId = form.watch("branch_id");
@@ -1350,8 +1349,8 @@ export default function JobOrderForm({
               <div className="px-3 py-1 bg-green-200 rounded-full text-green-600 text-xs w-fit flex items-center gap-1">
                 {editSession || readonly
                   ? `Warranty: ${renderWarrantyInfo(
-                      editValuesWithClient.warranty
-                    )}`
+                    editValuesWithClient.warranty
+                  )}`
                   : ""}
               </div>
             )}
@@ -1447,7 +1446,6 @@ export default function JobOrderForm({
                     const {
                       onChange: fieldOnChange,
                       value: fieldValue,
-                      ...restFieldProps
                     } = field;
                     return (
                       <FormItem className="space-y-0">
@@ -1562,13 +1560,12 @@ export default function JobOrderForm({
                             <FormControl>
                               <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
                                 <SelectValue
-                                  placeholder={`${
-                                    form.watch("branch_id")
+                                  placeholder={`${form.watch("branch_id")
                                       ? (branches || []).find(
-                                          (branch) => branch.id === field.value
-                                        )?.name || `Branch ${field.value}`
+                                        (branch) => branch.id === field.value
+                                      )?.name || `Branch ${field.value}`
                                       : "Select a branch"
-                                  }`}
+                                    }`}
                                 />
                               </SelectTrigger>
                             </FormControl>
@@ -1990,23 +1987,23 @@ export default function JobOrderForm({
                           {existingQuotations[0].quotation_items?.some(
                             (item: QuotationItem) => item.is_manual
                           ) && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <div className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full flex items-center gap-1">
-                                    <Info size={10} />
-                                    Manual Items
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p className="text-xs">
-                                    This quotation contains manual items that
-                                    don't sync with inventory
-                                  </p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <div className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full flex items-center gap-1">
+                                      <Info size={10} />
+                                      Manual Items
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs">
+                                      This quotation contains manual items that
+                                      don't sync with inventory
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">
@@ -2051,11 +2048,10 @@ export default function JobOrderForm({
                               size="sm"
                               onClick={handleCreateQuotation}
                               disabled={isPending || quotationsLoading}
-                              className={`px-3 py-1 w-full text-xs flex items-center gap-1 ${
-                                quotationData
+                              className={`px-3 py-1 w-full text-xs flex items-center gap-1 ${quotationData
                                   ? "bg-green-600/10 hover:bg-green-700/10 text-black border"
                                   : ""
-                              }`}
+                                }`}
                             >
                               {!quotationData && (
                                 <Plus size={12} strokeWidth={1.5} />
@@ -2063,11 +2059,11 @@ export default function JobOrderForm({
                               {quotationData
                                 ? "View/Edit Quotation"
                                 : isCreatingQuotation
-                                ? "Edit Quotation"
-                                : existingQuotations &&
-                                  existingQuotations.length > 0
-                                ? "Edit Existing Quotation"
-                                : "Create Quotation"}
+                                  ? "Edit Quotation"
+                                  : existingQuotations &&
+                                    existingQuotations.length > 0
+                                    ? "Edit Existing Quotation"
+                                    : "Create Quotation"}
                               {quotationData && (
                                 <ChevronRight size={12} strokeWidth={1.5} />
                               )}
@@ -2076,11 +2072,11 @@ export default function JobOrderForm({
                           <TooltipContent className="max-w-xs">
                             <p className="text-xs">
                               {existingQuotations &&
-                              existingQuotations.length > 0
+                                existingQuotations.length > 0
                                 ? "Edit the existing quotation for this job order. Only one quotation per job order is allowed."
                                 : quotationData
-                                ? "View or edit the existing quotation for this job order."
-                                : "Create a quotation for this job order. Client details can be edited within the quotation dialog."}
+                                  ? "View or edit the existing quotation for this job order."
+                                  : "Create a quotation for this job order. Client details can be edited within the quotation dialog."}
                             </p>
                           </TooltipContent>
                         </Tooltip>
@@ -2299,13 +2295,13 @@ export default function JobOrderForm({
                     <p className="text-sm">
                       {isNaN(
                         form.watch(`materials.${index}.quantity`) *
-                          form.watch(`materials.${index}.unitPrice`)
+                        form.watch(`materials.${index}.unitPrice`)
                       )
                         ? 0
                         : (
-                            form.watch(`materials.${index}.quantity`) *
-                            form.watch(`materials.${index}.unitPrice`)
-                          ).toFixed(2)}
+                          form.watch(`materials.${index}.quantity`) *
+                          form.watch(`materials.${index}.unitPrice`)
+                        ).toFixed(2)}
                     </p>
                   </div>
                   <Button
@@ -2511,8 +2507,8 @@ export default function JobOrderForm({
                           {downpaymentValue !== null
                             ? formatNumberWithCommas(downpaymentValue)
                             : editValues.downpayment
-                            ? formatNumberWithCommas(editValues.downpayment)
-                            : "0"}
+                              ? formatNumberWithCommas(editValues.downpayment)
+                              : "0"}
                         </p>
                       ) : (
                         <input
