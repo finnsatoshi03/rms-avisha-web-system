@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getTourDefinition, TourStep } from "./tour-definitions";
 
 interface GuidedTourProps {
   featureKey: string;
   active: boolean;
   onComplete: () => void;
-  onSkip: () => void;
+  onSkip?: () => void;
 }
 
 function simulateTyping(input: HTMLInputElement, value: string) {
@@ -266,17 +266,6 @@ export default function GuidedTour({
     }
   };
 
-  const handleSkip = () => {
-    // Cleanup will fire after the event blockers are removed (useEffect cleanup runs on unmount)
-    if (cleanupRef.current) {
-      const cleanupFn = cleanupRef.current;
-      cleanupRef.current = null;
-      // Delay the actual popover close so it happens after the tour's event blockers are removed
-      setTimeout(cleanupFn, 50);
-    }
-    onSkip();
-  };
-
   if (!active || !tour || validSteps.length === 0 || !stepReady || !targetRect) return null;
 
   const step = validSteps[currentStep];
@@ -336,14 +325,7 @@ export default function GuidedTour({
         className="tour-tooltip bg-white rounded-lg shadow-xl border p-4 animate-in fade-in-0 zoom-in-95 duration-200"
         style={{ ...getTooltipPos(), width: 320 }}
       >
-        <button
-          onClick={handleSkip}
-          className="absolute top-2 right-2 p-1 rounded-md hover:bg-gray-100 transition-colors"
-        >
-          <X className="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
-
-        <p className="text-sm font-semibold mb-1 pr-6">{step.title}</p>
+        <p className="text-sm font-semibold mb-1">{step.title}</p>
         <p className="text-xs text-muted-foreground leading-relaxed">{step.content}</p>
 
         <div className="flex items-center justify-between mt-4">

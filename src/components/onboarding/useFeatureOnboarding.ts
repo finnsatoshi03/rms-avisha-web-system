@@ -23,14 +23,15 @@ export function useFeatureOnboarding(featureKey: string) {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: statuses } = useQuery({
+  const { data: statuses, isLoading: statusesLoading } = useQuery({
     queryKey: ["user-onboarding-statuses"],
     queryFn: getUserOnboardingStatuses,
     staleTime: 60 * 1000,
   });
 
   useEffect(() => {
-    if (!onboardings || !user) return;
+    // Wait for BOTH queries to finish before deciding
+    if (!onboardings || !user || statusesLoading) return;
 
     const feature = onboardings.find((o) => o.feature_key === featureKey);
     if (!feature) return;
@@ -45,33 +46,25 @@ export function useFeatureOnboarding(featureKey: string) {
     if (isReplayingRef.current) return;
 
     const userStatus = statuses?.find((s) => s.feature_key === featureKey);
+
+    // Only show if truly pending or no record exists
     if (!userStatus || userStatus.status === "pending") {
       setShowAnnouncement(true);
+    } else {
+      // Explicitly hide if already completed/skipped
+      setShowAnnouncement(false);
     }
-  }, [onboardings, statuses, featureKey, user]);
+  }, [onboardings, statuses, statusesLoading, featureKey, user]);
 
   const startTour = useCallback(() => {
     setShowAnnouncement(false);
     setShowTour(true);
   }, []);
 
-  const skipOnboarding = useCallback(async () => {
-    setShowAnnouncement(false);
-    await updateOnboardingStatus(featureKey, "skipped");
-    queryClient.invalidateQueries({ queryKey: ["user-onboarding-statuses"] });
-  }, [featureKey, queryClient]);
-
   const completeTour = useCallback(async () => {
     setShowTour(false);
     isReplayingRef.current = false;
     await updateOnboardingStatus(featureKey, "completed");
-    queryClient.invalidateQueries({ queryKey: ["user-onboarding-statuses"] });
-  }, [featureKey, queryClient]);
-
-  const skipTour = useCallback(async () => {
-    setShowTour(false);
-    isReplayingRef.current = false;
-    await updateOnboardingStatus(featureKey, "skipped");
     queryClient.invalidateQueries({ queryKey: ["user-onboarding-statuses"] });
   }, [featureKey, queryClient]);
 
@@ -87,9 +80,7 @@ export function useFeatureOnboarding(featureKey: string) {
     showTour,
     onboardingData,
     startTour,
-    skipOnboarding,
     completeTour,
-    skipTour,
     replayTour,
   };
 }

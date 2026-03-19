@@ -373,9 +373,7 @@ export default function JobOrderForm({
     showTour,
     onboardingData,
     startTour,
-    skipOnboarding,
     completeTour,
-    skipTour,
     replayTour,
   } = useFeatureOnboarding("client_auto_suggest");
 
@@ -1320,13 +1318,11 @@ export default function JobOrderForm({
             open={showAnnouncement}
             onboarding={onboardingData}
             onStartTour={startTour}
-            onSkip={skipOnboarding}
           />
           <GuidedTour
             featureKey="client_auto_suggest"
             active={showTour}
             onComplete={completeTour}
-            onSkip={skipTour}
           />
         </>
       )}

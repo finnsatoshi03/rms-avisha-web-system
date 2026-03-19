@@ -56,7 +56,7 @@ export default function OverviewCard({
     >
       {/* Header with Icon */}
       <div className="flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-gray-700 tracking-tight">
+        <h1 className="text-xs font-semibold text-gray-700 tracking-tight">
           {data.header}
         </h1>
         {data.icon && (

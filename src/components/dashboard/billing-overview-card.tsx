@@ -32,7 +32,7 @@ export default function BillingOverviewCard({ branchId }: BillingOverviewCardPro
       onClick={() => navigate("/billing")}
     >
       <div className="flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-gray-700 tracking-tight">
+        <h1 className="text-xs font-semibold text-gray-700 tracking-tight">
           Billing Receivables
         </h1>
         <ReceiptText size={16} strokeWidth={1.5} className="text-gray-400" />

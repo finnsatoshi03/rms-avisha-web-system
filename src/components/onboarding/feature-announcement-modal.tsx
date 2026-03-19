@@ -14,14 +14,12 @@ interface FeatureAnnouncementModalProps {
   open: boolean;
   onboarding: FeatureOnboarding | null;
   onStartTour: () => void;
-  onSkip: () => void;
 }
 
 export default function FeatureAnnouncementModal({
   open,
   onboarding,
   onStartTour,
-  onSkip,
 }: FeatureAnnouncementModalProps) {
   if (!onboarding) return null;
 
@@ -30,8 +28,8 @@ export default function FeatureAnnouncementModal({
     : [];
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onSkip(); }}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={() => {}}>
+      <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
             <Sparkles className="h-5 w-5 text-amber-500" />
@@ -56,11 +54,8 @@ export default function FeatureAnnouncementModal({
           </ul>
         )}
 
-        <DialogFooter className="flex gap-2 sm:gap-2">
-          <Button variant="outline" onClick={onSkip} className="flex-1">
-            Skip
-          </Button>
-          <Button onClick={onStartTour} className="flex-1">
+        <DialogFooter>
+          <Button onClick={onStartTour} className="w-full">
             Start Tour
           </Button>
         </DialogFooter>
