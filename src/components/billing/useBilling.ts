@@ -20,7 +20,7 @@ import {
   getBillingLedger,
   getEligibleJobOrders,
 } from "../../services/apiBilling";
-import { CreateBillingAccountData, RecordPaymentData } from "../../lib/billing-types";
+import { BillingStatementStatus, CreateBillingAccountData, RecordPaymentData } from "../../lib/billing-types";
 import toast from "react-hot-toast";
 
 // ========================
@@ -222,7 +222,7 @@ export function useGenerateBillingStatement() {
 export function useUpdateBillingStatement() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: Partial<{ status: string; sent_at: string }> }) =>
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<{ status: BillingStatementStatus; sent_at: string }> }) =>
       updateBillingStatement(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing_statements"] });
