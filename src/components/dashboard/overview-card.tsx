@@ -1,6 +1,7 @@
 import { LucideIcon, TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "../../lib/utils";
 import CountUp from "react-countup";
+import AutoSizeText from "../ui/auto-size-text";
 
 interface OverviewData {
   header: string;
@@ -65,7 +66,7 @@ export default function OverviewCard({
 
       {/* Main Value */}
       <div className="flex flex-col flex-1 justify-between gap-3">
-        <p className="font-bold text-2xl text-gray-900 leading-none break-all">
+        <AutoSizeText className="text-gray-900" minSize={16} maxSize={28}>
           <CountUp
             start={0}
             end={data.value as number}
@@ -78,7 +79,7 @@ export default function OverviewCard({
             prefix={data.prefix}
           />
           {data.suffix || ""}
-        </p>
+        </AutoSizeText>
 
         {/* Percentage Change */}
         <div className="flex items-center gap-2 text-xs flex-wrap">

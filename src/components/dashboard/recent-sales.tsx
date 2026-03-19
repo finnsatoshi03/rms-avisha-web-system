@@ -42,7 +42,7 @@ export default function RecentSalesSection({
   };
 
   return (
-    <div className="border border-slate-300 rounded-lg h-[50vh] overflow-y-auto relative">
+    <div className="border border-slate-200 rounded-xl bg-white h-[50vh] overflow-y-auto relative">
       <div className="sticky top-0 bg-white z-10 pt-4 px-5">
         <div className="flex justify-between w-full">
           <div>

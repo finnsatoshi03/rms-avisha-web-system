@@ -103,7 +103,7 @@ export default function BarChartSection({
   }, [selectedYear, data, orders]);
 
   return (
-    <div className="border border-slate-300 rounded-lg pt-4 px-5 h-[45vh]">
+    <div className="border border-slate-200 rounded-xl bg-white pt-4 px-5 h-[45vh]">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold">Overview</h1>
         <Select

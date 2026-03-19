@@ -19,14 +19,14 @@ export default function StatusOverview({ statusCounts }: StatusOverviewProps) {
   );
 
   return (
-    <div className="border border-slate-300 flex flex-col gap-2 rounded-lg h-[45vh] p-5 overflow-y-auto">
-      <div>
-        <h1 className="text-lg font-bold">Order Status</h1>
-        <p className="text-xs opacity-60 flex items-center gap-1">
-          <Activity className="size-3" />
-          {totalOrders} total orders
-        </p>
+    <div className="border border-slate-200 flex flex-col gap-3 rounded-xl bg-white hover:shadow-sm transition-shadow duration-200 p-6 overflow-y-auto">
+      <div className="flex items-center justify-between">
+        <h1 className="text-sm font-semibold text-gray-700 tracking-tight">Order Status</h1>
+        <Activity size={16} strokeWidth={1.5} className="text-gray-400" />
       </div>
+      <p className="text-xs text-muted-foreground">
+        {totalOrders} total orders
+      </p>
 
       <div className="space-y-3 min-h-0 flex-1">
         {activeStatuses.map(([status, count]) => (

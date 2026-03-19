@@ -72,7 +72,7 @@ const ReportCard = ({
   };
 
   return (
-    <div className="border border-slate-300 rounded-lg flex flex-col">
+    <div className="border border-slate-200 rounded-xl bg-white flex flex-col">
       <div className="py-4 px-5 space-y-2 flex-grow">
         <h1 className="text-xs font-bold">{header}</h1>
         <div>

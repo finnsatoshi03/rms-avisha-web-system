@@ -67,7 +67,7 @@ export default function FinancialChart({
   // ];
 
   return (
-    <div className="border border-slate-300 py-4 px-5 rounded-xl">
+    <div className="border border-slate-200 py-4 px-5 rounded-xl">
       <h1 className="font-bold text-xl">Financial Analysis</h1>
       <ChartContainer
         config={chartConfig}

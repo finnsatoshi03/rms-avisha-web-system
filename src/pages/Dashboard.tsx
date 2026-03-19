@@ -19,7 +19,6 @@ import { Coins, CreditCard, Wallet, UsersRound } from "lucide-react";
 
 import { TabsContent } from "../components/ui/tabs";
 import HeaderText from "../components/ui/headerText";
-import OverviewSection from "../components/dashboard/overview";
 import BarChartSection from "../components/dashboard/bar-chart";
 import RecentSalesSection from "../components/dashboard/recent-sales";
 import DateRangePickerWithExport from "../components/dashboard/analytics-header-buttons";
@@ -143,22 +142,22 @@ export default function Dashboard() {
       const earliestExpenseDate =
         expenses && expenses.length > 0
           ? new Date(
-              Math.min(
-                ...expenses.map((expense) =>
-                  new Date(expense.created_at).getTime()
-                )
+            Math.min(
+              ...expenses.map((expense) =>
+                new Date(expense.created_at).getTime()
               )
             )
+          )
           : null;
 
       // Determine the overall earliest date
       const earliestDate = earliestExpenseDate
         ? new Date(
-            Math.min(
-              earliestJobOrderDate.getTime(),
-              earliestExpenseDate.getTime()
-            )
+          Math.min(
+            earliestJobOrderDate.getTime(),
+            earliestExpenseDate.getTime()
           )
+        )
         : earliestJobOrderDate;
 
       setDefaultFromDate(earliestDate);
@@ -184,21 +183,21 @@ export default function Dashboard() {
       const earliestExpenseDate =
         expenses && expenses.length > 0
           ? new Date(
-              Math.min(
-                ...expenses.map((expense) =>
-                  new Date(expense.created_at).getTime()
-                )
+            Math.min(
+              ...expenses.map((expense) =>
+                new Date(expense.created_at).getTime()
               )
             )
+          )
           : null;
 
       const allTimeFromDate = earliestExpenseDate
         ? new Date(
-            Math.min(
-              earliestJobOrderDate.getTime(),
-              earliestExpenseDate.getTime()
-            )
+          Math.min(
+            earliestJobOrderDate.getTime(),
+            earliestExpenseDate.getTime()
           )
+        )
         : earliestJobOrderDate;
 
       const allTimeToDate = new Date();
@@ -273,11 +272,11 @@ export default function Dashboard() {
       const filteredOrders = job_orders.filter((order: JobOrderData) => {
         const orderDate =
           order.status === "Completed" ||
-          order.status.toLowerCase() === "pull out"
+            order.status.toLowerCase() === "pull out"
             ? new Date(order.completed_at!)
             : order.downpayment && order.downpayment > 0
-            ? new Date(order.created_at)
-            : null;
+              ? new Date(order.created_at)
+              : null;
 
         if (!orderDate) return false;
 
@@ -384,81 +383,81 @@ export default function Dashboard() {
   const completedOrders = useMemo(() => {
     return job_orders
       ? job_orders
-          .filter(
-            (order: JobOrderData) =>
-              order.status === "Completed" ||
-              order.status.toLowerCase() === "pull out" ||
-              (order.downpayment && order.downpayment > 0)
-          )
-          .map((order: JobOrderData) => {
-            let adjustedGrandTotal = order.grand_total ?? 0;
+        .filter(
+          (order: JobOrderData) =>
+            order.status === "Completed" ||
+            order.status.toLowerCase() === "pull out" ||
+            (order.downpayment && order.downpayment > 0)
+        )
+        .map((order: JobOrderData) => {
+          let adjustedGrandTotal = order.grand_total ?? 0;
 
-            if (order.materials) {
-              const usedMaterialsTotal = order.materials.reduce(
-                (total, material) => {
-                  if (material.used) {
-                    return total + material.quantity * material.unit_price;
-                  }
-                  return total;
-                },
-                0
-              );
+          if (order.materials) {
+            const usedMaterialsTotal = order.materials.reduce(
+              (total, material) => {
+                if (material.used) {
+                  return total + material.quantity * material.unit_price;
+                }
+                return total;
+              },
+              0
+            );
 
-              adjustedGrandTotal -= usedMaterialsTotal;
-            }
+            adjustedGrandTotal -= usedMaterialsTotal;
+          }
 
-            if (order.downpayment) {
-              // console.log(order.status);
-              adjustedGrandTotal += order.downpayment;
-            }
+          if (order.downpayment) {
+            // console.log(order.status);
+            adjustedGrandTotal += order.downpayment;
+          }
 
-            return { ...order, adjustedGrandTotal };
-          })
+          return { ...order, adjustedGrandTotal };
+        })
       : [];
   }, [job_orders]);
 
   const filteredOrders = useMemo(() => {
     return job_orders
       ? job_orders
-          .filter((order: JobOrderData) => {
-            const orderDate =
-              order.status === "Completed" ||
+        .filter((order: JobOrderData) => {
+          const orderDate =
+            order.status === "Completed" ||
               order.status.toLowerCase() === "pull out"
-                ? new Date(order.completed_at!)
-                : order.downpayment && order.downpayment > 0
+              ? new Date(order.completed_at!)
+              : order.downpayment && order.downpayment > 0
                 ? new Date(order.created_at)
                 : null;
 
-            if (!orderDate) return false;
+          if (!orderDate) return false;
 
-            return (
-              (!dateRange?.from || orderDate >= dateRange.from) &&
-              (!dateRange?.to || orderDate <= dateRange.to)
+          return (
+            (!dateRange?.from || orderDate >= dateRange.from) &&
+            (!dateRange?.to || orderDate <= dateRange.to)
+          );
+        })
+        .map((order: JobOrderData) => {
+          let adjustedGrandTotal = order.grand_total ?? 0;
+
+          if (order.materials) {
+            const usedMaterialsTotal = order.materials.reduce(
+              (total, material) => {
+                if (material.used) {
+                  return total + material.quantity * material.unit_price;
+                }
+                return total;
+              },
+              0
             );
-          })
-          .map((order: JobOrderData) => {
-            let adjustedGrandTotal = order.grand_total ?? 0;
 
-            if (order.materials) {
-              const usedMaterialsTotal = order.materials.reduce(
-                (total, material) => {
-                  if (material.used) {
-                    return total + material.quantity * material.unit_price;
-                  }
-                  return total;
-                },
-                0
-              );
+            adjustedGrandTotal -= usedMaterialsTotal;
+          }
 
-              adjustedGrandTotal -= usedMaterialsTotal;
-            }
+          if (order.downpayment) {
+            adjustedGrandTotal += order.downpayment;
+          }
 
-            if (order.downpayment) {
-              adjustedGrandTotal += order.downpayment;
-            }
-
-            return { ...order, adjustedGrandTotal };
-          })
+          return { ...order, adjustedGrandTotal };
+        })
       : [];
   }, [job_orders, dateRange]);
 
@@ -512,12 +511,12 @@ export default function Dashboard() {
     () =>
       job_orders
         ? Array.from(
-            new Set(
-              job_orders.map((order: JobOrderData) =>
-                getYear(new Date(order.created_at))
-              )
+          new Set(
+            job_orders.map((order: JobOrderData) =>
+              getYear(new Date(order.created_at))
             )
           )
+        )
         : [],
     [job_orders]
   );
@@ -605,20 +604,30 @@ export default function Dashboard() {
             <>
               <TabsContent value="overview" className="w-full pb-8">
                 <div className="h-[calc(100%-1rem-0.5rem-2rem)] mt-4 flex flex-col gap-4">
-                  <div className="grid xl:grid-cols-[0.7fr_1fr_0.4fr] lg:grid-cols-[1fr_0.4fr] grid-cols-1 gap-4">
-                    <OverviewSection overviewData={overviewData} />
+                  {/* Row 1: [Overview cards + Billing] (left) | Bar Chart (right) */}
+                  <div className="grid xl:grid-cols-[0.65fr_1fr] grid-cols-1 gap-4">
+                    {/* Left: 3-col sub-grid — row1: 3 cards, row2: 1 card + billing (span 2) */}
+                    <div className="grid lg:grid-cols-3 sm:grid-cols-2 grid-cols-1 gap-4">
+                      {overviewData.slice(0, 3).map((data, index) => (
+                        <OverviewCard data={data} key={index} />
+                      ))}
+                      {overviewData[3] && <OverviewCard data={overviewData[3]} />}
+                      <div className="lg:col-span-2 sm:col-span-1">
+                        <BillingOverviewCard branchId={isManager ? currentBranchId ?? undefined : undefined} />
+                      </div>
+                    </div>
+                    {/* Right: Bar chart */}
                     <BarChartSection
                       data={aggregatedDataArray}
                       orders={completedOrders}
                     />
-                    <StatusOverview statusCounts={statusCounts} />
                   </div>
-                  <div className="grid xl:grid-cols-[1fr_0.5fr] grid-cols-1 gap-4">
+
+                  {/* Row 2: Order Status + Recent Sales + Leaderboard */}
+                  <div className="grid xl:grid-cols-[0.35fr_1fr_0.5fr] lg:grid-cols-[0.4fr_1fr] grid-cols-1 gap-4">
+                    <StatusOverview statusCounts={statusCounts} />
                     <RecentSalesSection completedOrders={completedOrders} />
-                    <div className="flex flex-col gap-4">
-                      <RevenuePerTechnicianPieChart orders={completedOrders} />
-                      <BillingOverviewCard branchId={isManager ? currentBranchId ?? undefined : undefined} />
-                    </div>
+                    <RevenuePerTechnicianPieChart orders={completedOrders} />
                   </div>
                 </div>
               </TabsContent>

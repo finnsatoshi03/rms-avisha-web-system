@@ -56,7 +56,7 @@ const SalesByBranch: React.FC<SalesByBranchProps> = ({ data, metrics }) => {
   }));
 
   return (
-    <div className="sales-by-region-chart border border-slate-300 p-5 rounded-xl h-[50vh] flex flex-col justify-between">
+    <div className="sales-by-region-chart border border-slate-200 p-5 rounded-xl h-[50vh] flex flex-col justify-between">
       <h3 className="text-sm font-bold flex items-center gap-1">
         <MapPinned
           size={18}

@@ -33,7 +33,7 @@ export default function SalesReportLineChart({
   } satisfies ChartConfig;
 
   return (
-    <div className="border border-slate-300 py-4 px-5 rounded-xl">
+    <div className="border border-slate-200 py-4 px-5 rounded-xl">
       <div className="flex justify-between items-start">
         <h1 className="font-bold text-xl">Sales Figures</h1>
         <DeductionsDialog

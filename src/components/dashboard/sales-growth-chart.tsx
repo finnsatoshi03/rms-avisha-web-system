@@ -185,7 +185,7 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
   return (
     <Tabs
       defaultValue="day"
-      className="sales-growth-chart border border-slate-300 py-4 px-5 rounded-xl h-[50vh] lg:col-span-1 col-span-2"
+      className="sales-growth-chart border border-slate-200 py-4 px-5 rounded-xl h-[50vh] lg:col-span-1 col-span-2"
       value={currentTab}
       onValueChange={setCurrentTab}
     >

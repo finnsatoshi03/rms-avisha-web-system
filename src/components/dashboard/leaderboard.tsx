@@ -435,7 +435,7 @@ export default function RevenuePerTechnicianLeaderboard({
 
   return (
     <>
-      <div className="revenue-per-tech-chart border border-slate-300 rounded-lg py-4 px-5 h-[50vh] flex flex-col">
+      <div className="revenue-per-tech-chart border border-slate-200 rounded-xl bg-white py-4 px-5 h-[50vh] flex flex-col">
         <motion.div
           className="flex justify-between mb-4"
           initial={{ opacity: 0, y: -10 }}
