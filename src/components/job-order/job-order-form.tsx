@@ -46,6 +46,10 @@ import JobOrderPDF from "./job-order-pdf";
 import QuotationPDF from "./quotation-pdf";
 import MergedPDF from "./merged-pdf";
 import ClientAutoSuggest from "./client-auto-suggest";
+import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
+import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
+import GuidedTour from "../onboarding/guided-tour";
+import TourReplayButton from "../onboarding/tour-replay-button";
 import {
   Client,
   MaterialItem,
@@ -360,6 +364,18 @@ export default function JobOrderForm({
   const [includeManualItemsInTotal, setIncludeManualItemsInTotal] = useState(
     editSession ? Boolean(editValues.include_quotation_items) : false
   );
+
+  // Feature onboarding - only active on create (not edit)
+  const {
+    showAnnouncement,
+    showTour,
+    onboardingData,
+    startTour,
+    skipOnboarding,
+    completeTour,
+    skipTour,
+    replayTour,
+  } = useFeatureOnboarding("client_auto_suggest");
 
   const {
     isAdmin,
@@ -1310,6 +1326,23 @@ export default function JobOrderForm({
 
   return (
     <>
+      {/* Feature onboarding */}
+      {!editSession && (
+        <>
+          <FeatureAnnouncementModal
+            open={showAnnouncement}
+            onboarding={onboardingData}
+            onStartTour={startTour}
+            onSkip={skipOnboarding}
+          />
+          <GuidedTour
+            featureKey="client_auto_suggest"
+            active={showTour}
+            onComplete={completeTour}
+            onSkip={skipTour}
+          />
+        </>
+      )}
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
@@ -1317,11 +1350,14 @@ export default function JobOrderForm({
             isEditMode ? "border-2 border-blue-200 rounded-lg p-4" : ""
           }
         >
-          <div className="flex flex-wrap gap-2 mb-2">
+          <div className="flex flex-wrap gap-2 mb-2 items-center">
             <div className="px-3 py-1 bg-gray-200 rounded-full text-gray-600 text-xs w-fit flex items-center gap-1">
               <Clock size={12} strokeWidth={1.5} />
               {editSession ? formatReadableDate(editValues.created_at) : date}
             </div>
+            {!editSession && !readonly && (
+              <TourReplayButton onClick={replayTour} label="How to use client search" />
+            )}
             {(editSession || readonly) && (
               <div className="px-3 py-1 bg-red-200 rounded-full text-red-600 text-xs w-fit flex items-center gap-1">
                 #{editSession ? editValuesWithClient.order_no : ""}

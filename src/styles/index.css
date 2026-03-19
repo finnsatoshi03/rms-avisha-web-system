@@ -250,6 +250,21 @@ label {
                                   supported by Chrome, Edge, Opera and Firefox */
 }
 
+/* Fix bullets on cmdk items and tour overlay */
+[cmdk-item],
+[cmdk-group],
+[cmdk-list],
+[role="option"],
+[role="listbox"],
+[role="group"],
+.tour-overlay,
+.tour-overlay *,
+.tour-tooltip,
+.tour-tooltip * {
+  list-style: none !important;
+  list-style-type: none !important;
+}
+
 ::-webkit-scrollbar {
   width: 3px;
 }

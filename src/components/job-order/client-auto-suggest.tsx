@@ -311,6 +311,7 @@ export default function ClientAutoSuggest({
           aria-expanded={open}
           className="justify-between border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-full text-3xl font-bold hover:bg-transparent"
           disabled={disabled}
+          data-tour="client-search-field"
         >
           <span
             className={cn(
@@ -341,7 +342,7 @@ export default function ClientAutoSuggest({
                 <p className="text-sm text-muted-foreground">No matching clients found</p>
               </div>
             ) : (
-              <div className="max-h-[300px] overflow-y-auto">
+              <div className="max-h-[300px] overflow-y-auto" data-tour="client-search-dropdown">
                 {/* Direct matches (exact + contains) */}
                 {directResults.length > 0 && (
                   <CommandGroup>
@@ -369,7 +370,7 @@ export default function ClientAutoSuggest({
                 )}
               </div>
             )}
-            <div className="border-t p-1">
+            <div className="border-t p-1" data-tour="client-create-button">
               <Button
                 variant="ghost"
                 className="w-full justify-start text-sm h-8 px-2"
