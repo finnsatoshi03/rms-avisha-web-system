@@ -223,6 +223,10 @@ export type JobOrderData = {
   payment_details: null | object;
   is_manual_rate: null | boolean;
   include_quotation_items: null | boolean;
+  billing_account_id: null | string;
+  transferred_to_billing: boolean;
+  transferred_to_billing_at: null | string;
+  transferred_to_billing_by: null | string;
   [key: string]:
     | undefined
     | boolean

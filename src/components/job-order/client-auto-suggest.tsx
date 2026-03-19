@@ -15,6 +15,7 @@ import {
 } from "../ui/command";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import PhoneInput from "../ui/phone-input";
 import {
   Select,
   SelectContent,
@@ -188,20 +189,8 @@ export default function ClientAutoSuggest({
     setShowCreateForm(false);
   };
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value;
-    if (!value.startsWith("+63 ")) {
-      value = "+63 ";
-    }
-    const digits = value.replace(/\D/g, "").slice(2);
-    if (digits.length <= 10) {
-      const formatted =
-        "+63 " +
-        (digits.length > 0 ? digits.slice(0, 3) : "") +
-        (digits.length > 3 ? " " + digits.slice(3, 6) : "") +
-        (digits.length > 6 ? " " + digits.slice(6, 10) : "");
-      setNewClientPhone(formatted.trim());
-    }
+  const handlePhoneChange = (value: string) => {
+    setNewClientPhone(value);
   };
 
   const handleCreateClient = async () => {
@@ -460,10 +449,9 @@ export default function ClientAutoSuggest({
               </div>
               <div>
                 <Label className="text-xs">Phone</Label>
-                <Input
+                <PhoneInput
                   value={newClientPhone}
                   onChange={handlePhoneChange}
-                  placeholder="+63 9XX XXX XXXX"
                   className="h-8 text-sm"
                 />
               </div>

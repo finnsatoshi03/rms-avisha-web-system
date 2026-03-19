@@ -221,8 +221,11 @@ export default function Table({
         setDeleteIds([]);
         setConfirmDialogOpen(false);
       },
-      onError: (error) => {
-        toast.error("An error occurred while deleting the Job Order(s)");
+      onError: (error: Error) => {
+        toast.error(
+          error.message || "An error occurred while deleting the Job Order(s)",
+          { duration: 6000 }
+        );
         console.error(error);
         setConfirmDialogOpen(false);
       },
@@ -261,6 +264,25 @@ export default function Table({
       }
 
       if (status.label === "Completed") {
+        // If JO is transferred to billing, skip payment dialog — payment is handled via billing
+        if (orderToUpdate.transferred_to_billing) {
+          updateStatusMutate(
+            { ids: [orderToUpdate.id], status: "Completed" },
+            {
+              onSuccess: () => {
+                updateStatus(order_no, "Completed");
+                toast.success("Job Order completed (payment via billing account)");
+                queryClient.invalidateQueries({ queryKey: ["job_order"] });
+              },
+              onError: (error) => {
+                toast.error("An error occurred while updating the Job Order status");
+                console.error(error);
+              },
+            }
+          );
+          setOpenPopover(null);
+          return;
+        }
         setShowPaymentDialog(true);
         setSelectedOrder(orderToUpdate);
         return;
@@ -292,6 +314,8 @@ export default function Table({
       0
     );
 
+    // For non-billing JOs, payment must match grand_total
+    // For JOs with downpayment, the payment dialog handles the remaining amount
     if (totalPayment !== selectedOrder?.grand_total) {
       alert(
         `The total payment amount (${totalPayment}) does not match the order total (${selectedOrder?.grand_total})`

@@ -27,6 +27,7 @@ const breadcrumbConfig: Record<string, string> = {
   expenses: "Expenses",
   branches: "Branch Management",
   settings: "Settings",
+  billing: "Billing",
   technicians: "Technicians",
   account: "Account",
   "manager-re-auth": "Manager Re-Authentication",
@@ -55,6 +56,20 @@ const generateBreadcrumbs = (pathname: string) => {
     // Handle technician detail pages
     if (segments[index - 1] === "technicians" && !breadcrumbConfig[segment]) {
       breadcrumbs.push("Technician Details");
+      return;
+    }
+
+    // Handle billing detail/form pages
+    if (segments[index - 1] === "billing" && !breadcrumbConfig[segment]) {
+      if (segment === "new") {
+        breadcrumbs.push("New Account");
+      } else {
+        breadcrumbs.push("Account Details");
+      }
+      return;
+    }
+    if (segments[index - 2] === "billing" && segment === "edit") {
+      breadcrumbs.push("Edit");
       return;
     }
 

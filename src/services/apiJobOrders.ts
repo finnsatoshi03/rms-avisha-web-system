@@ -738,10 +738,10 @@ export async function updateJobOrderPayment(
 
 export async function deleteJobOrder(ids: number[]) {
   try {
-    // Retrieve client IDs associated with the job orders to be deleted
+    // Retrieve job orders with billing info
     const { data: jobOrders, error: jobOrdersError } = await supabase
       .from("joborders")
-      .select("client_id")
+      .select("id, client_id, order_no, transferred_to_billing")
       .in("id", ids);
 
     if (jobOrdersError) {
@@ -750,6 +750,65 @@ export async function deleteJobOrder(ids: number[]) {
     }
 
     const clientIds = jobOrders.map((jobOrder) => jobOrder.client_id);
+
+    // Check for billing-linked JOs and clean up billing data first
+    const billingLinkedJOs = jobOrders.filter((jo) => jo.transferred_to_billing);
+    if (billingLinkedJOs.length > 0) {
+      const billingJoIds = billingLinkedJOs.map((jo) => jo.id);
+
+      // Get billing line items for these JOs
+      const { data: lineItems } = await supabase
+        .from("billing_line_items")
+        .select("id")
+        .in("job_order_id", billingJoIds);
+
+      if (lineItems && lineItems.length > 0) {
+        const lineItemIds = lineItems.map((li) => li.id);
+
+        // Delete payment allocations for these line items
+        const { error: allocError } = await supabase
+          .from("billing_payment_allocations")
+          .delete()
+          .in("billing_line_item_id", lineItemIds);
+
+        if (allocError) {
+          const joNumbers = billingLinkedJOs.map((jo) => jo.order_no).join(", ");
+          throw new Error(
+            `Cannot delete: Job Order(s) ${joNumbers} have billing payment allocations. Please remove the billing payments first from the Billing section.`
+          );
+        }
+
+        // Delete the billing line items
+        const { error: lineItemError } = await supabase
+          .from("billing_line_items")
+          .delete()
+          .in("job_order_id", billingJoIds);
+
+        if (lineItemError) {
+          const joNumbers = billingLinkedJOs.map((jo) => jo.order_no).join(", ");
+          throw new Error(
+            `Cannot delete: Job Order(s) ${joNumbers} are linked to a billing account. Please remove them from billing first.`
+          );
+        }
+      }
+
+      // Reset billing flags on the JOs
+      const { error: resetError } = await supabase
+        .from("joborders")
+        .update({
+          transferred_to_billing: false,
+          billing_account_id: null,
+          transferred_to_billing_at: null,
+          transferred_to_billing_by: null,
+        })
+        .in("id", billingJoIds);
+
+      if (resetError) {
+        throw new Error(
+          `Could not unlink Job Orders from billing. Please try again.`
+        );
+      }
+    }
 
     // Delete materials associated with the job orders
     const { error: materialError } = await supabase
@@ -760,7 +819,7 @@ export async function deleteJobOrder(ids: number[]) {
     if (materialError) {
       console.log(materialError);
       throw new Error(
-        `Materials for Job Orders with IDs ${ids} could not be deleted`
+        `Materials for Job Orders could not be deleted`
       );
     }
 
@@ -772,7 +831,12 @@ export async function deleteJobOrder(ids: number[]) {
 
     if (jobOrderError) {
       console.log(jobOrderError);
-      throw new Error(`Job Orders with IDs ${ids} could not be deleted`);
+      if (jobOrderError.message?.includes("foreign key") || jobOrderError.code === "23503") {
+        throw new Error(
+          `Cannot delete: One or more Job Orders are referenced by other records (quotations, billing, etc.). Please remove those references first.`
+        );
+      }
+      throw new Error(`Job Orders could not be deleted. ${jobOrderError.message}`);
     }
 
     // Check if any of the clients have remaining job orders

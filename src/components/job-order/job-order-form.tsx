@@ -42,10 +42,12 @@ import { Textarea } from "../ui/textarea";
 import { Separator } from "../ui/separator";
 
 import AccessoriesSection from "./accessories-section";
+import JoBillingSection from "../billing/jo-billing-section";
 import JobOrderPDF from "./job-order-pdf";
 import QuotationPDF from "./quotation-pdf";
 import MergedPDF from "./merged-pdf";
 import ClientAutoSuggest from "./client-auto-suggest";
+import PhoneInput from "../ui/phone-input";
 import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
 import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
 import GuidedTour from "../onboarding/guided-tour";
@@ -1028,26 +1030,11 @@ export default function JobOrderForm({
   };
 
   const handleContactNumberChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
+    value: string,
     onChange: (value: string) => void
   ) => {
-    let input = e.target.value.replace(/[^0-9+]/g, "");
-
-    if (!input.startsWith("+63")) {
-      input = "+63";
-    }
-
-    let digits = input.substring(3).replace(/\D/g, "");
-    digits = digits.substring(0, 10);
-
-    let formattedInput = `+63 ${digits.substring(0, 3)} ${digits.substring(
-      3,
-      6
-    )} ${digits.substring(6, 10)}`.trim();
-
-    formattedInput = formattedInput.substring(0, 16);
-    setContactNumber(formattedInput);
-    onChange(formattedInput);
+    setContactNumber(value);
+    onChange(value);
   };
 
   const handleAccessorySelection = (
@@ -1470,15 +1457,13 @@ export default function JobOrderForm({
                       <FormItem className="space-y-0">
                         <FormLabel>Contact No.</FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder="Client Contact"
-                            className={`border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0`}
+                          <PhoneInput
                             value={contactNumber || fieldValue}
-                            onChange={(e) =>
-                              handleContactNumberChange(e, fieldOnChange)
+                            onChange={(val) =>
+                              handleContactNumberChange(val, fieldOnChange)
                             }
+                            className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
                             disabled={isFormReadonly}
-                            {...restFieldProps}
                           />
                         </FormControl>
                         <FormMessage />
@@ -2583,7 +2568,13 @@ export default function JobOrderForm({
                 </div>
               </div>
             </div>
+
           </div>
+
+          {/* Billing Section - visible in readonly mode for non-technicians */}
+          {isFormReadonly && editSession && jobOrderToEdit && (
+            <JoBillingSection jobOrder={jobOrderToEdit} />
+          )}
         </form>
       </Form>
       <DiscountDialog

@@ -41,6 +41,7 @@ import OverviewCard from "../components/dashboard/overview-card";
 import { DatePickerWithRange } from "../components/date-range-picker";
 import SalesReportLineChart from "../components/dashboard/sales-report-line-chart";
 import FinancialChart from "../components/dashboard/financial-chart";
+import BillingOverviewCard from "../components/dashboard/billing-overview-card";
 
 import { useNavigate } from "react-router-dom";
 
@@ -614,7 +615,10 @@ export default function Dashboard() {
                   </div>
                   <div className="grid xl:grid-cols-[1fr_0.5fr] grid-cols-1 gap-4">
                     <RecentSalesSection completedOrders={completedOrders} />
-                    <RevenuePerTechnicianPieChart orders={completedOrders} />
+                    <div className="flex flex-col gap-4">
+                      <RevenuePerTechnicianPieChart orders={completedOrders} />
+                      <BillingOverviewCard branchId={isManager ? currentBranchId ?? undefined : undefined} />
+                    </div>
                   </div>
                 </div>
               </TabsContent>

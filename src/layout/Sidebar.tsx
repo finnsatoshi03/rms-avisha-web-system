@@ -6,6 +6,7 @@ import {
   EllipsisVertical,
   Home,
   Printer,
+  ReceiptText,
   Settings,
   ShieldCheck,
   UserRoundCog,
@@ -281,6 +282,25 @@ export default function AppSidebar({
                     >
                       <UsersRound size={20} />
                       <span>Clients</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Billing">
+                    <NavLink
+                      to="billing"
+                      onClick={handleNavClick}
+                      className={({ isActive }) =>
+                        cn(
+                          "w-full",
+                          isActive &&
+                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                        )
+                      }
+                    >
+                      <ReceiptText size={20} />
+                      <span>Billing</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

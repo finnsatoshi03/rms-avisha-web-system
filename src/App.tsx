@@ -32,6 +32,7 @@ import Branches from "./pages/Branches";
 import ManagerReAuth from "./components/auth/manager-reauth";
 import NotFound from "./pages/NotFound";
 import Maintenance from "./pages/Maintenance";
+import BillingAccounts from "./pages/BillingAccounts";
 import { BranchSessionProvider } from "./components/auth/branch-session-context";
 
 const queryClient = new QueryClient({
@@ -74,6 +75,8 @@ export default function App() {
               <Route path="clients" element={<Clients />} />
               <Route path="materials" element={<Materials />} />
               <Route path="expenses" element={<Expenses />} />
+              <Route path="billing" element={<BillingAccounts />} />
+              <Route path="billing/:id" element={<BillingAccounts />} />
               <Route path="branches" element={<Branches />} />
               <Route path="settings" element={<Maintenance />} />
               <Route path="technicians" element={<Technicians />} />
