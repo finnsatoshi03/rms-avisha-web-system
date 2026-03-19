@@ -12,7 +12,6 @@ import {
   Lock,
   Play,
   RotateCcw,
-  CreditCard,
   Plus,
   DollarSign,
   FileText,
@@ -677,11 +676,10 @@ function MockBillingAccountsList({
               <TableRow
                 key={account.id}
                 data-tour={`account-row-${i}`}
-                className={`cursor-pointer transition-colors ${
-                  i === 0
+                className={`cursor-pointer transition-colors ${i === 0
                     ? "bg-primary/5 hover:bg-primary/10"
                     : "hover:bg-gray-50"
-                }`}
+                  }`}
                 onClick={i === 0 ? onOpenAccount : undefined}
               >
                 <TableCell className="font-mono text-sm">
@@ -877,9 +875,8 @@ function MockBillingAccountSheet({
             >
               <span className="text-[11px] text-gray-500">{bucket.label}</span>
               <span
-                className={`text-xs font-semibold tabular-nums ${
-                  bucket.value > 0 && bucket.warn ? "text-red-600" : ""
-                }`}
+                className={`text-xs font-semibold tabular-nums ${bucket.value > 0 && bucket.warn ? "text-red-600" : ""
+                  }`}
               >
                 {amt(bucket.value)}
               </span>
@@ -1050,13 +1047,12 @@ function MockBillingAccountSheet({
                       <TableCell className="py-1.5">
                         <Badge
                           variant="outline"
-                          className={`text-[10px] px-1.5 py-0 ${
-                            fullyPaid
+                          className={`text-[10px] px-1.5 py-0 ${fullyPaid
                               ? "bg-green-100 text-green-700 border-green-200"
                               : paid > 0
                                 ? "bg-yellow-100 text-yellow-700 border-yellow-200"
                                 : "bg-red-100 text-red-700 border-red-200"
-                          }`}
+                            }`}
                         >
                           {fullyPaid ? "Paid" : paid > 0 ? "Partial" : "Unpaid"}
                         </Badge>
@@ -1220,9 +1216,8 @@ function MockBillingAccountSheet({
 
   const mainContent = (
     <div
-      className={`flex flex-col h-full transition-all duration-300 ease-in-out ${
-        shouldStack && isCompressed ? "hidden" : ""
-      }`}
+      className={`flex flex-col h-full transition-all duration-300 ease-in-out ${shouldStack && isCompressed ? "hidden" : ""
+        }`}
       style={{
         width: isCompressed && !shouldStack ? "300px" : "100%",
         minWidth: isCompressed && !shouldStack ? "300px" : undefined,
@@ -1271,9 +1266,8 @@ function MockBillingAccountSheet({
       {mainContent}
       {isCompressed && (
         <div
-          className={`border-l bg-white flex-1 transition-all duration-300 ease-in-out overflow-hidden ${
-            shouldStack ? "absolute inset-0 border-l-0" : ""
-          }`}
+          className={`border-l bg-white flex-1 transition-all duration-300 ease-in-out overflow-hidden ${shouldStack ? "absolute inset-0 border-l-0" : ""
+            }`}
         >
           {subSheetContent}
         </div>
