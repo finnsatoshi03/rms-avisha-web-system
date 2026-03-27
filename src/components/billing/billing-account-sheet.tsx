@@ -1091,10 +1091,41 @@ export default function BillingAccountSheetContent({
       <AlertDialog open={showInterestConfirm} onOpenChange={setShowInterestConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Apply Interest</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will apply a {acct.interest_rate}% monthly interest charge on
-              overdue balances for this account. This action cannot be undone.
+            <AlertDialogTitle>Apply Monthly Interest</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This will apply a <span className="font-semibold text-foreground">{acct.interest_rate}%</span> monthly
+                  interest charge on all overdue balances for this account.
+                </p>
+
+                {totalOverdue > 0 ? (
+                  <div className="rounded-lg border bg-muted/50 p-3 space-y-1.5 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Overdue balance</span>
+                      <span className="font-semibold text-red-600">{amt(totalOverdue)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Interest rate</span>
+                      <span className="font-medium text-foreground">{acct.interest_rate}% / month</span>
+                    </div>
+                    <div className="border-t pt-1.5 flex justify-between">
+                      <span className="text-muted-foreground">Estimated charge</span>
+                      <span className="font-semibold text-foreground">
+                        ~{amt(Math.round(totalOverdue * (acct.interest_rate / 100) * 100) / 100)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">
+                    There are currently no overdue balances on this account. No interest will be charged.
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  A new interest line item will be added to the ledger. This action cannot be undone.
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
