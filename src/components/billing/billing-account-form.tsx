@@ -145,13 +145,12 @@ export default function BillingAccountFormSheet({
         )}
         {isEditMode && existingAccount && (
           <div
-            className={`px-3 py-1 rounded-full text-xs w-fit flex items-center gap-1 ${
-              existingAccount.status === "active"
-                ? "bg-green-200 text-green-700"
-                : existingAccount.status === "suspended"
-                  ? "bg-yellow-200 text-yellow-700"
-                  : "bg-gray-200 text-gray-600"
-            }`}
+            className={`px-3 py-1 rounded-full text-xs w-fit flex items-center gap-1 ${existingAccount.status === "active"
+              ? "bg-green-200 text-green-700"
+              : existingAccount.status === "suspended"
+                ? "bg-yellow-200 text-yellow-700"
+                : "bg-gray-200 text-gray-600"
+              }`}
           >
             {existingAccount.status}
           </div>
@@ -202,17 +201,18 @@ export default function BillingAccountFormSheet({
             />
           </div>
           <div className="space-y-0">
-            <p className="text-sm font-medium leading-none">Contact Email</p>
+            <p className="text-sm font-medium leading-none">Contact Email <span className="text-primaryRed">*</span></p>
             <Input
               placeholder="billing@example.com"
               type="email"
+              required
               className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
               value={billingContactEmail}
               onChange={(e) => setBillingContactEmail(e.target.value)}
             />
           </div>
           <div className="space-y-0">
-            <p className="text-sm font-medium leading-none">Contact Phone</p>
+            <p className="text-sm font-medium leading-none">Contact Phone <span className="text-primaryRed">*</span></p>
             <PhoneInput
               value={billingContactPhone}
               onChange={setBillingContactPhone}
@@ -310,7 +310,9 @@ export default function BillingAccountFormSheet({
           disabled={
             isSubmitting ||
             (!isEditMode && !selectedClient) ||
-            !!clientHasExistingAccount
+            !!clientHasExistingAccount ||
+            !billingContactEmail.trim() ||
+            !billingContactPhone.trim()
           }
         >
           {isSubmitting ? (
