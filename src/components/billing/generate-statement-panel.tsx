@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Label } from "../ui/label";
 import {
   Select,
   SelectTrigger,
@@ -64,68 +64,78 @@ export default function GenerateStatementPanel({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="period-start" className="text-xs">
-          Period Start *
-        </Label>
-        <Input
-          id="period-start"
-          type="date"
-          required
-          value={periodStart}
-          onChange={(e) => setPeriodStart(e.target.value)}
-          autoFocus
-        />
+    <form onSubmit={handleSubmit}>
+      {/* ── Statement Period ─────────────────────────────────── */}
+      <div>
+        <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">
+          Statement Period
+        </h2>
+        <div className="grid md:grid-cols-2 grid-cols-1 gap-2 px-4 py-2 border rounded-xl">
+          <div className="space-y-0">
+            <p className="text-sm font-medium leading-none">Period Start *</p>
+            <Input
+              type="date"
+              required
+              className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
+              value={periodStart}
+              onChange={(e) => setPeriodStart(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="space-y-0">
+            <p className="text-sm font-medium leading-none">Period End *</p>
+            <Input
+              type="date"
+              required
+              className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
+              value={periodEnd}
+              onChange={(e) => setPeriodEnd(e.target.value)}
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="period-end" className="text-xs">
-          Period End *
-        </Label>
-        <Input
-          id="period-end"
-          type="date"
-          required
-          value={periodEnd}
-          onChange={(e) => setPeriodEnd(e.target.value)}
-        />
+      {/* ── Filters ──────────────────────────────────────────── */}
+      <div>
+        <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">Filters</h2>
+
+        <div className="border-b py-2">
+          <div className="space-y-0 flex justify-between items-center w-full">
+            <p className="text-sm font-medium leading-none">Branch</p>
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
+                <SelectValue placeholder="All Branches" />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="all">All Branches</SelectItem>
+                {branches.map((branch) => (
+                  <SelectItem key={branch.id} value={String(branch.id)}>
+                    {branch.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label className="text-xs">Branch</Label>
-        <Select value={branchFilter} onValueChange={setBranchFilter}>
-          <SelectTrigger>
-            <SelectValue placeholder="All Branches" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Branches</SelectItem>
-            {branches.map((branch) => (
-              <SelectItem key={branch.id} value={String(branch.id)}>
-                {branch.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex gap-2 pt-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onClose}
-          className="flex-1"
-        >
-          Cancel
-        </Button>
+      {/* ── Actions ─ same layout as edit form ──────────────── */}
+      <div className="flex md:flex-row flex-col md:justify-between mt-4">
         <Button
           type="submit"
-          size="sm"
           disabled={!periodStart || !periodEnd || generateStatement.isPending}
-          className="flex-1"
         >
-          {generateStatement.isPending ? "Generating..." : "Generate"}
+          {generateStatement.isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Generating..
+            </>
+          ) : (
+            "Generate Statement"
+          )}
+        </Button>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
         </Button>
       </div>
     </form>

@@ -41,6 +41,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../ui/alert-dialog";
 
 import {
   useBillingAccount,
@@ -211,6 +221,7 @@ export default function BillingAccountSheetContent({
   const [statementsOpen, setStatementsOpen] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [jobOrdersOpen, setJobOrdersOpen] = useState(false);
+  const [showInterestConfirm, setShowInterestConfirm] = useState(false);
 
   // Derived
   const acct = account as BillingAccount | undefined;
@@ -236,7 +247,13 @@ export default function BillingAccountSheetContent({
   }, []);
 
   function handleApplyInterest() {
-    applyInterest.mutate(accountId);
+    setShowInterestConfirm(true);
+  }
+
+  function confirmApplyInterest() {
+    applyInterest.mutate(accountId, {
+      onSettled: () => setShowInterestConfirm(false),
+    });
   }
 
   function handleFinalizeStatement(statementId: string) {
@@ -1069,6 +1086,30 @@ export default function BillingAccountSheetContent({
           </div>
         )}
       </div>
+
+      {/* Apply Interest Confirmation Dialog */}
+      <AlertDialog open={showInterestConfirm} onOpenChange={setShowInterestConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apply Interest</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will apply a {acct.interest_rate}% monthly interest charge on
+              overdue balances for this account. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={applyInterest.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmApplyInterest}
+              disabled={applyInterest.isPending}
+            >
+              {applyInterest.isPending ? "Applying..." : "Apply Interest"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TooltipProvider>
   );
 }
