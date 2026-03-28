@@ -24,6 +24,12 @@ import {
   CommandList,
 } from "../ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
 import { cn } from "../../lib/utils";
 import { JobOrderData } from "../../lib/types";
 
@@ -131,25 +137,42 @@ export const StatusPopover = ({
 export function StatusBadge({
   status,
   statusList,
+  tooltip,
 }: {
   status: string;
   statusList?: Status[];
+  tooltip?: string;
 }) {
   const matched = (statusList || []).find(
     (s) => s.value === status.toLowerCase()
   );
 
+  const badge = (
+    <p
+      className={`cursor-pointer px-2 py-0.5 rounded-full w-fit flex items-center font-bold ${getStatusClass(
+        status
+      )} cursor-not-allowed pointer-events-none`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {matched?.label || status}
+    </p>
+  );
+
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <p
-          className={`cursor-pointer px-2 py-0.5 rounded-full w-fit flex items-center font-bold ${getStatusClass(
-            status
-          )} cursor-not-allowed pointer-events-none`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {matched?.label || status}
-        </p>
+        {tooltip ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>{badge}</TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">{tooltip}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          badge
+        )}
       </PopoverTrigger>
       <PopoverContent className="p-0" side="right" align="start">
         <Command>

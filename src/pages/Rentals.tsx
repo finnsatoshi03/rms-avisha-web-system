@@ -21,11 +21,13 @@ import RentalTable from "../components/rental/rental-table";
 import RentalDetailSheet from "../components/rental/rental-detail-sheet";
 import { RentalData, RentalStatus } from "../lib/types";
 import { deleteRentals } from "../services/apiRentals";
+import { useRentalStatusUpdate } from "../components/rental/useRentalStatusUpdate";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import RentalPDF from "../components/rental/rental-pdf";
 import PrintOptionsDialog from "../components/job-order/print-option-dialog";
+import { formatNumberWithCommas } from "../lib/helpers";
 import debounce from "lodash/debounce";
 import toast from "react-hot-toast";
 import {
@@ -124,6 +126,16 @@ export default function Rentals() {
   const rentals = (data?.data || []) as RentalData[];
   const totalCount = data?.meta?.totalCount || 0;
 
+  // Keep selectedRental in sync with latest query data
+  useEffect(() => {
+    if (selectedRental && rentals.length > 0) {
+      const updated = rentals.find((r) => r.id === selectedRental.id);
+      if (updated) setSelectedRental(updated);
+    }
+  }, [rentals]);
+
+  const statusMutation = useRentalStatusUpdate();
+
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => deleteRentals(ids),
     onSuccess: () => {
@@ -166,6 +178,18 @@ export default function Rentals() {
   };
 
   const handleRowClick = (rental: RentalData) => {
+    setSelectedRental(rental);
+    setDetailOpen(true);
+  };
+
+  const handleStatusChange = (ids: number[], status: string) => {
+    statusMutation.mutate(
+      { ids, status },
+      { onSuccess: () => setSelectedIds([]) }
+    );
+  };
+
+  const handleEdit = (rental: RentalData) => {
     setSelectedRental(rental);
     setDetailOpen(true);
   };
@@ -388,6 +412,8 @@ export default function Rentals() {
           sortStates={sortStates}
           onSort={handleSort}
           onExportPdf={handleExportPdf}
+          onStatusChange={handleStatusChange}
+          onEdit={handleEdit}
           onDelete={(ids) => {
             setSelectedIds(ids);
             setDeleteDialogOpen(true);
@@ -407,10 +433,37 @@ export default function Rentals() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Rental(s)?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete {selectedIds.length} rental(s) and
-              restore any consumed inventory stock. This action cannot be undone.
+            <AlertDialogTitle>Delete {selectedIds.length} Rental{selectedIds.length > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>This action cannot be undone. The following will happen:</p>
+                <ul className="list-disc pl-5 text-sm space-y-1">
+                  <li>Rental record(s) will be permanently deleted</li>
+                  <li>Consumed inventory stock will be restored</li>
+                  <li>Printer(s) will be set back to <span className="font-semibold text-green-700">Available</span></li>
+                </ul>
+
+                {/* Show details of rentals being deleted */}
+                <div className="border rounded-lg overflow-hidden mt-2">
+                  {selectedIds.map((id) => {
+                    const r = rentals.find((rental) => rental.id === id);
+                    if (!r) return null;
+                    return (
+                      <div key={id} className="flex items-center justify-between px-3 py-2 text-sm border-b last:border-b-0 bg-muted/30">
+                        <div>
+                          <span className="font-semibold text-foreground">{r.rental_no}</span>
+                          <span className="mx-2 text-muted-foreground">—</span>
+                          <span>{r.clients?.name || "Unknown"}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span>{r.rental_assets?.unit_name || "—"}</span>
+                          <span className="font-medium text-foreground">₱{formatNumberWithCommas(Number(r.grand_total))}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

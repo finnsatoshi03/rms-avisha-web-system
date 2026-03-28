@@ -14,8 +14,13 @@ import {
   TableRow,
 } from "../ui/table";
 import { Checkbox } from "../ui/checkbox";
-import { AlertTriangle, FileDown, Trash2 } from "lucide-react";
+import { AlertTriangle, FileDown, PenLine, RefreshCcw, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 interface RentalTableProps {
   rentals: RentalData[];
@@ -31,6 +36,8 @@ interface RentalTableProps {
   onSort: (column: string, direction: "asc" | "desc") => void;
   onExportPdf?: (rental: RentalData) => void;
   onDelete?: (ids: number[]) => void;
+  onStatusChange?: (ids: number[], status: string) => void;
+  onEdit?: (rental: RentalData) => void;
   className?: string;
 }
 
@@ -58,6 +65,8 @@ export default function RentalTable({
   onSort,
   onExportPdf,
   onDelete,
+  onStatusChange,
+  onEdit,
   className,
 }: RentalTableProps) {
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
@@ -94,8 +103,45 @@ export default function RentalTable({
             }}
           >
             <FileDown size={14} />
-            <span className="text-xs">Export PDF</span>
+            <span className="hidden sm:block text-xs">Export PDF</span>
           </Button>
+        )}
+        {selectedIds.length === 1 && onEdit && (
+          <Button
+            className="rounded-full bg-slate-700 gap-1"
+            onClick={() => {
+              const rental = rentals.find((r) => r.id === selectedIds[0]);
+              if (rental) onEdit(rental);
+            }}
+          >
+            <PenLine size={14} />
+            <span className="hidden sm:block text-xs">Edit</span>
+          </Button>
+        )}
+        {onStatusChange && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="rounded-full bg-slate-700 gap-1">
+                <RefreshCcw size={14} />
+                <span className="hidden sm:block text-xs">Change Status</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="p-2 bg-slate-700 border-none text-white text-sm flex flex-col">
+              {rentalStatuses.map((s) => {
+                const Icon = s.icon;
+                return (
+                  <Button
+                    key={s.value}
+                    className="justify-start gap-2"
+                    variant="ghost"
+                    onClick={() => onStatusChange(selectedIds, s.label)}
+                  >
+                    <Icon size={14} /> {s.label}
+                  </Button>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
         {onDelete && (
           <Button
@@ -103,7 +149,7 @@ export default function RentalTable({
             onClick={() => onDelete(selectedIds)}
           >
             <Trash2 size={14} />
-            <span className="text-xs">Delete</span>
+            <span className="hidden sm:block text-xs">Delete</span>
           </Button>
         )}
       </SelectionBar>

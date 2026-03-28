@@ -9,7 +9,7 @@ import {
   RentalConsumable,
   Client,
 } from "../../lib/types";
-import { StatusBadge, rentalStatuses } from "../table/status-popover";
+import { getStatusClass } from "../../lib/helpers";
 import { useRentalStatusUpdate } from "./useRentalStatusUpdate";
 import { useUpdateRental } from "./useUpdateRental";
 import ReturnInspectionDialog from "./return-inspection-dialog";
@@ -163,7 +163,7 @@ export default function RentalDetailSheet({
     );
   }
 
-  function handlePaymentSubmit(_payments: Record<string, number>) {
+  function handlePaymentSubmit() {
     statusMutation.mutate(
       { ids: [rental!.id], status: "Completed" },
       {
@@ -277,7 +277,9 @@ export default function RentalDetailSheet({
               <span className="bg-primaryRed text-white px-3 py-0.5 rounded-full text-xs font-medium">
                 {rental.rental_no}
               </span>
-              <StatusBadge status={rental.status} statusList={rentalStatuses} />
+              <span className={`px-3 py-0.5 rounded-full text-xs font-bold ${getStatusClass(rental.status)}`}>
+                {rental.status}
+              </span>
               {rental.is_overdue && (
                 <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1">
                   <AlertTriangle size={10} />

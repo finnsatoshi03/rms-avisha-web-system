@@ -110,9 +110,8 @@ function Content({ rental }: { rental: RentalData }) {
           <Text style={[s.col17, s.br]}>
             {rental.rental_assets?.serial_number || "---"}
           </Text>
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <Text style={s.col17}>
-            {(rental.users as any)?.fullname || "---"}
+            {rental.users?.fullname || "---"}
           </Text>
         </View>
 
@@ -270,9 +269,8 @@ function Content({ rental }: { rental: RentalData }) {
         </View>
         <View style={s.row}>
           <Text style={[s.label, s.br]}>Received by</Text>
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <Text style={[s.col17, s.br]}>
-            {(rental.users as any)?.fullname || "---"}
+            {rental.users?.fullname || "---"}
           </Text>
           <Text style={[s.label, s.br]}>Receiver Signature</Text>
           <Text style={[s.col17, s.br]}></Text>

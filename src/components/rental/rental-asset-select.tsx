@@ -10,7 +10,7 @@ import {
   CommandItem,
 } from "../ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { useAvailableAssets } from "./useRentalAssets";
+import { useAvailableAssets, useRentalAssets } from "./useRentalAssets";
 import { RentalAsset } from "../../lib/types";
 
 interface RentalAssetSelectProps {
@@ -30,11 +30,14 @@ export default function RentalAssetSelect({
 }: RentalAssetSelectProps) {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const { data: assets } = useAvailableAssets(branchId);
+  const { data: availableAssets } = useAvailableAssets(branchId);
+  // Also fetch all assets so we can display the currently selected (possibly rented) asset
+  const { data: allAssets } = useRentalAssets(branchId);
 
-  const selectedAsset = assets?.find(
-    (a: RentalAsset) => a.id === value
-  );
+  const assets = availableAssets || [];
+  const selectedAsset =
+    assets.find((a: RentalAsset) => a.id === value) ||
+    allAssets?.find((a: RentalAsset) => a.id === value);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

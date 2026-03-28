@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Search, X, Trash2 } from "lucide-react";
 import HeaderText from "../components/ui/headerText";
@@ -15,9 +15,10 @@ import Loader from "../components/ui/loader";
 import ErrorBoundary from "../components/error-boundery";
 import { useUser } from "../components/auth/useUser";
 import { useRentalAssets } from "../components/rental/useRentalAssets";
+import { useRentals } from "../components/rental/useRentals";
 import { useDeleteRentalAsset } from "../components/rental/useCreateEditRentalAsset";
 import RentalAssetForm from "../components/rental/rental-asset-form";
-import { RentalAsset } from "../lib/types";
+import { RentalAsset, RentalData } from "../lib/types";
 import { SortableHeader } from "../components/table/sort-table-header";
 import { PaginationControls } from "../components/table/pagination-controls";
 import { SelectionBar } from "../components/table/selection-bar";
@@ -50,6 +51,23 @@ export default function RentalAssets() {
 
   const getBranchId = () => (isManager ? currentBranchId ?? undefined : undefined);
   const { data: assets, isLoading } = useRentalAssets(getBranchId());
+
+  // Fetch active rentals to show tooltip on rented assets
+  const { data: activeRentalsData } = useRentals({
+    statusFilters: ["Created", "Released", "Ongoing"],
+    limit: 999,
+  });
+  const rentalByAssetId = useMemo(() => {
+    const activeRentals = (activeRentalsData?.data || []) as RentalData[];
+    const map: Record<number, { client: string; rental_no: string }> = {};
+    for (const r of activeRentals) {
+      map[r.rental_asset_id] = {
+        client: r.clients?.name || "Unknown",
+        rental_no: r.rental_no,
+      };
+    }
+    return map;
+  }, [activeRentalsData]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -238,19 +256,23 @@ export default function RentalAssets() {
                   </TableHead>
                   <TableHead className="w-[10%]">Status</TableHead>
                   <TableHead className="w-[10%]">Branch</TableHead>
-                  <TableHead className="w-[12%] text-right">
-                    <SortableHeader
-                      column="daily_rate"
-                      sortStates={sortStates}
-                      handleSort={handleSort}
-                    />
+                  <TableHead className="w-[12%]">
+                    <div className="flex">
+                      <SortableHeader
+                        column="daily_rate"
+                        sortStates={sortStates}
+                        handleSort={handleSort}
+                      />
+                    </div>
                   </TableHead>
-                  <TableHead className="w-[12%] text-right">
-                    <SortableHeader
-                      column="monthly_rate"
-                      sortStates={sortStates}
-                      handleSort={handleSort}
-                    />
+                  <TableHead className="w-[12%]">
+                    <div className="flex">
+                      <SortableHeader
+                        column="monthly_rate"
+                        sortStates={sortStates}
+                        handleSort={handleSort}
+                      />
+                    </div>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -286,15 +308,20 @@ export default function RentalAssets() {
                         <StatusBadge
                           status={asset.status}
                           statusList={rentalAssetStatuses}
+                          tooltip={
+                            rentalByAssetId[asset.id]
+                              ? `${rentalByAssetId[asset.id].rental_no} — ${rentalByAssetId[asset.id].client}`
+                              : undefined
+                          }
                         />
                       </TableCell>
                       <TableCell>
                         {asset.branches?.name || "—"}
                       </TableCell>
-                      <TableCell className="text-right font-bold text-black">
+                      <TableCell className="font-bold text-black">
                         ₱{formatNumberWithCommas(Number(asset.daily_rate))}
                       </TableCell>
-                      <TableCell className="text-right font-bold text-black">
+                      <TableCell className="font-bold text-black">
                         ₱{formatNumberWithCommas(Number(asset.monthly_rate))}
                       </TableCell>
                     </TableRow>

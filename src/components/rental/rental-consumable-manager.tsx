@@ -5,11 +5,10 @@ import { addConsumable, removeConsumable } from "../../services/apiRentals";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { getMaterialStocks } from "../../services/apiMaterials";
 import toast from "react-hot-toast";
-import { Check, ChevronsUpDown, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Trash } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import {
   Command,
@@ -19,7 +18,6 @@ import {
   CommandItem,
 } from "../ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { Badge } from "../ui/badge";
 
 interface RentalConsumableManagerProps {
   rentalId: number;
@@ -36,53 +34,62 @@ export default function RentalConsumableManager({
 }: RentalConsumableManagerProps) {
   const [showAddForm, setShowAddForm] = useState(false);
 
+  const consumablesTotal = consumables.reduce(
+    (sum, c) => sum + Number(c.total_amount),
+    0
+  );
+
   return (
-    <div className="space-y-2">
-      {consumables.length === 0 && !showAddForm && (
-        <p className="text-sm text-muted-foreground text-center py-2">
-          No consumables
-        </p>
-      )}
+    <div className="grid grid-cols-[1fr_0.4fr_0.5fr_0.5fr_0.2fr] gap-4 px-4 py-3 border rounded-xl">
+      <h2 className="text-sm">Consumable</h2>
+      <h2 className="text-sm">Quantity</h2>
+      <h2 className="text-sm">Unit Price</h2>
+      <h2 className="text-sm">Amount</h2>
+      <h2></h2>
 
       {consumables.map((c) => (
-        <ConsumableItem
-          key={c.id}
-          consumable={c}
-          canEdit={canEdit}
-        />
+        <ConsumableRow key={c.id} consumable={c} canEdit={canEdit} />
       ))}
 
-      {consumables.length > 0 && (
-        <div className="flex justify-end text-sm font-medium border-t pt-1">
-          Total: ₱
-          {consumables
-            .reduce((sum, c) => sum + Number(c.total_amount), 0)
-            .toFixed(2)}
-        </div>
-      )}
-
-      {canEdit && !showAddForm && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowAddForm(true)}
-        >
-          <Plus className="h-4 w-4 mr-1" /> Add Consumable
-        </Button>
-      )}
-
       {showAddForm && (
-        <AddConsumableForm
+        <AddConsumableRow
           rentalId={rentalId}
           branchId={branchId}
           onClose={() => setShowAddForm(false)}
         />
       )}
+
+      {canEdit && !showAddForm && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="border-dashed border-2 border-slate-800 col-span-2"
+          onClick={() => setShowAddForm(true)}
+        >
+          <Plus size={14} strokeWidth={1.5} className="mr-2" />
+          Add Consumable
+        </Button>
+      )}
+
+      {!canEdit && consumables.length === 0 && (
+        <p className="text-sm text-muted-foreground col-span-5 text-center py-2">
+          No consumables
+        </p>
+      )}
+
+      <div className="col-start-4">
+        <h3 className="text-sm font-bold">Consumable Total</h3>
+        <div className="flex items-center gap-1">
+          <p className="text-sm font-bold">₱</p>
+          <p className="text-sm">{consumablesTotal.toFixed(2)}</p>
+        </div>
+      </div>
     </div>
   );
 }
 
-function ConsumableItem({
+function ConsumableRow({
   consumable,
   canEdit,
 }: {
@@ -90,7 +97,6 @@ function ConsumableItem({
   canEdit: boolean;
 }) {
   const queryClient = useQueryClient();
-
   const removeMutation = useMutation({
     mutationFn: () => removeConsumable(consumable.id),
     onSuccess: () => {
@@ -101,39 +107,42 @@ function ConsumableItem({
   });
 
   return (
-    <div className="flex items-center justify-between border rounded px-3 py-2 text-sm">
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{consumable.description}</span>
-          <Badge variant="outline" className="text-[10px]">
-            {consumable.is_manual ? "Manual" : "Inventory"}
-          </Badge>
-        </div>
-        <span className="text-muted-foreground text-xs">
-          {consumable.quantity} x ₱{Number(consumable.unit_price).toFixed(2)}
+    <>
+      <div className="self-center">
+        <p className="text-sm">{consumable.description}</p>
+        <span className="text-[10px] text-muted-foreground">
+          {consumable.is_manual ? "Manual" : "Inventory"}
         </span>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="font-medium">
-          ₱{Number(consumable.total_amount).toFixed(2)}
-        </span>
+      <div className="flex items-center text-sm self-center">
+        {consumable.quantity}
+      </div>
+      <div className="flex items-center text-sm self-center">
+        ₱{Number(consumable.unit_price).toFixed(2)}
+      </div>
+      <div className="flex gap-1 self-center">
+        <p className="text-sm">₱</p>
+        <p className="text-sm">{Number(consumable.total_amount).toFixed(2)}</p>
+      </div>
+      <div className="self-center">
         {canEdit && (
           <Button
-            variant="ghost"
+            type="button"
+            variant="destructive"
             size="icon"
-            className="h-7 w-7"
+            className="text-xs p-2 h-fit w-fit"
             onClick={() => removeMutation.mutate()}
             disabled={removeMutation.isPending}
           >
-            <Trash2 className="h-4 w-4 text-destructive" />
+            <Trash size={12} strokeWidth={1.5} />
           </Button>
         )}
       </div>
-    </div>
+    </>
   );
 }
 
-function AddConsumableForm({
+function AddConsumableRow({
   rentalId,
   branchId,
   onClose,
@@ -149,6 +158,7 @@ function AddConsumableForm({
   const [quantity, setQuantity] = useState(1);
   const [unitPrice, setUnitPrice] = useState(0);
   const [comboOpen, setComboOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
 
   const { data: materialStocks } = useQuery({
     queryKey: ["material_stocks"],
@@ -180,116 +190,153 @@ function AddConsumableForm({
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const amount = quantity * unitPrice;
+
   return (
-    <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Switch checked={isManual} onCheckedChange={setIsManual} />
-          <Label className="text-xs text-muted-foreground">
-            {isManual ? "Manual Entry" : "From Inventory"}
-          </Label>
+    <>
+      {/* Material / Description */}
+      <div className="space-y-0 w-full">
+        <div className="flex items-center gap-2 mb-1">
+          <Switch
+            checked={isManual}
+            onCheckedChange={setIsManual}
+            className="scale-75"
+          />
+          <span className="text-[10px] text-muted-foreground">
+            {isManual ? "Manual" : "Inventory"}
+          </span>
         </div>
+        {isManual ? (
+          <Input
+            placeholder="Description"
+            className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        ) : (
+          <Popover open={comboOpen} onOpenChange={setComboOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                className="justify-between border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit"
+              >
+                <span className="truncate max-w-[200px] text-left">
+                  {selectedMaterial
+                    ? `${(selectedMaterial as any).material_name}`
+                    : "Select material"}
+                </span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="p-0 w-[300px]">
+              <Command>
+                <CommandInput
+                  placeholder="Search materials..."
+                  onValueChange={setSearchValue}
+                  value={searchValue}
+                />
+                <CommandEmpty>No material found.</CommandEmpty>
+                <CommandGroup className="max-h-[300px] overflow-y-auto">
+                  {filteredMaterials
+                    .filter(
+                      (stock: any) =>
+                        stock.material_name
+                          .toLowerCase()
+                          .includes(searchValue.toLowerCase())
+                    )
+                    .map((stock: any) => (
+                      <CommandItem
+                        key={stock.id}
+                        value={stock.material_name.toLowerCase()}
+                        onSelect={() => {
+                          setMaterialStockId(stock.id);
+                          setDescription(stock.material_name);
+                          setUnitPrice(stock.price);
+                          setComboOpen(false);
+                          setSearchValue("");
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4 flex-shrink-0",
+                            materialStockId === stock.id
+                              ? "opacity-100"
+                              : "opacity-0"
+                          )}
+                        />
+                        <span className="truncate">
+                          {stock.material_name}
+                        </span>
+                      </CommandItem>
+                    ))}
+                </CommandGroup>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
 
-      {isManual ? (
+      {/* Quantity */}
+      <div className="flex items-center space-x-2 text-sm self-end">
+        <button
+          type="button"
+          className="px-1 border rounded-full"
+          onClick={() => quantity > 1 && setQuantity(quantity - 1)}
+        >
+          -
+        </button>
+        <div className="text-center">{quantity}</div>
+        <button
+          type="button"
+          className="px-1 border rounded-full"
+          onClick={() => setQuantity(quantity + 1)}
+        >
+          +
+        </button>
+      </div>
+
+      {/* Unit Price */}
+      <div className="flex items-center self-end relative">
+        <span className="absolute pointer-events-none text-sm">₱</span>
         <Input
-          placeholder="Description (e.g., Black Ink Bottle)"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          type="number"
+          step="0.01"
+          min="0"
+          className="ml-3 border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
+          value={unitPrice}
+          onChange={(e) => setUnitPrice(Number(e.target.value))}
+          disabled={!isManual && !!materialStockId}
         />
-      ) : (
-        <Popover open={comboOpen} onOpenChange={setComboOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className="w-full justify-between font-normal text-sm"
-            >
-              {selectedMaterial
-                ? `${(selectedMaterial as any).material_name} (${(selectedMaterial as any).stocks} in stock)`
-                : "Select from inventory..."}
-              <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-full p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search materials..." />
-              <CommandEmpty>No materials found.</CommandEmpty>
-              <CommandGroup className="max-h-48 overflow-auto">
-                {filteredMaterials.map((material: any) => (
-                  <CommandItem
-                    key={material.id}
-                    value={`${material.material_name} ${material.brand || ""}`}
-                    onSelect={() => {
-                      setMaterialStockId(material.id);
-                      setDescription(material.material_name);
-                      setUnitPrice(material.price);
-                      setComboOpen(false);
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        materialStockId === material.id
-                          ? "opacity-100"
-                          : "opacity-0"
-                      )}
-                    />
-                    <div className="flex flex-col">
-                      <span>{material.material_name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        ₱{material.price} | {material.stocks} in stock
-                      </span>
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      )}
-
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <Label className="text-xs">Qty</Label>
-          <Input
-            type="number"
-            min="1"
-            value={quantity}
-            onChange={(e) => setQuantity(Number(e.target.value))}
-          />
-        </div>
-        <div>
-          <Label className="text-xs">Unit Price</Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={unitPrice}
-            onChange={(e) => setUnitPrice(Number(e.target.value))}
-            disabled={!isManual && !!materialStockId}
-          />
-        </div>
-        <div>
-          <Label className="text-xs">Total</Label>
-          <Input
-            value={`₱${(quantity * unitPrice).toFixed(2)}`}
-            disabled
-            className="bg-muted"
-          />
-        </div>
       </div>
 
-      <div className="flex gap-2 justify-end">
-        <Button variant="outline" size="sm" onClick={onClose}>
-          Cancel
-        </Button>
+      {/* Amount */}
+      <div className="flex gap-1 self-end">
+        <p className="text-sm">₱</p>
+        <p className="text-sm">{isNaN(amount) ? "0.00" : amount.toFixed(2)}</p>
+      </div>
+
+      {/* Actions */}
+      <div className="self-end flex gap-1">
         <Button
+          type="button"
           size="sm"
+          className="h-fit px-2 py-1 text-xs"
           onClick={() => addMutation.mutate()}
           disabled={!description || quantity < 1 || addMutation.isPending}
         >
-          {addMutation.isPending ? "Adding..." : "Add"}
+          {addMutation.isPending ? "..." : "Add"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-fit px-2 py-1 text-xs"
+          onClick={onClose}
+        >
+          ✕
         </Button>
       </div>
-    </div>
+    </>
   );
 }

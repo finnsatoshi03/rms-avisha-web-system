@@ -3,7 +3,7 @@ import HeaderText from "../components/ui/headerText";
 import { useUser } from "../components/auth/useUser";
 import { getRentalsFiltered } from "../services/apiRentals";
 import { getRentalAssets } from "../services/apiRentalAssets";
-import { RentalAsset, RentalData, RentalStatus } from "../lib/types";
+import { RentalAsset, RentalData } from "../lib/types";
 import { StatusBadge, rentalStatuses } from "../components/table/status-popover";
 import Loader from "../components/ui/loader";
 import {

@@ -33,6 +33,7 @@ import {
 } from "../ui/select";
 import PhoneInput from "../ui/phone-input";
 import { DatePicker } from "../ui/date-picker";
+import { format } from "date-fns";
 
 interface RentalFormProps {
   onSuccess?: (rentalData?: { rental_no: string }) => void;
@@ -46,6 +47,7 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
     daily_rate: number;
     monthly_rate: number;
   } | null>(null);
+  const [rentalMonths, setRentalMonths] = useState(1);
   const canSelectBranch = isAdmin;
 
   const { data: branches } = useQuery({
@@ -93,20 +95,20 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
     );
   }, [selectedBranchId, technicians]);
 
-  // Auto-calculate due date and end date for monthly
+  // Auto-calculate due date and end date for monthly based on rentalMonths
   useEffect(() => {
     if (startDate && rentalType === "MONTHLY") {
       const start = new Date(startDate + "T00:00:00");
-      const nextMonth = new Date(start);
-      nextMonth.setMonth(nextMonth.getMonth() + 1);
-      const endStr = nextMonth.toISOString().split("T")[0];
+      const endMonth = new Date(start);
+      endMonth.setMonth(endMonth.getMonth() + rentalMonths);
+      const endStr = endMonth.toISOString().split("T")[0];
       form.setValue("end_date", endStr);
       form.setValue("due_date", endStr);
       if (selectedAsset) {
-        form.setValue("rate_amount", selectedAsset.monthly_rate);
+        form.setValue("rate_amount", selectedAsset.monthly_rate * rentalMonths);
       }
     }
-  }, [startDate, rentalType, form, selectedAsset]);
+  }, [startDate, rentalType, rentalMonths, form, selectedAsset]);
 
   // Auto-calculate rate for daily based on number of days
   useEffect(() => {
@@ -386,63 +388,18 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
             )}
           />
 
-          <div className="grid grid-cols-2 gap-0">
-            <FormField
-              control={form.control}
-              name="start_date"
-              render={({ field }) => (
-                <FormItem className="border-b py-2 pr-2">
-                  <div className="space-y-0 flex justify-between items-center w-full">
-                    <FormLabel>Start Date</FormLabel>
-                    <FormControl>
-                      <DatePicker
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder="Pick start date"
-                      />
-                    </FormControl>
-                  </div>
-                  <FormMessage className="text-right" />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="end_date"
-              render={({ field }) => (
-                <FormItem className="border-b py-2 pl-2">
-                  <div className="space-y-0 flex justify-between items-center w-full">
-                    <FormLabel>
-                      End Date{rentalType === "DAILY" && " *"}
-                    </FormLabel>
-                    <FormControl>
-                      <DatePicker
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder="Pick end date"
-                        disabled={rentalType === "MONTHLY"}
-                      />
-                    </FormControl>
-                  </div>
-                  <FormMessage className="text-right" />
-                </FormItem>
-              )}
-            />
-          </div>
-
           <FormField
             control={form.control}
-            name="due_date"
+            name="start_date"
             render={({ field }) => (
               <FormItem className="border-b py-2">
                 <div className="space-y-0 flex justify-between items-center w-full">
-                  <FormLabel>Due Date</FormLabel>
+                  <FormLabel>Start Date</FormLabel>
                   <FormControl>
                     <DatePicker
                       value={field.value}
                       onChange={field.onChange}
-                      placeholder="Pick due date"
-                      disabled={rentalType === "MONTHLY"}
+                      placeholder="Pick start date"
                     />
                   </FormControl>
                 </div>
@@ -450,6 +407,87 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
               </FormItem>
             )}
           />
+
+          {rentalType === "MONTHLY" ? (
+            <>
+              <div className="border-b py-2">
+                <div className="space-y-0 flex justify-between items-center w-full">
+                  <span className="text-sm font-medium">Duration (months)</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="px-2 border rounded-full text-sm"
+                      onClick={() => rentalMonths > 1 && setRentalMonths(rentalMonths - 1)}
+                    >
+                      -
+                    </button>
+                    <span className="text-sm font-medium w-6 text-center">{rentalMonths}</span>
+                    <button
+                      type="button"
+                      className="px-2 border rounded-full text-sm"
+                      onClick={() => setRentalMonths(rentalMonths + 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                {startDate && (
+                  <p className="text-xs text-muted-foreground text-right mt-1">
+                    Ends on{" "}
+                    {format(
+                      new Date(
+                        new Date(startDate + "T00:00:00").setMonth(
+                          new Date(startDate + "T00:00:00").getMonth() + rentalMonths
+                        )
+                      ),
+                      "MMM d, yyyy"
+                    )}
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <FormField
+                control={form.control}
+                name="end_date"
+                render={({ field }) => (
+                  <FormItem className="border-b py-2">
+                    <div className="space-y-0 flex justify-between items-center w-full">
+                      <FormLabel>End Date *</FormLabel>
+                      <FormControl>
+                        <DatePicker
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Pick end date"
+                        />
+                      </FormControl>
+                    </div>
+                    <FormMessage className="text-right" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="due_date"
+                render={({ field }) => (
+                  <FormItem className="border-b py-2">
+                    <div className="space-y-0 flex justify-between items-center w-full">
+                      <FormLabel>Due Date</FormLabel>
+                      <FormControl>
+                        <DatePicker
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Pick due date"
+                        />
+                      </FormControl>
+                    </div>
+                    <FormMessage className="text-right" />
+                  </FormItem>
+                )}
+              />
+            </>
+          )}
 
           <FormField
             control={form.control}

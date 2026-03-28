@@ -18,20 +18,6 @@ const json = (status: number, body: unknown) =>
     },
   });
 
-type AccountWithBalance = {
-  id: string;
-  account_number: string;
-  interest_rate: number;
-  billing_contact_name: string | null;
-  billing_contact_email: string | null;
-  billing_cutoff_day: number;
-  clients: {
-    name: string;
-    email: string | null;
-  } | null;
-  outstanding_balance: number;
-};
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
