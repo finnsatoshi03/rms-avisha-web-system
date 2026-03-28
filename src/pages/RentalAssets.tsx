@@ -18,6 +18,10 @@ import { useRentalAssets } from "../components/rental/useRentalAssets";
 import { useRentals } from "../components/rental/useRentals";
 import { useDeleteRentalAsset } from "../components/rental/useCreateEditRentalAsset";
 import RentalAssetForm from "../components/rental/rental-asset-form";
+import { useFeatureOnboarding } from "../components/onboarding/useFeatureOnboarding";
+import FeatureAnnouncementModal from "../components/onboarding/feature-announcement-modal";
+import GuidedTour from "../components/onboarding/guided-tour";
+import TourReplayButton from "../components/onboarding/tour-replay-button";
 import { RentalAsset, RentalData } from "../lib/types";
 import { SortableHeader } from "../components/table/sort-table-header";
 import { PaginationControls } from "../components/table/pagination-controls";
@@ -81,6 +85,15 @@ export default function RentalAssets() {
   }>({});
 
   const deleteMutation = useDeleteRentalAsset();
+
+  const {
+    showAnnouncement,
+    showTour,
+    onboardingData,
+    startTour,
+    completeTour,
+    replayTour,
+  } = useFeatureOnboarding("rental_assets");
 
   // Auto-open sheet if ?add=true
   useEffect(() => {
@@ -165,12 +178,15 @@ export default function RentalAssets() {
 
   return (
     <div className="h-full flex flex-col">
-      <HeaderText>Rental Printers</HeaderText>
+      <div className="flex items-center gap-2">
+        <HeaderText>Rental Printers</HeaderText>
+        <TourReplayButton onClick={replayTour} label="How to manage rental printers" />
+      </div>
 
       {/* Controls */}
       <div className="my-4 flex sm:flex-row flex-col sm:gap-0 gap-2 justify-between">
         <div className="flex items-center gap-3">
-          <div className="relative">
+          <div className="relative" data-tour="rental-assets-search">
             <Input
               value={searchTerm}
               onChange={(e) => {
@@ -202,6 +218,7 @@ export default function RentalAssets() {
 
           <button
             className="px-4 py-1.5 text-sm bg-primaryRed hover:bg-hoveredRed text-white flex items-center rounded-lg gap-1"
+            data-tour="rental-assets-add"
             onClick={() => {
               setEditAsset(null);
               setIsSheetOpen(true);
@@ -221,7 +238,7 @@ export default function RentalAssets() {
           </div>
         ) : (
           <div className="flex flex-col flex-1">
-            <TableUI>
+            <TableUI data-tour="rental-assets-table">
               <TableHeader>
                 <TableRow className="bg-slate-100 border-none">
                   <TableHead className="w-[3%]">
@@ -254,9 +271,9 @@ export default function RentalAssets() {
                       handleSort={handleSort}
                     />
                   </TableHead>
-                  <TableHead className="w-[10%]">Status</TableHead>
+                  <TableHead className="w-[10%]" data-tour="rental-assets-status">Status</TableHead>
                   <TableHead className="w-[10%]">Branch</TableHead>
-                  <TableHead className="w-[12%]">
+                  <TableHead className="w-[12%]" data-tour="rental-assets-rates">
                     <div className="flex">
                       <SortableHeader
                         column="daily_rate"
@@ -384,6 +401,18 @@ export default function RentalAssets() {
           </SheetHeader>
         </SheetContent>
       </Sheet>
+
+      {/* Onboarding */}
+      <FeatureAnnouncementModal
+        open={showAnnouncement}
+        onboarding={onboardingData}
+        onStartTour={startTour}
+      />
+      <GuidedTour
+        featureKey="rental_assets"
+        active={showTour}
+        onComplete={completeTour}
+      />
 
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -30,6 +30,10 @@ import PrintOptionsDialog from "../components/job-order/print-option-dialog";
 import { formatNumberWithCommas, getStatusClass } from "../lib/helpers";
 import debounce from "lodash/debounce";
 import toast from "react-hot-toast";
+import { useFeatureOnboarding } from "../components/onboarding/useFeatureOnboarding";
+import FeatureAnnouncementModal from "../components/onboarding/feature-announcement-modal";
+import GuidedTour from "../components/onboarding/guided-tour";
+import TourReplayButton from "../components/onboarding/tour-replay-button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -85,6 +89,15 @@ export default function Rentals() {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printRentalNo, setPrintRentalNo] = useState<string | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
+
+  const {
+    showAnnouncement,
+    showTour,
+    onboardingData,
+    startTour,
+    completeTour,
+    replayTour,
+  } = useFeatureOnboarding("rental_management");
 
   const debouncedSearch = useCallback(
     debounce((term: string) => {
@@ -223,13 +236,16 @@ export default function Rentals() {
 
   return (
     <div className="h-full flex flex-col">
-      <HeaderText>Rentals</HeaderText>
+      <div className="flex items-center gap-2">
+        <HeaderText>Rentals</HeaderText>
+        <TourReplayButton onClick={replayTour} label="How to manage rentals" />
+      </div>
 
       {/* Top Controls — mirrors JobOrders layout */}
       <div className="my-4 flex sm:flex-row flex-col sm:gap-0 gap-2 justify-between">
         <div className="flex items-center gap-3">
           {/* Search Input */}
-          <div className="relative">
+          <div className="relative" data-tour="rentals-search">
             <Input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -260,7 +276,7 @@ export default function Rentals() {
           {/* Add Rental Sheet */}
           <Sheet open={isRentalSheetOpen} onOpenChange={setIsRentalSheetOpen}>
             <SheetTrigger asChild>
-              <button className="px-4 py-1.5 text-sm bg-primaryRed hover:bg-hoveredRed text-white flex items-center rounded-lg gap-1">
+              <button className="px-4 py-1.5 text-sm bg-primaryRed hover:bg-hoveredRed text-white flex items-center rounded-lg gap-1" data-tour="rentals-add">
                 <Plus size={18} />
                 Add
               </button>
@@ -287,6 +303,7 @@ export default function Rentals() {
           {/* Add Printer — navigates to Rental Assets page */}
           <button
             className="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center rounded-lg gap-1 border border-gray-300"
+            data-tour="rentals-add-printer"
             onClick={() => navigate("/rental-assets?add=true")}
           >
             <Printer size={16} />
@@ -300,6 +317,7 @@ export default function Rentals() {
         <div className="flex flex-wrap gap-2 items-center">
           {/* Overdue Filter */}
           <button
+            data-tour="rentals-overdue-filter"
             onClick={() => {
               setShowOverdueOnly(!showOverdueOnly);
               setCurrentPage(1);
@@ -315,28 +333,30 @@ export default function Rentals() {
             {showOverdueOnly && <X size={12} />}
           </button>
 
-          {allStatuses.map((status) => (
-            <button
-              key={status.value}
-              onClick={() => handleStatusFilterClick(status.value)}
-              className={getStatusBadgeClass(
-                status.value,
-                selectedStatusFilters.includes(status.value)
-              )}
-            >
-              {status.label}
-            </button>
-          ))}
+          <div className="flex flex-wrap gap-2 items-center" data-tour="rentals-status-filters">
+            {allStatuses.map((status) => (
+              <button
+                key={status.value}
+                onClick={() => handleStatusFilterClick(status.value)}
+                className={getStatusBadgeClass(
+                  status.value,
+                  selectedStatusFilters.includes(status.value)
+                )}
+              >
+                {status.label}
+              </button>
+            ))}
 
-          {selectedStatusFilters.length > 0 && (
-            <button
-              onClick={() => setSelectedStatusFilters([])}
-              className="px-3 py-0.5 rounded-full text-xs font-medium bg-gray-100 hover:bg-gray-200 transition-all duration-200 flex items-center gap-1"
-            >
-              Clear Filters
-              <X size={14} />
-            </button>
-          )}
+            {selectedStatusFilters.length > 0 && (
+              <button
+                onClick={() => setSelectedStatusFilters([])}
+                className="px-3 py-0.5 rounded-full text-xs font-medium bg-gray-100 hover:bg-gray-200 transition-all duration-200 flex items-center gap-1"
+              >
+                Clear Filters
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Active filters indicator */}
@@ -386,6 +406,7 @@ export default function Rentals() {
           </div>
         ) : (
         <RentalTable
+          data-tour="rentals-table"
           className="flex-1"
           rentals={rentals}
           totalCount={totalCount}
@@ -417,6 +438,18 @@ export default function Rentals() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         rental={selectedRental}
+      />
+
+      {/* Onboarding */}
+      <FeatureAnnouncementModal
+        open={showAnnouncement}
+        onboarding={onboardingData}
+        onStartTour={startTour}
+      />
+      <GuidedTour
+        featureKey="rental_management"
+        active={showTour}
+        onComplete={completeTour}
       />
 
       {/* Delete Confirmation */}

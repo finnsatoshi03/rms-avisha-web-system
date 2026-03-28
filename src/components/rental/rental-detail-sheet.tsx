@@ -107,6 +107,7 @@ export default function RentalDetailSheet({
   const [selectedDiscount, setSelectedDiscount] = useState<number | null>(null);
   const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(false);
 
+
   const { data: branches } = useQuery({
     queryKey: ["branches"],
     queryFn: getBranches,

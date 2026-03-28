@@ -107,13 +107,26 @@ export default function GuidedTour({
       const tryFind = () => {
         const el = document.querySelector(step.target);
         if (el) {
-          const rect = el.getBoundingClientRect();
-          // Sanity check: rect must have dimensions (not hidden/collapsed)
-          if (rect.width > 0 && rect.height > 0) {
-            setTargetRect(rect);
-            setStepReady(true);
-            return;
-          }
+          // Scroll the element into view before measuring
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          setTimeout(() => {
+            const rect = el.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+              setTargetRect(rect);
+              setStepReady(true);
+            } else {
+              attempts++;
+              if (attempts < maxAttempts) {
+                setTimeout(tryFind, delay);
+              } else if (currentStep < validSteps.length - 1) {
+                setCurrentStep((prev) => prev + 1);
+              } else {
+                cleanup();
+                onComplete();
+              }
+            }
+          }, 350);
+          return;
         }
         attempts++;
         if (attempts < maxAttempts) {

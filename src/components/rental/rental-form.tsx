@@ -39,6 +39,10 @@ import { useDownpayment } from "../job-order/useDownpayment";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import { X } from "lucide-react";
 import { format } from "date-fns";
+import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
+import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
+import GuidedTour from "../onboarding/guided-tour";
+import TourReplayButton from "../onboarding/tour-replay-button";
 
 interface RentalFormProps {
   onSuccess?: (rentalData?: { rental_no: string }) => void;
@@ -57,6 +61,15 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
   const [selectedDiscount, setSelectedDiscount] = useState<number | null>(null);
   const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(false);
   const canSelectBranch = isAdmin;
+
+  const {
+    showAnnouncement,
+    showTour,
+    onboardingData,
+    startTour,
+    completeTour,
+    replayTour,
+  } = useFeatureOnboarding("rental_create");
 
   const { data: branches } = useQuery({
     queryKey: ["branches"],
@@ -185,12 +198,16 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)}>
+        <div className="flex justify-end mb-2">
+          <TourReplayButton onClick={replayTour} label="How to create a rental" />
+        </div>
+
         {/* Client Name — prominent like JO form */}
         <FormField
           control={form.control}
           name="name"
           render={() => (
-            <FormItem className="mb-2">
+            <FormItem className="mb-2" data-tour="rental-create-client">
               <FormControl>
                 <ClientAutoSuggest
                   selectedClient={selectedClient}
@@ -205,7 +222,7 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
         />
 
         {/* Basic Information */}
-        <div>
+        <div data-tour="rental-create-basic-info">
           <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">
             Basic Information
           </h2>
@@ -287,7 +304,7 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
         </div>
 
         {/* Rental Details */}
-        <div>
+        <div data-tour="rental-create-details">
           <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
             Rental Details
           </h2>
@@ -526,7 +543,7 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
         </div>
 
         {/* Consumables */}
-        <div>
+        <div data-tour="rental-create-consumables">
           <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
             Consumables
           </h2>
@@ -555,7 +572,7 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
         />
 
         {/* Button + Summary — same as JO form */}
-        <div className="flex md:flex-row flex-col md:justify-between mt-2">
+        <div className="flex md:flex-row flex-col md:justify-between mt-2" data-tour="rental-create-summary">
           <button
             type="submit"
             disabled={createMutation.isPending}
@@ -681,6 +698,17 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
           setSelectedDiscount(d);
           setDiscountDialogOpen(false);
         }}
+      />
+
+      <FeatureAnnouncementModal
+        open={showAnnouncement}
+        onboarding={onboardingData}
+        onStartTour={startTour}
+      />
+      <GuidedTour
+        featureKey="rental_create"
+        active={showTour}
+        onComplete={completeTour}
       />
     </Form>
   );

@@ -30,6 +30,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
+import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
+import GuidedTour from "../onboarding/guided-tour";
+import TourReplayButton from "../onboarding/tour-replay-button";
 
 interface RentalAssetFormProps {
   editAsset?: RentalAsset | null;
@@ -44,6 +48,15 @@ export default function RentalAssetForm({
   const createMutation = useCreateRentalAsset();
   const updateMutation = useUpdateRentalAsset();
   const isEditing = !!editAsset;
+
+  const {
+    showAnnouncement,
+    showTour,
+    onboardingData,
+    startTour,
+    completeTour,
+    replayTour,
+  } = useFeatureOnboarding("rental_asset_create");
 
   const { data: branches } = useQuery({
     queryKey: ["branches"],
@@ -84,8 +97,14 @@ export default function RentalAssetForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)}>
+        {!isEditing && (
+          <div className="flex justify-end mb-2">
+            <TourReplayButton onClick={replayTour} label="How to add a printer" />
+          </div>
+        )}
+
         {/* Printer Info */}
-        <div>
+        <div data-tour="rental-asset-create-info">
           <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">
             Printer Information
           </h2>
@@ -145,7 +164,7 @@ export default function RentalAssetForm({
         </div>
 
         {/* Rates & Branch */}
-        <div>
+        <div data-tour="rental-asset-create-rates">
           <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
             Rates & Assignment
           </h2>
@@ -254,6 +273,7 @@ export default function RentalAssetForm({
           type="submit"
           className="w-full bg-primaryRed hover:bg-hoveredRed text-white"
           disabled={isPending}
+          data-tour="rental-asset-create-submit"
         >
           {isPending
             ? "Saving..."
@@ -262,6 +282,21 @@ export default function RentalAssetForm({
               : "Add Printer"}
         </Button>
       </form>
+
+      {!isEditing && (
+        <>
+          <FeatureAnnouncementModal
+            open={showAnnouncement}
+            onboarding={onboardingData}
+            onStartTour={startTour}
+          />
+          <GuidedTour
+            featureKey="rental_asset_create"
+            active={showTour}
+            onComplete={completeTour}
+          />
+        </>
+      )}
     </Form>
   );
 }

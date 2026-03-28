@@ -39,6 +39,7 @@ interface RentalTableProps {
   onStatusChange?: (ids: number[], status: string) => void;
   onEdit?: (rental: RentalData) => void;
   className?: string;
+  "data-tour"?: string;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -68,6 +69,7 @@ export default function RentalTable({
   onStatusChange,
   onEdit,
   className,
+  "data-tour": dataTour,
 }: RentalTableProps) {
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
 
@@ -88,7 +90,7 @@ export default function RentalTable({
   };
 
   return (
-    <div className={`flex flex-col ${className || ""}`}>
+    <div className={`flex flex-col ${className || ""}`} data-tour={dataTour}>
       {/* Floating selection bar */}
       <SelectionBar
         count={selectedIds.length}
