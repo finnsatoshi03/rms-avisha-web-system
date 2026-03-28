@@ -8,6 +8,11 @@ import {
   XCircle,
   Wallet,
   Receipt,
+  Truck,
+  PlayCircle,
+  RotateCcw,
+  Wrench,
+  Power,
 } from "lucide-react";
 import { getStatusClass } from "../../lib/helpers";
 import {
@@ -28,9 +33,9 @@ export type Status = {
   icon: LucideIcon;
 };
 
+// ── Job Order statuses ──
 export const statuses: Status[] = [
   { value: "pending", label: "Pending", icon: CircleDashed },
-  // { value: "quotation", label: "Quotation", icon: Receipt },
   { value: "for approval", label: "For Approval", icon: CircleDashed },
   { value: "repairing", label: "Repairing", icon: CircleDotDashed },
   { value: "waiting parts", label: "Waiting Parts", icon: CircleDotDashed },
@@ -41,6 +46,26 @@ export const statuses: Status[] = [
   { value: "for collection", label: "For Collection", icon: Wallet },
   { value: "for billing", label: "For Billing", icon: Receipt },
 ];
+
+// ── Rental statuses ──
+export const rentalStatuses: Status[] = [
+  { value: "created", label: "Created", icon: CircleDashed },
+  { value: "released", label: "Released", icon: Truck },
+  { value: "ongoing", label: "Ongoing", icon: PlayCircle },
+  { value: "returned", label: "Returned", icon: RotateCcw },
+  { value: "completed", label: "Completed", icon: CheckCircle2 },
+  { value: "cancelled", label: "Cancelled", icon: XCircle },
+];
+
+// ── Rental asset statuses ──
+export const rentalAssetStatuses: Status[] = [
+  { value: "available", label: "Available", icon: CheckCircle2 },
+  { value: "rented", label: "Rented", icon: Truck },
+  { value: "maintenance", label: "Maintenance", icon: Wrench },
+  { value: "retired", label: "Retired", icon: Power },
+];
+
+// ── Original JO-specific popover (unchanged API) ──
 export const StatusPopover = ({
   order,
   handleStatusChange,
@@ -57,7 +82,6 @@ export const StatusPopover = ({
     onOpenChange={(isOpen) => setOpenPopover(isOpen ? order.order_no : null)}
   >
     <PopoverTrigger asChild>
-      {/* remove cursor-not-allowed pointer-events-none if wants to be a popover */}
       <p
         className={`cursor-pointer px-2 py-0.5 rounded-full w-fit flex items-center font-bold ${getStatusClass(
           order.status
@@ -102,3 +126,63 @@ export const StatusPopover = ({
     </PopoverContent>
   </Popover>
 );
+
+// ── Generic status badge — uses the same Popover wrapper as JO ──
+export function StatusBadge({
+  status,
+  statusList,
+}: {
+  status: string;
+  statusList?: Status[];
+}) {
+  const matched = (statusList || []).find(
+    (s) => s.value === status.toLowerCase()
+  );
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <p
+          className={`cursor-pointer px-2 py-0.5 rounded-full w-fit flex items-center font-bold ${getStatusClass(
+            status
+          )} cursor-not-allowed pointer-events-none`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {matched?.label || status}
+        </p>
+      </PopoverTrigger>
+      <PopoverContent className="p-0" side="right" align="start">
+        <Command>
+          <CommandInput placeholder="Change status..." />
+          <CommandList>
+            <CommandEmpty>No results found.</CommandEmpty>
+            <CommandGroup>
+              {(statusList || []).map((s) => (
+                <span key={s.value} onClick={(e) => e.stopPropagation()}>
+                  <CommandItem
+                    value={s.value}
+                    className={
+                      s.value === status.toLowerCase()
+                        ? "opacity-100 font-semibold"
+                        : "opacity-70"
+                    }
+                  >
+                    <s.icon
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        s.value === status.toLowerCase()
+                          ? "opacity-100 text-primaryRed"
+                          : "opacity-40"
+                      )}
+                    />
+                    <span>{s.label}</span>
+                  </CommandItem>
+                </span>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}

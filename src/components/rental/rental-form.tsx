@@ -32,15 +32,20 @@ import {
   SelectValue,
 } from "../ui/select";
 import PhoneInput from "../ui/phone-input";
+import { DatePicker } from "../ui/date-picker";
 
 interface RentalFormProps {
-  onSuccess?: () => void;
+  onSuccess?: (rentalData?: { rental_no: string }) => void;
 }
 
 export default function RentalForm({ onSuccess }: RentalFormProps) {
   const { user, branchId, isAdmin } = useUser();
   const createMutation = useCreateRental();
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<{
+    daily_rate: number;
+    monthly_rate: number;
+  } | null>(null);
   const canSelectBranch = isAdmin;
 
   const { data: branches } = useQuery({
@@ -78,6 +83,7 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
   const selectedBranchId = form.watch("branch_id");
   const rentalType = form.watch("rental_type");
   const startDate = form.watch("start_date");
+  const endDate = form.watch("end_date");
 
   const filteredTechnicians = useMemo(() => {
     if (!technicians) return [];
@@ -87,14 +93,32 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
     );
   }, [selectedBranchId, technicians]);
 
-  // Auto-calculate due date
+  // Auto-calculate due date and end date for monthly
   useEffect(() => {
     if (startDate && rentalType === "MONTHLY") {
-      const start = new Date(startDate);
-      start.setMonth(start.getMonth() + 1);
-      form.setValue("due_date", start.toISOString().split("T")[0]);
+      const start = new Date(startDate + "T00:00:00");
+      const nextMonth = new Date(start);
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      const endStr = nextMonth.toISOString().split("T")[0];
+      form.setValue("end_date", endStr);
+      form.setValue("due_date", endStr);
+      if (selectedAsset) {
+        form.setValue("rate_amount", selectedAsset.monthly_rate);
+      }
     }
-  }, [startDate, rentalType, form]);
+  }, [startDate, rentalType, form, selectedAsset]);
+
+  // Auto-calculate rate for daily based on number of days
+  useEffect(() => {
+    if (rentalType === "DAILY" && startDate && endDate && selectedAsset) {
+      const start = new Date(startDate + "T00:00:00");
+      const end = new Date(endDate + "T00:00:00");
+      const diffTime = end.getTime() - start.getTime();
+      const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      form.setValue("rate_amount", selectedAsset.daily_rate * diffDays);
+      form.setValue("due_date", endDate);
+    }
+  }, [startDate, endDate, rentalType, form, selectedAsset]);
 
   function handleClientSelect(client: Client) {
     setSelectedClient(client);
@@ -118,7 +142,11 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
         data: { ...values, created_by: user?.id },
         clientId: values.client_id || null,
       },
-      { onSuccess: () => onSuccess?.() }
+      {
+        onSuccess: (result) => {
+          onSuccess?.({ rental_no: result.rental_no });
+        },
+      }
     );
   }
 
@@ -290,6 +318,7 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
                       value={field.value}
                       onChange={(id, asset) => {
                         field.onChange(id);
+                        setSelectedAsset(asset);
                         const type = form.getValues("rental_type");
                         form.setValue(
                           "rate_amount",
@@ -322,11 +351,28 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
                   <FormLabel>Rental Type</FormLabel>
                   <FormControl>
                     <Select
-                      onValueChange={field.onChange}
+                      onValueChange={(val) => {
+                        field.onChange(val);
+                        if (selectedAsset) {
+                          form.setValue(
+                            "rate_amount",
+                            val === "DAILY"
+                              ? selectedAsset.daily_rate
+                              : selectedAsset.monthly_rate
+                          );
+                        }
+                      }}
                       defaultValue={field.value}
+                      disabled={!form.watch("rental_asset_id")}
                     >
                       <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
-                        <SelectValue />
+                        <SelectValue
+                          placeholder={
+                            !form.watch("rental_asset_id")
+                              ? "Select a printer first"
+                              : "Select type"
+                          }
+                        />
                       </SelectTrigger>
                       <SelectContent align="end">
                         <SelectItem value="DAILY">Daily</SelectItem>
@@ -349,10 +395,10 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
                   <div className="space-y-0 flex justify-between items-center w-full">
                     <FormLabel>Start Date</FormLabel>
                     <FormControl>
-                      <Input
-                        type="date"
-                        className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
-                        {...field}
+                      <DatePicker
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Pick start date"
                       />
                     </FormControl>
                   </div>
@@ -366,12 +412,15 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
               render={({ field }) => (
                 <FormItem className="border-b py-2 pl-2">
                   <div className="space-y-0 flex justify-between items-center w-full">
-                    <FormLabel>End Date</FormLabel>
+                    <FormLabel>
+                      End Date{rentalType === "DAILY" && " *"}
+                    </FormLabel>
                     <FormControl>
-                      <Input
-                        type="date"
-                        className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
-                        {...field}
+                      <DatePicker
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Pick end date"
+                        disabled={rentalType === "MONTHLY"}
                       />
                     </FormControl>
                   </div>
@@ -389,10 +438,11 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
                 <div className="space-y-0 flex justify-between items-center w-full">
                   <FormLabel>Due Date</FormLabel>
                   <FormControl>
-                    <Input
-                      type="date"
-                      className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
-                      {...field}
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Pick due date"
+                      disabled={rentalType === "MONTHLY"}
                     />
                   </FormControl>
                 </div>

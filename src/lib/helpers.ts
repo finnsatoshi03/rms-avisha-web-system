@@ -28,6 +28,24 @@ export function getStatusClass(status: string) {
       return "status-for-collection";
     case "for billing":
       return "status-for-billing";
+    // Rental asset statuses
+    case "available":
+      return "status-available";
+    case "rented":
+      return "status-rented";
+    case "maintenance":
+      return "status-maintenance";
+    // Rental statuses
+    case "created":
+      return "status-created";
+    case "released":
+      return "status-released";
+    case "ongoing":
+      return "status-ongoing";
+    case "returned":
+      return "status-returned";
+    case "cancelled":
+      return "status-cancelled";
     default:
       return "";
   }

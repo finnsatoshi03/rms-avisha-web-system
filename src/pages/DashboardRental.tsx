@@ -4,7 +4,7 @@ import { useUser } from "../components/auth/useUser";
 import { getRentalsFiltered } from "../services/apiRentals";
 import { getRentalAssets } from "../services/apiRentalAssets";
 import { RentalAsset, RentalData, RentalStatus } from "../lib/types";
-import { RentalStatusBadge } from "../components/rental/rental-status-badge";
+import { StatusBadge, rentalStatuses } from "../components/table/status-popover";
 import Loader from "../components/ui/loader";
 import {
   AlertTriangle,
@@ -198,7 +198,7 @@ export default function DashboardRental() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <RentalStatusBadge status={rental.status as RentalStatus} />
+                    <StatusBadge status={rental.status} statusList={rentalStatuses} />
                     <p className="text-xs text-red-500 mt-1">
                       Due:{" "}
                       {rental.due_date

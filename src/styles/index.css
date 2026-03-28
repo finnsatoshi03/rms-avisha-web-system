@@ -167,6 +167,42 @@ td:last-of-type {
   color: #831843;
 }
 
+/* Rental asset statuses */
+.status-available {
+  background-color: #4caf4f3f;
+  color: #1c411d;
+}
+.status-rented {
+  background-color: #007bff4b;
+  color: #002144;
+}
+.status-maintenance {
+  background-color: #ffa5003f;
+  color: #5c3c00;
+}
+
+/* Rental statuses */
+.status-created {
+  background-color: #ffc1073f;
+  color: #5e4703;
+}
+.status-released {
+  background-color: #007bff4b;
+  color: #002144;
+}
+.status-ongoing {
+  background-color: #4caf4f3f;
+  color: #1c411d;
+}
+.status-returned {
+  background-color: #ffa5003f;
+  color: #5c3c00;
+}
+.status-cancelled {
+  background-color: #f4433643;
+  color: #41120f;
+}
+
 @keyframes slideUp {
   from {
     transform: translateY(100%);

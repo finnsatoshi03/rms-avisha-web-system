@@ -9,10 +9,11 @@ import {
   RentalConsumable,
   Client,
 } from "../../lib/types";
-import { RentalStatusBadge } from "./rental-status-badge";
+import { StatusBadge, rentalStatuses } from "../table/status-popover";
 import { useRentalStatusUpdate } from "./useRentalStatusUpdate";
 import { useUpdateRental } from "./useUpdateRental";
 import ReturnInspectionDialog from "./return-inspection-dialog";
+import RentalPaymentDialog from "./rental-payment-dialog";
 import RentalConsumableManager from "./rental-consumable-manager";
 import RentalAssetSelect from "./rental-asset-select";
 import ClientAutoSuggest from "../job-order/client-auto-suggest";
@@ -48,6 +49,7 @@ import {
 } from "../ui/select";
 import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
+import { DatePicker } from "../ui/date-picker";
 import {
   AlertTriangle,
   ChevronRight,
@@ -91,6 +93,7 @@ export default function RentalDetailSheet({
   rental,
 }: RentalDetailSheetProps) {
   const [inspectionOpen, setInspectionOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const statusMutation = useRentalStatusUpdate();
   const updateMutation = useUpdateRental();
@@ -144,13 +147,29 @@ export default function RentalDetailSheet({
       setInspectionOpen(true);
       return;
     }
+    if (status === "Completed") {
+      setPaymentOpen(true);
+      return;
+    }
     statusMutation.mutate(
       { ids: [rental!.id], status },
       {
         onSuccess: () => {
-          if (status === "Completed" || status === "Cancelled") {
+          if (status === "Cancelled") {
             onOpenChange(false);
           }
+        },
+      }
+    );
+  }
+
+  function handlePaymentSubmit(_payments: Record<string, number>) {
+    statusMutation.mutate(
+      { ids: [rental!.id], status: "Completed" },
+      {
+        onSuccess: () => {
+          setPaymentOpen(false);
+          onOpenChange(false);
         },
       }
     );
@@ -258,7 +277,7 @@ export default function RentalDetailSheet({
               <span className="bg-primaryRed text-white px-3 py-0.5 rounded-full text-xs font-medium">
                 {rental.rental_no}
               </span>
-              <RentalStatusBadge status={rental.status as RentalStatus} />
+              <StatusBadge status={rental.status} statusList={rentalStatuses} />
               {rental.is_overdue && (
                 <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1">
                   <AlertTriangle size={10} />
@@ -495,11 +514,11 @@ export default function RentalDetailSheet({
                         <div className="space-y-0 flex justify-between items-center w-full">
                           <FormLabel>Start Date</FormLabel>
                           <FormControl>
-                            <Input
-                              type="date"
-                              className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
+                            <DatePicker
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Pick start date"
                               disabled={isFormReadonly}
-                              {...field}
                             />
                           </FormControl>
                         </div>
@@ -515,11 +534,11 @@ export default function RentalDetailSheet({
                         <div className="space-y-0 flex justify-between items-center w-full">
                           <FormLabel>End Date</FormLabel>
                           <FormControl>
-                            <Input
-                              type="date"
-                              className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
+                            <DatePicker
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Pick end date"
                               disabled={isFormReadonly}
-                              {...field}
                             />
                           </FormControl>
                         </div>
@@ -537,11 +556,11 @@ export default function RentalDetailSheet({
                       <div className="space-y-0 flex justify-between items-center w-full">
                         <FormLabel>Due Date</FormLabel>
                         <FormControl>
-                          <Input
-                            type="date"
-                            className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
+                          <DatePicker
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="Pick due date"
                             disabled={isFormReadonly}
-                            {...field}
                           />
                         </FormControl>
                       </div>
@@ -703,6 +722,14 @@ export default function RentalDetailSheet({
         onOpenChange={setInspectionOpen}
         rental={rental}
         existingInspection={inspection}
+      />
+
+      <RentalPaymentDialog
+        open={paymentOpen}
+        onClose={() => setPaymentOpen(false)}
+        onSubmit={handlePaymentSubmit}
+        grandTotal={Number(rental.grand_total)}
+        rentalNo={rental.rental_no}
       />
     </>
   );

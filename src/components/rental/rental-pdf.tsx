@@ -1,346 +1,483 @@
 import {
   Document,
+  Font,
+  Image,
   Page,
+  StyleSheet,
   Text,
   View,
-  StyleSheet,
 } from "@react-pdf/renderer";
 import { RentalData, RentalConsumable, RentalInspection } from "../../lib/types";
 import {
   getBranchPdfHeaderLinesWithFallback,
   isSupportLine,
 } from "../../lib/branch-pdf-header";
+import font1 from "/fonts/Montserrat-Bold.ttf";
+import font2 from "/fonts/Montserrat-Black.ttf";
 
-const styles = StyleSheet.create({
-  page: {
-    padding: 40,
-    fontSize: 10,
-    fontFamily: "Helvetica",
-  },
-  header: {
-    textAlign: "center",
-    marginBottom: 15,
-  },
-  headerLine: {
-    fontSize: 9,
-    marginBottom: 2,
-  },
-  headerLineSmall: {
-    fontSize: 8,
-    color: "#555",
-    marginBottom: 1,
-  },
-  title: {
-    fontSize: 14,
-    fontFamily: "Helvetica-Bold",
-    textAlign: "center",
-    marginBottom: 15,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  row: {
-    flexDirection: "row",
-    marginBottom: 4,
-  },
-  label: {
-    width: 130,
-    fontFamily: "Helvetica-Bold",
-    fontSize: 9,
-  },
-  value: {
-    flex: 1,
-    fontSize: 9,
-  },
-  section: {
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 10,
-    fontFamily: "Helvetica-Bold",
-    marginBottom: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: "#333",
-    paddingBottom: 2,
-  },
-  tableHeader: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "#333",
-    paddingBottom: 3,
-    marginBottom: 3,
-    fontFamily: "Helvetica-Bold",
-    fontSize: 9,
-  },
-  tableRow: {
-    flexDirection: "row",
-    paddingVertical: 2,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#ddd",
-    fontSize: 9,
-  },
-  colDesc: { flex: 3 },
-  colQty: { width: 50, textAlign: "center" },
-  colPrice: { width: 70, textAlign: "right" },
-  colTotal: { width: 70, textAlign: "right" },
-  totalsSection: {
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#333",
-    alignItems: "flex-end",
-  },
-  totalRow: {
-    flexDirection: "row",
-    marginBottom: 2,
-    width: 200,
-  },
-  totalLabel: {
-    flex: 1,
-    fontSize: 9,
-  },
-  totalValue: {
-    width: 80,
-    textAlign: "right",
-    fontSize: 9,
-  },
-  grandTotal: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 11,
-  },
-  footer: {
-    position: "absolute",
-    bottom: 40,
-    left: 40,
-    right: 40,
-    textAlign: "center",
-    fontSize: 8,
-    color: "#666",
-  },
-});
+Font.register({ family: "Montserrat-Bold", src: font1 });
+Font.register({ family: "Montserrat-Black", src: font2 });
 
 interface RentalPDFProps {
   rental: RentalData;
+  type?: "company" | "client" | "both" | null;
 }
 
-export default function RentalPDF({ rental }: RentalPDFProps) {
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "---";
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function Content({ rental }: { rental: RentalData }) {
   const headerLines = getBranchPdfHeaderLinesWithFallback(
     rental.branch_id,
     rental.branches?.pdf_header ?? null
   );
-
   const consumables = (rental.rental_consumables || []) as RentalConsumable[];
   const inspection = rental.rental_inspections as RentalInspection | null;
 
   return (
-    <Document>
-      <Page size="A4" style={styles.page}>
-        {/* Branch Header */}
-        <View style={styles.header}>
-          <Text
-            style={{
-              fontSize: 13,
-              fontFamily: "Helvetica-Bold",
-              marginBottom: 4,
-            }}
-          >
-            {rental.branches?.name || "RMS"}
-          </Text>
+    <>
+      {/* Header with logo */}
+      <View style={s.header}>
+        <Image style={s.headerLogo} src="./RMS-Logo.png" />
+        <View style={s.headerText}>
           {headerLines.map((line, i) => (
             <Text
-              key={i}
-              style={
-                isSupportLine(line) ? styles.headerLineSmall : styles.headerLine
-              }
+              key={`${line}-${i}`}
+              style={isSupportLine(line) ? { color: "#f12924" } : undefined}
             >
               {line}
             </Text>
           ))}
         </View>
+      </View>
 
-        <Text style={styles.title}>Rental Agreement</Text>
+      {/* Main table */}
+      <View style={s.table}>
+        {/* Title */}
+        <Text style={[s.tableTitle, { borderBottom: "1px solid black" }]}>
+          RENTAL AGREEMENT
+        </Text>
 
-        {/* Rental Info */}
-        <View style={styles.section}>
-          <View style={styles.row}>
-            <Text style={styles.label}>Rental No:</Text>
-            <Text style={styles.value}>{rental.rental_no}</Text>
-            <Text style={styles.label}>Date:</Text>
-            <Text style={styles.value}>
-              {new Date(rental.created_at).toLocaleDateString()}
-            </Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Status:</Text>
-            <Text style={styles.value}>{rental.status}</Text>
-            <Text style={styles.label}>Type:</Text>
-            <Text style={styles.value}>{rental.rental_type}</Text>
-          </View>
+        {/* Row: Client Name | Rental No */}
+        <View style={s.row}>
+          <Text style={[s.label, s.br]}>Client Name</Text>
+          <Text style={[s.val, s.br]}>{rental.clients?.name || "---"}</Text>
+          <Text style={[s.label, s.br]}>Rental No.</Text>
+          <Text style={[s.val, { color: "#f12924" }]}>{rental.rental_no}</Text>
         </View>
 
-        {/* Client Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Client Information</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Name:</Text>
-            <Text style={styles.value}>{rental.clients?.name || "—"}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Contact:</Text>
-            <Text style={styles.value}>
-              {rental.clients?.contact_number || "—"}
-            </Text>
-          </View>
-          {rental.clients?.email && (
-            <View style={styles.row}>
-              <Text style={styles.label}>Email:</Text>
-              <Text style={styles.value}>{rental.clients.email}</Text>
-            </View>
-          )}
+        {/* Row: Contact | Date */}
+        <View style={s.row}>
+          <Text style={[s.label, s.br]}>Client Number</Text>
+          <Text style={[s.val, s.br]}>
+            {rental.clients?.contact_number || "---"}
+          </Text>
+          <Text style={[s.label, s.br]}>Date</Text>
+          <Text style={s.val}>{formatDate(rental.created_at)}</Text>
         </View>
 
-        {/* Printer Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Printer Details</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Printer:</Text>
-            <Text style={styles.value}>
-              {rental.rental_assets?.unit_name || "—"}
-            </Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Model:</Text>
-            <Text style={styles.value}>
-              {rental.rental_assets?.model || "—"}
-            </Text>
-            <Text style={styles.label}>S/N:</Text>
-            <Text style={styles.value}>
-              {rental.rental_assets?.serial_number || "—"}
-            </Text>
-          </View>
+        {/* Row: Email | Rental Type */}
+        <View style={s.row}>
+          <Text style={[s.label, s.br]}>Client Email</Text>
+          <Text style={[s.val, s.br]}>{rental.clients?.email || "---"}</Text>
+          <Text style={[s.label, s.br]}>Rental Type</Text>
+          <Text style={s.val}>{rental.rental_type}</Text>
         </View>
 
-        {/* Rental Period */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rental Period</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Start Date:</Text>
-            <Text style={styles.value}>
-              {rental.start_date
-                ? new Date(rental.start_date).toLocaleDateString()
-                : "—"}
-            </Text>
-            <Text style={styles.label}>End Date:</Text>
-            <Text style={styles.value}>
-              {rental.end_date
-                ? new Date(rental.end_date).toLocaleDateString()
-                : "—"}
-            </Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Due Date:</Text>
-            <Text style={styles.value}>
-              {rental.due_date
-                ? new Date(rental.due_date).toLocaleDateString()
-                : "—"}
-            </Text>
-            <Text style={styles.label}>Rate:</Text>
-            <Text style={styles.value}>
-              ₱{Number(rental.rate_amount).toFixed(2)}
-            </Text>
-          </View>
+        {/* Printer section header */}
+        <View style={s.row}>
+          <Text style={[s.label, s.br]}>Printer</Text>
+          <Text style={[s.val, s.br]}>
+            {rental.rental_assets?.unit_name || "---"}
+          </Text>
+          <Text style={[s.label, s.br]}>Model</Text>
+          <Text style={[s.label, s.br]}>Serial Number</Text>
+          <Text style={s.label}>Technician</Text>
+        </View>
+        <View style={s.row}>
+          <Text style={[s.label, s.br]}></Text>
+          <Text style={[s.val, s.br]}></Text>
+          <Text style={[s.col17, s.br]}>
+            {rental.rental_assets?.model || "---"}
+          </Text>
+          <Text style={[s.col17, s.br]}>
+            {rental.rental_assets?.serial_number || "---"}
+          </Text>
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <Text style={s.col17}>
+            {(rental.users as any)?.fullname || "---"}
+          </Text>
         </View>
 
-        {/* Consumables Table */}
+        {/* Period row */}
+        <View style={s.row}>
+          <Text style={[s.label, s.br]}>Start Date</Text>
+          <Text style={[s.col17, s.br]}>{formatDate(rental.start_date)}</Text>
+          <Text style={[s.label, s.br]}>End Date</Text>
+          <Text style={[s.col17, s.br]}>{formatDate(rental.end_date)}</Text>
+          <Text style={[s.label, s.br]}>Due Date</Text>
+          <Text style={s.col17}>{formatDate(rental.due_date)}</Text>
+        </View>
+
+        {/* Rate */}
+        <View style={s.row}>
+          <Text
+            style={[
+              s.col66,
+              s.br,
+              {
+                fontSize: 8,
+                textTransform: "uppercase",
+                textAlign: "center",
+                fontFamily: "Montserrat-Bold",
+              },
+            ]}
+          >
+            Notes
+          </Text>
+          <Text style={[s.label, s.br]}>Rate</Text>
+          <Text style={s.col17}>P{Number(rental.rate_amount).toFixed(2)}</Text>
+        </View>
+        <View style={s.row}>
+          <Text style={[s.col66, s.br]}>{rental.notes || ""}</Text>
+          <Text style={[s.label, s.br]}>Rate Total</Text>
+          <Text style={s.col17}>P{Number(rental.rate_amount).toFixed(2)}</Text>
+        </View>
+
+        {/* Consumables */}
         {consumables.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Consumables</Text>
-            <View style={styles.tableHeader}>
-              <Text style={styles.colDesc}>Description</Text>
-              <Text style={styles.colQty}>Qty</Text>
-              <Text style={styles.colPrice}>Unit Price</Text>
-              <Text style={styles.colTotal}>Total</Text>
-            </View>
-            {consumables.map((c, i) => (
-              <View key={i} style={styles.tableRow}>
-                <Text style={styles.colDesc}>{c.description}</Text>
-                <Text style={styles.colQty}>{c.quantity}</Text>
-                <Text style={styles.colPrice}>
-                  ₱{Number(c.unit_price).toFixed(2)}
-                </Text>
-                <Text style={styles.colTotal}>
-                  ₱{Number(c.total_amount).toFixed(2)}
-                </Text>
-              </View>
-            ))}
+          <View style={s.row}>
+            <Text
+              style={[
+                s.col50,
+                s.br,
+                {
+                  fontSize: 8,
+                  textTransform: "uppercase",
+                  textAlign: "center",
+                  fontFamily: "Montserrat-Bold",
+                },
+              ]}
+            >
+              Consumable Description
+            </Text>
+            <Text style={[s.label, s.br]}>Quantity</Text>
+            <Text style={[s.label, s.br]}>Unit Price</Text>
+            <Text style={s.label}>Amount</Text>
           </View>
         )}
+        {consumables.map((c, i) => (
+          <View style={s.row} key={i}>
+            <Text style={[s.col50, s.br]}>{c.description}</Text>
+            <Text style={[s.col17, s.br]}>{c.quantity}</Text>
+            <Text style={[s.col17, s.br]}>
+              P{Number(c.unit_price).toFixed(2)}
+            </Text>
+            <Text style={s.col17}>P{Number(c.total_amount).toFixed(2)}</Text>
+          </View>
+        ))}
 
         {/* Totals */}
-        <View style={styles.totalsSection}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Rate Amount:</Text>
-            <Text style={styles.totalValue}>
-              ₱{Number(rental.rate_amount).toFixed(2)}
+        <View style={s.row}>
+          <Text style={[s.col66, s.br]}></Text>
+          <Text style={[s.label, s.br, { fontSize: 10 }]}>
+            Consumables Total
+          </Text>
+          <Text style={s.col17}>
+            P{Number(rental.consumables_total).toFixed(2)}
+          </Text>
+        </View>
+        <View style={s.row}>
+          <Text style={[s.col66, s.br]}></Text>
+          <Text style={[s.label, s.br, { fontSize: 10 }]}>Grand Total</Text>
+          <Text style={s.col17}>
+            P{Number(rental.grand_total).toFixed(2)}
+          </Text>
+        </View>
+
+        {/* Terms */}
+        <View style={s.row}>
+          <Text
+            style={{
+              fontSize: 7,
+              textAlign: "center",
+              textTransform: "uppercase",
+              width: "100%",
+            }}
+          >
+            Terms and Condition
+          </Text>
+        </View>
+        <View
+          style={[
+            s.row,
+            { fontSize: 6, justifyContent: "space-between", padding: 5 },
+          ]}
+        >
+          <View style={{ width: "45%" }}>
+            <Text>
+              1. This rental agreement covers the printer unit listed above. The
+              client is responsible for the proper care and usage of the
+              equipment.
+            </Text>
+            <Text>
+              2. The rental rate is billed as indicated above. Late payments may
+              incur additional charges.
+            </Text>
+            <Text>
+              3. The client shall be liable for any damage, loss, or theft of the
+              equipment during the rental period.
+            </Text>
+            <Text>
+              4. Consumables used during the rental period will be charged
+              separately as listed above.
             </Text>
           </View>
-          {Number(rental.consumables_total) > 0 && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Consumables:</Text>
-              <Text style={styles.totalValue}>
-                ₱{Number(rental.consumables_total).toFixed(2)}
-              </Text>
-            </View>
-          )}
-          <View style={[styles.totalRow, { marginTop: 4 }]}>
-            <Text style={[styles.totalLabel, styles.grandTotal]}>
-              Grand Total:
+          <View style={{ width: "45%" }}>
+            <Text>
+              5. The equipment must be returned in the same condition as received,
+              subject to normal wear and tear.
             </Text>
-            <Text style={[styles.totalValue, styles.grandTotal]}>
-              ₱{Number(rental.grand_total).toFixed(2)}
+            <Text>
+              6. RMS AVISHA ENTERPRISES reserves the right to inspect the
+              equipment upon return and assess penalties for damage.
+            </Text>
+            <Text>
+              7. Early termination may result in a fee not exceeding one month's
+              rental.
+            </Text>
+            <Text>
+              8. The company shall not be held liable for loss or damages in the
+              event of fire, typhoon, flood, and other acts of God.
             </Text>
           </View>
         </View>
 
-        {/* Inspection Summary (if exists) */}
+        {/* Signatures */}
+        <View style={s.row}>
+          <Text style={[s.label, s.br]}>Client Name</Text>
+          <Text style={[s.col17, s.br]}>{rental.clients?.name || "---"}</Text>
+          <Text style={[s.label, s.br]}>Client Signature</Text>
+          <Text style={[s.col17, s.br]}></Text>
+          <Text style={[s.label, s.br]}>Date of Approval</Text>
+        </View>
+        <View style={s.row}>
+          <Text style={[s.label, s.br]}>Received by</Text>
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <Text style={[s.col17, s.br]}>
+            {(rental.users as any)?.fullname || "---"}
+          </Text>
+          <Text style={[s.label, s.br]}>Receiver Signature</Text>
+          <Text style={[s.col17, s.br]}></Text>
+          <Text style={[s.label, s.br]}>Date Released</Text>
+          <Text style={s.col17}>
+            {rental.status === "Completed"
+              ? formatDate(rental.updated_at)
+              : "---"}
+          </Text>
+        </View>
+
+        {/* Inspection summary if exists */}
         {inspection && (
-          <View style={[styles.section, { marginTop: 15 }]}>
-            <Text style={styles.sectionTitle}>Inspection Summary</Text>
-            {inspection.physical_condition && (
-              <View style={styles.row}>
-                <Text style={styles.label}>Physical Condition:</Text>
-                <Text style={styles.value}>
-                  {inspection.physical_condition}
+          <>
+            <View style={{ borderBottom: "1px dashed black", height: 10 }} />
+            <View style={[s.row, { height: 10 }]} />
+            <Text
+              style={[s.tableTitle, { borderBottom: "1px solid black" }]}
+            >
+              RETURN INSPECTION
+            </Text>
+            <View style={s.row}>
+              <Text style={[s.label, s.br]}>Physical Condition</Text>
+              <Text style={[s.val, s.br]}>
+                {inspection.physical_condition || "---"}
+              </Text>
+              <Text style={[s.label, s.br]}>Print Quality</Text>
+              <Text style={s.val}>{inspection.print_quality || "---"}</Text>
+            </View>
+            {(inspection.meter_reading_start != null ||
+              inspection.meter_reading_end != null) && (
+              <View style={s.row}>
+                <Text style={[s.label, s.br]}>Meter Start</Text>
+                <Text style={[s.val, s.br]}>
+                  {inspection.meter_reading_start ?? "---"}
                 </Text>
-              </View>
-            )}
-            {inspection.print_quality && (
-              <View style={styles.row}>
-                <Text style={styles.label}>Print Quality:</Text>
-                <Text style={styles.value}>{inspection.print_quality}</Text>
+                <Text style={[s.label, s.br]}>Meter End</Text>
+                <Text style={s.val}>
+                  {inspection.meter_reading_end ?? "---"}
+                </Text>
               </View>
             )}
             {inspection.missing_items && (
-              <View style={styles.row}>
-                <Text style={styles.label}>Missing Items:</Text>
-                <Text style={styles.value}>{inspection.missing_items}</Text>
+              <View style={s.row}>
+                <Text style={[s.label, s.br]}>Missing Items</Text>
+                <Text style={s.val}>{inspection.missing_items}</Text>
               </View>
             )}
             {inspection.damage_penalty > 0 && (
-              <View style={styles.row}>
-                <Text style={styles.label}>Damage Penalty:</Text>
-                <Text style={styles.value}>
-                  ₱{Number(inspection.damage_penalty).toFixed(2)}
+              <View style={s.row}>
+                <Text style={[s.label, s.br]}>Damage Penalty</Text>
+                <Text style={s.val}>
+                  P{Number(inspection.damage_penalty).toFixed(2)}
                 </Text>
               </View>
             )}
-          </View>
+            {inspection.notes && (
+              <View style={s.row}>
+                <Text style={[s.label, s.br]}>Notes</Text>
+                <Text style={s.val}>{inspection.notes}</Text>
+              </View>
+            )}
+          </>
         )}
-
-        {/* Footer */}
-        <Text style={styles.footer}>
-          {rental.branches?.pdf_footer || "Thank you for your business!"}
-        </Text>
-      </Page>
-    </Document>
+      </View>
+    </>
   );
 }
+
+const Watermark = () => <Text style={s.watermark}>COPY</Text>;
+
+export default function RentalPDF({ rental, type }: RentalPDFProps) {
+  const footerText =
+    rental.branches?.pdf_footer?.trim() || "No Copy no claim";
+
+  const printBoth = (
+    <>
+      <Page style={s.page}>
+        <Content rental={rental} />
+      </Page>
+      <Page style={s.page}>
+        <Watermark />
+        <Content rental={rental} />
+        <Text style={s.footer}>{footerText}</Text>
+      </Page>
+    </>
+  );
+
+  const content = (
+    <>
+      {type === "company" && (
+        <Page style={s.page}>
+          <Content rental={rental} />
+        </Page>
+      )}
+      {type === "client" && (
+        <Page style={s.page}>
+          <Watermark />
+          <Content rental={rental} />
+          <Text style={s.footer}>{footerText}</Text>
+        </Page>
+      )}
+      {(!type || type === "both") && printBoth}
+    </>
+  );
+
+  return <Document>{content}</Document>;
+}
+
+const s = StyleSheet.create({
+  page: {
+    position: "relative",
+    flexDirection: "column",
+    padding: 20,
+    fontSize: 10,
+    fontFamily: "Helvetica",
+  },
+  header: {
+    width: "100%",
+    display: "flex",
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 5,
+  },
+  headerLogo: {
+    width: 150,
+  },
+  headerText: {
+    fontSize: 12,
+  },
+  table: {
+    marginTop: 10,
+    display: "flex",
+    border: "1px solid black",
+  },
+  tableTitle: {
+    paddingVertical: 3,
+    width: "100%",
+    color: "#f12924",
+    textAlign: "center",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "Montserrat-Bold",
+  },
+  row: {
+    display: "flex",
+    flexDirection: "row",
+    borderBottom: "1px solid black",
+  },
+  br: {
+    borderRight: "1px solid black",
+  },
+  label: {
+    padding: 2,
+    fontWeight: 600,
+    fontSize: 7,
+    width: "16.66%",
+    textTransform: "uppercase",
+    fontFamily: "Montserrat-Bold",
+  },
+  val: {
+    fontSize: 9,
+    width: "33.32%",
+    padding: 2,
+  },
+  col17: {
+    fontSize: 9,
+    padding: 2,
+    width: "16.66%",
+  },
+  col50: {
+    fontSize: 9,
+    padding: 2,
+    width: "49.98%",
+  },
+  col66: {
+    fontSize: 9,
+    padding: 2,
+    width: "66.64%",
+  },
+  footer: {
+    width: "100%",
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    textAlign: "center",
+    marginTop: 5,
+    fontSize: 14,
+    textTransform: "uppercase",
+    fontFamily: "Montserrat-Black",
+  },
+  watermark: {
+    position: "absolute",
+    fontSize: 150,
+    color: "rgba(150, 150, 150, 0.3)",
+    fontFamily: "Montserrat-Black",
+    transform: "rotate(-45deg)",
+    top: "50%",
+    left: "50%",
+    marginLeft: -200,
+    marginTop: -100,
+    zIndex: -1,
+  },
+});

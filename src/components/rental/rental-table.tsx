@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
-import { RentalData, RentalStatus } from "../../lib/types";
-import { RentalStatusBadge } from "./rental-status-badge";
+import { RentalData } from "../../lib/types";
+import { StatusBadge, rentalStatuses } from "../table/status-popover";
 import { SortableHeader } from "../table/sort-table-header";
 import { PaginationControls } from "../table/pagination-controls";
+import { SelectionBar } from "../table/selection-bar";
+import { formatNumberWithCommas } from "../../lib/helpers";
 import {
   Table as TableUI,
   TableBody,
@@ -13,7 +14,8 @@ import {
   TableRow,
 } from "../ui/table";
 import { Checkbox } from "../ui/checkbox";
-import { AlertTriangle, FileDown, Trash2, X } from "lucide-react";
+import { AlertTriangle, FileDown, Trash2 } from "lucide-react";
+import { Button } from "../ui/button";
 
 interface RentalTableProps {
   rentals: RentalData[];
@@ -30,6 +32,16 @@ interface RentalTableProps {
   onExportPdf?: (rental: RentalData) => void;
   onDelete?: (ids: number[]) => void;
   className?: string;
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "Asia/Singapore",
+  });
 }
 
 export default function RentalTable({
@@ -49,14 +61,6 @@ export default function RentalTable({
   className,
 }: RentalTableProps) {
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
-  const [animationClass, setAnimationClass] = useState("");
-  const showNotification = selectedIds.length > 0;
-
-  useEffect(() => {
-    if (showNotification) {
-      setAnimationClass("slideUp");
-    }
-  }, [showNotification]);
 
   const toggleAll = () => {
     if (selectedIds.length === rentals.length) {
@@ -76,6 +80,34 @@ export default function RentalTable({
 
   return (
     <div className={`flex flex-col ${className || ""}`}>
+      {/* Floating selection bar */}
+      <SelectionBar
+        count={selectedIds.length}
+        onClear={() => onSelectionChange([])}
+      >
+        {selectedIds.length === 1 && onExportPdf && (
+          <Button
+            className="rounded-full bg-slate-700 gap-1"
+            onClick={() => {
+              const rental = rentals.find((r) => r.id === selectedIds[0]);
+              if (rental) onExportPdf(rental);
+            }}
+          >
+            <FileDown size={14} />
+            <span className="text-xs">Export PDF</span>
+          </Button>
+        )}
+        {onDelete && (
+          <Button
+            className="rounded-full bg-red-700 gap-1"
+            onClick={() => onDelete(selectedIds)}
+          >
+            <Trash2 size={14} />
+            <span className="text-xs">Delete</span>
+          </Button>
+        )}
+      </SelectionBar>
+
       <TableUI>
         <TableHeader>
           <TableRow className="bg-slate-100 border-none">
@@ -95,22 +127,22 @@ export default function RentalTable({
               />
             </TableHead>
             <TableHead className="w-[18%]">Client Name</TableHead>
-            <TableHead className="w-[15%]">Printer</TableHead>
-            <TableHead className="w-[12%]">
+            <TableHead className="w-[13%]">Printer</TableHead>
+            <TableHead className="w-[10%]">
               <SortableHeader
                 column="status"
                 sortStates={sortStates}
                 handleSort={onSort}
               />
             </TableHead>
-            <TableHead className="w-[10%]">
+            <TableHead className="w-[12%]">
               <SortableHeader
                 column="start_date"
                 sortStates={sortStates}
                 handleSort={onSort}
               />
             </TableHead>
-            <TableHead className="w-[10%]">
+            <TableHead className="w-[12%]">
               <SortableHeader
                 column="due_date"
                 sortStates={sortStates}
@@ -118,7 +150,7 @@ export default function RentalTable({
               />
             </TableHead>
             <TableHead className="w-[12%]">Technician</TableHead>
-            <TableHead className="w-[10%] text-right">
+            <TableHead className="w-[10%]">
               <SortableHeader
                 column="grand_total"
                 sortStates={sortStates}
@@ -154,18 +186,9 @@ export default function RentalTable({
                       onCheckedChange={() => toggleOne(rental.id)}
                     />
                   </TableCell>
-                  <TableCell className="font-medium text-gray-800">
-                    {rental.rental_no}
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium text-sm text-gray-700">
-                        {rental.clients?.name || "—"}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {rental.clients?.contact_number || ""}
-                      </p>
-                    </div>
+                  <TableCell>{rental.rental_no}</TableCell>
+                  <TableCell className="font-bold text-black">
+                    {rental.clients?.name || "—"}
                   </TableCell>
                   <TableCell>
                     <p className="text-sm">
@@ -177,8 +200,9 @@ export default function RentalTable({
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <RentalStatusBadge
-                        status={rental.status as RentalStatus}
+                      <StatusBadge
+                        status={rental.status}
+                        statusList={rentalStatuses}
                       />
                       {isOverdue && (
                         <span className="text-red-600 flex items-center gap-0.5 text-[10px]">
@@ -187,25 +211,26 @@ export default function RentalTable({
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">
-                    {rental.start_date
-                      ? new Date(rental.start_date).toLocaleDateString()
-                      : "—"}
+                  <TableCell>{formatDate(rental.start_date)}</TableCell>
+                  <TableCell
+                    className={isOverdue ? "text-red-600 font-medium" : ""}
+                  >
+                    {formatDate(rental.due_date)}
                   </TableCell>
                   <TableCell
-                    className={`text-sm ${isOverdue ? "text-red-600 font-medium" : ""}`}
+                    className={
+                      !(rental.users as any)?.fullname &&
+                      !(rental.users as any)?.email
+                        ? "text-red-600 font-bold"
+                        : ""
+                    }
                   >
-                    {rental.due_date
-                      ? new Date(rental.due_date).toLocaleDateString()
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="text-sm">
                     {(rental.users as any)?.fullname ||
                       (rental.users as any)?.email ||
-                      "—"}
+                      "Not Assigned"}
                   </TableCell>
-                  <TableCell className="text-right font-medium text-gray-700">
-                    ₱{Number(rental.grand_total).toFixed(2)}
+                  <TableCell className="font-bold text-black">
+                    ₱{formatNumberWithCommas(Number(rental.grand_total))}
                   </TableCell>
                 </TableRow>
               );
@@ -224,57 +249,6 @@ export default function RentalTable({
           handleItemsPerPageChange={onItemsPerPageChange}
         />
       </div>
-
-      {/* Selection Notification Bar — mirrors JO table pattern */}
-      {showNotification && (
-        <div className="w-full flex items-center justify-center h-0">
-          <div
-            className={`w-fit text-sm bg-slate-800 md:py-3 py-5 md:px-5 px-8 text-white rounded-3xl md:rounded-full absolute bottom-4 flex md:flex-row flex-col md:gap-0 gap-4 items-center justify-between ${animationClass} z-50`}
-            style={{
-              animation: `${animationClass} 0.2s ease-out forwards`,
-            }}
-          >
-            <div className="flex items-center gap-4">
-              <X
-                size={16}
-                className="cursor-pointer"
-                onClick={() => onSelectionChange([])}
-              />
-              <p>
-                <span className="p-1 bg-slate-700 size-6 rounded">
-                  {selectedIds.length}
-                </span>{" "}
-                row(s) selected
-              </p>
-            </div>
-            <div className="flex gap-2 md:ml-4">
-              {selectedIds.length === 1 && onExportPdf && (
-                <button
-                  onClick={() => {
-                    const rental = rentals.find(
-                      (r) => r.id === selectedIds[0]
-                    );
-                    if (rental) onExportPdf(rental);
-                  }}
-                  className="text-white hover:text-gray-300 flex items-center gap-1 px-2"
-                >
-                  <FileDown size={14} />
-                  <span className="text-xs">Export PDF</span>
-                </button>
-              )}
-              {onDelete && (
-                <button
-                  onClick={() => onDelete(selectedIds)}
-                  className="text-red-400 hover:text-red-300 flex items-center gap-1 px-2"
-                >
-                  <Trash2 size={14} />
-                  <span className="text-xs">Delete</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

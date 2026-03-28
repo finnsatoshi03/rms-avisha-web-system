@@ -20,6 +20,9 @@ import RentalAssetForm from "../components/rental/rental-asset-form";
 import { RentalAsset } from "../lib/types";
 import { SortableHeader } from "../components/table/sort-table-header";
 import { PaginationControls } from "../components/table/pagination-controls";
+import { SelectionBar } from "../components/table/selection-bar";
+import { StatusBadge, rentalAssetStatuses } from "../components/table/status-popover";
+import { formatNumberWithCommas } from "../lib/helpers";
 import {
   Table as TableUI,
   TableBody,
@@ -29,7 +32,6 @@ import {
   TableRow,
 } from "../components/ui/table";
 import { Checkbox } from "../components/ui/checkbox";
-import { Badge } from "../components/ui/badge";
 import toast from "react-hot-toast";
 import {
   AlertDialog,
@@ -139,11 +141,7 @@ export default function RentalAssets() {
       .catch((err) => toast.error(err.message));
   };
 
-  const statusColor: Record<string, string> = {
-    available: "bg-green-100 text-green-700",
-    rented: "bg-blue-100 text-blue-700",
-    maintenance: "bg-amber-100 text-amber-700",
-  };
+  // no-op — status uses getStatusClass
 
   const hasFilters = !!searchTerm;
 
@@ -285,24 +283,19 @@ export default function RentalAssets() {
                       <TableCell>{asset.model || "—"}</TableCell>
                       <TableCell>{asset.serial_number || "—"}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            statusColor[asset.status] ||
-                            "bg-gray-100 text-gray-700"
-                          }
-                        >
-                          {asset.status}
-                        </Badge>
+                        <StatusBadge
+                          status={asset.status}
+                          statusList={rentalAssetStatuses}
+                        />
                       </TableCell>
                       <TableCell>
                         {asset.branches?.name || "—"}
                       </TableCell>
-                      <TableCell className="text-right">
-                        ₱{Number(asset.daily_rate).toFixed(2)}
+                      <TableCell className="text-right font-bold text-black">
+                        ₱{formatNumberWithCommas(Number(asset.daily_rate))}
                       </TableCell>
-                      <TableCell className="text-right">
-                        ₱{Number(asset.monthly_rate).toFixed(2)}
+                      <TableCell className="text-right font-bold text-black">
+                        ₱{formatNumberWithCommas(Number(asset.monthly_rate))}
                       </TableCell>
                     </TableRow>
                   ))
@@ -324,35 +317,18 @@ export default function RentalAssets() {
               />
             </div>
 
-            {/* Selection bar */}
-            {selectedIds.length > 0 && (
-              <div className="w-full flex items-center justify-center h-0">
-                <div className="w-fit text-sm bg-slate-800 md:py-3 py-5 md:px-5 px-8 text-white rounded-3xl md:rounded-full absolute bottom-4 flex md:flex-row flex-col md:gap-0 gap-4 items-center justify-between slideUp z-50">
-                  <div className="flex items-center gap-4">
-                    <X
-                      size={16}
-                      className="cursor-pointer"
-                      onClick={() => setSelectedIds([])}
-                    />
-                    <p>
-                      <span className="p-1 bg-slate-700 size-6 rounded">
-                        {selectedIds.length}
-                      </span>{" "}
-                      row(s) selected
-                    </p>
-                  </div>
-                  <div className="flex gap-2 md:ml-4">
-                    <button
-                      onClick={() => setDeleteDialogOpen(true)}
-                      className="text-red-400 hover:text-red-300 flex items-center gap-1 px-2"
-                    >
-                      <Trash2 size={14} />
-                      <span className="text-xs">Delete</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            <SelectionBar
+              count={selectedIds.length}
+              onClear={() => setSelectedIds([])}
+            >
+              <Button
+                className="rounded-full bg-red-700 gap-1"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 size={14} />
+                <span className="text-xs">Delete</span>
+              </Button>
+            </SelectionBar>
           </div>
         )}
       </ErrorBoundary>

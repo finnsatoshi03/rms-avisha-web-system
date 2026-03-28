@@ -25,6 +25,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import RentalPDF from "../components/rental/rental-pdf";
+import PrintOptionsDialog from "../components/job-order/print-option-dialog";
 import debounce from "lodash/debounce";
 import toast from "react-hot-toast";
 import {
@@ -89,6 +90,9 @@ export default function Rentals() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printRentalNo, setPrintRentalNo] = useState<string | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const debouncedSearch = useCallback(
     debounce((term: string) => {
@@ -176,6 +180,28 @@ export default function Rentals() {
     }
   };
 
+  const handlePrintAfterCreate = async () => {
+    if (!printRentalNo) return;
+    setIsPrinting(true);
+    try {
+      // Find the newly created rental from the query data
+      const rental = rentals.find((r) => r.rental_no === printRentalNo);
+      if (rental) {
+        const blob = await pdf(<RentalPDF rental={rental} />).toBlob();
+        saveAs(blob, `Rental-${rental.rental_no}.pdf`);
+        toast.success("PDF exported");
+      } else {
+        toast.error("Rental not found yet — try exporting from the table.");
+      }
+    } catch {
+      toast.error("Failed to export PDF");
+    } finally {
+      setIsPrinting(false);
+      setPrintDialogOpen(false);
+      setPrintRentalNo(null);
+    }
+  };
+
   const hasFilters =
     searchTerm ||
     selectedStatusFilters.length > 0 ||
@@ -232,7 +258,13 @@ export default function Rentals() {
                 </SheetTitle>
                 <Separator className="my-2" />
                 <RentalForm
-                  onSuccess={() => setIsRentalSheetOpen(false)}
+                  onSuccess={(rentalData) => {
+                    setIsRentalSheetOpen(false);
+                    if (rentalData?.rental_no) {
+                      setPrintRentalNo(rentalData.rental_no);
+                      setPrintDialogOpen(true);
+                    }
+                  }}
                 />
               </SheetHeader>
             </SheetContent>
@@ -392,6 +424,17 @@ export default function Rentals() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Print Dialog after create */}
+      <PrintOptionsDialog
+        open={printDialogOpen}
+        onClose={() => {
+          setPrintDialogOpen(false);
+          setPrintRentalNo(null);
+        }}
+        onSelectOption={() => handlePrintAfterCreate()}
+        loading={isPrinting}
+      />
     </div>
   );
 }
