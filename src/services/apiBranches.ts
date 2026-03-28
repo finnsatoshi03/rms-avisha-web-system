@@ -30,7 +30,7 @@ export type BranchDependencyCounts = {
   expenses_count: number;
   technicians_count: number;
   quotations_count: number;
-  units_count: number;
+  rental_assets_count: number;
   rentals_count: number;
 };
 
@@ -213,7 +213,7 @@ export async function getBranchDependencyCounts(
     expenses_count: Number(row?.expenses_count ?? 0),
     technicians_count: Number(row?.technicians_count ?? 0),
     quotations_count: Number(row?.quotations_count ?? 0),
-    units_count: Number(row?.units_count ?? 0),
+    rental_assets_count: Number(row?.rental_assets_count ?? 0),
     rentals_count: Number(row?.rentals_count ?? 0),
   };
 }
@@ -226,7 +226,7 @@ export function hasBranchDependencies(counts: BranchDependencyCounts): boolean {
     counts.expenses_count > 0 ||
     counts.technicians_count > 0 ||
     counts.quotations_count > 0 ||
-    counts.units_count > 0 ||
+    counts.rental_assets_count > 0 ||
     counts.rentals_count > 0
   );
 }
