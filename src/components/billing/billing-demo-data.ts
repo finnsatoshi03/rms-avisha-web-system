@@ -4,6 +4,8 @@ import {
   BillingPayment,
   BillingStatement,
   BillingAging,
+  BillingInterestLog,
+  EmailLog,
   LedgerEntry,
 } from "../../lib/billing-types";
 
@@ -138,7 +140,7 @@ export const DEMO_LINE_ITEMS: BillingLineItem[] = [
     description: "JO DEMO-101 - LCD Screen Replacement",
     amount: 5500,
     balance_at_time: 5500,
-    due_date: "2026-03-15",
+    due_date: "2026-02-15",
     created_by: null,
     created_at: "2026-02-15T10:00:00Z",
     branches: { id: 1, name: "Main Branch", prefix: "MB" },
@@ -154,12 +156,12 @@ export const DEMO_LINE_ITEMS: BillingLineItem[] = [
     description: "JO DEMO-102 - Battery Replacement",
     amount: 2500,
     balance_at_time: 8000,
-    due_date: "2026-03-15",
+    due_date: "2026-02-20",
     created_by: null,
     created_at: "2026-02-20T14:00:00Z",
     branches: { id: 1, name: "Main Branch", prefix: "MB" },
     joborders: { id: 90002, order_no: "DEMO-102", status: "In Progress" },
-    paid_amount: 0,
+    paid_amount: 2500,
   },
   {
     id: "demo-li-003",
@@ -170,7 +172,7 @@ export const DEMO_LINE_ITEMS: BillingLineItem[] = [
     description: "JO DEMO-103 - Motherboard Repair",
     amount: 10000,
     balance_at_time: 18000,
-    due_date: "2026-04-15",
+    due_date: "2026-03-01",
     created_by: null,
     created_at: "2026-03-01T09:00:00Z",
     branches: { id: 2, name: "Branch 2", prefix: "B2" },
@@ -183,12 +185,12 @@ export const DEMO_LINE_ITEMS: BillingLineItem[] = [
     job_order_id: null,
     branch_id: 1,
     type: "interest",
-    description: "Interest - March 2026 (2% on overdue balance of 5,500)",
+    description: "Interest - March 2026 (2% on overdue balance of ₱5,500.00)",
     amount: 110,
     balance_at_time: 18110,
     due_date: "2026-04-15",
     created_by: null,
-    created_at: "2026-03-15T00:00:00Z",
+    created_at: "2026-03-15T02:00:00Z",
     branches: { id: 1, name: "Main Branch", prefix: "MB" },
     paid_amount: 0,
   },
@@ -242,8 +244,8 @@ export const DEMO_PAYMENTS: BillingPayment[] = [
 // ─── Mock Aging ─────────────────────────────────────────────────────────────
 
 export const DEMO_AGING: BillingAging = {
-  current_amount: 10110,
-  days_1_30: 0,
+  current_amount: 0,
+  days_1_30: 10110,
   days_31_60: 0,
   days_61_90: 0,
   days_90_plus: 0,
@@ -302,9 +304,9 @@ export const DEMO_LEDGER: LedgerEntry[] = (() => {
     },
     {
       id: "demo-li-004",
-      date: "2026-03-15T00:00:00Z",
+      date: "2026-03-15T02:00:00Z",
       type: "interest",
-      description: "Interest - March 2026 (2% on overdue balance of 5,500)",
+      description: "Interest - March 2026 (2% on overdue balance of ₱5,500.00)",
       debit: 110,
       credit: 0,
       balance: 12610,
@@ -325,27 +327,105 @@ export const DEMO_LEDGER: LedgerEntry[] = (() => {
   return entries;
 })();
 
-// ─── Mock Statement ─────────────────────────────────────────────────────────
+// ─── Mock Statements ────────────────────────────────────────────────────────
 
-export const DEMO_STATEMENT: BillingStatement = {
-  id: "demo-stmt-001",
-  billing_account_id: "demo-account-001",
-  statement_number: "SOA-BADEMO001-2026-03",
-  period_start: "2026-03-01",
-  period_end: "2026-03-31",
-  previous_balance: 8000,
-  new_charges: 10000,
-  payments_received: 8000,
-  interest_applied: 110,
-  current_balance: 10110,
-  due_date: "2026-04-15",
-  branch_filter: null,
-  status: "draft",
-  generated_by: null,
-  generated_at: "2026-03-31T16:00:00Z",
-  sent_at: null,
-  pdf_url: null,
-};
+export const DEMO_STATEMENTS: BillingStatement[] = [
+  {
+    id: "demo-stmt-001",
+    billing_account_id: "demo-account-001",
+    statement_number: "SOA-BADEMO001-2026-02",
+    period_start: "2026-02-01",
+    period_end: "2026-02-28",
+    previous_balance: 0,
+    new_charges: 8000,
+    payments_received: 0,
+    interest_applied: 0,
+    current_balance: 8000,
+    due_date: "2026-03-15",
+    branch_filter: null,
+    status: "sent",
+    generated_by: null,
+    generated_at: "2026-03-02T10:00:00Z",
+    sent_at: "2026-03-02T10:05:00Z",
+    pdf_url: null,
+  },
+  {
+    id: "demo-stmt-002",
+    billing_account_id: "demo-account-001",
+    statement_number: "SOA-BADEMO001-2026-03",
+    period_start: "2026-03-01",
+    period_end: "2026-03-31",
+    previous_balance: 8000,
+    new_charges: 10000,
+    payments_received: 8000,
+    interest_applied: 110,
+    current_balance: 10110,
+    due_date: "2026-04-15",
+    branch_filter: null,
+    status: "finalized",
+    generated_by: null,
+    generated_at: "2026-04-02T10:00:00Z",
+    sent_at: null,
+    pdf_url: null,
+  },
+];
+
+// ─── Mock Interest Logs ─────────────────────────────────────────────────────
+
+export const DEMO_INTEREST_LOGS: BillingInterestLog[] = [
+  {
+    id: "demo-intlog-001",
+    billing_account_id: "demo-account-001",
+    billing_line_item_id: "demo-li-004",
+    applied_at: "2026-03-15T02:00:00Z",
+    interest_amount: 110,
+    rate: 2,
+    overdue_balance: 5500,
+    billing_cycle: "2026-03",
+    created_at: "2026-03-15T02:00:00Z",
+  },
+];
+
+// ─── Mock Email Logs ────────────────────────────────────────────────────────
+
+export const DEMO_EMAIL_LOGS: EmailLog[] = [
+  {
+    id: "demo-email-001",
+    billing_account_id: "demo-account-001",
+    recipient: "maria@sunshineelectronics.ph",
+    subject: "Billing Reminder — RMS Avisha (BA-DEMO-001)",
+    type: "billing_reminder",
+    status: "sent",
+    error_message: null,
+    metadata: { balance: 8000, due_date: "March 15, 2026", client_name: "Sunshine Electronics Corp." },
+    sent_at: "2026-03-01T09:00:05Z",
+    created_at: "2026-03-01T09:00:01Z",
+  },
+  {
+    id: "demo-email-002",
+    billing_account_id: "demo-account-001",
+    recipient: "maria@sunshineelectronics.ph",
+    subject: "Statement of Account - BA-DEMO-001 - Feb 1, 2026 - Feb 28, 2026",
+    type: "statement",
+    status: "sent",
+    error_message: null,
+    metadata: { statement_number: "SOA-BADEMO001-2026-02", current_balance: 8000 },
+    sent_at: "2026-03-02T10:05:00Z",
+    created_at: "2026-03-02T10:05:00Z",
+  },
+  {
+    id: "demo-email-003",
+    billing_account_id: "demo-account-001",
+    recipient: "maria@sunshineelectronics.ph",
+    subject: "Billing Reminder — RMS Avisha (BA-DEMO-001)",
+    type: "billing_reminder",
+    status: "sent",
+    error_message: null,
+    metadata: { balance: 10110, due_date: "April 15, 2026", client_name: "Sunshine Electronics Corp." },
+    sent_at: "2026-04-01T09:00:03Z",
+    created_at: "2026-04-01T09:00:01Z",
+  },
+];
 
 // ─── Demo Step Definitions ──────────────────────────────────────────────────
 
@@ -371,7 +451,7 @@ export const DEMO_STEPS: DemoStep[] = [
     title: "Account Detail",
     subtitle: "Full account overview and ledger",
     guide:
-      "This is the account detail view. You can see the running balance, aging summary, credit limit usage, and full transaction ledger — all in one place.",
+      "This is the account detail view. You can see the running balance with charges/interest breakdown, aging summary, credit limit usage, and full transaction ledger — all in one place.",
     action: 'Click "Attach Job Order" to add charges to this account',
   },
   {
@@ -395,21 +475,28 @@ export const DEMO_STEPS: DemoStep[] = [
     title: "Generate Statement",
     subtitle: "Create a Statement of Account (SOA)",
     guide:
-      "Generate statements monthly or anytime. Preview the statement breakdown before finalizing, then export as PDF or send directly to the client.",
+      "Generate statements manually or let the system auto-generate them monthly. Period dates are auto-calculated based on the billing cutoff day. Statements can be downloaded as PDF and emailed with the PDF attached.",
     action: "Review the statement preview",
   },
   {
     id: 6,
+    title: "Automated Billing",
+    subtitle: "Interest, reminders, and SOA — all automated",
+    guide:
+      "The system runs automated tasks on schedule: interest is applied daily to overdue balances (idempotent per cycle), billing reminder emails are sent on the 1st of each month, and statements are auto-generated on the 2nd. All actions are logged and visible in the Interest History and Email History sections.",
+  },
+  {
+    id: 7,
     title: "Dashboard Integration",
     subtitle: "Billing data on your dashboard",
     guide:
       "Billing revenue and receivables appear on your main dashboard alongside regular collections. Track total receivables, overdue accounts, and collection performance at a glance.",
   },
   {
-    id: 7,
+    id: 8,
     title: "Tour Complete",
     subtitle: "You've seen the full billing workflow",
     guide:
-      "That's everything! The billing system handles the full cycle — from attaching job orders, to recording payments, to generating professional statements. When activated, all of this works with your real data.",
+      "That's everything! The billing system handles the full cycle — from attaching job orders, to recording payments, to automated interest, email reminders, statement generation with PDF, and professional SOA delivery. When activated, all of this works with your real data.",
   },
 ];

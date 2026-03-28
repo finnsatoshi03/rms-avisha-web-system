@@ -26,6 +26,11 @@ import {
   Search,
   Filter,
   Info,
+  Send,
+  Download,
+  CheckCircle2,
+  XCircle,
+  Clock,
 } from "lucide-react";
 
 import { Button } from "../ui/button";
@@ -76,7 +81,9 @@ import {
   DEMO_AGING,
   DEMO_BALANCE,
   DEMO_LEDGER,
-  DEMO_STATEMENT,
+  DEMO_STATEMENTS,
+  DEMO_INTEREST_LOGS,
+  DEMO_EMAIL_LOGS,
 } from "./billing-demo-data";
 import { formatNumberWithCommas } from "../../lib/helpers";
 
@@ -207,8 +214,9 @@ function DemoIntroScreen({ onStart }: { onStart: () => void }) {
         </h1>
         <p className="text-gray-500 mb-8 leading-relaxed">
           Manage client billing accounts, track payments, and generate
-          professional statements — all in one place. Take an interactive tour
-          to see how it works with sample data.
+          professional statements with PDF — all in one place. Automated interest,
+          email reminders, and SOA generation run on schedule. Take an interactive
+          tour to see how it works with sample data.
         </p>
         <Button onClick={onStart} size="lg" className="gap-2 px-8">
           <Play size={18} />
@@ -261,6 +269,9 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
   const [jobOrdersOpen, setJobOrdersOpen] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [statementsOpen, setStatementsOpen] = useState(true);
+  const [interestLogsOpen, setInterestLogsOpen] = useState(false);
+  const [emailLogsOpen, setEmailLogsOpen] = useState(false);
+  const [mockDialog, setMockDialog] = useState<"interest" | "reminders" | "soa" | null>(null);
 
   // Start tour after mount so DOM has rendered
   useEffect(() => {
@@ -268,9 +279,28 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
     return () => clearTimeout(t);
   }, []);
 
-  // Tour steps — targets are CSS selectors on the live mock UI
+  // ── Tour steps (0-indexed) ──────────────────────────────────────────────
+  //  0  Accounts table
+  //  1  Click account row → opens sheet
+  //  2  Sheet header
+  //  3  Balance & breakdown
+  //  4  Core action buttons (Payment, Attach JO, Statement, Edit)
+  //  5  Automation buttons (Apply Interest, Send Reminders, Auto-Generate SOA)
+  //  6  Ledger
+  //  7  JO section
+  //  8  Payments section
+  //  9  Statements section
+  // 10  Interest history
+  // 11  Email history
+  // 12  Btn Attach JO (spotlight click)
+  // 13  Sub-sheet: JO transfer
+  // 14  Btn Payment (spotlight click)
+  // 15  Sub-sheet: Payment
+  // 16  Btn Statement (spotlight click)
+  // 17  Sub-sheet: Statement
+
   const steps: Step[] = [
-    // ── Phase 1: Accounts list ──
+    // ── Phase 1: Accounts list (0-1) ──
     {
       target: "[data-tour='accounts-table']",
       title: "Billing Accounts",
@@ -288,7 +318,7 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
       disableBeacon: true,
       spotlightClicks: true,
     },
-    // ── Phase 2: Sheet (these targets only exist once sheet is open) ──
+    // ── Phase 2: Sheet overview (2-11) ──
     {
       target: "[data-tour='sheet-header']",
       title: "Account Overview",
@@ -299,25 +329,58 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
     },
     {
       target: "[data-tour='sheet-balance']",
-      title: "Balance & Aging",
+      title: "Balance & Breakdown",
       content:
-        "See the total unpaid balance, credit limit usage bar, and aging breakdown — how old the unpaid amounts are.",
+        "See the total unpaid balance with a charges/interest breakdown, credit limit usage bar, aging buckets, and action-required badges like \"Interest pending\" when overdue balances haven't had interest applied yet.",
       placement: "left",
       disableBeacon: true,
     },
     {
       target: "[data-tour='sheet-actions']",
-      title: "Quick Actions",
+      title: "Core Actions",
       content:
-        "These buttons let you record payments, attach job orders, generate statements, edit account settings, and apply interest — all from one place.",
+        "These buttons let you record payments, attach job orders, generate statements, and edit account settings. Each opens a side panel within the sheet.",
       placement: "left",
+      disableBeacon: true,
+    },
+    {
+      target: "[data-tour='sheet-automation']",
+      title: "Automation Actions",
+      content:
+        "These are admin/dev actions for billing automation. Each one opens a detailed confirmation dialog before executing. All three also run automatically on schedule. Let's look at each dialog.",
+      placement: "left",
+      disableBeacon: true,
+    },
+    // ── Phase 2b: Mock alert dialogs (6-8) ──
+    {
+      target: "[data-tour='mock-dialog-interest']",
+      title: "Apply Interest Dialog",
+      content:
+        "Before applying interest, a confirmation dialog shows the overdue balance, interest rate, and estimated charge. If interest was already applied for the current billing cycle, it shows a warning and disables the action — preventing duplicates.",
+      placement: "bottom",
+      disableBeacon: true,
+    },
+    {
+      target: "[data-tour='mock-dialog-reminders']",
+      title: "Send Reminders Dialog",
+      content:
+        "Shows account details, outstanding balance, and the recipient email address. Warns if no email is configured or if the balance is zero. Reminders are sent to ALL active accounts, not just this one.",
+      placement: "bottom",
+      disableBeacon: true,
+    },
+    {
+      target: "[data-tour='mock-dialog-soa']",
+      title: "Auto-Generate SOA Dialog",
+      content:
+        "Shows the billing cutoff day, current balance, recipient email, and the latest statement info. If a statement already exists for the period, it will be skipped (idempotent). Statements are created as finalized and emailed with a PDF attachment.",
+      placement: "bottom",
       disableBeacon: true,
     },
     {
       target: "[data-tour='sheet-ledger']",
       title: "Transaction Ledger",
       content:
-        "The full transaction history — every charge, payment, and interest entry with a running balance. This is the source of truth for the account.",
+        "The full transaction history — every charge, payment, and interest entry with a running balance. Interest entries appear in amber. This is the source of truth for the account.",
       placement: "left",
       disableBeacon: true,
     },
@@ -325,7 +388,7 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
       target: "[data-tour='sheet-jo-section']",
       title: "Attached Job Orders",
       content:
-        "Collapsible section showing all job orders transferred to this billing account, with their paid/unpaid status.",
+        "All job orders transferred to this billing account, with their amount, paid status (Paid/Partial/Unpaid), and branch.",
       placement: "left",
       disableBeacon: true,
     },
@@ -333,7 +396,7 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
       target: "[data-tour='sheet-payments-section']",
       title: "Payments History",
       content:
-        "All recorded payments with date, amount, method, and reference number. Payments are automatically allocated to the oldest charges (FIFO).",
+        "All recorded payments with date, amount, method, and reference number. Payments are automatically allocated to the oldest charges first (FIFO), or manually to specific items.",
       placement: "left",
       disableBeacon: true,
     },
@@ -341,16 +404,32 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
       target: "[data-tour='sheet-statements-section']",
       title: "Statements (SOA)",
       content:
-        "Generated statements with period, balance, and status. Draft statements can be finalized and sent to the client.",
+        "Generated statements with period, interest column, balance, and status. Action badges show \"draft\" and \"ready to send\" counts. Each statement has Send/Resend and PDF Download buttons. Statements are also auto-generated monthly.",
       placement: "left",
       disableBeacon: true,
     },
-    // ── Phase 3: Sub-sheet previews ──
+    {
+      target: "[data-tour='sheet-interest-section']",
+      title: "Interest History",
+      content:
+        "Audit trail of every interest application — billing cycle, overdue balance, rate, and amount. The system applies interest automatically daily at 2AM UTC and won't duplicate within the same billing cycle.",
+      placement: "left",
+      disableBeacon: true,
+    },
+    {
+      target: "[data-tour='sheet-email-section']",
+      title: "Email History",
+      content:
+        "Every billing email is logged — reminders, statements, and notifications. Shows delivery status (sent/failed), recipient, and timestamps. Automated reminders go out on the 1st of each month, SOA emails on the 2nd.",
+      placement: "left",
+      disableBeacon: true,
+    },
+    // ── Phase 3: Sub-sheet previews (12-17) ──
     {
       target: "[data-tour='btn-attach-jo']",
       title: "Attach Job Orders",
       content:
-        "Click this to open the job order attachment panel. It shows all eligible JOs for this client — select them to transfer their remaining balances to the billing account.",
+        "Click to open the job order attachment panel. It shows all eligible JOs for this client with their remaining balance and branch.",
       placement: "left",
       disableBeacon: true,
       spotlightClicks: true,
@@ -359,7 +438,7 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
       target: "[data-tour='sub-sheet-content']",
       title: "Job Order Transfer",
       content:
-        "Here you can see eligible job orders with their remaining balances. Select one or more, then transfer — the balance moves from the JO to the billing account.",
+        "Select one or more job orders, review the total, and transfer. The remaining balance moves from the JO to the billing account. The JO is marked as \"transferred to billing\" and payment is tracked here instead.",
       placement: "left",
       disableBeacon: true,
     },
@@ -367,7 +446,7 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
       target: "[data-tour='btn-payment']",
       title: "Record Payment",
       content:
-        "Click to open the payment panel. Enter amount, method, and reference number. Payments auto-allocate to the oldest charges via FIFO, or you can manually allocate.",
+        "Click to record a client payment. Enter amount, method, date, and optional reference number.",
       placement: "left",
       disableBeacon: true,
       spotlightClicks: true,
@@ -376,7 +455,7 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
       target: "[data-tour='sub-sheet-content']",
       title: "Payment Recording",
       content:
-        "Fill in the payment details. The system shows which charges the payment will be applied to. Once confirmed, the balance updates instantly.",
+        "Payments auto-allocate to the oldest unpaid charges via FIFO. You can also switch to manual mode to allocate to specific line items. The balance updates instantly after recording.",
       placement: "left",
       disableBeacon: true,
     },
@@ -384,16 +463,16 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
       target: "[data-tour='btn-statement']",
       title: "Generate Statement",
       content:
-        "Click to generate a Statement of Account (SOA). Select a billing period, preview the breakdown, then finalize and send to the client.",
+        "Click to generate a Statement of Account (SOA). Period dates are auto-calculated based on the billing cutoff day and last statement.",
       placement: "left",
       disableBeacon: true,
       spotlightClicks: true,
     },
     {
       target: "[data-tour='sub-sheet-content']",
-      title: "Statement Preview",
+      title: "Statement of Account",
       content:
-        "The statement shows previous balance, new charges, payments, interest, and current balance. Finalize it, then download as PDF or email to the client.",
+        "Preview the statement breakdown: previous balance, new charges, interest, payments, and total due. After generating, finalize it, download as PDF, or send via email with the PDF attached.",
       placement: "left",
       disableBeacon: true,
     },
@@ -403,7 +482,6 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
     (data: CallBackProps) => {
       const { action, index, status, type } = data;
 
-      // Tour finished
       if (status === STATUS.FINISHED) {
         setRunTour(false);
         onFinish();
@@ -413,68 +491,87 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
       if (type === EVENTS.STEP_AFTER) {
         const nextIndex = action === ACTIONS.PREV ? index - 1 : index + 1;
 
-        // Step 1 → 2: open the sheet when moving to step index 2
+        // Step 1 → 2: open the sheet
         if (nextIndex === 2 && !sheetOpen) {
           setSheetOpen(true);
           setSubSheet(null);
+          setMockDialog(null);
           setJobOrdersOpen(false);
           setPaymentsOpen(false);
           setStatementsOpen(true);
-          // Delay so the sheet animates open and DOM is ready
+          setInterestLogsOpen(false);
+          setEmailLogsOpen(false);
           setTimeout(() => setStepIndex(nextIndex), 500);
           return;
         }
 
-        // Going back from sheet to list — close sheet
+        // Going back to list — close everything
         if (nextIndex <= 1 && sheetOpen) {
           setSheetOpen(false);
+          setSubSheet(null);
+          setMockDialog(null);
+          setTimeout(() => setStepIndex(nextIndex), 400);
+          return;
+        }
+
+        // Mock dialogs (steps 6, 7, 8)
+        if (nextIndex === 6) {
+          setMockDialog("interest");
+          setTimeout(() => setStepIndex(nextIndex), 300);
+          return;
+        }
+        if (nextIndex === 7) {
+          setMockDialog("reminders");
+          setTimeout(() => setStepIndex(nextIndex), 300);
+          return;
+        }
+        if (nextIndex === 8) {
+          setMockDialog("soa");
+          setTimeout(() => setStepIndex(nextIndex), 300);
+          return;
+        }
+        // Leaving dialog area — always close when going outside 6-8
+        if ((nextIndex < 6 || nextIndex > 8)) {
+          setMockDialog(null);
+        }
+
+        // Open collapsibles (shifted by +3)
+        if (nextIndex === 10) setJobOrdersOpen(true);
+        if (nextIndex === 11) setPaymentsOpen(true);
+        if (nextIndex === 13) setInterestLogsOpen(true);
+        if (nextIndex === 14) setEmailLogsOpen(true);
+
+        // Close sub-sheet when going back to main sections
+        if (nextIndex <= 14 && subSheet) {
           setSubSheet(null);
           setTimeout(() => setStepIndex(nextIndex), 400);
           return;
         }
 
-        // Step 6: open job orders collapsible
-        if (nextIndex === 6) {
-          setJobOrdersOpen(true);
-        }
-        // Step 7: open payments collapsible
-        if (nextIndex === 7) {
-          setPaymentsOpen(true);
-        }
-
-        // Step 9 → 10: open attach-jo sub-sheet
-        if (nextIndex === 10) {
+        // Open sub-sheets (shifted by +3)
+        if (nextIndex === 16) {
           setSubSheet("attach-jo");
           setTimeout(() => setStepIndex(nextIndex), 400);
           return;
         }
-
-        // Step 11 → 12: switch to payment sub-sheet
-        if (nextIndex === 12) {
+        if (nextIndex === 18) {
           setSubSheet("payment");
           setTimeout(() => setStepIndex(nextIndex), 400);
           return;
         }
-
-        // Step 13 → 14: switch to statement sub-sheet
-        if (nextIndex === 14) {
+        if (nextIndex === 20) {
           setSubSheet("statement");
           setTimeout(() => setStepIndex(nextIndex), 400);
           return;
         }
 
-        // Going back through sub-sheets
-        if (nextIndex === 9 && subSheet) {
-          setSubSheet(null);
-          setTimeout(() => setStepIndex(nextIndex), 400);
-          return;
-        }
-        if (nextIndex === 11 && subSheet !== "attach-jo") {
+        // Going back through sub-sheet steps
+        if (nextIndex === 17 && subSheet !== "attach-jo") {
           setSubSheet("attach-jo");
           setTimeout(() => setStepIndex(nextIndex), 400);
           return;
         }
-        if (nextIndex === 13 && subSheet !== "payment") {
+        if (nextIndex === 19 && subSheet !== "payment") {
           setSubSheet("payment");
           setTimeout(() => setStepIndex(nextIndex), 400);
           return;
@@ -483,7 +580,7 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
         setStepIndex(nextIndex);
       }
     },
-    [onFinish, sheetOpen, subSheet]
+    [onFinish, sheetOpen, subSheet, mockDialog]
   );
 
   return (
@@ -604,10 +701,137 @@ function DemoWithJoyride({ onFinish }: { onFinish: () => void }) {
               setPaymentsOpen={setPaymentsOpen}
               statementsOpen={statementsOpen}
               setStatementsOpen={setStatementsOpen}
+              interestLogsOpen={interestLogsOpen}
+              setInterestLogsOpen={setInterestLogsOpen}
+              emailLogsOpen={emailLogsOpen}
+              setEmailLogsOpen={setEmailLogsOpen}
             />
           </SheetContent>
         </Sheet>
       </div>
+      {/* ── Mock Alert Dialogs for tour ──────────────────────────────────── */}
+      {mockDialog && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6" data-tour={`mock-dialog-${mockDialog}`}>
+            {mockDialog === "interest" && (
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold">Apply Monthly Interest</h3>
+                <p className="text-sm text-muted-foreground">
+                  This will apply a <span className="font-semibold text-foreground">2%</span> monthly
+                  interest charge on all overdue balances for this account.
+                </p>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-start gap-2">
+                  <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Interest already applied for 2026-03</p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      The system has already applied interest for this billing cycle. Running again will have no effect (idempotent).
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-muted/50 p-3 space-y-1.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Overdue balance</span>
+                    <span className="font-semibold text-red-600">{amt(10110)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Interest rate</span>
+                    <span className="font-medium">2% / month</span>
+                  </div>
+                  <div className="border-t pt-1.5 flex justify-between">
+                    <span className="text-muted-foreground">Estimated charge</span>
+                    <span className="font-semibold">~{amt(202.20)}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  A new interest line item will be added to the ledger. This action cannot be undone.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" size="sm" disabled>Cancel</Button>
+                  <Button size="sm" disabled>Already Applied</Button>
+                </div>
+              </div>
+            )}
+
+            {mockDialog === "reminders" && (
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold">Send Billing Reminders</h3>
+                <p className="text-sm text-muted-foreground">
+                  This will send billing reminder emails to <strong className="text-foreground">all active accounts</strong> with outstanding balances.
+                </p>
+                <div className="rounded-lg border bg-muted/50 p-3 space-y-1.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">This account</span>
+                    <span className="font-medium">BA-DEMO-001</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Outstanding balance</span>
+                    <span className="font-semibold text-red-600">{amt(10110)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Recipient email</span>
+                    <span className="font-medium text-right truncate max-w-[200px]">maria@sunshineelectronics.ph</span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Emails will be sent to all qualifying accounts, not just this one. Delivery status will be logged in the Email History section.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" size="sm" disabled>Cancel</Button>
+                  <Button size="sm" disabled>Send Reminders</Button>
+                </div>
+              </div>
+            )}
+
+            {mockDialog === "soa" && (
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold">Auto-Generate Statements</h3>
+                <p className="text-sm text-muted-foreground">
+                  This will automatically generate a Statement of Account for <strong className="text-foreground">all active accounts</strong> for the previous billing period, and email them to clients.
+                </p>
+                <div className="rounded-lg border bg-muted/50 p-3 space-y-1.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Account</span>
+                    <span className="font-medium">BA-DEMO-001</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Billing cutoff day</span>
+                    <span className="font-medium">Day 15</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Current balance</span>
+                    <span className="font-semibold">{amt(10110)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Will email to</span>
+                    <span className="font-medium text-right truncate max-w-[200px]">maria@sunshineelectronics.ph</span>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 flex items-start gap-2">
+                  <Info size={16} className="mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Latest statement: SOA-BADEMO001-2026-03</p>
+                    <p className="text-xs text-blue-600 mt-0.5">
+                      Period: Mar 1 - Mar 31, 2026 (finalized)
+                    </p>
+                    <p className="text-xs text-blue-600 mt-0.5">
+                      If a statement already exists for the next period, it will be skipped (idempotent).
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Statements will be created as "finalized" and automatically emailed with a PDF attachment.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" size="sm" disabled>Cancel</Button>
+                  <Button size="sm" disabled>Generate & Send SOA</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </TooltipProvider>
   );
 }
@@ -749,6 +973,10 @@ function MockBillingAccountSheet({
   setPaymentsOpen,
   statementsOpen,
   setStatementsOpen,
+  interestLogsOpen,
+  setInterestLogsOpen,
+  emailLogsOpen,
+  setEmailLogsOpen,
 }: {
   subSheet: string | null;
   setSubSheet: (s: string | null) => void;
@@ -758,6 +986,10 @@ function MockBillingAccountSheet({
   setPaymentsOpen: (v: boolean) => void;
   statementsOpen: boolean;
   setStatementsOpen: (v: boolean) => void;
+  interestLogsOpen: boolean;
+  setInterestLogsOpen: (v: boolean) => void;
+  emailLogsOpen: boolean;
+  setEmailLogsOpen: (v: boolean) => void;
 }) {
   const acct = DEMO_ACCOUNT;
   const balance = DEMO_BALANCE;
@@ -829,11 +1061,36 @@ function MockBillingAccountSheet({
           {amt(balance)}
         </span>
         {totalOverdue > 0 && (
-          <p className="text-[11px] text-red-500 mt-0.5">
-            {amt(totalOverdue)} overdue
-          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="text-[11px] text-red-500">
+              {amt(totalOverdue)} overdue
+            </p>
+            <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] px-1.5 py-0 rounded-full font-semibold">
+              Interest pending
+            </span>
+          </div>
         )}
       </div>
+
+      {/* Balance breakdown */}
+      {!isCompressed && (
+        <div className="rounded-lg border bg-gray-50/80 p-2.5 space-y-1">
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-500">Charges Subtotal</span>
+            <span className="tabular-nums">{amt(18000)}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-amber-600 flex items-center gap-1">
+              <Percent size={10} /> Interest Applied
+            </span>
+            <span className="tabular-nums text-amber-600 font-medium">{amt(110)}</span>
+          </div>
+          <div className="border-t pt-1 flex justify-between text-xs font-semibold">
+            <span>Total Due</span>
+            <span className="tabular-nums">{amt(balance)}</span>
+          </div>
+        </div>
+      )}
 
       {creditLimit > 0 && (
         <div>
@@ -890,59 +1147,69 @@ function MockBillingAccountSheet({
   // ─── Actions ────────────────────────────────────────────────────────────
 
   const actionButtons = (
-    <div
-      className={`grid gap-1.5 ${isCompressed ? "grid-cols-1" : "grid-cols-2"}`}
-      data-tour="sheet-actions"
-    >
-      <Button
-        size="sm"
-        className="gap-1.5 h-8 text-xs"
-        data-tour="btn-payment"
-        variant={subSheet === "payment" ? "default" : "outline"}
-        onClick={() =>
-          setSubSheet(subSheet === "payment" ? null : "payment")
-        }
+    <div className="space-y-1.5">
+      <div
+        className={`grid gap-1.5 ${isCompressed ? "grid-cols-1" : "grid-cols-2"}`}
+        data-tour="sheet-actions"
       >
-        <DollarSign size={13} />
-        Payment
-      </Button>
-      <Button
-        size="sm"
-        className="gap-1.5 h-8 text-xs"
-        data-tour="btn-attach-jo"
-        variant={subSheet === "attach-jo" ? "default" : "outline"}
-        onClick={() =>
-          setSubSheet(subSheet === "attach-jo" ? null : "attach-jo")
-        }
+        <Button
+          size="sm"
+          className="gap-1.5 h-8 text-xs"
+          data-tour="btn-payment"
+          variant={subSheet === "payment" ? "default" : "outline"}
+          onClick={() =>
+            setSubSheet(subSheet === "payment" ? null : "payment")
+          }
+        >
+          <DollarSign size={13} />
+          Payment
+        </Button>
+        <Button
+          size="sm"
+          className="gap-1.5 h-8 text-xs"
+          data-tour="btn-attach-jo"
+          variant={subSheet === "attach-jo" ? "default" : "outline"}
+          onClick={() =>
+            setSubSheet(subSheet === "attach-jo" ? null : "attach-jo")
+          }
+        >
+          <Plus size={13} />
+          Attach JO
+        </Button>
+        <Button
+          size="sm"
+          className="gap-1.5 h-8 text-xs"
+          data-tour="btn-statement"
+          variant={subSheet === "statement" ? "default" : "outline"}
+          onClick={() =>
+            setSubSheet(subSheet === "statement" ? null : "statement")
+          }
+        >
+          <FileText size={13} />
+          Statement
+        </Button>
+        <Button size="sm" className="gap-1.5 h-8 text-xs" variant="outline" disabled>
+          <Pencil size={13} />
+          Edit
+        </Button>
+      </div>
+      <div
+        className={`grid gap-1.5 ${isCompressed ? "grid-cols-1" : "grid-cols-3"}`}
+        data-tour="sheet-automation"
       >
-        <Plus size={13} />
-        Attach JO
-      </Button>
-      <Button
-        size="sm"
-        className="gap-1.5 h-8 text-xs"
-        data-tour="btn-statement"
-        variant={subSheet === "statement" ? "default" : "outline"}
-        onClick={() =>
-          setSubSheet(subSheet === "statement" ? null : "statement")
-        }
-      >
-        <FileText size={13} />
-        Statement
-      </Button>
-      <Button size="sm" className="gap-1.5 h-8 text-xs" variant="outline" disabled>
-        <Pencil size={13} />
-        Edit
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="gap-1.5 h-8 text-xs col-span-full"
-        disabled
-      >
-        <Percent size={13} />
-        Apply Interest
-      </Button>
+        <Button size="sm" variant="ghost" className="gap-1.5 h-8 text-xs" disabled>
+          <Percent size={13} />
+          Apply Interest
+        </Button>
+        <Button size="sm" variant="ghost" className="gap-1.5 h-8 text-xs" disabled>
+          <Send size={13} />
+          Send Reminders
+        </Button>
+        <Button size="sm" variant="ghost" className="gap-1.5 h-8 text-xs" disabled>
+          <FileText size={13} />
+          Auto-Generate SOA
+        </Button>
+      </div>
     </div>
   );
 
@@ -1118,13 +1385,26 @@ function MockBillingAccountSheet({
 
   // ─── Collapsible: Statements ────────────────────────────────────────────
 
+  const draftCount = DEMO_STATEMENTS.filter(s => s.status === "draft").length;
+  const readyToSendCount = DEMO_STATEMENTS.filter(s => s.status === "finalized").length;
+
   const recentStatementsSection = (
     <div data-tour="sheet-statements-section">
       <Collapsible open={statementsOpen} onOpenChange={setStatementsOpen}>
         <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs font-bold opacity-50 uppercase tracking-wider hover:opacity-80 transition-opacity">
           <span className="flex items-center gap-1.5">
             <FileText size={13} />
-            Statements (1)
+            Statements ({DEMO_STATEMENTS.length})
+            {draftCount > 0 && (
+              <span className="bg-yellow-100 text-yellow-700 border border-yellow-200 text-[9px] px-1.5 py-0 rounded-full font-semibold normal-case">
+                {draftCount} draft
+              </span>
+            )}
+            {readyToSendCount > 0 && (
+              <span className="bg-blue-100 text-blue-700 border border-blue-200 text-[9px] px-1.5 py-0 rounded-full font-semibold normal-case">
+                {readyToSendCount} ready to send
+              </span>
+            )}
           </span>
           {statementsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </CollapsibleTrigger>
@@ -1135,42 +1415,162 @@ function MockBillingAccountSheet({
                 <TableRow className="bg-gray-50">
                   <TableHead className="text-[11px] font-semibold">SOA #</TableHead>
                   <TableHead className="text-[11px] font-semibold">Period</TableHead>
+                  <TableHead className="text-[11px] font-semibold text-right">Interest</TableHead>
                   <TableHead className="text-[11px] font-semibold text-right">Balance</TableHead>
                   <TableHead className="text-[11px] font-semibold">Status</TableHead>
                   <TableHead className="text-[11px] font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow>
-                  <TableCell className="text-xs font-mono py-1.5">
-                    {DEMO_STATEMENT.statement_number}
-                  </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap py-1.5">
-                    {format(new Date(DEMO_STATEMENT.period_start), "MMM d")} -{" "}
-                    {format(new Date(DEMO_STATEMENT.period_end), "MMM d")}
-                  </TableCell>
-                  <TableCell className="text-xs text-right tabular-nums font-medium py-1.5">
-                    {amt(DEMO_STATEMENT.current_balance)}
-                  </TableCell>
-                  <TableCell className="py-1.5">
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] capitalize px-1.5 py-0 ${statementStatusBadge[DEMO_STATEMENT.status] ?? ""}`}
-                    >
-                      {DEMO_STATEMENT.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="py-1.5">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-5 px-1.5 text-[10px]"
-                      disabled
-                    >
-                      Finalize
-                    </Button>
-                  </TableCell>
+                {DEMO_STATEMENTS.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="text-xs font-mono py-1.5">
+                      {s.statement_number}
+                    </TableCell>
+                    <TableCell className="text-xs whitespace-nowrap py-1.5">
+                      {format(new Date(s.period_start), "MMM d")} -{" "}
+                      {format(new Date(s.period_end), "MMM d")}
+                    </TableCell>
+                    <TableCell className="text-xs text-right tabular-nums py-1.5 text-amber-600">
+                      {s.interest_applied > 0 ? amt(s.interest_applied) : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs text-right tabular-nums font-medium py-1.5">
+                      {amt(s.current_balance)}
+                    </TableCell>
+                    <TableCell className="py-1.5">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] capitalize px-1.5 py-0 ${statementStatusBadge[s.status] ?? ""}`}
+                      >
+                        {s.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-1.5">
+                      <div className="flex gap-1 items-center">
+                        {s.status === "finalized" && (
+                          <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] text-green-600" disabled>
+                            Send
+                          </Button>
+                        )}
+                        {s.status === "sent" && (
+                          <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] text-muted-foreground" disabled>
+                            Resend
+                          </Button>
+                        )}
+                        {(s.status === "finalized" || s.status === "sent") && (
+                          <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-muted-foreground" disabled>
+                            <Download size={11} />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+
+  // ─── Interest Logs Section ────────────────────────────────────────────
+
+  const interestLogsSection = (
+    <div data-tour="sheet-interest-section">
+      <Collapsible open={interestLogsOpen} onOpenChange={setInterestLogsOpen}>
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs font-bold opacity-50 uppercase tracking-wider hover:opacity-80 transition-opacity">
+          <span className="flex items-center gap-1.5">
+            <Percent size={13} />
+            Interest History ({DEMO_INTEREST_LOGS.length})
+          </span>
+          {interestLogsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="text-[11px] font-semibold">Cycle</TableHead>
+                  <TableHead className="text-[11px] font-semibold">Date</TableHead>
+                  <TableHead className="text-[11px] font-semibold text-right">Overdue Bal.</TableHead>
+                  <TableHead className="text-[11px] font-semibold text-right">Rate</TableHead>
+                  <TableHead className="text-[11px] font-semibold text-right">Interest</TableHead>
                 </TableRow>
+              </TableHeader>
+              <TableBody>
+                {DEMO_INTEREST_LOGS.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="text-xs font-mono py-1.5">{log.billing_cycle}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap py-1.5">
+                      {format(new Date(log.applied_at), "MMM d, yy")}
+                    </TableCell>
+                    <TableCell className="text-xs text-right tabular-nums py-1.5">{amt(log.overdue_balance)}</TableCell>
+                    <TableCell className="text-xs text-right py-1.5">{log.rate}%</TableCell>
+                    <TableCell className="text-xs text-right tabular-nums font-medium text-amber-600 py-1.5">
+                      {amt(log.interest_amount)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+
+  // ─── Email Logs Section ───────────────────────────────────────────────
+
+  const emailStatusIcon: Record<string, JSX.Element> = {
+    sent: <CheckCircle2 size={12} className="text-green-600" />,
+    failed: <XCircle size={12} className="text-red-500" />,
+    pending: <Clock size={12} className="text-yellow-500" />,
+  };
+
+  const emailLogsSection = (
+    <div data-tour="sheet-email-section">
+      <Collapsible open={emailLogsOpen} onOpenChange={setEmailLogsOpen}>
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs font-bold opacity-50 uppercase tracking-wider hover:opacity-80 transition-opacity">
+          <span className="flex items-center gap-1.5">
+            <Mail size={13} />
+            Email History ({DEMO_EMAIL_LOGS.length})
+          </span>
+          {emailLogsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="text-[11px] font-semibold">Date</TableHead>
+                  <TableHead className="text-[11px] font-semibold">Type</TableHead>
+                  <TableHead className="text-[11px] font-semibold">Recipient</TableHead>
+                  <TableHead className="text-[11px] font-semibold">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {DEMO_EMAIL_LOGS.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="text-xs whitespace-nowrap py-1.5">
+                      {format(new Date(log.created_at), "MMM d, yy")}
+                    </TableCell>
+                    <TableCell className="py-1.5">
+                      <Badge variant="outline" className="text-[10px] capitalize px-1.5 py-0">
+                        {log.type.replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs truncate max-w-[150px] py-1.5">
+                      {log.recipient}
+                    </TableCell>
+                    <TableCell className="py-1.5">
+                      <span className="flex items-center gap-1 text-xs capitalize">
+                        {emailStatusIcon[log.status] ?? null}
+                        {log.status}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
@@ -1237,6 +1637,8 @@ function MockBillingAccountSheet({
             {jobOrdersSection}
             {recentPaymentsSection}
             {recentStatementsSection}
+            {interestLogsSection}
+            {emailLogsSection}
             {acct.notes && (
               <>
                 <Separator />
@@ -1282,149 +1684,189 @@ function MockBillingAccountSheet({
 
 function MockAttachJoPanel() {
   return (
-    <div className="space-y-4">
-      <p className="text-xs text-gray-500">
-        Select job orders to transfer their remaining balance to this billing
-        account.
-      </p>
-      <div className="border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-gray-50">
-              <TableHead className="w-10"></TableHead>
-              <TableHead className="text-[11px] font-semibold">JO #</TableHead>
-              <TableHead className="text-[11px] font-semibold">Description</TableHead>
-              <TableHead className="text-[11px] font-semibold text-right">
-                Remaining
-              </TableHead>
-              <TableHead className="text-[11px] font-semibold">Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {DEMO_JOB_ORDERS.map((jo) => (
-              <TableRow key={jo.id} className="hover:bg-gray-50">
-                <TableCell>
-                  <div className="w-4 h-4 rounded border border-gray-300" />
-                </TableCell>
-                <TableCell className="text-xs font-mono">{jo.order_no}</TableCell>
-                <TableCell className="text-xs">{jo.labor_description}</TableCell>
-                <TableCell className="text-xs text-right tabular-nums font-medium">
-                  {amt(jo.remaining)}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="text-[10px]">
-                    {jo.status}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+    <div>
+      {/* Search */}
+      <div>
+        <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">Search Job Orders</h2>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input disabled placeholder="Search JO number, description..." className="pl-9" />
+        </div>
       </div>
-      <Button className="w-full" disabled>
-        Transfer Selected
-      </Button>
+
+      {/* Available JOs */}
+      <div>
+        <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">Available Job Orders</h2>
+        <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+          {DEMO_JOB_ORDERS.map((jo, i) => {
+            const isSelected = i === 0;
+            return (
+              <div
+                key={jo.id}
+                className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-colors ${
+                  isSelected ? "border-primary bg-primary/5" : "border-gray-100 hover:bg-muted/50"
+                }`}
+              >
+                <div className={`w-4 h-4 rounded border mt-0.5 ${isSelected ? "border-primary bg-primary" : "border-gray-300"}`}>
+                  {isSelected && <CheckCircle2 size={16} className="text-white" />}
+                </div>
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-semibold">{jo.order_no}</span>
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5">{jo.status}</Badge>
+                    <span className="text-[10px] text-muted-foreground">{jo.branches.name}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground truncate">{jo.labor_description}</p>
+                  <div className="flex gap-3 text-[10px] text-muted-foreground">
+                    <span>Total: {amt(jo.grand_total)}</span>
+                    <span className="font-bold text-foreground">Balance: {amt(jo.remaining)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div className="border-b py-2 mt-4">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">1 selected</span>
+          <span className="font-semibold">Total: {amt(5500)}</span>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex md:flex-row flex-col md:justify-between mt-4">
+        <Button disabled>Transfer</Button>
+        <Button variant="ghost" disabled>Cancel</Button>
+      </div>
     </div>
   );
 }
 
 function MockPaymentPanel() {
   return (
-    <div className="space-y-4">
-      <div className="space-y-3">
-        <div>
-          <label className="text-xs font-medium text-gray-500">Amount</label>
-          <Input
-            disabled
-            value="5,500.00"
-            className="mt-1 tabular-nums"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-medium text-gray-500">
-              Payment Date
-            </label>
-            <Input disabled value="2026-03-10" className="mt-1" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500">
-              Method
-            </label>
-            <Input disabled value="Cash" className="mt-1" />
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-medium text-gray-500">
-            Reference #
-          </label>
-          <Input disabled placeholder="Optional" className="mt-1" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-gray-500">Notes</label>
-          <Input
-            disabled
-            value="Full payment for LCD Screen Replacement"
-            className="mt-1"
-          />
-        </div>
-      </div>
-      <Separator />
+    <form>
+      {/* Payment Details */}
       <div>
-        <p className="text-xs font-medium text-gray-500 mb-2">
-          Allocation Preview (FIFO)
-        </p>
-        <div className="bg-gray-50 rounded-md border p-3 text-sm flex items-center justify-between">
-          <span className="text-gray-600">JO DEMO-101 — LCD Screen Replacement</span>
-          <span className="font-medium tabular-nums">{amt(5500)}</span>
+        <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">Payment Details</h2>
+        <div className="grid md:grid-cols-2 grid-cols-1 gap-2 px-4 py-2 border rounded-xl">
+          <div className="space-y-0">
+            <p className="text-sm font-medium leading-none">Amount *</p>
+            <div className="flex items-center">
+              <span className="text-sm text-muted-foreground mr-1">₱</span>
+              <Input disabled value="5,500.00" className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0" />
+            </div>
+          </div>
+          <div className="space-y-0">
+            <p className="text-sm font-medium leading-none">Date</p>
+            <Input disabled value="2026-03-10" type="date" className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0" />
+          </div>
         </div>
       </div>
-      <Button className="w-full" disabled>
-        Record Payment
-      </Button>
-    </div>
+
+      {/* Method & Reference */}
+      <div>
+        <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">Method & Reference</h2>
+        <div className="border-b py-2">
+          <div className="flex justify-between items-center w-full">
+            <p className="text-sm font-medium leading-none">Payment Method</p>
+            <span className="text-sm">Cash</span>
+          </div>
+        </div>
+        <div className="border-b py-2">
+          <div className="flex justify-between items-center w-full">
+            <p className="text-sm font-medium leading-none">Reference #</p>
+            <span className="text-sm text-muted-foreground">Optional</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Allocation */}
+      <div>
+        <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">Allocation</h2>
+        <div className="border-b py-2">
+          <div className="flex gap-2">
+            <Button type="button" size="sm" variant="default" className="text-xs h-7" disabled>
+              Apply to balance
+            </Button>
+            <Button type="button" size="sm" variant="outline" className="text-xs h-7" disabled>
+              Specific items
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1.5">
+            Payment auto-allocates to the oldest unpaid charges first (FIFO). Switch to "Specific items" to manually choose which line items to pay.
+          </p>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div>
+        <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">Notes</h2>
+        <Input disabled value="Full payment for LCD Screen Replacement" className="text-sm" />
+      </div>
+
+      {/* Actions */}
+      <div className="flex md:flex-row flex-col md:justify-between mt-4">
+        <Button disabled>Record Payment</Button>
+        <Button variant="ghost" disabled>Cancel</Button>
+      </div>
+    </form>
   );
 }
 
 function MockStatementPanel() {
-  const stmt = DEMO_STATEMENT;
+  const stmt = DEMO_STATEMENTS[1];
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs font-medium text-gray-500">
-            Period Start
-          </label>
-          <Input disabled value={stmt.period_start} className="mt-1" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-gray-500">
-            Period End
-          </label>
-          <Input disabled value={stmt.period_end} className="mt-1" />
+    <form>
+      {/* Statement Period */}
+      <div>
+        <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">Statement Period</h2>
+        <p className="text-[11px] text-muted-foreground mb-2">
+          Dates are auto-calculated based on billing cutoff day (15) and the last generated statement.
+        </p>
+        <div className="grid md:grid-cols-2 grid-cols-1 gap-2 px-4 py-2 border rounded-xl">
+          <div className="space-y-0">
+            <p className="text-sm font-medium leading-none">Period Start *</p>
+            <Input disabled value={stmt.period_start} type="date" className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0" />
+          </div>
+          <div className="space-y-0">
+            <p className="text-sm font-medium leading-none">Period End *</p>
+            <Input disabled value={stmt.period_end} type="date" className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0" />
+          </div>
         </div>
       </div>
-      <Separator />
-      <div className="bg-gray-50 rounded-lg border p-4 space-y-2.5">
+
+      {/* Filters */}
+      <div>
+        <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">Filters</h2>
+        <div className="border-b py-2">
+          <div className="flex justify-between items-center w-full">
+            <p className="text-sm font-medium leading-none">Branch</p>
+            <span className="text-sm">All Branches</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Preview */}
+      <div className="mt-4 bg-gray-50 rounded-lg border p-4 space-y-2.5">
+        <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Statement Preview</p>
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">Previous Balance</span>
           <span className="tabular-nums font-medium">{amt(stmt.previous_balance)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">New Charges</span>
-          <span className="tabular-nums text-red-600">+{amt(stmt.new_charges)}</span>
+          <span className="tabular-nums">+{amt(stmt.new_charges)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">Payments Received</span>
-          <span className="tabular-nums text-green-600">
-            -{amt(stmt.payments_received)}
-          </span>
+          <span className="tabular-nums text-green-600">-{amt(stmt.payments_received)}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Interest Applied</span>
-          <span className="tabular-nums text-amber-600">
-            +{amt(stmt.interest_applied)}
-          </span>
+          <span className="text-amber-600">Interest Applied</span>
+          <span className="tabular-nums text-amber-600">+{amt(stmt.interest_applied)}</span>
         </div>
         <Separator />
         <div className="flex justify-between text-base font-bold">
@@ -1432,9 +1874,17 @@ function MockStatementPanel() {
           <span className="tabular-nums">{amt(stmt.current_balance)}</span>
         </div>
       </div>
-      <Button className="w-full" disabled>
-        Generate Statement
-      </Button>
-    </div>
+
+      <p className="text-[11px] text-muted-foreground mt-3">
+        After generating, finalize the statement, download as PDF, or email it with the PDF attached.
+        Statements are also auto-generated monthly on the 2nd of each month.
+      </p>
+
+      {/* Actions */}
+      <div className="flex md:flex-row flex-col md:justify-between mt-4">
+        <Button disabled>Generate Statement</Button>
+        <Button variant="ghost" disabled>Cancel</Button>
+      </div>
+    </form>
   );
 }
