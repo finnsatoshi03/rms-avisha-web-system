@@ -1,0 +1,397 @@
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Search, X, Printer, CircleAlert } from "lucide-react";
+import HeaderText from "../components/ui/headerText";
+import { Separator } from "../components/ui/separator";
+import { Button } from "../components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "../components/ui/sheet";
+import { Input } from "../components/ui/input";
+import Loader from "../components/ui/loader";
+import ErrorBoundary from "../components/error-boundery";
+import { useUser } from "../components/auth/useUser";
+import { useRentals } from "../components/rental/useRentals";
+import RentalForm from "../components/rental/rental-form";
+import RentalTable from "../components/rental/rental-table";
+import RentalDetailSheet from "../components/rental/rental-detail-sheet";
+import { RentalData, RentalStatus } from "../lib/types";
+import { deleteRentals } from "../services/apiRentals";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { pdf } from "@react-pdf/renderer";
+import { saveAs } from "file-saver";
+import RentalPDF from "../components/rental/rental-pdf";
+import debounce from "lodash/debounce";
+import toast from "react-hot-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
+
+const allStatuses: { label: string; value: RentalStatus }[] = [
+  { label: "Created", value: "Created" },
+  { label: "Released", value: "Released" },
+  { label: "Ongoing", value: "Ongoing" },
+  { label: "Returned", value: "Returned" },
+  { label: "Completed", value: "Completed" },
+  { label: "Cancelled", value: "Cancelled" },
+];
+
+const statusColorMap: Record<string, string> = {
+  Created: "bg-gray-100 text-gray-700",
+  Released: "bg-blue-100 text-blue-700",
+  Ongoing: "bg-green-100 text-green-700",
+  Returned: "bg-amber-100 text-amber-700",
+  Completed: "bg-emerald-100 text-emerald-700",
+  Cancelled: "bg-red-100 text-red-700",
+};
+
+function getStatusBadgeClass(status: string, isSelected: boolean) {
+  const baseClass =
+    "px-3 py-0.5 rounded-full text-xs font-medium cursor-pointer truncate transition-all duration-200";
+  const colorClass =
+    statusColorMap[status] || "bg-gray-100 text-gray-700";
+  return `${baseClass} ${colorClass} ${isSelected ? "ring-2 ring-offset-2" : ""}`;
+}
+
+export default function Rentals() {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const {
+    isManager,
+    branchId: currentBranchId,
+  } = useUser();
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedStatusFilters, setSelectedStatusFilters] = useState<string[]>(
+    []
+  );
+  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [sortStates, setSortStates] = useState<{
+    [key: string]: "asc" | "desc" | null;
+  }>({});
+  const [isRentalSheetOpen, setIsRentalSheetOpen] = useState(false);
+  const [selectedRental, setSelectedRental] = useState<RentalData | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const debouncedSearch = useCallback(
+    debounce((term: string) => {
+      setDebouncedSearchTerm(term);
+      setIsSearching(false);
+    }, 500),
+    []
+  );
+
+  useEffect(() => {
+    if (searchTerm) {
+      setIsSearching(true);
+    }
+    debouncedSearch(searchTerm);
+    return () => debouncedSearch.cancel();
+  }, [searchTerm, debouncedSearch]);
+
+  const getBranchId = () => (isManager ? currentBranchId ?? null : null);
+
+  const { data, isLoading, isFetching } = useRentals({
+    page: currentPage,
+    limit: itemsPerPage,
+    searchTerm: debouncedSearchTerm,
+    branchId: getBranchId(),
+    statusFilters: selectedStatusFilters,
+    showOverdueOnly,
+  });
+
+  const rentals = (data?.data || []) as RentalData[];
+  const totalCount = data?.meta?.totalCount || 0;
+
+  const deleteMutation = useMutation({
+    mutationFn: (ids: number[]) => deleteRentals(ids),
+    onSuccess: () => {
+      toast.success("Rental(s) deleted");
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({ queryKey: ["rental_assets"] });
+      setSelectedIds([]);
+      setDeleteDialogOpen(false);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const handleStatusFilterClick = (status: string) => {
+    setSelectedStatusFilters((prev) =>
+      prev.includes(status)
+        ? prev.filter((s) => s !== status)
+        : [...prev, status]
+    );
+    setCurrentPage(1);
+  };
+
+  const resetFiltersAndSort = () => {
+    setSelectedStatusFilters([]);
+    setShowOverdueOnly(false);
+    setSearchTerm("");
+    setDebouncedSearchTerm("");
+    setSortStates({});
+    setCurrentPage(1);
+  };
+
+  const handleSort = (column: string, direction: "asc" | "desc") => {
+    setSortStates({
+      rental_no: null,
+      status: null,
+      start_date: null,
+      due_date: null,
+      grand_total: null,
+      [column]: direction,
+    });
+  };
+
+  const handleRowClick = (rental: RentalData) => {
+    setSelectedRental(rental);
+    setDetailOpen(true);
+  };
+
+  const handleExportPdf = async (rental: RentalData) => {
+    try {
+      const blob = await pdf(<RentalPDF rental={rental} />).toBlob();
+      saveAs(blob, `Rental-${rental.rental_no}.pdf`);
+      toast.success("PDF exported");
+    } catch {
+      toast.error("Failed to export PDF");
+    }
+  };
+
+  const hasFilters =
+    searchTerm ||
+    selectedStatusFilters.length > 0 ||
+    showOverdueOnly;
+
+  return (
+    <div className="h-full flex flex-col">
+      <HeaderText>Rentals</HeaderText>
+
+      {/* Top Controls — mirrors JobOrders layout */}
+      <div className="my-4 flex sm:flex-row flex-col sm:gap-0 gap-2 justify-between">
+        <div className="flex items-center gap-3">
+          {/* Search Input */}
+          <div className="relative">
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border-gray-400 h-fit py-1 pl-8 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all ease-in-out duration-500 relative focus-within:w-[300px]"
+              placeholder="Search rental no, client, status, etc."
+            />
+            <div className="absolute left-3 top-2 opacity-60">
+              {isSearching || isFetching ? (
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-500 border-t-transparent" />
+              ) : (
+                <Search size={14} />
+              )}
+            </div>
+          </div>
+
+          {hasFilters && (
+            <Button
+              variant="ghost"
+              className="h-fit w-fit p-0 px-3 py-1.5 gap-1 rounded-lg"
+              onClick={resetFiltersAndSort}
+            >
+              Reset <X size={16} strokeWidth={1.5} />
+            </Button>
+          )}
+
+          <Separator orientation="vertical" className="mx-2 h-[1.5rem]" />
+
+          {/* Add Rental Sheet */}
+          <Sheet open={isRentalSheetOpen} onOpenChange={setIsRentalSheetOpen}>
+            <SheetTrigger asChild>
+              <button className="px-4 py-1.5 text-sm bg-primaryRed hover:bg-hoveredRed text-white flex items-center rounded-lg gap-1">
+                <Plus size={18} />
+                Add
+              </button>
+            </SheetTrigger>
+            <SheetContent className="min-w-[50vw] overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle className="font-bold">
+                  Create New Rental
+                </SheetTitle>
+                <Separator className="my-2" />
+                <RentalForm
+                  onSuccess={() => setIsRentalSheetOpen(false)}
+                />
+              </SheetHeader>
+            </SheetContent>
+          </Sheet>
+
+          {/* Add Printer — navigates to Rental Assets page */}
+          <button
+            className="px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center rounded-lg gap-1 border border-gray-300"
+            onClick={() => navigate("/rental-assets?add=true")}
+          >
+            <Printer size={16} />
+            Add Printer
+          </button>
+        </div>
+      </div>
+
+      {/* Status Filter Badges — mirrors JobOrders pattern */}
+      <div className="flex flex-wrap mb-4 items-center justify-between">
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* Overdue Filter */}
+          <button
+            onClick={() => {
+              setShowOverdueOnly(!showOverdueOnly);
+              setCurrentPage(1);
+            }}
+            className={`px-3 py-0.5 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
+              showOverdueOnly
+                ? "bg-red-100 text-red-700 ring-2 ring-red-300"
+                : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+            }`}
+          >
+            <CircleAlert size={14} strokeWidth={1.5} />
+            Overdue
+            {showOverdueOnly && <X size={12} />}
+          </button>
+
+          {allStatuses.map((status) => (
+            <button
+              key={status.value}
+              onClick={() => handleStatusFilterClick(status.value)}
+              className={getStatusBadgeClass(
+                status.value,
+                selectedStatusFilters.includes(status.value)
+              )}
+            >
+              {status.label}
+            </button>
+          ))}
+
+          {selectedStatusFilters.length > 0 && (
+            <button
+              onClick={() => setSelectedStatusFilters([])}
+              className="px-3 py-0.5 rounded-full text-xs font-medium bg-gray-100 hover:bg-gray-200 transition-all duration-200 flex items-center gap-1"
+            >
+              Clear Filters
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Active filters indicator */}
+        {(selectedStatusFilters.length > 0 || showOverdueOnly) && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Active filters:</span>
+            <div className="flex flex-wrap gap-2">
+              {showOverdueOnly && (
+                <div className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 flex items-center gap-1">
+                  <CircleAlert size={12} />
+                  <span>Overdue</span>
+                  <button
+                    onClick={() => setShowOverdueOnly(false)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+              {selectedStatusFilters.map((status) => {
+                const statusObj = allStatuses.find((s) => s.value === status);
+                return (
+                  <div
+                    key={status}
+                    className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 flex items-center gap-1"
+                  >
+                    <span>{statusObj?.label || status}</span>
+                    <button
+                      onClick={() => handleStatusFilterClick(status)}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Table */}
+      <ErrorBoundary>
+        {isLoading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <Loader />
+          </div>
+        ) : (
+        <RentalTable
+          className="flex-1"
+          rentals={rentals}
+          totalCount={totalCount}
+          currentPage={currentPage}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={(items) => {
+            setItemsPerPage(items);
+            setCurrentPage(1);
+          }}
+          onRowClick={handleRowClick}
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
+          sortStates={sortStates}
+          onSort={handleSort}
+          onExportPdf={handleExportPdf}
+          onDelete={(ids) => {
+            setSelectedIds(ids);
+            setDeleteDialogOpen(true);
+          }}
+        />
+        )}
+      </ErrorBoundary>
+
+      {/* Detail Sheet */}
+      <RentalDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        rental={selectedRental}
+      />
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Rental(s)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedIds.length} rental(s) and
+              restore any consumed inventory stock. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteMutation.mutate(selectedIds)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

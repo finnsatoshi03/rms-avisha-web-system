@@ -14,6 +14,7 @@ import {
   WalletMinimal,
   Wrench,
   Calendar,
+  Handshake,
   ChevronRight,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
@@ -131,7 +132,9 @@ export default function AppSidebar({
   const { user, isDev, isAdmin } = useUser();
   const { openConsole } = useDevConsole();
   const [open, setOpen] = useState(false);
+  const [isHomeOpen, setIsHomeOpen] = useState(false);
   const [isJobOrdersOpen, setIsJobOrdersOpen] = useState(false);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleNavClick = () => {
@@ -150,22 +153,65 @@ export default function AppSidebar({
             {!isUser ? (
               <>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Home">
-                    <NavLink
-                      to="dashboard/job-order"
-                      onClick={handleNavClick}
-                      className={({ isActive }) =>
-                        cn(
-                          "w-full",
-                          isActive &&
-                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                        )
-                      }
-                    >
-                      <Home size={20} />
-                      <span>Home</span>
-                    </NavLink>
-                  </SidebarMenuButton>
+                  <Collapsible
+                    open={isHomeOpen}
+                    onOpenChange={setIsHomeOpen}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        className="w-full justify-between"
+                        tooltip="Home"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Home size={20} />
+                          <span>Home</span>
+                        </div>
+                        <ChevronRight
+                          size={16}
+                          className={`transition-transform ${isHomeOpen ? "rotate-90" : ""
+                            }`}
+                        />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild>
+                            <NavLink
+                              to="dashboard/job-order"
+                              onClick={handleNavClick}
+                              className={({ isActive }) =>
+                                cn(
+                                  "w-full",
+                                  isActive &&
+                                  "bg-sidebar-accent text-sidebar-accent-foreground"
+                                )
+                              }
+                            >
+                              Job Orders
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild>
+                            <NavLink
+                              to="dashboard/rental"
+                              onClick={handleNavClick}
+                              className={({ isActive }) =>
+                                cn(
+                                  "w-full",
+                                  isActive &&
+                                  "bg-sidebar-accent text-sidebar-accent-foreground"
+                                )
+                              }
+                            >
+                              Rentals
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <Collapsible
@@ -230,9 +276,9 @@ export default function AppSidebar({
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Materials">
+                  <SidebarMenuButton asChild tooltip="Rentals">
                     <NavLink
-                      to="materials"
+                      to="rentals"
                       onClick={handleNavClick}
                       className={({ isActive }) =>
                         cn(
@@ -242,10 +288,71 @@ export default function AppSidebar({
                         )
                       }
                     >
-                      <Archive size={20} />
-                      <span>Materials</span>
+                      <Handshake size={20} />
+                      <span>Rentals</span>
                     </NavLink>
                   </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                  <Collapsible
+                    open={isInventoryOpen}
+                    onOpenChange={setIsInventoryOpen}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        className="w-full justify-between"
+                        tooltip="Inventory"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Archive size={20} />
+                          <span>Inventory</span>
+                        </div>
+                        <ChevronRight
+                          size={16}
+                          className={`transition-transform ${isInventoryOpen ? "rotate-90" : ""}`}
+                        />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild>
+                            <NavLink
+                              to="materials"
+                              onClick={handleNavClick}
+                              className={({ isActive }) =>
+                                cn(
+                                  "w-full",
+                                  isActive &&
+                                  "bg-sidebar-accent text-sidebar-accent-foreground"
+                                )
+                              }
+                            >
+                              Materials
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild>
+                            <NavLink
+                              to="rental-assets"
+                              onClick={handleNavClick}
+                              className={({ isActive }) =>
+                                cn(
+                                  "w-full",
+                                  isActive &&
+                                  "bg-sidebar-accent text-sidebar-accent-foreground"
+                                )
+                              }
+                            >
+                              Rental Printers
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
@@ -333,7 +440,7 @@ export default function AppSidebar({
                           cn(
                             "w-full",
                             isActive &&
-                              "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                            "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                           )
                         }
                       >

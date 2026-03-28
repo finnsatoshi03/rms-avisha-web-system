@@ -1558,7 +1558,10 @@ export default function JobOrderForm({
                             disabled={isFormReadonly || onWarranty}
                           >
                             <FormControl>
-                              <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
+                              <SelectTrigger
+                                className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right"
+                                autoFocus={!editSession && !field.value}
+                              >
                                 <SelectValue
                                   placeholder={`${form.watch("branch_id")
                                       ? (branches || []).find(

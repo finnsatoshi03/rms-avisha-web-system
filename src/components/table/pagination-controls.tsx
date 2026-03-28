@@ -28,7 +28,8 @@ export const PaginationControls = ({
   itemsPerPage: number;
   handleItemsPerPageChange: (items: number) => void;
 }) => {
-  const startIndex = (currentPage - 1) * itemsPerPage + 1;
+  const safeTotalPages = Math.max(1, totalPages);
+  const startIndex = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const endIndex = Math.min(startIndex + itemsPerPage - 1, totalItems);
 
   return (
@@ -59,14 +60,14 @@ export const PaginationControls = ({
         </div>
         <div className="flex gap-2 w-full justify-end items-center">
           <span className="mr-6 text-sm font-bold">
-            Page {currentPage} of {totalPages}
+            Page {currentPage} of {safeTotalPages}
           </span>
           <Button
             size={"icon"}
             variant={"outline"}
             className="h-fit p-1.5 w-fit"
             onClick={() => handlePageChange(1)}
-            disabled={currentPage === 1}
+            disabled={currentPage <= 1}
           >
             <ChevronsLeft size={18} strokeWidth={1.5} />
           </Button>
@@ -75,7 +76,7 @@ export const PaginationControls = ({
             variant={"outline"}
             className="h-fit p-1.5 w-fit"
             onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
+            disabled={currentPage <= 1}
           >
             <ChevronLeft size={18} strokeWidth={1.5} />
           </Button>
@@ -84,7 +85,7 @@ export const PaginationControls = ({
             variant={"outline"}
             className="h-fit p-1.5 w-fit"
             onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
+            disabled={currentPage >= safeTotalPages}
           >
             <ChevronRight size={18} strokeWidth={1.5} />
           </Button>
@@ -92,8 +93,8 @@ export const PaginationControls = ({
             size={"icon"}
             variant={"outline"}
             className="h-fit p-1.5 w-fit"
-            onClick={() => handlePageChange(totalPages)}
-            disabled={currentPage === totalPages}
+            onClick={() => handlePageChange(safeTotalPages)}
+            disabled={currentPage >= safeTotalPages}
           >
             <ChevronsRight size={18} strokeWidth={1.5} />
           </Button>

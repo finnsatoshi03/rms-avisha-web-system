@@ -42,6 +42,9 @@ export const SortableHeader = ({
     serial_number: "Serial Number",
     daily_rate: "Daily Rate",
     monthly_rate: "Monthly Rate",
+    rental_no: "Rental No",
+    start_date: "Start Date",
+    due_date: "Due Date",
   };
 
   return (

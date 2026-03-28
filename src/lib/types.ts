@@ -308,6 +308,145 @@ export type MaterialStocks = {
   [key: string]: undefined | boolean | string | number | null | Date | Branch;
 };
 
+// =============================================
+// Rental Module Types
+// =============================================
+
+export type RentalAssetStatus =
+  | "available"
+  | "rented"
+  | "maintenance"
+  | "retired";
+
+export type RentalAsset = {
+  id: number;
+  unit_name: string;
+  model: string | null;
+  serial_number: string | null;
+  daily_rate: number;
+  monthly_rate: number;
+  status: RentalAssetStatus;
+  branch_id: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted: boolean;
+  branches?: Branch;
+  [key: string]:
+    | undefined
+    | boolean
+    | string
+    | number
+    | null
+    | Branch;
+};
+
+export type RentalStatus =
+  | "Created"
+  | "Released"
+  | "Ongoing"
+  | "Returned"
+  | "Completed"
+  | "Cancelled";
+
+export type RentalConsumable = {
+  id: number;
+  rental_id: number;
+  material_stock_id: number | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total_amount: number;
+  is_manual: boolean;
+  added_at: string;
+  notes: string | null;
+};
+
+export type RentalInspection = {
+  id: number;
+  rental_id: number;
+  physical_condition: string | null;
+  print_quality: string | null;
+  meter_reading_start: number | null;
+  meter_reading_end: number | null;
+  accessories_returned: string | null;
+  missing_items: string | null;
+  damage_assessment: string | null;
+  damage_penalty: number;
+  notes: string | null;
+  inspected_by: string | null;
+  inspected_at: string;
+};
+
+export type RentalData = {
+  id: number;
+  rental_no: string;
+  rental_asset_id: number;
+  client_id: number;
+  technician_id: string | null;
+  branch_id: number;
+  status: RentalStatus;
+  start_date: string | null;
+  end_date: string | null;
+  due_date: string | null;
+  is_overdue: boolean;
+  rental_type: "DAILY" | "MONTHLY";
+  rate_amount: number;
+  consumables_total: number;
+  grand_total: number;
+  notes: string | null;
+  billing_account_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined relations
+  clients: Client;
+  branches: Branch;
+  rental_assets: RentalAsset;
+  users: User | null;
+  rental_consumables: RentalConsumable[];
+  rental_inspections: RentalInspection | null;
+  [key: string]: unknown;
+};
+
+export type CreateRentalAssetData = {
+  unit_name: string;
+  model?: string;
+  serial_number?: string;
+  daily_rate: number;
+  monthly_rate: number;
+  status?: string;
+  branch_id: number;
+  notes?: string;
+};
+
+export type CreateRentalConsumable = {
+  material_stock_id?: number | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  is_manual: boolean;
+  notes?: string;
+};
+
+export type CreateRentalData = {
+  rental_asset_id: number;
+  client_id?: number | null;
+  name: string;
+  contact_number: string;
+  email?: string;
+  technician_id?: string | null;
+  branch_id: number;
+  start_date: string;
+  end_date?: string;
+  due_date: string;
+  rental_type: "DAILY" | "MONTHLY";
+  rate_amount: number;
+  notes?: string;
+  consumables?: CreateRentalConsumable[];
+  billing_account_id?: string | null;
+};
+
 export type Expenses = {
   id: number;
   bill_name: string;
