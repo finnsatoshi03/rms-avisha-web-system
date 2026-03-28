@@ -27,7 +27,7 @@ import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import RentalPDF from "../components/rental/rental-pdf";
 import PrintOptionsDialog from "../components/job-order/print-option-dialog";
-import { formatNumberWithCommas } from "../lib/helpers";
+import { formatNumberWithCommas, getStatusClass } from "../lib/helpers";
 import debounce from "lodash/debounce";
 import toast from "react-hot-toast";
 import {
@@ -50,21 +50,11 @@ const allStatuses: { label: string; value: RentalStatus }[] = [
   { label: "Cancelled", value: "Cancelled" },
 ];
 
-const statusColorMap: Record<string, string> = {
-  Created: "bg-gray-100 text-gray-700",
-  Released: "bg-blue-100 text-blue-700",
-  Ongoing: "bg-green-100 text-green-700",
-  Returned: "bg-amber-100 text-amber-700",
-  Completed: "bg-emerald-100 text-emerald-700",
-  Cancelled: "bg-red-100 text-red-700",
-};
-
 function getStatusBadgeClass(status: string, isSelected: boolean) {
   const baseClass =
-    "px-3 py-0.5 rounded-full text-xs font-medium cursor-pointer truncate transition-all duration-200";
-  const colorClass =
-    statusColorMap[status] || "bg-gray-100 text-gray-700";
-  return `${baseClass} ${colorClass} ${isSelected ? "ring-2 ring-offset-2" : ""}`;
+    "px-3 py-0.5 rounded-full text-xs font-bold cursor-pointer truncate transition-all duration-200";
+  const statusClass = getStatusClass(status);
+  return `${baseClass} ${statusClass} ${isSelected ? "ring-2 ring-offset-2" : ""}`;
 }
 
 export default function Rentals() {

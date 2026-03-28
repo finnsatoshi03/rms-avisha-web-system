@@ -393,6 +393,8 @@ export type RentalData = {
   rental_type: "DAILY" | "MONTHLY";
   rate_amount: number;
   consumables_total: number;
+  discount: number;
+  downpayment: number;
   grand_total: number;
   notes: string | null;
   billing_account_id: string | null;

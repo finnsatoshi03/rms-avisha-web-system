@@ -23,6 +23,8 @@ export function useCreateRental() {
         due_date: string;
         rental_type: "DAILY" | "MONTHLY";
         rate_amount: number;
+        discount?: number;
+        downpayment?: number;
         notes?: string;
         consumables?: CreateRentalConsumable[];
         billing_account_id?: string | null;

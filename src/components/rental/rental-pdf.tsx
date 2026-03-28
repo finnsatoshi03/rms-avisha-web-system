@@ -193,6 +193,24 @@ function Content({ rental }: { rental: RentalData }) {
             P{Number(rental.consumables_total).toFixed(2)}
           </Text>
         </View>
+        {Number(rental.discount) > 0 && (
+          <View style={s.row}>
+            <Text style={[s.col66, s.br]}></Text>
+            <Text style={[s.label, s.br, { fontSize: 10 }]}>Discount</Text>
+            <Text style={s.col17}>
+              -{" "}P{Number(rental.discount).toFixed(2)}
+            </Text>
+          </View>
+        )}
+        {Number(rental.downpayment) > 0 && (
+          <View style={s.row}>
+            <Text style={[s.col66, s.br]}></Text>
+            <Text style={[s.label, s.br, { fontSize: 10 }]}>Downpayment</Text>
+            <Text style={s.col17}>
+              P{Number(rental.downpayment).toFixed(2)}
+            </Text>
+          </View>
+        )}
         <View style={s.row}>
           <Text style={[s.col66, s.br]}></Text>
           <Text style={[s.label, s.br, { fontSize: 10 }]}>Grand Total</Text>

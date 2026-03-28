@@ -9,7 +9,10 @@ import {
   RentalConsumable,
   Client,
 } from "../../lib/types";
-import { getStatusClass } from "../../lib/helpers";
+import { getStatusClass, formatNumberWithCommas } from "../../lib/helpers";
+import { format } from "date-fns";
+import DiscountDialog from "../job-order/discount-option-dialog";
+import { useDownpayment } from "../job-order/useDownpayment";
 import { useRentalStatusUpdate } from "./useRentalStatusUpdate";
 import { useUpdateRental } from "./useUpdateRental";
 import ReturnInspectionDialog from "./return-inspection-dialog";
@@ -99,6 +102,10 @@ export default function RentalDetailSheet({
   const updateMutation = useUpdateRental();
   const { user, branchId, isAdmin } = useUser();
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [rentalMonths, setRentalMonths] = useState(1);
+  const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
+  const [selectedDiscount, setSelectedDiscount] = useState<number | null>(null);
+  const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(false);
 
   const { data: branches } = useQuery({
     queryKey: ["branches"],
@@ -121,10 +128,51 @@ export default function RentalDetailSheet({
       form.reset(getDefaultValues(rental));
       setSelectedClient(rental.clients || null);
       setIsEditMode(false);
+      setSelectedDiscount(rental.discount || null);
+      setDownpaymentInputVisible(Boolean(rental.downpayment && rental.downpayment > 0));
+      // Compute months from start/end dates
+      if (rental.rental_type === "MONTHLY" && rental.start_date && rental.end_date) {
+        const start = new Date(rental.start_date);
+        const end = new Date(rental.end_date);
+        const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+        setRentalMonths(Math.max(1, months));
+      } else {
+        setRentalMonths(1);
+      }
     }
   }, [rental, form]);
 
   const selectedBranchId = form.watch("branch_id");
+  const watchedRentalType = form.watch("rental_type");
+  const watchedStartDate = form.watch("start_date");
+  const watchedEndDate = form.watch("end_date");
+
+  // Auto-calculate for monthly when editing
+  useEffect(() => {
+    if (isEditMode && watchedStartDate && watchedRentalType === "MONTHLY") {
+      const start = new Date(watchedStartDate + "T00:00:00");
+      const endMonth = new Date(start);
+      endMonth.setMonth(endMonth.getMonth() + rentalMonths);
+      const endStr = endMonth.toISOString().split("T")[0];
+      form.setValue("end_date", endStr);
+      form.setValue("due_date", endStr);
+      if (rental) {
+        form.setValue("rate_amount", rental.rental_assets?.monthly_rate * rentalMonths);
+      }
+    }
+  }, [watchedStartDate, watchedRentalType, rentalMonths, isEditMode]);
+
+  // Auto-calculate for daily when editing
+  useEffect(() => {
+    if (isEditMode && watchedRentalType === "DAILY" && watchedStartDate && watchedEndDate && rental) {
+      const start = new Date(watchedStartDate + "T00:00:00");
+      const end = new Date(watchedEndDate + "T00:00:00");
+      const diffTime = end.getTime() - start.getTime();
+      const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      form.setValue("rate_amount", rental.rental_assets?.daily_rate * diffDays);
+      form.setValue("due_date", watchedEndDate);
+    }
+  }, [watchedStartDate, watchedEndDate, watchedRentalType, isEditMode]);
 
   const filteredTechnicians = useMemo(() => {
     if (!technicians) return [];
@@ -133,6 +181,16 @@ export default function RentalDetailSheet({
       (t: any) => t.branch_id === selectedBranchId || t.branch_id === null
     );
   }, [selectedBranchId, technicians]);
+
+  const rentalSubTotal = rental
+    ? Number(rental.rate_amount) + Number(rental.consumables_total)
+    : 0;
+  const rentalGrandTotal = rentalSubTotal - (selectedDiscount ?? 0);
+
+  const { downpaymentValue, downpaymentError, handleDownpaymentChange } =
+    useDownpayment(rentalGrandTotal, rental?.downpayment || undefined);
+
+  const adjustedGrandTotal = rentalGrandTotal - (downpaymentValue ?? 0);
 
   if (!rental) return null;
 
@@ -200,6 +258,8 @@ export default function RentalDetailSheet({
           due_date: values.due_date,
           rental_type: values.rental_type,
           rate_amount: values.rate_amount,
+          discount: selectedDiscount ?? 0,
+          downpayment: downpaymentValue ?? 0,
           notes: values.notes,
         },
       },
@@ -507,61 +567,18 @@ export default function RentalDetailSheet({
                   )}
                 />
 
-                <div className="grid grid-cols-2 gap-0">
-                  <FormField
-                    control={form.control}
-                    name="start_date"
-                    render={({ field }) => (
-                      <FormItem className="border-b py-2 pr-2">
-                        <div className="space-y-0 flex justify-between items-center w-full">
-                          <FormLabel>Start Date</FormLabel>
-                          <FormControl>
-                            <DatePicker
-                              value={field.value}
-                              onChange={field.onChange}
-                              placeholder="Pick start date"
-                              disabled={isFormReadonly}
-                            />
-                          </FormControl>
-                        </div>
-                        <FormMessage className="text-right" />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="end_date"
-                    render={({ field }) => (
-                      <FormItem className="border-b py-2 pl-2">
-                        <div className="space-y-0 flex justify-between items-center w-full">
-                          <FormLabel>End Date</FormLabel>
-                          <FormControl>
-                            <DatePicker
-                              value={field.value}
-                              onChange={field.onChange}
-                              placeholder="Pick end date"
-                              disabled={isFormReadonly}
-                            />
-                          </FormControl>
-                        </div>
-                        <FormMessage className="text-right" />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
                 <FormField
                   control={form.control}
-                  name="due_date"
+                  name="start_date"
                   render={({ field }) => (
                     <FormItem className="border-b py-2">
                       <div className="space-y-0 flex justify-between items-center w-full">
-                        <FormLabel>Due Date</FormLabel>
+                        <FormLabel>Start Date</FormLabel>
                         <FormControl>
                           <DatePicker
                             value={field.value}
                             onChange={field.onChange}
-                            placeholder="Pick due date"
+                            placeholder="Pick start date"
                             disabled={isFormReadonly}
                           />
                         </FormControl>
@@ -571,6 +588,87 @@ export default function RentalDetailSheet({
                   )}
                 />
 
+                {watchedRentalType === "MONTHLY" ? (
+                  <div className="border-b py-2">
+                    <div className="space-y-0 flex justify-between items-center w-full">
+                      <span className="text-sm font-medium">Duration (months)</span>
+                      {isEditMode ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="px-2 border rounded-full text-sm"
+                            onClick={() => rentalMonths > 1 && setRentalMonths(rentalMonths - 1)}
+                          >-</button>
+                          <span className="text-sm font-medium w-6 text-center">{rentalMonths}</span>
+                          <button
+                            type="button"
+                            className="px-2 border rounded-full text-sm"
+                            onClick={() => setRentalMonths(rentalMonths + 1)}
+                          >+</button>
+                        </div>
+                      ) : (
+                        <span className="text-sm">{rentalMonths} month{rentalMonths > 1 ? "s" : ""}</span>
+                      )}
+                    </div>
+                    {watchedStartDate && (
+                      <p className="text-xs text-muted-foreground text-right mt-1">
+                        Ends on{" "}
+                        {format(
+                          new Date(
+                            new Date(watchedStartDate + "T00:00:00").setMonth(
+                              new Date(watchedStartDate + "T00:00:00").getMonth() + rentalMonths
+                            )
+                          ),
+                          "MMM d, yyyy"
+                        )}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="end_date"
+                      render={({ field }) => (
+                        <FormItem className="border-b py-2">
+                          <div className="space-y-0 flex justify-between items-center w-full">
+                            <FormLabel>End Date *</FormLabel>
+                            <FormControl>
+                              <DatePicker
+                                value={field.value}
+                                onChange={field.onChange}
+                                placeholder="Pick end date"
+                                disabled={isFormReadonly}
+                              />
+                            </FormControl>
+                          </div>
+                          <FormMessage className="text-right" />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="due_date"
+                      render={({ field }) => (
+                        <FormItem className="border-b py-2">
+                          <div className="space-y-0 flex justify-between items-center w-full">
+                            <FormLabel>Due Date</FormLabel>
+                            <FormControl>
+                              <DatePicker
+                                value={field.value}
+                                onChange={field.onChange}
+                                placeholder="Pick due date"
+                                disabled={isFormReadonly}
+                              />
+                            </FormControl>
+                          </div>
+                          <FormMessage className="text-right" />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
+
                 <FormField
                   control={form.control}
                   name="rate_amount"
@@ -578,19 +676,8 @@ export default function RentalDetailSheet({
                     <FormItem className="border-b py-2">
                       <div className="space-y-0 flex justify-between items-center w-full">
                         <FormLabel>Rate Amount</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-[120px] text-right"
-                            disabled={isFormReadonly}
-                            {...field}
-                            onChange={(e) => field.onChange(Number(e.target.value))}
-                          />
-                        </FormControl>
+                        <span className="text-sm font-medium">₱{Number(field.value).toFixed(2)}</span>
                       </div>
-                      <FormMessage className="text-right" />
                     </FormItem>
                   )}
                 />
@@ -630,7 +717,7 @@ export default function RentalDetailSheet({
             </form>
           </Form>
 
-          {/* Summary */}
+          {/* Summary — same as JO form */}
           <div className="w-fit px-5 py-3 bg-slate-100 rounded-lg flex flex-col mb-3 text-sm ml-auto">
             <h2 className="mb-2 uppercase font-bold font-mono text-base">
               Rental Summary
@@ -641,7 +728,7 @@ export default function RentalDetailSheet({
                 <p className="opacity-60">Rate</p>
                 <p>
                   {Number(rental.rate_amount) > 0
-                    ? `₱${Number(rental.rate_amount).toFixed(2)}`
+                    ? `₱${formatNumberWithCommas(Number(rental.rate_amount))}`
                     : "---"}
                 </p>
               </div>
@@ -649,16 +736,114 @@ export default function RentalDetailSheet({
                 <p className="opacity-60">Consumables</p>
                 <p>
                   {Number(rental.consumables_total) > 0
-                    ? `₱${Number(rental.consumables_total).toFixed(2)}`
+                    ? `₱${formatNumberWithCommas(Number(rental.consumables_total))}`
                     : "---"}
                 </p>
               </div>
+              <div className="flex justify-between gap-8">
+                <p className="opacity-60">Discount</p>
+                {selectedDiscount ? (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      className="h-fit w-fit p-[1px] rounded-full"
+                      size="icon"
+                      variant="destructive"
+                      type="button"
+                      onClick={() => setSelectedDiscount(null)}
+                      disabled={isFormReadonly || updateMutation.isPending}
+                    >
+                      <X size={10} />
+                    </Button>
+                    <Button
+                      className="h-fit w-fit p-0"
+                      variant="link"
+                      type="button"
+                      onClick={() => setDiscountDialogOpen(true)}
+                      disabled={isFormReadonly || updateMutation.isPending}
+                    >
+                      ₱{formatNumberWithCommas(selectedDiscount)}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    className="h-fit w-fit p-0"
+                    variant="link"
+                    type="button"
+                    onClick={() => setDiscountDialogOpen(true)}
+                    disabled={isFormReadonly || updateMutation.isPending}
+                  >
+                    Select a discount
+                  </Button>
+                )}
+              </div>
+              <div className="flex justify-between items-start gap-4">
+                <p className="opacity-60">Downpayment</p>
+                {downpaymentValue || downpaymentInputVisible ? (
+                  <div className="flex-col items-end justify-end w-[115px]">
+                    {isFormReadonly ? (
+                      <p className="text-right">
+                        ₱{downpaymentValue !== null
+                          ? formatNumberWithCommas(downpaymentValue)
+                          : rental.downpayment
+                            ? formatNumberWithCommas(rental.downpayment)
+                            : "0"}
+                      </p>
+                    ) : (
+                      <input
+                        type="number"
+                        value={downpaymentValue ?? ""}
+                        onChange={handleDownpaymentChange}
+                        className="w-full text-right bg-transparent focus:outline-none"
+                        placeholder="Enter amount"
+                        min="0"
+                        disabled={isFormReadonly || updateMutation.isPending}
+                      />
+                    )}
+                    {downpaymentError && !isFormReadonly && (
+                      <p className="text-red-500 text-xs mt-1 text-right">
+                        {downpaymentError}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <Button
+                    className="h-fit w-fit p-0"
+                    variant="link"
+                    type="button"
+                    onClick={() => setDownpaymentInputVisible(true)}
+                    disabled={isFormReadonly || updateMutation.isPending}
+                  >
+                    Add downpayment
+                  </Button>
+                )}
+              </div>
             </div>
-            <div className="flex justify-between gap-8 font-bold text-base">
-              <p>Grand Total</p>
-              <p>₱{Number(rental.grand_total).toFixed(2)}</p>
+            <div className="flex justify-between gap-4">
+              <p className="font-black">Grand Total</p>
+              <div>
+                <p>
+                  {adjustedGrandTotal > 0
+                    ? `₱${formatNumberWithCommas(adjustedGrandTotal)}`
+                    : "---"}
+                </p>
+                {selectedDiscount !== null && selectedDiscount > 0 && (
+                  <p className="line-through text-xs text-right text-slate-500">
+                    ₱{formatNumberWithCommas(rentalSubTotal)}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
+
+          <DiscountDialog
+            open={discountDialogOpen}
+            onOpenChange={setDiscountDialogOpen}
+            grandTotal={rentalSubTotal}
+            onSelectDiscount={(d) => {
+              setSelectedDiscount(d);
+              setDiscountDialogOpen(false);
+            }}
+          />
 
           {/* Inspection */}
           {inspection && (
@@ -752,6 +937,8 @@ function getDefaultValues(rental: RentalData | null): RentalFormValues {
       due_date: "",
       rental_type: "MONTHLY",
       rate_amount: 0,
+      discount: 0,
+      downpayment: 0,
       notes: "",
       consumables: [],
       billing_account_id: null,
@@ -770,6 +957,8 @@ function getDefaultValues(rental: RentalData | null): RentalFormValues {
     due_date: rental.due_date || "",
     rental_type: rental.rental_type,
     rate_amount: rental.rate_amount,
+    discount: rental.discount || 0,
+    downpayment: rental.downpayment || 0,
     notes: rental.notes || "",
     consumables: [],
     billing_account_id: rental.billing_account_id,

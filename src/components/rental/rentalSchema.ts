@@ -41,6 +41,8 @@ export const rentalFormSchema = z.object({
   due_date: z.string().min(1, "Due date is required"),
   rental_type: z.enum(["DAILY", "MONTHLY"]),
   rate_amount: z.number().min(0, "Rate must be non-negative"),
+  discount: z.number().min(0).optional().default(0),
+  downpayment: z.number().min(0).optional().default(0),
   notes: z.string().optional(),
   consumables: z.array(consumableSchema).optional(),
   billing_account_id: z.string().optional().nullable(),

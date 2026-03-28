@@ -33,6 +33,11 @@ import {
 } from "../ui/select";
 import PhoneInput from "../ui/phone-input";
 import { DatePicker } from "../ui/date-picker";
+import { Button } from "../ui/button";
+import DiscountDialog from "../job-order/discount-option-dialog";
+import { useDownpayment } from "../job-order/useDownpayment";
+import { formatNumberWithCommas } from "../../lib/helpers";
+import { X } from "lucide-react";
 import { format } from "date-fns";
 
 interface RentalFormProps {
@@ -48,6 +53,9 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
     monthly_rate: number;
   } | null>(null);
   const [rentalMonths, setRentalMonths] = useState(1);
+  const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
+  const [selectedDiscount, setSelectedDiscount] = useState<number | null>(null);
+  const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(false);
   const canSelectBranch = isAdmin;
 
   const { data: branches } = useQuery({
@@ -76,6 +84,8 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
       due_date: "",
       rental_type: "MONTHLY",
       rate_amount: 0,
+      discount: 0,
+      downpayment: 0,
       notes: "",
       consumables: [],
       billing_account_id: null,
@@ -141,7 +151,12 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
   function onSubmit(values: RentalFormValues) {
     createMutation.mutate(
       {
-        data: { ...values, created_by: user?.id },
+        data: {
+          ...values,
+          discount: selectedDiscount ?? 0,
+          downpayment: downpaymentValue ?? 0,
+          created_by: user?.id,
+        },
         clientId: values.client_id || null,
       },
       {
@@ -158,7 +173,14 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
     (sum, c) => sum + (c.quantity || 0) * (c.unit_price || 0),
     0
   );
-  const grandTotal = rateAmount + consumablesTotal;
+  const subTotal = rateAmount + consumablesTotal;
+  const grandTotal = subTotal - (selectedDiscount ?? 0);
+
+  const { downpaymentValue, downpaymentError, handleDownpaymentChange } =
+    useDownpayment(grandTotal);
+
+  const adjustedGrandTotal =
+    grandTotal - (downpaymentValue ?? 0);
 
   return (
     <Form {...form}>
@@ -496,18 +518,8 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
               <FormItem className="border-b py-2">
                 <div className="space-y-0 flex justify-between items-center w-full">
                   <FormLabel>Rate Amount</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-[120px] text-right"
-                      {...field}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
-                    />
-                  </FormControl>
+                  <span className="text-sm font-medium">₱{Number(field.value).toFixed(2)}</span>
                 </div>
-                <FormMessage className="text-right" />
               </FormItem>
             )}
           />
@@ -542,7 +554,7 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
           )}
         />
 
-        {/* Button + Summary — matches JO form layout */}
+        {/* Button + Summary — same as JO form */}
         <div className="flex md:flex-row flex-col md:justify-between mt-2">
           <button
             type="submit"
@@ -561,25 +573,115 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
               <div className="flex justify-between">
                 <p className="opacity-60">Rate</p>
                 <p>
-                  {rateAmount > 0 ? `₱${rateAmount.toFixed(2)}` : "---"}
+                  {rateAmount > 0
+                    ? `₱${formatNumberWithCommas(rateAmount)}`
+                    : "---"}
                 </p>
               </div>
               <div className="flex justify-between">
                 <p className="opacity-60">Consumables</p>
                 <p>
                   {consumablesTotal > 0
-                    ? `₱${consumablesTotal.toFixed(2)}`
+                    ? `₱${formatNumberWithCommas(consumablesTotal)}`
                     : "---"}
                 </p>
               </div>
+              <div className="flex justify-between gap-8">
+                <p className="opacity-60">Discount</p>
+                {selectedDiscount ? (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      className="h-fit w-fit p-[1px] rounded-full"
+                      size="icon"
+                      variant="destructive"
+                      type="button"
+                      onClick={() => setSelectedDiscount(null)}
+                      disabled={createMutation.isPending}
+                    >
+                      <X size={10} />
+                    </Button>
+                    <Button
+                      className="h-fit w-fit p-0"
+                      variant="link"
+                      type="button"
+                      onClick={() => setDiscountDialogOpen(true)}
+                      disabled={createMutation.isPending || !grandTotal}
+                    >
+                      ₱{formatNumberWithCommas(selectedDiscount)}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    className="h-fit w-fit p-0"
+                    variant="link"
+                    type="button"
+                    onClick={() => setDiscountDialogOpen(true)}
+                    disabled={createMutation.isPending || !subTotal}
+                  >
+                    Select a discount
+                  </Button>
+                )}
+              </div>
+              <div className="flex justify-between items-start gap-4">
+                <p className="opacity-60">Downpayment</p>
+                {downpaymentValue || downpaymentInputVisible ? (
+                  <div className="flex-col items-end justify-end w-[115px]">
+                    <input
+                      type="number"
+                      value={downpaymentValue ?? ""}
+                      onChange={handleDownpaymentChange}
+                      className="w-full text-right bg-transparent focus:outline-none"
+                      placeholder="Enter amount"
+                      min="0"
+                      disabled={createMutation.isPending}
+                    />
+                    {downpaymentError && (
+                      <p className="text-red-500 text-xs mt-1 text-right">
+                        {downpaymentError}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <Button
+                    className="h-fit w-fit p-0"
+                    variant="link"
+                    type="button"
+                    onClick={() => setDownpaymentInputVisible(true)}
+                    disabled={createMutation.isPending || !grandTotal}
+                  >
+                    Add downpayment
+                  </Button>
+                )}
+              </div>
             </div>
-            <div className="flex justify-between gap-8 font-bold text-base">
-              <p>Grand Total</p>
-              <p>₱{grandTotal.toFixed(2)}</p>
+            <div className="flex justify-between gap-4">
+              <p className="font-black">Grand Total</p>
+              <div>
+                <p>
+                  {adjustedGrandTotal > 0
+                    ? `₱${formatNumberWithCommas(adjustedGrandTotal)}`
+                    : "---"}
+                </p>
+                {selectedDiscount !== null && selectedDiscount > 0 && (
+                  <p className="line-through text-xs text-right text-slate-500">
+                    ₱{formatNumberWithCommas(subTotal)}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </form>
+
+      <DiscountDialog
+        open={discountDialogOpen}
+        onOpenChange={setDiscountDialogOpen}
+        grandTotal={subTotal}
+        onSelectDiscount={(d) => {
+          setSelectedDiscount(d);
+          setDiscountDialogOpen(false);
+        }}
+      />
     </Form>
   );
 }
