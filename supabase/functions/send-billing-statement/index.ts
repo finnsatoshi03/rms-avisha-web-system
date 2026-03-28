@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { buildStatementEmail } from "../_shared/email-template.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,11 +21,18 @@ const json = (status: number, body: unknown) =>
 type SendStatementPayload = {
   statement_id: string;
   to_email: string;
+  client_name?: string;
   account_number: string;
   statement_number: string;
   period: string;
+  previous_balance?: number;
+  new_charges?: number;
+  interest_applied?: number;
+  payments_received?: number;
   balance_due: number;
   due_date: string;
+  pdf_base64?: string;
+  pdf_filename?: string;
 };
 
 Deno.serve(async (req) => {
@@ -53,66 +61,45 @@ Deno.serve(async (req) => {
       return json(400, { error: "statement_id and to_email are required" });
     }
 
-    // NOTE: Email sending requires an email service to be configured.
-    // Options: Resend, SendGrid, or Supabase's built-in email.
-    //
-    // To configure with Resend (recommended):
-    // 1. Sign up at resend.com and get an API key
-    // 2. Set the RESEND_API_KEY secret in your Supabase project:
-    //    supabase secrets set RESEND_API_KEY=re_xxxxx
-    // 3. Uncomment the email sending code below
-    //
-    // For now, this function updates the statement status to 'sent'
-    // and returns success. The actual email sending is a TODO.
-
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
     if (resendApiKey) {
-      // Send email via Resend
+      // Build email body
+      const emailBody: Record<string, unknown> = {
+        from: "RMS Avisha <billing@rmsavisha.company>",
+        to: [to_email],
+        subject: `Statement of Account - ${account_number} - ${period}`,
+        html: buildStatementEmail({
+          clientName: payload.client_name || "Valued Client",
+          accountNumber: account_number,
+          statementNumber: statement_number,
+          period,
+          previousBalance: payload.previous_balance ?? 0,
+          newCharges: payload.new_charges ?? balance_due,
+          interestApplied: payload.interest_applied ?? 0,
+          paymentsReceived: payload.payments_received ?? 0,
+          totalDue: balance_due,
+          dueDate: due_date,
+        }),
+      };
+
+      // Attach PDF if provided
+      if (payload.pdf_base64) {
+        emailBody.attachments = [
+          {
+            filename: payload.pdf_filename || `${statement_number}.pdf`,
+            content: payload.pdf_base64,
+          },
+        ];
+      }
+
       const emailResponse = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${resendApiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          from: "RMS Avisha <billing@rmsavisha.com>",
-          to: [to_email],
-          subject: `Statement of Account - ${account_number} - ${period}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2>Statement of Account</h2>
-              <p>Dear Client,</p>
-              <p>Please find below your statement of account summary:</p>
-              <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                <tr>
-                  <td style="padding: 8px; border: 1px solid #ddd;">Account Number</td>
-                  <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${account_number}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px; border: 1px solid #ddd;">Statement Number</td>
-                  <td style="padding: 8px; border: 1px solid #ddd;">${statement_number}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px; border: 1px solid #ddd;">Period</td>
-                  <td style="padding: 8px; border: 1px solid #ddd;">${period}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px; border: 1px solid #ddd;">Balance Due</td>
-                  <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #dc2626;">₱${balance_due.toLocaleString()}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px; border: 1px solid #ddd;">Due Date</td>
-                  <td style="padding: 8px; border: 1px solid #ddd;">${due_date}</td>
-                </tr>
-              </table>
-              <p>Please settle your outstanding balance on or before the due date.</p>
-              <p>Thank you for your continued patronage.</p>
-              <br/>
-              <p style="color: #666; font-size: 12px;">RMS Avisha Repair Management System</p>
-            </div>
-          `,
-        }),
+        body: JSON.stringify(emailBody),
       });
 
       if (!emailResponse.ok) {
@@ -143,6 +130,7 @@ Deno.serve(async (req) => {
     return json(200, {
       success: true,
       email_sent: !!resendApiKey,
+      pdf_attached: !!payload.pdf_base64,
       message: resendApiKey
         ? `Statement sent to ${to_email}`
         : "Statement marked as sent (email service not configured - set RESEND_API_KEY)",

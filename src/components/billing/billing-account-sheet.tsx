@@ -16,7 +16,13 @@ import {
   ChevronRight,
   ArrowLeft,
   Info,
+  Send,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Download,
 } from "lucide-react";
+import { pdf } from "@react-pdf/renderer";
 
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -62,7 +68,13 @@ import {
   useBillingStatements,
   useApplyAccountInterest,
   useUpdateBillingStatement,
+  useBillingInterestLogs,
+  useEmailLogs,
+  useTriggerSendBillingReminders,
+  useTriggerGenerateStatements,
 } from "./useBilling";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "../../services/supabase";
 import { useUser } from "../auth/useUser";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import {
@@ -72,12 +84,15 @@ import {
   BillingPayment,
   BillingStatement,
   BillingAging,
+  BillingInterestLog,
+  EmailLog,
 } from "../../lib/billing-types";
 
 import RecordPaymentPanel from "./record-payment-panel";
 import AttachJobOrderPanel from "./attach-job-order-panel";
 import GenerateStatementPanel from "./generate-statement-panel";
 import BillingAccountFormSheet from "./billing-account-form";
+import BillingStatementPDF, { BillingStatementPDFData } from "./billing-statement-pdf";
 
 // ─── Badge maps ─────────────────────────────────────────────────────────────
 
@@ -168,6 +183,7 @@ export default function BillingAccountSheetContent({
   onClose,
 }: BillingAccountSheetContentProps) {
   const { isDev, isAdmin } = useUser();
+  const queryClient = useQueryClient();
 
   const [activeSubSheet, setActiveSubSheet] = useState<SubSheetType>(null);
   const [isNarrow, setIsNarrow] = useState(false);
@@ -213,15 +229,26 @@ export default function BillingAccountSheetContent({
   const { data: statements, isLoading: statementsLoading } =
     useBillingStatements(accountId);
 
+  const { data: interestLogs } = useBillingInterestLogs(accountId);
+  const { data: emailLogs } = useEmailLogs(accountId);
+
   // Mutations
   const applyInterest = useApplyAccountInterest();
   const updateStatement = useUpdateBillingStatement();
+  const sendReminders = useTriggerSendBillingReminders();
+  const generateStatements = useTriggerGenerateStatements();
 
   // Collapsible section states
   const [statementsOpen, setStatementsOpen] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [jobOrdersOpen, setJobOrdersOpen] = useState(false);
   const [showInterestConfirm, setShowInterestConfirm] = useState(false);
+  const [showRemindersConfirm, setShowRemindersConfirm] = useState(false);
+  const [showGenerateSOAConfirm, setShowGenerateSOAConfirm] = useState(false);
+  const [interestLogsOpen, setInterestLogsOpen] = useState(false);
+  const [emailLogsOpen, setEmailLogsOpen] = useState(false);
+  const [sendingStatementId, setSendingStatementId] = useState<string | null>(null);
+  const [downloadingStatementId, setDownloadingStatementId] = useState<string | null>(null);
 
   // Derived
   const acct = account as BillingAccount | undefined;
@@ -234,9 +261,40 @@ export default function BillingAccountSheetContent({
   const creditLimit = acct?.credit_limit ?? 0;
   const usagePct = creditLimitPercent(balance, creditLimit);
 
-  const joLineItems = ((lineItems ?? []) as BillingLineItem[]).filter(
+  const allLineItems = (lineItems ?? []) as BillingLineItem[];
+  const joLineItems = allLineItems.filter(
     (li) => li.type === "charge" && li.job_order_id != null
   );
+
+  // Interest breakdown for balance summary
+  const totalInterestCharges = allLineItems
+    .filter((li) => li.type === "interest")
+    .reduce((sum, li) => sum + li.amount, 0);
+  const totalCharges = allLineItems
+    .filter((li) => li.type === "charge")
+    .reduce((sum, li) => sum + li.amount, 0);
+
+  // Check if interest already applied this billing cycle
+  const currentCycle = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const typedInterestLogsAll = (interestLogs ?? []) as BillingInterestLog[];
+  const interestAlreadyApplied = typedInterestLogsAll.some(
+    (log) => log.billing_cycle === currentCycle
+  );
+
+  // Determine email recipient
+  const recipientEmail = acct?.billing_contact_email || acct?.clients?.email;
+
+  // Latest statement info
+  const typedStatements = (statements ?? []) as BillingStatement[];
+  const latestStatement = typedStatements.length > 0
+    ? [...typedStatements].sort((a, b) =>
+        new Date(b.period_end).getTime() - new Date(a.period_end).getTime()
+      )[0]
+    : null;
+
+  // Action-required counts
+  const draftStatements = typedStatements.filter((s) => s.status === "draft");
+  const finalizedNotSent = typedStatements.filter((s) => s.status === "finalized");
 
   const openSubSheet = useCallback((type: SubSheetType) => {
     setActiveSubSheet(type);
@@ -256,6 +314,38 @@ export default function BillingAccountSheetContent({
     });
   }
 
+  async function handleDownloadStatementPDF(statement: BillingStatement) {
+    if (!acct || downloadingStatementId) return;
+    setDownloadingStatementId(statement.id);
+
+    const pdfData: BillingStatementPDFData = {
+      statement,
+      accountNumber: acct.account_number,
+      clientName: acct.clients?.name ?? "Unknown Client",
+      clientContact: acct.billing_contact_phone || acct.clients?.contact_number || null,
+      clientEmail: acct.billing_contact_email || acct.clients?.email || null,
+      interestRate: acct.interest_rate,
+      lineItems: allLineItems,
+      payments: (payments as BillingPayment[]) ?? [],
+    };
+
+    try {
+      const blob = await pdf(<BillingStatementPDF data={pdfData} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${statement.statement_number}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("PDF downloaded");
+    } catch (err) {
+      toast.error("Failed to generate PDF");
+      console.error(err);
+    } finally {
+      setDownloadingStatementId(null);
+    }
+  }
+
   function handleFinalizeStatement(statementId: string) {
     updateStatement.mutate({
       id: statementId,
@@ -263,8 +353,72 @@ export default function BillingAccountSheetContent({
     });
   }
 
-  function handleSendStatement() {
-    toast("Email sending not yet configured", { icon: "ℹ️" });
+  async function handleSendStatement(statement: BillingStatement) {
+    const email = acct?.billing_contact_email || acct?.clients?.email;
+
+    if (!email) {
+      toast.error("No email address configured for this account or client");
+      return;
+    }
+
+    if (sendingStatementId || !acct) return;
+    setSendingStatementId(statement.id);
+
+    const periodStr = `${format(new Date(statement.period_start), "MMM d, yyyy")} - ${format(new Date(statement.period_end), "MMM d, yyyy")}`;
+
+    try {
+      // Generate PDF on the client side and convert to base64
+      const pdfData: BillingStatementPDFData = {
+        statement,
+        accountNumber: acct.account_number,
+        clientName: acct.clients?.name ?? "Unknown Client",
+        clientContact: acct.billing_contact_phone || acct.clients?.contact_number || null,
+        clientEmail: acct.billing_contact_email || acct.clients?.email || null,
+        interestRate: acct.interest_rate,
+        lineItems: allLineItems,
+        payments: (payments as BillingPayment[]) ?? [],
+      };
+
+      const blob = await pdf(<BillingStatementPDF data={pdfData} />).toBlob();
+      const buffer = await blob.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+      );
+
+      const { error } = await supabase.functions.invoke("send-billing-statement", {
+        body: {
+          statement_id: statement.id,
+          to_email: email,
+          client_name: acct.clients?.name || "Valued Client",
+          account_number: acct.account_number,
+          statement_number: statement.statement_number,
+          period: periodStr,
+          previous_balance: statement.previous_balance,
+          new_charges: statement.new_charges,
+          interest_applied: statement.interest_applied,
+          payments_received: statement.payments_received,
+          balance_due: statement.current_balance,
+          due_date: statement.due_date
+            ? format(new Date(statement.due_date), "MMM d, yyyy")
+            : "N/A",
+          pdf_base64: base64,
+          pdf_filename: `${statement.statement_number}.pdf`,
+        },
+      });
+
+      if (error) {
+        toast.error("Failed to send statement: " + error.message);
+      } else {
+        toast.success(`Statement sent to ${email}`);
+        queryClient.invalidateQueries({ queryKey: ["billing_statements", accountId] });
+        queryClient.invalidateQueries({ queryKey: ["email_logs", accountId] });
+      }
+    } catch (err) {
+      toast.error("Failed to generate PDF for email");
+      console.error(err);
+    } finally {
+      setSendingStatementId(null);
+    }
   }
 
   // ─── Loading ──────────────────────────────────────────────────────────────
@@ -379,11 +533,42 @@ export default function BillingAccountSheetContent({
           </span>
         )}
         {totalOverdue > 0 && (
-          <p className="text-[11px] text-red-500 mt-0.5">
-            {amt(totalOverdue)} overdue
-          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="text-[11px] text-red-500">
+              {amt(totalOverdue)} overdue
+            </p>
+            {!interestAlreadyApplied && (isDev || isAdmin) && (
+              <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] px-1.5 py-0 rounded-full font-semibold">
+                Interest pending
+              </span>
+            )}
+          </div>
         )}
       </div>
+
+      {/* Balance breakdown */}
+      {(totalCharges > 0 || totalInterestCharges > 0) && !isCompressed && (
+        <div className="rounded-lg border bg-gray-50/80 p-2.5 space-y-1">
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-500">Charges Subtotal</span>
+            <span className="tabular-nums">{amt(totalCharges)}</span>
+          </div>
+          {totalInterestCharges > 0 && (
+            <div className="flex justify-between text-xs">
+              <span className="text-amber-600 flex items-center gap-1">
+                <Percent size={10} /> Interest Applied
+              </span>
+              <span className="tabular-nums text-amber-600 font-medium">
+                {amt(totalInterestCharges)}
+              </span>
+            </div>
+          )}
+          <div className="border-t pt-1 flex justify-between text-xs font-semibold">
+            <span>Total Due</span>
+            <span className="tabular-nums">{amt(balance)}</span>
+          </div>
+        </div>
+      )}
 
       {/* Credit limit bar */}
       {creditLimit > 0 && (
@@ -536,12 +721,36 @@ export default function BillingAccountSheetContent({
         <Button
           size="sm"
           variant="ghost"
-          className="gap-1.5 h-8 text-xs col-span-full"
+          className="gap-1.5 h-8 text-xs"
           onClick={handleApplyInterest}
           disabled={applyInterest.isPending}
         >
           <Percent size={13} />
           {applyInterest.isPending ? "Applying..." : "Apply Interest"}
+        </Button>
+      )}
+      {(isDev || isAdmin) && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="gap-1.5 h-8 text-xs"
+          onClick={() => setShowRemindersConfirm(true)}
+          disabled={sendReminders.isPending}
+        >
+          <Send size={13} />
+          {sendReminders.isPending ? "Sending..." : "Send Reminders"}
+        </Button>
+      )}
+      {(isDev || isAdmin) && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="gap-1.5 h-8 text-xs"
+          onClick={() => setShowGenerateSOAConfirm(true)}
+          disabled={generateStatements.isPending}
+        >
+          <FileText size={13} />
+          {generateStatements.isPending ? "Generating..." : "Auto-Generate SOA"}
         </Button>
       )}
     </div>
@@ -825,6 +1034,16 @@ export default function BillingAccountSheetContent({
           <FileText size={13} />
           Statements (
           {(statements as BillingStatement[] | undefined)?.length ?? 0})
+          {draftStatements.length > 0 && (
+            <span className="bg-yellow-100 text-yellow-700 border border-yellow-200 text-[9px] px-1.5 py-0 rounded-full font-semibold normal-case">
+              {draftStatements.length} draft
+            </span>
+          )}
+          {finalizedNotSent.length > 0 && (
+            <span className="bg-blue-100 text-blue-700 border border-blue-200 text-[9px] px-1.5 py-0 rounded-full font-semibold normal-case">
+              {finalizedNotSent.length} ready to send
+            </span>
+          )}
         </span>
         {statementsOpen ? (
           <ChevronDown size={14} />
@@ -863,6 +1082,9 @@ export default function BillingAccountSheetContent({
                     Period
                   </TableHead>
                   <TableHead className="text-[11px] font-semibold text-right">
+                    Interest
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold text-right">
                     Balance
                   </TableHead>
                   <TableHead className="text-[11px] font-semibold">
@@ -882,6 +1104,9 @@ export default function BillingAccountSheetContent({
                     <TableCell className="text-xs whitespace-nowrap py-1.5">
                       {format(new Date(s.period_start), "MMM d")} -{" "}
                       {format(new Date(s.period_end), "MMM d")}
+                    </TableCell>
+                    <TableCell className="text-xs text-right tabular-nums py-1.5 text-amber-600">
+                      {s.interest_applied > 0 ? amt(s.interest_applied) : "—"}
                     </TableCell>
                     <TableCell className="text-xs text-right tabular-nums font-medium py-1.5">
                       {amt(s.current_balance)}
@@ -907,42 +1132,225 @@ export default function BillingAccountSheetContent({
                       </Tooltip>
                     </TableCell>
                     <TableCell className="py-1.5">
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 items-center">
                         {s.status === "draft" && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-5 px-1.5 text-[10px]"
-                                onClick={() =>
-                                  handleFinalizeStatement(s.id)
-                                }
+                                className="h-5 px-1.5 text-[10px] text-blue-600 hover:text-blue-700"
+                                onClick={() => handleFinalizeStatement(s.id)}
                                 disabled={updateStatement.isPending}
                               >
-                                Finalize
+                                {updateStatement.isPending ? "..." : "Finalize"}
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent
-                              side="top"
-                              className="text-xs"
-                            >
-                              Lock this statement so it can be sent to the
-                              client
+                            <TooltipContent side="top" className="text-xs">
+                              Lock this statement so it can be sent to the client
                             </TooltipContent>
                           </Tooltip>
                         )}
                         {s.status === "finalized" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-5 px-1.5 text-[10px]"
-                            onClick={handleSendStatement}
-                          >
-                            Send
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-5 px-1.5 text-[10px] text-green-600 hover:text-green-700"
+                                onClick={() => handleSendStatement(s)}
+                                disabled={sendingStatementId === s.id}
+                              >
+                                {sendingStatementId === s.id ? "Sending..." : "Send"}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                              Email this statement to {recipientEmail || "client"}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {s.status === "sent" && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-5 px-1.5 text-[10px] text-muted-foreground"
+                                onClick={() => handleSendStatement(s)}
+                                disabled={sendingStatementId === s.id}
+                              >
+                                {sendingStatementId === s.id ? "..." : "Resend"}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                              Resend to {recipientEmail || "client"}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {(s.status === "finalized" || s.status === "sent") && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-5 w-5 p-0 text-muted-foreground"
+                                onClick={() => handleDownloadStatementPDF(s)}
+                                disabled={downloadingStatementId === s.id}
+                              >
+                                {downloadingStatementId === s.id
+                                  ? <Clock size={11} className="animate-spin" />
+                                  : <Download size={11} />}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                              Download PDF
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                       </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
+  // ─── Interest Logs section ───────────────────────────────────────────────
+
+  const typedInterestLogs = (interestLogs ?? []) as BillingInterestLog[];
+
+  const interestLogsSection = (
+    <Collapsible open={interestLogsOpen} onOpenChange={setInterestLogsOpen}>
+      <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs font-bold opacity-50 uppercase tracking-wider hover:opacity-80 transition-opacity">
+        <span className="flex items-center gap-1.5">
+          <Percent size={13} />
+          Interest History ({typedInterestLogs.length})
+        </span>
+        {interestLogsOpen ? (
+          <ChevronDown size={14} />
+        ) : (
+          <ChevronRight size={14} />
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        {typedInterestLogs.length === 0 ? (
+          <p className="text-xs text-gray-400 py-4 text-center">
+            No interest has been applied yet.
+          </p>
+        ) : (
+          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="text-[11px] font-semibold">Cycle</TableHead>
+                  <TableHead className="text-[11px] font-semibold">Date</TableHead>
+                  <TableHead className="text-[11px] font-semibold text-right">Overdue Bal.</TableHead>
+                  <TableHead className="text-[11px] font-semibold text-right">Rate</TableHead>
+                  <TableHead className="text-[11px] font-semibold text-right">Interest</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {typedInterestLogs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="text-xs font-mono py-1.5">
+                      {log.billing_cycle}
+                    </TableCell>
+                    <TableCell className="text-xs whitespace-nowrap py-1.5">
+                      {format(new Date(log.applied_at), "MMM d, yy")}
+                    </TableCell>
+                    <TableCell className="text-xs text-right tabular-nums py-1.5">
+                      {amt(log.overdue_balance)}
+                    </TableCell>
+                    <TableCell className="text-xs text-right py-1.5">
+                      {log.rate}%
+                    </TableCell>
+                    <TableCell className="text-xs text-right tabular-nums font-medium text-amber-600 py-1.5">
+                      {amt(log.interest_amount)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
+  // ─── Email Logs section ────────────────────────────────────────────────
+
+  const typedEmailLogs = (emailLogs ?? []) as EmailLog[];
+
+  const emailStatusIcon: Record<string, JSX.Element> = {
+    sent: <CheckCircle2 size={12} className="text-green-600" />,
+    failed: <XCircle size={12} className="text-red-500" />,
+    pending: <Clock size={12} className="text-yellow-500" />,
+  };
+
+  const emailLogsSection = (
+    <Collapsible open={emailLogsOpen} onOpenChange={setEmailLogsOpen}>
+      <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs font-bold opacity-50 uppercase tracking-wider hover:opacity-80 transition-opacity">
+        <span className="flex items-center gap-1.5">
+          <Mail size={13} />
+          Email History ({typedEmailLogs.length})
+        </span>
+        {emailLogsOpen ? (
+          <ChevronDown size={14} />
+        ) : (
+          <ChevronRight size={14} />
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        {typedEmailLogs.length === 0 ? (
+          <p className="text-xs text-gray-400 py-4 text-center">
+            No emails sent for this account.
+          </p>
+        ) : (
+          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="text-[11px] font-semibold">Date</TableHead>
+                  <TableHead className="text-[11px] font-semibold">Type</TableHead>
+                  <TableHead className="text-[11px] font-semibold">Recipient</TableHead>
+                  <TableHead className="text-[11px] font-semibold">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {typedEmailLogs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="text-xs whitespace-nowrap py-1.5">
+                      {format(new Date(log.created_at), "MMM d, yy")}
+                    </TableCell>
+                    <TableCell className="py-1.5">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] capitalize px-1.5 py-0"
+                      >
+                        {log.type.replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs truncate max-w-[150px] py-1.5">
+                      {log.recipient}
+                    </TableCell>
+                    <TableCell className="py-1.5">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="flex items-center gap-1 text-xs capitalize cursor-default">
+                            {emailStatusIcon[log.status] ?? null}
+                            {log.status}
+                          </span>
+                        </TooltipTrigger>
+                        {log.error_message && (
+                          <TooltipContent side="top" className="text-xs max-w-[250px]">
+                            {log.error_message}
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1041,6 +1449,8 @@ export default function BillingAccountSheetContent({
             {jobOrdersSection}
             {recentPaymentsSection}
             {recentStatementsSection}
+            {interestLogsSection}
+            {(isDev || isAdmin) && emailLogsSection}
 
             {/* Account info footer */}
             {acct.notes && (
@@ -1094,6 +1504,18 @@ export default function BillingAccountSheetContent({
             <AlertDialogTitle>Apply Monthly Interest</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
+                {interestAlreadyApplied && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-start gap-2">
+                    <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium">Interest already applied for {currentCycle}</p>
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        The system has already applied interest for this billing cycle. Running again will have no effect (idempotent).
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <p>
                   This will apply a <span className="font-semibold text-foreground">{acct.interest_rate}%</span> monthly
                   interest charge on all overdue balances for this account.
@@ -1134,9 +1556,149 @@ export default function BillingAccountSheetContent({
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmApplyInterest}
-              disabled={applyInterest.isPending}
+              disabled={applyInterest.isPending || interestAlreadyApplied}
             >
-              {applyInterest.isPending ? "Applying..." : "Apply Interest"}
+              {applyInterest.isPending ? "Applying..." : interestAlreadyApplied ? "Already Applied" : "Apply Interest"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Send Reminders Confirmation Dialog */}
+      <AlertDialog open={showRemindersConfirm} onOpenChange={setShowRemindersConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send Billing Reminders</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This will send billing reminder emails to <strong className="text-foreground">all active accounts</strong> with outstanding balances.
+                </p>
+
+                <div className="rounded-lg border bg-muted/50 p-3 space-y-1.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">This account</span>
+                    <span className="font-medium text-foreground">{acct.account_number}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Outstanding balance</span>
+                    <span className={`font-semibold ${balance > 0 ? "text-red-600" : "text-green-600"}`}>
+                      {amt(balance)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Recipient email</span>
+                    <span className="font-medium text-foreground text-right truncate max-w-[200px]">
+                      {recipientEmail || <span className="text-red-500">Not configured</span>}
+                    </span>
+                  </div>
+                </div>
+
+                {!recipientEmail && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    No email address is configured for this account or its client. The reminder will be logged as failed.
+                  </div>
+                )}
+
+                {balance <= 0 && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+                    This account has no outstanding balance. It will be skipped during the reminder process.
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  Emails will be sent to all qualifying accounts, not just this one. Delivery status will be logged in the Email History section.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={sendReminders.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                sendReminders.mutate(undefined, {
+                  onSettled: () => setShowRemindersConfirm(false),
+                });
+              }}
+              disabled={sendReminders.isPending}
+            >
+              {sendReminders.isPending ? "Sending..." : "Send Reminders"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Auto-Generate SOA Confirmation Dialog */}
+      <AlertDialog open={showGenerateSOAConfirm} onOpenChange={setShowGenerateSOAConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Auto-Generate Statements</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This will automatically generate a Statement of Account for <strong className="text-foreground">all active accounts</strong> for the previous billing period, and email them to clients.
+                </p>
+
+                <div className="rounded-lg border bg-muted/50 p-3 space-y-1.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Account</span>
+                    <span className="font-medium text-foreground">{acct.account_number}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Billing cutoff day</span>
+                    <span className="font-medium text-foreground">Day {acct.billing_cutoff_day}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Current balance</span>
+                    <span className="font-semibold text-foreground">{amt(balance)}</span>
+                  </div>
+                  {recipientEmail && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Will email to</span>
+                      <span className="font-medium text-foreground text-right truncate max-w-[200px]">
+                        {recipientEmail}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {latestStatement && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 flex items-start gap-2">
+                    <Info size={16} className="mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium">Latest statement: {latestStatement.statement_number}</p>
+                      <p className="text-xs text-blue-600 mt-0.5">
+                        Period: {format(new Date(latestStatement.period_start), "MMM d")} - {format(new Date(latestStatement.period_end), "MMM d, yyyy")}
+                        {" "}({latestStatement.status})
+                      </p>
+                      <p className="text-xs text-blue-600 mt-0.5">
+                        If a statement already exists for the next period, it will be skipped (idempotent).
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  Statements will be created as "finalized" and automatically emailed if the account has a valid email address. This runs for all active accounts.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={generateStatements.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                generateStatements.mutate(undefined, {
+                  onSettled: () => setShowGenerateSOAConfirm(false),
+                });
+              }}
+              disabled={generateStatements.isPending}
+            >
+              {generateStatements.isPending ? "Generating..." : "Generate & Send SOA"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

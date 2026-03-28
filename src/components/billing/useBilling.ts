@@ -19,6 +19,11 @@ import {
   getBillingDashboardSummary,
   getBillingLedger,
   getEligibleJobOrders,
+  getBillingInterestLogs,
+  getEmailLogs,
+  triggerSendBillingReminders,
+  triggerApplyBillingInterest,
+  triggerGenerateBillingStatements,
 } from "../../services/apiBilling";
 import { BillingStatementStatus, CreateBillingAccountData, RecordPaymentData } from "../../lib/billing-types";
 import toast from "react-hot-toast";
@@ -264,6 +269,78 @@ export function useApplyMonthlyInterest() {
       queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
       queryClient.invalidateQueries({ queryKey: ["billing_dashboard_summary"] });
       toast.success(`Interest applied to ${data.accounts_affected} account(s)`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+// ========================
+// Interest & Email Logs
+// ========================
+
+export function useBillingInterestLogs(accountId: string | undefined) {
+  return useQuery({
+    queryKey: ["billing_interest_logs", accountId],
+    queryFn: () => getBillingInterestLogs(accountId!),
+    enabled: !!accountId,
+  });
+}
+
+export function useEmailLogs(accountId?: string) {
+  return useQuery({
+    queryKey: ["email_logs", accountId],
+    queryFn: () => getEmailLogs(accountId),
+  });
+}
+
+// ========================
+// Manual Triggers
+// ========================
+
+export function useTriggerSendBillingReminders() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => triggerSendBillingReminders(),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["email_logs"] });
+      toast.success(`Reminders sent to ${data.reminders_sent} account(s)`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+export function useTriggerApplyBillingInterest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => triggerApplyBillingInterest(),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_interest_logs"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_aging"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_dashboard_summary"] });
+      toast.success(`Interest applied to ${data.accounts_affected} account(s)`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+export function useTriggerGenerateStatements() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => triggerGenerateBillingStatements(),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["billing_statements"] });
+      queryClient.invalidateQueries({ queryKey: ["email_logs"] });
+      toast.success(`${data.statements_generated} statement(s) generated & sent`);
     },
     onError: (error: Error) => {
       toast.error(error.message);

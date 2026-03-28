@@ -7,6 +7,8 @@ import {
   BillingStatement,
   BillingAging,
   BillingDashboardSummary,
+  BillingInterestLog,
+  EmailLog,
   CreateBillingAccountData,
   RecordPaymentData,
   LedgerEntry,
@@ -374,6 +376,71 @@ export async function getBillingLedger(accountId: string): Promise<LedgerEntry[]
   });
 
   return entries;
+}
+
+// ========================
+// Interest Logs
+// ========================
+
+export async function getBillingInterestLogs(accountId: string): Promise<BillingInterestLog[]> {
+  const { data, error } = await supabase
+    .from("billing_interest_logs")
+    .select("*")
+    .eq("billing_account_id", accountId)
+    .order("applied_at", { ascending: false });
+
+  if (error) throw new Error("Failed to fetch interest logs: " + error.message);
+  return data || [];
+}
+
+// ========================
+// Email Logs
+// ========================
+
+export async function getEmailLogs(accountId?: string): Promise<EmailLog[]> {
+  let query = supabase
+    .from("email_logs")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (accountId) {
+    query = query.eq("billing_account_id", accountId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error("Failed to fetch email logs: " + error.message);
+  return data || [];
+}
+
+// ========================
+// Manual Triggers
+// ========================
+
+export async function triggerSendBillingReminders(): Promise<any> {
+  const { data, error } = await supabase.functions.invoke("send-billing-reminders", {
+    body: {},
+  });
+
+  if (error) throw new Error("Failed to send billing reminders: " + error.message);
+  return data;
+}
+
+export async function triggerApplyBillingInterest(): Promise<any> {
+  const { data, error } = await supabase.functions.invoke("apply-billing-interest", {
+    body: {},
+  });
+
+  if (error) throw new Error("Failed to apply billing interest: " + error.message);
+  return data;
+}
+
+export async function triggerGenerateBillingStatements(): Promise<any> {
+  const { data, error } = await supabase.functions.invoke("generate-billing-statements", {
+    body: {},
+  });
+
+  if (error) throw new Error("Failed to generate billing statements: " + error.message);
+  return data;
 }
 
 // ========================

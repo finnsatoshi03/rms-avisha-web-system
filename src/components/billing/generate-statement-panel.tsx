@@ -9,16 +9,62 @@ import {
   SelectContent,
   SelectItem,
 } from "../ui/select";
-import { useGenerateBillingStatement } from "./useBilling";
+import { useGenerateBillingStatement, useBillingStatements } from "./useBilling";
+import { useBillingAccount } from "./useBilling";
 import { supabase } from "../../services/supabase";
+import { BillingStatement } from "../../lib/billing-types";
 
 interface GenerateStatementPanelProps {
   accountId: string;
   onClose: () => void;
 }
 
-function todayString() {
-  return new Date().toISOString().split("T")[0];
+function toDateStr(d: Date): string {
+  return d.toISOString().split("T")[0];
+}
+
+function getAutoperiod(
+  cutoffDay: number,
+  lastStatement?: BillingStatement
+): { start: string; end: string } {
+  const now = new Date();
+
+  // If there's a last statement, start from the day after its period_end
+  if (lastStatement?.period_end) {
+    const lastEnd = new Date(lastStatement.period_end);
+    const start = new Date(lastEnd);
+    start.setDate(start.getDate() + 1);
+
+    // End = cutoff day of next month or end of current month
+    let end: Date;
+    if (cutoffDay === 1) {
+      end = new Date(now.getFullYear(), now.getMonth(), 0); // last day of prev month
+    } else {
+      end = new Date(now.getFullYear(), now.getMonth(), cutoffDay - 1);
+    }
+    // If end is before start, push to next month
+    if (end <= start) {
+      if (cutoffDay === 1) {
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      } else {
+        end = new Date(now.getFullYear(), now.getMonth() + 1, cutoffDay - 1);
+      }
+    }
+
+    return { start: toDateStr(start), end: toDateStr(end) };
+  }
+
+  // No previous statement - use previous month based on cutoff
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const start = new Date(prevMonth.getFullYear(), prevMonth.getMonth(), cutoffDay);
+  let end: Date;
+  if (cutoffDay === 1) {
+    end = new Date(now.getFullYear(), now.getMonth(), 0);
+  } else {
+    end = new Date(now.getFullYear(), now.getMonth(), cutoffDay - 1);
+  }
+
+  return { start: toDateStr(start), end: toDateStr(end) };
 }
 
 export default function GenerateStatementPanel({
@@ -26,11 +72,26 @@ export default function GenerateStatementPanel({
   onClose,
 }: GenerateStatementPanelProps) {
   const [periodStart, setPeriodStart] = useState("");
-  const [periodEnd, setPeriodEnd] = useState(todayString());
+  const [periodEnd, setPeriodEnd] = useState("");
   const [branchFilter, setBranchFilter] = useState<string>("all");
   const [branches, setBranches] = useState<{ id: number; name: string }[]>([]);
 
   const generateStatement = useGenerateBillingStatement();
+  const { data: account } = useBillingAccount(accountId);
+  const { data: statements } = useBillingStatements(accountId);
+
+  // Auto-populate dates
+  useEffect(() => {
+    if (!account) return;
+    const cutoffDay = account.billing_cutoff_day || 1;
+    const sortedStatements = [...(statements as BillingStatement[] || [])]
+      .sort((a, b) => new Date(b.period_end).getTime() - new Date(a.period_end).getTime());
+    const lastStatement = sortedStatements[0];
+
+    const { start, end } = getAutoperiod(cutoffDay, lastStatement);
+    setPeriodStart(start);
+    setPeriodEnd(end);
+  }, [account, statements]);
 
   useEffect(() => {
     async function fetchBranches() {
@@ -70,6 +131,9 @@ export default function GenerateStatementPanel({
         <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">
           Statement Period
         </h2>
+        <p className="text-[11px] text-muted-foreground mb-2">
+          Dates are auto-calculated based on billing cutoff day ({account?.billing_cutoff_day || 1}) and the last generated statement.
+        </p>
         <div className="grid md:grid-cols-2 grid-cols-1 gap-2 px-4 py-2 border rounded-xl">
           <div className="space-y-0">
             <p className="text-sm font-medium leading-none">Period Start *</p>

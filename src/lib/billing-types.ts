@@ -134,3 +134,31 @@ export type LedgerEntry = {
   branch?: string;
   source: "line_item" | "payment";
 };
+
+export type BillingInterestLog = {
+  id: string;
+  billing_account_id: string;
+  billing_line_item_id: string | null;
+  applied_at: string;
+  interest_amount: number;
+  rate: number;
+  overdue_balance: number;
+  billing_cycle: string;
+  created_at: string;
+};
+
+export type EmailLogStatus = "pending" | "sent" | "failed";
+export type EmailLogType = "billing_reminder" | "statement" | "notification";
+
+export type EmailLog = {
+  id: string;
+  billing_account_id: string | null;
+  recipient: string;
+  subject: string;
+  type: EmailLogType;
+  status: EmailLogStatus;
+  error_message: string | null;
+  metadata: Record<string, unknown>;
+  sent_at: string | null;
+  created_at: string;
+};
