@@ -922,7 +922,7 @@ export default function RentalDetailSheet({
   );
 }
 
-function getDefaultValues(rental: RentalData | null): RentalFormValues {
+function getDefaultValues(rental: RentalData | null): Partial<RentalFormValues> {
   if (!rental) {
     return {
       branch_id: undefined,

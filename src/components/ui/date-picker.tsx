@@ -7,7 +7,7 @@ import { Calendar } from "./calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
 interface DatePickerProps {
-  value: string;
+  value?: string;
   onChange: (date: string) => void;
   placeholder?: string;
   disabled?: boolean;

@@ -266,12 +266,16 @@ export async function createRental(
 export async function updateRental(
   rentalId: number,
   data: {
+    rental_asset_id?: number;
+    branch_id?: number;
     technician_id?: string | null;
     start_date?: string;
     end_date?: string;
     due_date?: string;
     rental_type?: "DAILY" | "MONTHLY";
     rate_amount?: number;
+    discount?: number;
+    downpayment?: number;
     notes?: string;
     name?: string;
     contact_number?: string;
@@ -296,6 +300,9 @@ export async function updateRental(
 
   // Build rental update payload (only rental fields)
   const rentalUpdate: any = {};
+  if (data.rental_asset_id !== undefined)
+    rentalUpdate.rental_asset_id = data.rental_asset_id;
+  if (data.branch_id !== undefined) rentalUpdate.branch_id = data.branch_id;
   if (data.technician_id !== undefined)
     rentalUpdate.technician_id = data.technician_id;
   if (data.start_date !== undefined) rentalUpdate.start_date = data.start_date;
@@ -305,24 +312,39 @@ export async function updateRental(
     rentalUpdate.rental_type = data.rental_type;
   if (data.rate_amount !== undefined)
     rentalUpdate.rate_amount = data.rate_amount;
+  if (data.discount !== undefined) rentalUpdate.discount = data.discount;
+  if (data.downpayment !== undefined)
+    rentalUpdate.downpayment = data.downpayment;
   if (data.notes !== undefined) rentalUpdate.notes = data.notes;
   if (data.billing_account_id !== undefined)
     rentalUpdate.billing_account_id = data.billing_account_id;
 
   if (Object.keys(rentalUpdate).length > 0) {
-    // Recalculate grand_total if rate changes
-    if (data.rate_amount !== undefined) {
-      const { data: existingConsumables } = await supabase
-        .from("rental_consumables")
-        .select("total_amount")
-        .eq("rental_id", rentalId);
+    // Recalculate grand_total when rate or discount changes.
+    if (data.rate_amount !== undefined || data.discount !== undefined) {
+      const [{ data: existingConsumables }, { data: existingRental }] =
+        await Promise.all([
+          supabase
+            .from("rental_consumables")
+            .select("total_amount")
+            .eq("rental_id", rentalId),
+          supabase
+            .from("rentals")
+            .select("rate_amount, discount")
+            .eq("id", rentalId)
+            .single(),
+        ]);
 
       const consumablesTotal = (existingConsumables || []).reduce(
         (sum, c) => sum + Number(c.total_amount),
         0
       );
+      const rateAmount =
+        data.rate_amount ?? Number(existingRental?.rate_amount ?? 0);
+      const discount = data.discount ?? Number(existingRental?.discount ?? 0);
+
       rentalUpdate.consumables_total = consumablesTotal;
-      rentalUpdate.grand_total = data.rate_amount + consumablesTotal;
+      rentalUpdate.grand_total = rateAmount + consumablesTotal - discount;
     }
 
     const { error } = await supabase
