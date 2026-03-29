@@ -85,8 +85,11 @@ Deno.serve(async (req) => {
         await supabaseAdmin.from("email_logs").insert({
           billing_account_id: account.id,
           recipient: "N/A",
+          recipient_email: null,
           subject: "Billing Reminder (no email)",
           type: "billing_reminder",
+          entity_type: "billing_account",
+          entity_id: account.id,
           status: "failed",
           error_message: "No email address configured for account or client",
           metadata: { balance: outstandingBalance },
@@ -122,8 +125,11 @@ Deno.serve(async (req) => {
         .insert({
           billing_account_id: account.id,
           recipient: recipientEmail,
+          recipient_email: recipientEmail,
           subject,
           type: "billing_reminder",
+          entity_type: "billing_account",
+          entity_id: account.id,
           status: "pending",
           metadata: {
             balance: outstandingBalance,

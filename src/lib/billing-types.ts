@@ -151,13 +151,20 @@ export type BillingInterestLog = {
 
 export type EmailLogStatus = "pending" | "sent" | "failed";
 export type EmailLogType = "billing_reminder" | "statement" | "notification";
+export type EmailLogEntityType =
+  | "billing_statement"
+  | "billing_account"
+  | "notification";
 
 export type EmailLog = {
   id: string;
   billing_account_id: string | null;
   recipient: string;
+  recipient_email?: string | null;
   subject: string;
   type: EmailLogType;
+  entity_type?: EmailLogEntityType | null;
+  entity_id?: string | null;
   status: EmailLogStatus;
   error_message: string | null;
   metadata: Record<string, unknown>;

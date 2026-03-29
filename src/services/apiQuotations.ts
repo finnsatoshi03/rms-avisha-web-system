@@ -222,11 +222,15 @@ export async function deleteQuotation(quotationId: number) {
     .from("quotations")
     .select("id, job_order_id")
     .eq("id", quotationId)
-    .single();
+    .maybeSingle();
 
   if (quotationLookupError) {
     console.error("Error finding quotation before delete:", quotationLookupError);
     throw new Error("Failed to validate quotation before deletion");
+  }
+
+  if (!quotationRow) {
+    return;
   }
 
   const { error } = await supabase

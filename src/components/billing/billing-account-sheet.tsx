@@ -475,6 +475,24 @@ export default function BillingAccountSheetContent({
   const draftStatements = typedStatements.filter((s) => s.status === "draft");
   const finalizedNotSent = typedStatements.filter((s) => s.status === "finalized");
 
+  const rawEmailLogs = (emailLogs ?? []) as EmailLog[];
+  const typedEmailLogs =
+    tourActive && rawEmailLogs.length === 0 ? MOCK_EMAIL_LOGS : rawEmailLogs;
+  const statementEmailLogs = typedEmailLogs.filter((log) => {
+    if (log.entity_type) {
+      return log.entity_type === "billing_statement";
+    }
+    return log.type === "statement";
+  });
+  const latestStatementEmailLog =
+    statementEmailLogs.length > 0
+      ? [...statementEmailLogs].sort((a, b) => {
+          const left = new Date(a.sent_at || a.created_at).getTime();
+          const right = new Date(b.sent_at || b.created_at).getTime();
+          return right - left;
+        })[0]
+      : null;
+
   // Use mock data for tour if payments are empty
   const rawPayments = (payments ?? []) as BillingPayment[];
   const effectivePayments: BillingPayment[] = tourActive && rawPayments.length === 0 ? MOCK_PAYMENTS : rawPayments;
@@ -752,9 +770,10 @@ export default function BillingAccountSheetContent({
         new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
       );
 
-      const { error } = await supabase.functions.invoke("send-billing-statement", {
+      const { data, error } = await supabase.functions.invoke("send-billing-statement", {
         body: {
           statement_id: statement.id,
+          billing_account_id: acct.id,
           to_email: email,
           client_name: acct.clients?.name || "Valued Client",
           account_number: acct.account_number,
@@ -773,12 +792,20 @@ export default function BillingAccountSheetContent({
         },
       });
 
+      queryClient.invalidateQueries({ queryKey: ["email_logs", accountId] });
+
       if (error) {
         toast.error("Failed to send statement: " + error.message);
+      } else if (data && typeof data === "object" && "success" in data && !(data as { success: boolean }).success) {
+        const errorMessage =
+          (data as { error?: string }).error ||
+          "Email send failed. Check email logs for details.";
+        toast.error(errorMessage);
       } else {
-        toast.success(`Statement sent to ${email}`);
+        const successMessage =
+          (data as { message?: string })?.message || `Statement sent to ${email}`;
+        toast.success(successMessage);
         queryClient.invalidateQueries({ queryKey: ["billing_statements", accountId] });
-        queryClient.invalidateQueries({ queryKey: ["email_logs", accountId] });
       }
     } catch (err) {
       toast.error("Failed to generate PDF for email");
@@ -1620,6 +1647,28 @@ export default function BillingAccountSheetContent({
             </div>
           </Alert>
         )}
+        {latestStatementEmailLog && (
+          <div className="mb-2 rounded-md border bg-muted/40 px-2.5 py-1.5 text-[11px] text-muted-foreground flex items-center justify-between">
+            <span>
+              Last Sent:{" "}
+              <span className="font-medium text-foreground">
+                {format(
+                  new Date(
+                    latestStatementEmailLog.sent_at ||
+                      latestStatementEmailLog.created_at
+                  ),
+                  "MMM d, yyyy"
+                )}
+              </span>
+            </span>
+            <span>
+              Status:{" "}
+              <span className="font-medium text-foreground capitalize">
+                {latestStatementEmailLog.status}
+              </span>
+            </span>
+          </div>
+        )}
         {statementsLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 2 }).map((_, i) => (
@@ -1873,9 +1922,6 @@ export default function BillingAccountSheetContent({
   );
 
   // ─── Email Logs section ────────────────────────────────────────────────
-
-  const rawEmailLogs = (emailLogs ?? []) as EmailLog[];
-  const typedEmailLogs = tourActive && rawEmailLogs.length === 0 ? MOCK_EMAIL_LOGS : rawEmailLogs;
 
   const emailStatusIcon: Record<string, JSX.Element> = {
     sent: <CheckCircle2 size={12} className="text-green-600" />,

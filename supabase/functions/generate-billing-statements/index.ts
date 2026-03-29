@@ -18,6 +18,19 @@ const json = (status: number, body: unknown) =>
     },
   });
 
+async function parseEmailProviderError(response: Response): Promise<string> {
+  try {
+    const payload = await response.json();
+    return JSON.stringify(payload);
+  } catch {
+    try {
+      return await response.text();
+    } catch {
+      return `Email provider returned HTTP ${response.status}`;
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -228,12 +241,14 @@ Deno.serve(async (req) => {
 
       generatedCount++;
 
-      // Auto-send via email if configured
+      // Auto-send via email and always log result for statement delivery audit.
       let emailSent = false;
+      let emailStatusMessage: string | undefined;
       const recipientEmail =
         account.billing_contact_email ||
         (account.clients as unknown as { name: string; email: string | null })
           ?.email;
+      const normalizedRecipient = recipientEmail?.trim().toLowerCase() ?? null;
 
       const clientName =
         account.billing_contact_name ||
@@ -241,9 +256,68 @@ Deno.serve(async (req) => {
           ?.name ||
         "Valued Client";
 
-      if (resendApiKey && recipientEmail && currentBalance > 0) {
-        const periodLabel = `${periodStart.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} - ${periodEnd.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+      const periodLabel = `${periodStart.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })} - ${periodEnd.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })}`;
+      const dueDateLabel = dueDate.toLocaleDateString("en-PH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const statementSubject = `Statement of Account - ${account.account_number} - ${periodLabel}`;
 
+      const createStatementEmailLog = async ({
+        status,
+        sentAt,
+        errorMessage,
+        metadata,
+      }: {
+        status: "sent" | "failed";
+        sentAt?: string | null;
+        errorMessage?: string | null;
+        metadata?: Record<string, unknown>;
+      }) =>
+        await supabaseAdmin.from("email_logs").insert({
+          billing_account_id: account.id,
+          recipient: normalizedRecipient ?? "N/A",
+          recipient_email: normalizedRecipient,
+          subject: statementSubject,
+          type: "statement",
+          entity_type: "billing_statement",
+          entity_id: statement.id,
+          status,
+          sent_at: sentAt ?? null,
+          error_message: errorMessage ?? null,
+          metadata: {
+            source: "generate-billing-statements",
+            statement_id: statement.id,
+            statement_number: statementNumber,
+            current_balance: currentBalance,
+            ...(metadata ?? {}),
+          },
+        });
+
+      if (currentBalance <= 0) {
+        emailStatusMessage = "Skipped auto-email: no outstanding balance";
+      } else if (!normalizedRecipient) {
+        emailStatusMessage = "Auto-email failed: no recipient email configured";
+        await createStatementEmailLog({
+          status: "failed",
+          errorMessage: "No email address configured for account or client",
+        });
+      } else if (!resendApiKey) {
+        emailStatusMessage = "Auto-email failed: RESEND_API_KEY not configured";
+        await createStatementEmailLog({
+          status: "failed",
+          errorMessage: "RESEND_API_KEY not configured",
+        });
+      } else {
         try {
           const emailResponse = await fetch("https://api.resend.com/emails", {
             method: "POST",
@@ -253,8 +327,8 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
               from: "RMS Avisha <billing@rmsavisha.company>",
-              to: [recipientEmail],
-              subject: `Statement of Account - ${account.account_number} - ${periodLabel}`,
+              to: [normalizedRecipient],
+              subject: statementSubject,
               html: buildStatementEmail({
                 clientName,
                 accountNumber: account.account_number,
@@ -265,36 +339,49 @@ Deno.serve(async (req) => {
                 interestApplied,
                 paymentsReceived,
                 totalDue: currentBalance,
-                dueDate: dueDate.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" }),
+                dueDate: dueDateLabel,
               }),
             }),
           });
 
           if (emailResponse.ok) {
             emailSent = true;
-            // Update statement status to sent
-            await supabaseAdmin
+            const sentAt = new Date().toISOString();
+
+            const { error: statementUpdateError } = await supabaseAdmin
               .from("billing_statements")
-              .update({ status: "sent", sent_at: new Date().toISOString() })
+              .update({ status: "sent", sent_at: sentAt })
               .eq("id", statement.id);
 
-            // Log to email_logs
-            await supabaseAdmin.from("email_logs").insert({
-              billing_account_id: account.id,
-              recipient: recipientEmail,
-              subject: `Statement of Account - ${account.account_number} - ${periodLabel}`,
-              type: "statement",
+            await createStatementEmailLog({
               status: "sent",
-              sent_at: new Date().toISOString(),
+              sentAt,
+              errorMessage: statementUpdateError
+                ? `Email delivered but failed to update statement status: ${statementUpdateError.message}`
+                : null,
+            });
+
+            if (statementUpdateError) {
+              emailStatusMessage = `Email delivered but statement update failed: ${statementUpdateError.message}`;
+            }
+          } else {
+            const providerError = await parseEmailProviderError(emailResponse);
+            emailStatusMessage = `Auto-email failed: ${providerError}`;
+            await createStatementEmailLog({
+              status: "failed",
+              errorMessage: `Failed to send email: ${providerError}`,
               metadata: {
-                statement_id: statement.id,
-                statement_number: statementNumber,
-                current_balance: currentBalance,
+                provider_status: emailResponse.status,
               },
             });
           }
-        } catch {
-          // Email failed but statement was still generated
+        } catch (emailError) {
+          const message = (emailError as Error).message;
+          emailStatusMessage = `Auto-email failed: ${message}`;
+          await createStatementEmailLog({
+            status: "failed",
+            errorMessage: message,
+          });
         }
       }
 
@@ -304,6 +391,7 @@ Deno.serve(async (req) => {
         status: "generated",
         statement_number: statementNumber,
         email_sent: emailSent,
+        message: emailStatusMessage,
       });
     }
 

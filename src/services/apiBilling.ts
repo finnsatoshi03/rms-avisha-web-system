@@ -428,6 +428,18 @@ export async function getEmailLogs(accountId?: string): Promise<EmailLog[]> {
   return data || [];
 }
 
+export async function getStatementEmailLogs(statementId: string): Promise<EmailLog[]> {
+  const { data, error } = await supabase
+    .from("email_logs")
+    .select("*")
+    .eq("entity_type", "billing_statement")
+    .eq("entity_id", statementId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error("Failed to fetch statement email logs: " + error.message);
+  return data || [];
+}
+
 // ========================
 // Manual Triggers
 // ========================
