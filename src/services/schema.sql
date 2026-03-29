@@ -119,7 +119,7 @@ CREATE TABLE public.quotation_items (
   material_id text,
   is_manual boolean DEFAULT false,
   CONSTRAINT quotation_items_pkey PRIMARY KEY (id),
-  CONSTRAINT quotation_items_quotation_id_fkey FOREIGN KEY (quotation_id) REFERENCES public.quotations(id)
+  CONSTRAINT quotation_items_quotation_id_fkey FOREIGN KEY (quotation_id) REFERENCES public.quotations(id) ON DELETE CASCADE
 );
 CREATE TABLE public.quotations (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
@@ -141,7 +141,7 @@ CREATE TABLE public.quotations (
   is_final boolean DEFAULT false,
   service_fee numeric DEFAULT '0'::numeric,
   CONSTRAINT quotations_pkey PRIMARY KEY (id),
-  CONSTRAINT quotations_job_order_id_fkey FOREIGN KEY (job_order_id) REFERENCES public.joborders(id)
+  CONSTRAINT quotations_job_order_id_fkey FOREIGN KEY (job_order_id) REFERENCES public.joborders(id) ON DELETE CASCADE
 );
 CREATE TABLE public.rental_assets (
   id integer GENERATED ALWAYS AS IDENTITY NOT NULL,

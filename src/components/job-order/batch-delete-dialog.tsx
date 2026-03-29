@@ -8,6 +8,10 @@ import {
   getJobOrdersFiltered,
   deleteJobOrder,
 } from "../../services/apiJobOrders";
+import {
+  deleteQuotationsByJobOrderIds,
+  getQuotedJobOrderIds,
+} from "../../services/apiQuotations";
 import { JobOrderData } from "../../lib/types";
 import toast from "react-hot-toast";
 
@@ -15,6 +19,7 @@ interface BatchDeleteDialogProps {
   branchId: number | null;
   technicianId?: string | number | undefined;
   isUser: boolean;
+  mode?: "job_order" | "quotation";
   onSuccess?: () => void;
 }
 
@@ -22,6 +27,7 @@ const BatchDeleteDialog = ({
   branchId,
   technicianId,
   isUser,
+  mode = "job_order",
   onSuccess,
 }: BatchDeleteDialogProps) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -34,6 +40,10 @@ const BatchDeleteDialog = ({
   );
 
   const requiredConfirmationText = "DELETE FOREVER";
+  const isQuotationMode = mode === "quotation";
+  const entityLabel = isQuotationMode ? "quotations" : "job orders";
+  const entityLabelTitle = isQuotationMode ? "Quotations" : "Job Orders";
+  const entityLabelSingle = isQuotationMode ? "quotation" : "job order";
 
   // Query to get job orders in date range for preview
   const { data: previewData, isLoading: isLoadingPreview } = useQuery({
@@ -44,6 +54,7 @@ const BatchDeleteDialog = ({
       branchId,
       technicianId,
       isUser,
+      mode,
     ],
     queryFn: async () => {
       if (!deleteDateFrom || !deleteDateTo) return null;
@@ -58,7 +69,18 @@ const BatchDeleteDialog = ({
         startDate: deleteDateFrom,
         endDate: deleteDateTo,
       });
-      return response.data;
+
+      if (!isQuotationMode) {
+        return response.data;
+      }
+
+      const jobOrderIds = response.data.map((row) => row.id);
+      if (jobOrderIds.length === 0) return [];
+
+      const quotedJobOrderIds = await getQuotedJobOrderIds(jobOrderIds);
+      const quotedIdSet = new Set(quotedJobOrderIds);
+
+      return response.data.filter((row) => quotedIdSet.has(row.id));
     },
     enabled: !!deleteDateFrom && !!deleteDateTo,
   });
@@ -66,11 +88,14 @@ const BatchDeleteDialog = ({
   // Batch delete mutation
   const { mutate: batchDeleteJobOrders, isPending: isDeleting } = useMutation({
     mutationFn: async (jobOrderIds: number[]) => {
+      if (isQuotationMode) {
+        return await deleteQuotationsByJobOrderIds(jobOrderIds);
+      }
       return await deleteJobOrder(jobOrderIds);
     },
     onSuccess: () => {
       toast.success(
-        `Successfully deleted ${jobOrdersToDelete.length} job orders`
+        `Successfully deleted ${jobOrdersToDelete.length} ${entityLabel}`
       );
       setIsDeleteDialogOpen(false);
       setIsConfirmDialogOpen(false);
@@ -81,15 +106,9 @@ const BatchDeleteDialog = ({
       onSuccess?.();
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to delete job orders");
+      toast.error(error.message || `Failed to delete ${entityLabel}`);
     },
   });
-
-  const handleDateChange = () => {
-    if (previewData) {
-      setJobOrdersToDelete(previewData);
-    }
-  };
 
   const handleDeleteClick = () => {
     if (!deleteDateFrom || !deleteDateTo) {
@@ -103,7 +122,9 @@ const BatchDeleteDialog = ({
     }
 
     if (!previewData || previewData.length === 0) {
-      toast.error("No job orders found in the selected date range");
+      toast.error(
+        `No ${entityLabel} found in the selected date range`
+      );
       return;
     }
 
@@ -123,7 +144,9 @@ const BatchDeleteDialog = ({
 
   // Update job orders when preview data changes
   useEffect(() => {
-    handleDateChange();
+    if (previewData) {
+      setJobOrdersToDelete(previewData);
+    }
   }, [previewData]);
 
   return (
@@ -142,10 +165,10 @@ const BatchDeleteDialog = ({
                 <Trash2 size={20} className="text-red-600" />
               </div>
               <h2 className="text-xl font-medium text-gray-900 mb-1">
-                Batch Delete Job Orders
+                Batch Delete {entityLabelTitle}
               </h2>
               <p className="text-gray-500 text-xs">
-                Select a date range to delete multiple job orders
+                Select a date range to delete multiple {entityLabel}
               </p>
             </div>
 
@@ -160,12 +183,21 @@ const BatchDeleteDialog = ({
                     Danger Zone
                   </h3>
                   <div className="mt-1 text-sm text-amber-700">
-                    <p>
-                      This action will permanently delete all job orders within
-                      the selected date range. This action cannot be undone and
-                      will remove all associated data including materials,
-                      payments, and client information.
-                    </p>
+                    {isQuotationMode ? (
+                      <p>
+                        This action will permanently delete quotations linked to
+                        job orders in the selected date range. Job orders,
+                        materials, payments, and billing records will remain
+                        intact.
+                      </p>
+                    ) : (
+                      <p>
+                        This action will permanently delete all job orders
+                        within the selected date range. This action cannot be
+                        undone and will remove all associated data including
+                        materials, payments, and client information.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -210,7 +242,8 @@ const BatchDeleteDialog = ({
                   ) : previewData && previewData.length > 0 ? (
                     <div className="text-sm text-gray-600">
                       <p className="font-medium text-red-600">
-                        {previewData.length} job order(s) will be deleted
+                        {previewData.length} {entityLabelSingle}(s) will be
+                        deleted
                       </p>
                       <div className="mt-2 max-h-24 overflow-y-auto">
                         {previewData.slice(0, 5).map((jo) => (
@@ -228,7 +261,7 @@ const BatchDeleteDialog = ({
                     </div>
                   ) : (
                     <p className="text-sm text-gray-500">
-                      No job orders found in this date range
+                      No {entityLabel} found in this date range
                     </p>
                   )}
                 </div>
@@ -247,7 +280,7 @@ const BatchDeleteDialog = ({
                   disabled={!previewData || previewData.length === 0}
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white transition-colors"
                 >
-                  Delete {previewData?.length || 0} Job Orders
+                  Delete {previewData?.length || 0} {entityLabelTitle}
                 </Button>
               </div>
             </div>
@@ -295,9 +328,21 @@ const BatchDeleteDialog = ({
               <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded">
                 <strong>What will be deleted:</strong>
                 <ul className="mt-1 space-y-1">
-                  <li>• {jobOrdersToDelete.length} job orders</li>
-                  <li>• All associated materials and payments</li>
-                  <li>• All related technical reports</li>
+                  <li>
+                    • {jobOrdersToDelete.length} {entityLabelSingle}(s)
+                  </li>
+                  <li>
+                    •{" "}
+                    {isQuotationMode
+                      ? "Only quotation and quotation item records"
+                      : "All associated materials and payments"}
+                  </li>
+                  <li>
+                    •{" "}
+                    {isQuotationMode
+                      ? "Linked job orders will remain intact"
+                      : "All related technical reports"}
+                  </li>
                   <li>• This action cannot be undone</li>
                 </ul>
               </div>

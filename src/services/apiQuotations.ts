@@ -218,6 +218,17 @@ export async function updateQuotation(
 }
 
 export async function deleteQuotation(quotationId: number) {
+  const { data: quotationRow, error: quotationLookupError } = await supabase
+    .from("quotations")
+    .select("id, job_order_id")
+    .eq("id", quotationId)
+    .single();
+
+  if (quotationLookupError) {
+    console.error("Error finding quotation before delete:", quotationLookupError);
+    throw new Error("Failed to validate quotation before deletion");
+  }
+
   const { error } = await supabase
     .from("quotations")
     .delete()
@@ -227,6 +238,115 @@ export async function deleteQuotation(quotationId: number) {
     console.error("Error deleting quotation:", error);
     throw new Error("Failed to delete quotation");
   }
+
+  // Defensive integrity check: deleting a quotation must never remove its job order.
+  const { data: jobOrderRow, error: jobOrderCheckError } = await supabase
+    .from("joborders")
+    .select("id")
+    .eq("id", quotationRow.job_order_id)
+    .maybeSingle();
+
+  if (jobOrderCheckError) {
+    console.error(
+      "Error verifying linked job order after quotation delete:",
+      jobOrderCheckError
+    );
+    throw new Error("Quotation deleted, but post-delete integrity check failed");
+  }
+
+  if (!jobOrderRow) {
+    throw new Error(
+      "Integrity check failed: linked Job Order is missing after quotation deletion."
+    );
+  }
+}
+
+export async function getQuotedJobOrderIds(jobOrderIds: number[]) {
+  if (jobOrderIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("quotations")
+    .select("job_order_id")
+    .in("job_order_id", jobOrderIds);
+
+  if (error) {
+    console.error("Error fetching quoted job order ids:", error);
+    throw new Error("Failed to fetch linked quotations");
+  }
+
+  return Array.from(
+    new Set(
+      (data ?? [])
+        .map((row) => row.job_order_id)
+        .filter((id): id is number => typeof id === "number")
+    )
+  );
+}
+
+export async function deleteQuotationsByJobOrderIds(jobOrderIds: number[]) {
+  if (jobOrderIds.length === 0) return 0;
+
+  const quotedJobOrderIds = await getQuotedJobOrderIds(jobOrderIds);
+  if (quotedJobOrderIds.length === 0) return 0;
+
+  const { data: quotations, error: quotationsError } = await supabase
+    .from("quotations")
+    .select("id, job_order_id")
+    .in("job_order_id", quotedJobOrderIds);
+
+  if (quotationsError) {
+    console.error("Error loading quotations before batch delete:", quotationsError);
+    throw new Error("Failed to load quotations for deletion");
+  }
+
+  const quotationIds = (quotations ?? [])
+    .map((quotation) => quotation.id)
+    .filter((id): id is number => typeof id === "number");
+
+  if (quotationIds.length === 0) return 0;
+
+  const { error: deleteError } = await supabase
+    .from("quotations")
+    .delete()
+    .in("id", quotationIds);
+
+  if (deleteError) {
+    console.error("Error deleting quotations by job order ids:", deleteError);
+    throw new Error("Failed to delete quotations");
+  }
+
+  // Defensive integrity check for all affected job orders.
+  const { data: remainingJobOrders, error: jobOrderCheckError } = await supabase
+    .from("joborders")
+    .select("id")
+    .in("id", quotedJobOrderIds);
+
+  if (jobOrderCheckError) {
+    console.error(
+      "Error verifying linked job orders after batch quotation delete:",
+      jobOrderCheckError
+    );
+    throw new Error("Quotations deleted, but post-delete integrity check failed");
+  }
+
+  const existingJobOrderIds = new Set(
+    (remainingJobOrders ?? []).map((row) => row.id)
+  );
+  const missingJobOrders = quotedJobOrderIds.filter(
+    (jobOrderId) => !existingJobOrderIds.has(jobOrderId)
+  );
+
+  if (missingJobOrders.length > 0) {
+    console.error(
+      "Integrity check failed after deleting quotations. Missing job orders:",
+      missingJobOrders
+    );
+    throw new Error(
+      "Integrity check failed: one or more linked Job Orders are missing after quotation deletion."
+    );
+  }
+
+  return quotationIds.length;
 }
 
 // Generate a unique quote number (deprecated - now handled by database trigger)

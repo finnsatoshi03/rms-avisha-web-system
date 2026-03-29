@@ -43,7 +43,10 @@ import {
   updateJobOrderPayment,
   updateJobOrderStatus,
 } from "../services/apiJobOrders";
-import { getQuotationsByJobOrder } from "../services/apiQuotations";
+import {
+  deleteQuotationsByJobOrderIds,
+  getQuotationsByJobOrder,
+} from "../services/apiQuotations";
 import { useUser } from "./auth/useUser";
 
 import toast from "react-hot-toast";
@@ -65,6 +68,7 @@ export default function Table({
   handleSortChange,
   handleColumnVisibilityChange,
   currentSort,
+  deleteMode = "job_order",
 }: {
   data: JobOrderData[];
   originalData: JobOrderData[];
@@ -79,11 +83,19 @@ export default function Table({
   handleSortChange: (column: string, direction: "asc" | "desc") => void;
   handleColumnVisibilityChange: (column: string, isVisible: boolean) => void;
   currentSort: { key: string; direction: "asc" | "desc" }[];
+  deleteMode?: "job_order" | "quotation";
 }) {
   const queryClient = useQueryClient();
   const { isUser } = useUser();
+  const isQuotationDeleteMode = deleteMode === "quotation";
   const { isPending: isDeleting, mutate } = useMutation({
-    mutationFn: (ids: number[]) => deleteJobOrder(ids),
+    mutationFn: async (ids: number[]) => {
+      if (isQuotationDeleteMode) {
+        await deleteQuotationsByJobOrderIds(ids);
+        return;
+      }
+      await deleteJobOrder(ids);
+    },
   });
 
   const { mutate: updateStatusMutate, isPending: isUpdatingStatus } =
@@ -210,10 +222,19 @@ export default function Table({
 
     mutate(deleteIds, {
       onSuccess: () => {
-        toast.success("Job Order(s) deleted successfully");
-        queryClient.invalidateQueries({
-          queryKey: ["job_order"],
-        });
+        toast.success(
+          isQuotationDeleteMode
+            ? "Quotation(s) deleted successfully"
+            : "Job Order(s) deleted successfully"
+        );
+        if (isQuotationDeleteMode) {
+          queryClient.invalidateQueries({ queryKey: ["quotations"] });
+          queryClient.invalidateQueries({ queryKey: ["jobOrderQuotations"] });
+        } else {
+          queryClient.invalidateQueries({
+            queryKey: ["job_order"],
+          });
+        }
         setOrders((prevOrders) =>
           prevOrders.filter((order) => !deleteIds.includes(order.id))
         );
@@ -223,7 +244,10 @@ export default function Table({
       },
       onError: (error: Error) => {
         toast.error(
-          error.message || "An error occurred while deleting the Job Order(s)",
+          error.message ||
+            (isQuotationDeleteMode
+              ? "An error occurred while deleting the quotation(s)"
+              : "An error occurred while deleting the Job Order(s)"),
           { duration: 6000 }
         );
         console.error(error);
@@ -852,7 +876,11 @@ export default function Table({
         isOpen={confirmDialogOpen}
         onClose={() => setConfirmDialogOpen(false)}
         onConfirm={confirmDelete}
-        message="Are you sure you want to delete the selected order(s)?"
+        message={
+          isQuotationDeleteMode
+            ? "Are you sure you want to delete the selected quotation(s)? Linked job orders will remain intact."
+            : "Are you sure you want to delete the selected order(s)?"
+        }
         destructive
         isPending={isDeleting}
       />

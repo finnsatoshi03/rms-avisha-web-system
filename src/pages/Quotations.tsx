@@ -362,6 +362,7 @@ export default function Quotations() {
               branchId={getBranchId()}
               technicianId={user?.id}
               isUser={isUser}
+              mode="quotation"
               onSuccess={() => {
                 // Invalidate queries to refresh the data
                 queryClient.invalidateQueries({ queryKey: ["quotations"] });
@@ -399,6 +400,7 @@ export default function Quotations() {
           handleSortChange={handleSortChange}
           handleColumnVisibilityChange={handleColumnVisibilityChange}
           currentSort={sorts}
+          deleteMode="quotation"
         />
       </ErrorBoundary>
     </div>
