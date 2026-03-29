@@ -37,6 +37,7 @@ import BillingGuard from "./components/billing/billing-guard";
 import Rentals from "./pages/Rentals";
 import RentalAssets from "./pages/RentalAssets";
 import DashboardRental from "./pages/DashboardRental";
+import Archive from "./pages/Archive";
 import { BranchSessionProvider } from "./components/auth/branch-session-context";
 
 const queryClient = new QueryClient({
@@ -83,6 +84,7 @@ export default function App() {
               <Route path="billing/:id" element={<BillingGuard><BillingAccounts /></BillingGuard>} />
               <Route path="rentals" element={<Rentals />} />
               <Route path="rental-assets" element={<RentalAssets />} />
+              <Route path="archive" element={<Archive />} />
               <Route path="dashboard/rental" element={<DashboardRental />} />
               <Route path="branches" element={<Branches />} />
               <Route path="settings" element={<Maintenance />} />

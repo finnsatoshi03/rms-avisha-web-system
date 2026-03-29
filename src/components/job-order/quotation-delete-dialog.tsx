@@ -26,11 +26,10 @@ export default function QuotationDeleteDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Quotation</AlertDialogTitle>
+          <AlertDialogTitle>Archive Quotation</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete this quotation? This action cannot
-            be undone. The quotation will be permanently removed from this job
-            order.
+            Are you sure you want to archive this quotation? You can restore it
+            later from Archive.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -40,7 +39,7 @@ export default function QuotationDeleteDialog({
             disabled={loading}
             className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
           >
-            {loading ? "Deleting..." : "Delete Quotation"}
+            {loading ? "Archiving..." : "Archive Quotation"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

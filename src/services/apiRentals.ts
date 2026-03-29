@@ -2,6 +2,7 @@
 import { CreateRentalConsumable } from "../lib/types";
 import { supabase } from "./supabase";
 import { upsertClient } from "./apiJobOrders";
+import { buildSoftDeleteUpdate } from "./softDelete";
 
 // =============================================
 // QUERY: Filtered rentals with pagination
@@ -42,7 +43,8 @@ export async function getRentalsFiltered({
       rental_inspections (*)
     `,
     { count: "exact" }
-  );
+  )
+    .is("deleted_at", null);
 
   // Status filters
   if (statusFilters.length > 0) {
@@ -153,6 +155,7 @@ export async function getRental(id: number) {
     `
     )
     .eq("id", id)
+    .is("deleted_at", null)
     .single();
 
   if (error) {
@@ -332,6 +335,7 @@ export async function updateRental(
             .from("rentals")
             .select("rate_amount, discount")
             .eq("id", rentalId)
+            .is("deleted_at", null)
             .single(),
         ]);
 
@@ -350,7 +354,8 @@ export async function updateRental(
     const { error } = await supabase
       .from("rentals")
       .update(rentalUpdate)
-      .eq("id", rentalId);
+      .eq("id", rentalId)
+      .is("deleted_at", null);
 
     if (error) {
       console.log(error);
@@ -367,7 +372,8 @@ export async function updateRentalStatus(ids: number[], status: string) {
   const { error } = await supabase
     .from("rentals")
     .update({ status })
-    .in("id", ids);
+    .in("id", ids)
+    .is("deleted_at", null);
 
   if (error) {
     console.log(error);
@@ -381,6 +387,7 @@ export async function updateRentalStatus(ids: number[], status: string) {
         .from("rentals")
         .select("rental_asset_id")
         .eq("id", id)
+        .is("deleted_at", null)
         .single();
 
       if (rental) {
@@ -402,6 +409,7 @@ export async function updateRentalStatus(ids: number[], status: string) {
         .from("rentals")
         .select("rental_asset_id")
         .eq("id", id)
+        .is("deleted_at", null)
         .single();
 
       if (rental) {
@@ -541,38 +549,54 @@ export async function saveInspection(
 }
 
 // =============================================
-// DELETE: Rentals with stock restoration
+// DELETE: Rentals (soft archive)
 // =============================================
 
 export async function deleteRentals(ids: number[]) {
-  for (const id of ids) {
-    // Get rental details for asset restoration
-    const { data: rental } = await supabase
-      .from("rentals")
-      .select("rental_asset_id, status")
-      .eq("id", id)
-      .single();
+  const uniqueIds = Array.from(new Set(ids));
+  if (uniqueIds.length === 0) return;
 
-    // Restore consumable stock
-    await restoreConsumableStock(id);
+  const { data: rentals, error: rentalsError } = await supabase
+    .from("rentals")
+    .select("id, rental_asset_id, status")
+    .in("id", uniqueIds)
+    .is("deleted_at", null);
 
-    // Delete rental (cascade deletes consumables + inspections)
-    const { error } = await supabase.from("rentals").delete().eq("id", id);
+  if (rentalsError) {
+    console.log(rentalsError);
+    throw new Error("Rental records could not be loaded for archive");
+  }
 
-    if (error) {
-      console.log(error);
-      throw new Error("Rental could not be deleted");
-    }
+  if (!rentals || rentals.length === 0) return;
 
-    // Restore asset status if it was actively rented
-    if (
-      rental &&
-      ["Created", "Released", "Ongoing"].includes(rental.status)
-    ) {
-      await supabase
-        .from("rental_assets")
-        .update({ status: "available" })
-        .eq("id", rental.rental_asset_id);
+  const softDeletePayload = await buildSoftDeleteUpdate();
+  const targetIds = rentals.map((rental) => rental.id);
+
+  const { error: archiveError } = await supabase
+    .from("rentals")
+    .update(softDeletePayload)
+    .in("id", targetIds)
+    .is("deleted_at", null);
+
+  if (archiveError) {
+    console.log(archiveError);
+    throw new Error("Rental could not be archived");
+  }
+
+  const assetsToRelease = rentals
+    .filter((rental) => ["Created", "Released", "Ongoing"].includes(rental.status))
+    .map((rental) => rental.rental_asset_id)
+    .filter((assetId): assetId is number => typeof assetId === "number");
+
+  if (assetsToRelease.length > 0) {
+    const { error: assetError } = await supabase
+      .from("rental_assets")
+      .update({ status: "available" })
+      .in("id", Array.from(new Set(assetsToRelease)));
+
+    if (assetError) {
+      console.log(assetError);
+      throw new Error("Rental archived, but linked printer status could not be reset");
     }
   }
 }
@@ -682,6 +706,7 @@ async function recalculateRentalTotals(rentalId: number) {
     .from("rentals")
     .select("rate_amount")
     .eq("id", rentalId)
+    .is("deleted_at", null)
     .single();
 
   const rateAmount = rental ? Number(rental.rate_amount) : 0;
@@ -692,5 +717,6 @@ async function recalculateRentalTotals(rentalId: number) {
       consumables_total: consumablesTotal,
       grand_total: rateAmount + consumablesTotal,
     })
-    .eq("id", rentalId);
+    .eq("id", rentalId)
+    .is("deleted_at", null);
 }

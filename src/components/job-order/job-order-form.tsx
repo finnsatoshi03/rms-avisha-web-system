@@ -1360,6 +1360,7 @@ export default function JobOrderForm({
       queryClient.invalidateQueries({
         queryKey: ["jobOrderQuotations", editId],
       });
+      queryClient.invalidateQueries({ queryKey: ["archive"] });
 
       toast.success("Quotation removed successfully!");
     } catch (error) {

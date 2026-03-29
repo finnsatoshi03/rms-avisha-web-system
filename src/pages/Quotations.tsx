@@ -366,6 +366,7 @@ export default function Quotations() {
               onSuccess={() => {
                 // Invalidate queries to refresh the data
                 queryClient.invalidateQueries({ queryKey: ["quotations"] });
+                queryClient.invalidateQueries({ queryKey: ["archive"] });
               }}
             />
           )}

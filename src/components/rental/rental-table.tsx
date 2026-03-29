@@ -151,7 +151,7 @@ export default function RentalTable({
             onClick={() => onDelete(selectedIds)}
           >
             <Trash2 size={14} />
-            <span className="hidden sm:block text-xs">Delete</span>
+            <span className="hidden sm:block text-xs">Archive</span>
           </Button>
         )}
       </SelectionBar>

@@ -237,8 +237,8 @@ export default function Table({
       onSuccess: () => {
         toast.success(
           isQuotationDeleteMode
-            ? "Quotation(s) deleted successfully"
-            : "Job Order(s) deleted successfully"
+            ? "Quotation(s) archived successfully"
+            : "Job Order(s) archived successfully"
         );
         if (isQuotationDeleteMode) {
           queryClient.invalidateQueries({ queryKey: ["quotations"] });
@@ -248,6 +248,7 @@ export default function Table({
             queryKey: ["job_order"],
           });
         }
+        queryClient.invalidateQueries({ queryKey: ["archive"] });
         setOrders((prevOrders) =>
           prevOrders.filter((order) => !deleteIds.includes(order.id))
         );
@@ -259,8 +260,8 @@ export default function Table({
         toast.error(
           error.message ||
             (isQuotationDeleteMode
-              ? "An error occurred while deleting the quotation(s)"
-              : "An error occurred while deleting the Job Order(s)"),
+              ? "An error occurred while archiving the quotation(s)"
+              : "An error occurred while archiving the Job Order(s)"),
           { duration: 6000 }
         );
         console.error(error);
@@ -763,7 +764,7 @@ export default function Table({
                       disabled={isDeleting}
                     >
                       <Trash2 size={18} strokeWidth={1.5} />
-                      <span className="hidden sm:block">Delete</span>
+                      <span className="hidden sm:block">Archive</span>
                     </Button>
                   )}
                 </div>
@@ -1020,8 +1021,8 @@ export default function Table({
         onConfirm={confirmDelete}
         message={
           isQuotationDeleteMode
-            ? "Are you sure you want to delete the selected quotation(s)? Linked job orders will remain intact."
-            : "Are you sure you want to delete the selected order(s)?"
+            ? "Archive the selected quotation(s)? This will move them to Archive and keep linked job orders intact."
+            : "Archive the selected job order(s)? This will move them to Archive."
         }
         destructive
         isPending={isDeleting}

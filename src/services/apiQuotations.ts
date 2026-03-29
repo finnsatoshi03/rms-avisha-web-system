@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { CreateQuotationData } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
+import { buildSoftDeleteUpdate } from "./softDelete";
 
 type UserEmailShape = {
   email?: string | null;
@@ -82,8 +83,13 @@ export async function createQuotation(quotationData: CreateQuotationData) {
 
     if (itemsError) {
       console.error("Error creating quotation items:", itemsError);
-      // Rollback the quotation creation
-      await supabase.from("quotations").delete().eq("id", quotationResult.id);
+      // Rollback via soft-delete to preserve non-destructive behavior.
+      const rollbackPayload = await buildSoftDeleteUpdate();
+      await supabase
+        .from("quotations")
+        .update(rollbackPayload)
+        .eq("id", quotationResult.id)
+        .is("deleted_at", null);
       throw new Error("Failed to create quotation items");
     }
   }
@@ -105,7 +111,8 @@ export async function getQuotationsByJobOrder(jobOrderId: number) {
       joborders:job_order_id (order_no)
     `
     )
-    .eq("job_order_id", jobOrderId);
+    .eq("job_order_id", jobOrderId)
+    .is("deleted_at", null);
 
   if (error) {
     console.error("Error fetching quotations:", error);
@@ -131,6 +138,7 @@ export async function getQuotationById(quotationId: number) {
     `
     )
     .eq("id", quotationId)
+    .is("deleted_at", null)
     .single();
 
   if (error) {
@@ -171,6 +179,7 @@ export async function updateQuotation(
     .from("quotations")
     .update(finalQuotation)
     .eq("id", quotationId)
+    .is("deleted_at", null)
     .select(
       `
       *,
@@ -218,10 +227,13 @@ export async function updateQuotation(
 }
 
 export async function deleteQuotation(quotationId: number) {
+  const softDeletePayload = await buildSoftDeleteUpdate();
+
   const { data: quotationRow, error: quotationLookupError } = await supabase
     .from("quotations")
     .select("id, job_order_id")
     .eq("id", quotationId)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (quotationLookupError) {
@@ -235,8 +247,9 @@ export async function deleteQuotation(quotationId: number) {
 
   const { error } = await supabase
     .from("quotations")
-    .delete()
-    .eq("id", quotationId);
+    .update(softDeletePayload)
+    .eq("id", quotationId)
+    .is("deleted_at", null);
 
   if (error) {
     console.error("Error deleting quotation:", error);
@@ -248,6 +261,7 @@ export async function deleteQuotation(quotationId: number) {
     .from("joborders")
     .select("id")
     .eq("id", quotationRow.job_order_id)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (jobOrderCheckError) {
@@ -271,7 +285,8 @@ export async function getQuotedJobOrderIds(jobOrderIds: number[]) {
   const { data, error } = await supabase
     .from("quotations")
     .select("job_order_id")
-    .in("job_order_id", jobOrderIds);
+    .in("job_order_id", jobOrderIds)
+    .is("deleted_at", null);
 
   if (error) {
     console.error("Error fetching quoted job order ids:", error);
@@ -293,10 +308,13 @@ export async function deleteQuotationsByJobOrderIds(jobOrderIds: number[]) {
   const quotedJobOrderIds = await getQuotedJobOrderIds(jobOrderIds);
   if (quotedJobOrderIds.length === 0) return 0;
 
+  const softDeletePayload = await buildSoftDeleteUpdate();
+
   const { data: quotations, error: quotationsError } = await supabase
     .from("quotations")
     .select("id, job_order_id")
-    .in("job_order_id", quotedJobOrderIds);
+    .in("job_order_id", quotedJobOrderIds)
+    .is("deleted_at", null);
 
   if (quotationsError) {
     console.error("Error loading quotations before batch delete:", quotationsError);
@@ -311,8 +329,9 @@ export async function deleteQuotationsByJobOrderIds(jobOrderIds: number[]) {
 
   const { error: deleteError } = await supabase
     .from("quotations")
-    .delete()
-    .in("id", quotationIds);
+    .update(softDeletePayload)
+    .in("id", quotationIds)
+    .is("deleted_at", null);
 
   if (deleteError) {
     console.error("Error deleting quotations by job order ids:", deleteError);
@@ -323,7 +342,8 @@ export async function deleteQuotationsByJobOrderIds(jobOrderIds: number[]) {
   const { data: remainingJobOrders, error: jobOrderCheckError } = await supabase
     .from("joborders")
     .select("id")
-    .in("id", quotedJobOrderIds);
+    .in("id", quotedJobOrderIds)
+    .is("deleted_at", null);
 
   if (jobOrderCheckError) {
     console.error(
@@ -397,7 +417,7 @@ export async function getQuotationJobOrders({
         used
       ),
       users:technician_id (*),
-      quotations (
+      quotations!inner (
         id,
         quote_no,
         date_created,
@@ -415,7 +435,9 @@ export async function getQuotationJobOrders({
       )
     `,
     { count: "exact" }
-  );
+  )
+    .is("deleted_at", null)
+    .is("quotations.deleted_at", null);
 
   // Filter job orders that have quotations (any status)
   query = query.not("quotations", "is", null);
@@ -549,6 +571,7 @@ export async function getJobOrderQuotations(jobOrderId: number) {
     `
     )
     .eq("job_order_id", jobOrderId)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -568,6 +591,7 @@ export async function updateQuotationStatus(
     .from("quotations")
     .update({ status })
     .eq("id", quotationId)
+    .is("deleted_at", null)
     .select()
     .single();
 
@@ -589,6 +613,7 @@ export async function setQuotationAsFinal(
     .from("quotations")
     .update({ is_final: false })
     .eq("job_order_id", jobOrderId)
+    .is("deleted_at", null)
     .neq("id", quotationId);
 
   // Then set this quotation as final
@@ -596,6 +621,7 @@ export async function setQuotationAsFinal(
     .from("quotations")
     .update({ is_final: true })
     .eq("id", quotationId)
+    .is("deleted_at", null)
     .select()
     .single();
 
@@ -630,6 +656,7 @@ export async function getJobOrderForQuotation(jobOrderId: number) {
     `
     )
     .eq("id", jobOrderId)
+    .is("deleted_at", null)
     .single();
 
   if (error) {

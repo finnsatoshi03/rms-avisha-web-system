@@ -41,7 +41,8 @@ export async function getClientsWithJobOrders() {
         users:technician_id (*)
       `
       )
-      .in("client_id", clientIds);
+      .in("client_id", clientIds)
+      .is("deleted_at", null);
 
     if (jobOrderError) {
       console.error(jobOrderError);

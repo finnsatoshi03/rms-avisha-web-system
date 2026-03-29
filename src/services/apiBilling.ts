@@ -589,6 +589,7 @@ export async function getEligibleRentals(clientId: number): Promise<any[]> {
     `)
     .eq("client_id", clientId)
     .eq("transferred_to_billing", false)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error("Failed to fetch eligible rentals: " + error.message);
@@ -623,6 +624,7 @@ export async function getEligibleJobOrders(clientId: number): Promise<any[]> {
     `)
     .eq("client_id", clientId)
     .eq("transferred_to_billing", false)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error("Failed to fetch eligible job orders: " + error.message);

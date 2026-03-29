@@ -236,9 +236,10 @@ export default function Rentals() {
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => deleteRentals(ids),
     onSuccess: () => {
-      toast.success("Rental(s) deleted");
+      toast.success("Rental(s) archived");
       queryClient.invalidateQueries({ queryKey: ["rentals"] });
       queryClient.invalidateQueries({ queryKey: ["rental_assets"] });
+      queryClient.invalidateQueries({ queryKey: ["archive"] });
       setSelectedIds([]);
       setDeleteDialogOpen(false);
     },
@@ -672,21 +673,21 @@ export default function Rentals() {
         onComplete={completeTour}
       />
 
-      {/* Delete Confirmation */}
+      {/* Archive Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedIds.length} Rental{selectedIds.length > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogTitle>Archive {selectedIds.length} Rental{selectedIds.length > 1 ? "s" : ""}?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
-                <p>This action cannot be undone. The following will happen:</p>
+                <p>These rentals will be moved to Archive:</p>
                 <ul className="list-disc pl-5 text-sm space-y-1">
-                  <li>Rental record(s) will be permanently deleted</li>
-                  <li>Consumed inventory stock will be restored</li>
+                  <li>Rental record(s) remain recoverable from the Archive module</li>
+                  <li>Billing links and historical amounts stay intact</li>
                   <li>Printer(s) will be set back to <span className="font-semibold text-green-700">Available</span></li>
                 </ul>
 
-                {/* Show details of rentals being deleted */}
+                {/* Show details of rentals being archived */}
                 <div className="border rounded-lg overflow-hidden mt-2">
                   {selectedIds.map((id) => {
                     const r = rentals.find((rental) => rental.id === id);
@@ -715,7 +716,7 @@ export default function Rentals() {
               onClick={() => deleteMutation.mutate(selectedIds)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              {deleteMutation.isPending ? "Archiving..." : "Archive"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

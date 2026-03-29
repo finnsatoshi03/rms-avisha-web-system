@@ -422,6 +422,7 @@ export default function JobOrders() {
               onSuccess={() => {
                 // Invalidate queries to refresh the data
                 queryClient.invalidateQueries({ queryKey: ["job_order"] });
+                queryClient.invalidateQueries({ queryKey: ["archive"] });
               }}
             />
           )}

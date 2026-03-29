@@ -227,6 +227,8 @@ export type JobOrderData = {
   transferred_to_billing: boolean;
   transferred_to_billing_at: null | string;
   transferred_to_billing_by: null | string;
+  deleted_at: null | string;
+  deleted_by: null | string;
   [key: string]:
     | undefined
     | boolean
@@ -405,6 +407,8 @@ export type RentalData = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
+  deleted_by: string | null;
   // Joined relations
   clients: Client;
   branches: Branch;
@@ -507,6 +511,8 @@ export type QuotationData = {
   is_final?: boolean;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
   quotation_items?: QuotationItem[];
 };
 

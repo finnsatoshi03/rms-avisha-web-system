@@ -116,6 +116,7 @@ export async function deleteRentalAsset(id: number) {
     .from("rentals")
     .select("id")
     .eq("rental_asset_id", id)
+    .is("deleted_at", null)
     .in("status", ["Created", "Released", "Ongoing"])
     .limit(1);
 

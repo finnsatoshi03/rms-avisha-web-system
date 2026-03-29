@@ -3,6 +3,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { CreateJobOrderData, MaterialItem } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
 import { supabase } from "./supabase";
+import { buildSoftDeleteUpdate } from "./softDelete";
 
 function normalizeJobOrderUsers<T extends { users?: unknown; order_received_user?: unknown }>(
   joborders: T[] | null | undefined
@@ -32,7 +33,8 @@ export async function getJobOrders() {
         used
         ),
         users:technician_id (*)
-    `);
+    `)
+    .is("deleted_at", null);
 
   if (error) {
     console.log(error);
@@ -85,7 +87,8 @@ export async function getJobOrdersFiltered({
       users:technician_id (*)
     `,
     { count: "exact" }
-  );
+  )
+    .is("deleted_at", null);
 
   // Add status filters if provided
   if (statusFilters.length > 0) {
@@ -289,6 +292,7 @@ async function upsertJobOrder(
       .from("joborders")
       .select("status, order_no")
       .eq("id", jobOrderId)
+      .is("deleted_at", null)
       .single();
 
     if (fetchError) {
@@ -302,6 +306,7 @@ async function upsertJobOrder(
       .from("joborders")
       .update(jobOrderData)
       .eq("id", jobOrderId)
+      .is("deleted_at", null)
       .select("id, order_no")
       .single();
 
@@ -635,7 +640,8 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
   const { data: jobOrders, error: fetchError } = await supabase
     .from("joborders")
     .select("id, warranty_months")
-    .in("id", ids);
+    .in("id", ids)
+    .is("deleted_at", null);
 
   if (fetchError) {
     console.error("Error fetching job orders:", fetchError);
@@ -656,7 +662,8 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
     const { data: pullOutJobOrders, error: pullOutFetchError } = await supabase
       .from("joborders")
       .select("id, rate")
-      .in("id", ids);
+      .in("id", ids)
+      .is("deleted_at", null);
 
     if (pullOutFetchError) {
       console.error("Error fetching job orders:", pullOutFetchError);
@@ -681,7 +688,8 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
           grand_total: Number(newRate),
           net_sales: Number(newRate),
         })
-        .eq("id", jobOrder.id);
+        .eq("id", jobOrder.id)
+        .is("deleted_at", null);
 
       if (updateError) {
         console.error(`Error updating job order ${jobOrder.id}:`, updateError);
@@ -709,7 +717,8 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
           warranty: warrantyDate,
           completed_at: completedAt,
         })
-        .eq("id", jobOrder.id);
+        .eq("id", jobOrder.id)
+        .is("deleted_at", null);
 
       if (error) {
         console.error(`Error updating job order ${jobOrder.id}:`, error);
@@ -728,7 +737,8 @@ export async function updateJobOrderPayment(
     .update({
       payment_details: payments,
     })
-    .eq("id", orderId);
+    .eq("id", orderId)
+    .is("deleted_at", null);
 
   if (error) {
     console.error("Error updating payment details:", error);
@@ -738,143 +748,52 @@ export async function updateJobOrderPayment(
 
 export async function deleteJobOrder(ids: number[]) {
   try {
-    // Retrieve job orders with billing info
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) return;
+
+    const softDeletePayload = await buildSoftDeleteUpdate();
+
     const { data: jobOrders, error: jobOrdersError } = await supabase
       .from("joborders")
-      .select("id, client_id, order_no, transferred_to_billing")
-      .in("id", ids);
+      .select("id")
+      .in("id", uniqueIds)
+      .is("deleted_at", null);
 
     if (jobOrdersError) {
       console.log(jobOrdersError);
-      throw new Error(`Job Orders with IDs ${ids} could not be fetched`);
+      throw new Error(`Job Orders with IDs ${uniqueIds} could not be fetched`);
     }
 
-    const clientIds = jobOrders.map((jobOrder) => jobOrder.client_id);
+    const jobOrderIds = (jobOrders ?? []).map((jobOrder) => jobOrder.id);
+    if (jobOrderIds.length === 0) return;
 
-    // Check for billing-linked JOs and clean up billing data first
-    const billingLinkedJOs = jobOrders.filter((jo) => jo.transferred_to_billing);
-    if (billingLinkedJOs.length > 0) {
-      const billingJoIds = billingLinkedJOs.map((jo) => jo.id);
-
-      // Get billing line items for these JOs
-      const { data: lineItems } = await supabase
-        .from("billing_line_items")
-        .select("id")
-        .in("job_order_id", billingJoIds);
-
-      if (lineItems && lineItems.length > 0) {
-        const lineItemIds = lineItems.map((li) => li.id);
-
-        // Delete payment allocations for these line items
-        const { error: allocError } = await supabase
-          .from("billing_payment_allocations")
-          .delete()
-          .in("billing_line_item_id", lineItemIds);
-
-        if (allocError) {
-          const joNumbers = billingLinkedJOs.map((jo) => jo.order_no).join(", ");
-          throw new Error(
-            `Cannot delete: Job Order(s) ${joNumbers} have billing payment allocations. Please remove the billing payments first from the Billing section.`
-          );
-        }
-
-        // Delete the billing line items
-        const { error: lineItemError } = await supabase
-          .from("billing_line_items")
-          .delete()
-          .in("job_order_id", billingJoIds);
-
-        if (lineItemError) {
-          const joNumbers = billingLinkedJOs.map((jo) => jo.order_no).join(", ");
-          throw new Error(
-            `Cannot delete: Job Order(s) ${joNumbers} are linked to a billing account. Please remove them from billing first.`
-          );
-        }
-      }
-
-      // Reset billing flags on the JOs
-      const { error: resetError } = await supabase
-        .from("joborders")
-        .update({
-          transferred_to_billing: false,
-          billing_account_id: null,
-          transferred_to_billing_at: null,
-          transferred_to_billing_by: null,
-        })
-        .in("id", billingJoIds);
-
-      if (resetError) {
-        throw new Error(
-          `Could not unlink Job Orders from billing. Please try again.`
-        );
-      }
-    }
-
-    // Delete materials associated with the job orders
-    const { error: materialError } = await supabase
-      .from("materials")
-      .delete()
-      .in("job_order_id", ids);
-
-    if (materialError) {
-      console.log(materialError);
-      throw new Error(
-        `Materials for Job Orders could not be deleted`
-      );
-    }
-
-    // Delete the job orders
-    const { error: jobOrderError } = await supabase
+    const { error: jobOrderArchiveError } = await supabase
       .from("joborders")
-      .delete()
-      .in("id", ids);
+      .update(softDeletePayload)
+      .in("id", jobOrderIds)
+      .is("deleted_at", null);
 
-    if (jobOrderError) {
-      console.log(jobOrderError);
-      if (jobOrderError.message?.includes("foreign key") || jobOrderError.code === "23503") {
-        throw new Error(
-          `Cannot delete: One or more Job Orders are referenced by other records (quotations, billing, etc.). Please remove those references first.`
-        );
-      }
-      throw new Error(`Job Orders could not be deleted. ${jobOrderError.message}`);
-    }
-
-    // Check if any of the clients have remaining job orders
-    const { data: remainingJobOrders, error: remainingJobOrdersError } =
-      await supabase
-        .from("joborders")
-        .select("client_id")
-        .in("client_id", clientIds);
-
-    if (remainingJobOrdersError) {
-      console.log(remainingJobOrdersError);
+    if (jobOrderArchiveError) {
+      console.log(jobOrderArchiveError);
       throw new Error(
-        `Remaining Job Orders for Clients with IDs ${clientIds} could not be fetched`
+        `Job Orders could not be archived. ${jobOrderArchiveError.message}`
       );
     }
 
-    // Filter out clients that still have job orders
-    const clientsToDelete = clientIds.filter(
-      (clientId) =>
-        !remainingJobOrders.some((jobOrder) => jobOrder.client_id === clientId)
-    );
+    const { error: quotationArchiveError } = await supabase
+      .from("quotations")
+      .update(softDeletePayload)
+      .in("job_order_id", jobOrderIds)
+      .is("deleted_at", null);
 
-    // Soft-delete clients that no longer have job orders
-    if (clientsToDelete.length > 0) {
-      const { error: clientError } = await supabase
-        .from("clients")
-        .update({ is_active: false })
-        .in("id", clientsToDelete);
-
-      if (clientError) {
-        console.log(clientError);
-        throw new Error(
-          `Clients with IDs ${clientsToDelete} could not be deactivated`
-        );
-      }
+    if (quotationArchiveError) {
+      console.log(quotationArchiveError);
+      throw new Error(
+        "Job Orders were archived, but linked quotations could not be archived."
+      );
     }
   } catch (error) {
-    console.error("Error deleting Job Orders with details:", error);
+    console.error("Error archiving Job Orders with details:", error);
     throw error;
   }
 }

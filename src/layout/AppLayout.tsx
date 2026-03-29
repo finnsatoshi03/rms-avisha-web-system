@@ -28,6 +28,7 @@ const breadcrumbConfig: Record<string, string> = {
   branches: "Branch Management",
   settings: "Settings",
   billing: "Billing",
+  archive: "Archive",
   technicians: "Technicians",
   account: "Account",
   "manager-re-auth": "Manager Re-Authentication",

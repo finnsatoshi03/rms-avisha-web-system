@@ -72,8 +72,11 @@ CREATE TABLE public.joborders (
   warranty_months integer,
   is_manual_rate boolean DEFAULT false,
   include_quotation_items boolean DEFAULT false,
+  deleted_at timestamp with time zone,
+  deleted_by uuid,
   CONSTRAINT joborders_pkey PRIMARY KEY (id),
   CONSTRAINT JobOrder_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
+  CONSTRAINT joborders_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.users(id),
   CONSTRAINT joborders_order_received_fkey FOREIGN KEY (order_received) REFERENCES public.users(id),
   CONSTRAINT joborders_technician_id_fkey FOREIGN KEY (technician_id) REFERENCES public.users(id),
   CONSTRAINT joborders_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id)
@@ -140,7 +143,10 @@ CREATE TABLE public.quotations (
   is_active boolean DEFAULT true,
   is_final boolean DEFAULT false,
   service_fee numeric DEFAULT '0'::numeric,
+  deleted_at timestamp with time zone,
+  deleted_by uuid,
   CONSTRAINT quotations_pkey PRIMARY KEY (id),
+  CONSTRAINT quotations_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.users(id),
   CONSTRAINT quotations_job_order_id_fkey FOREIGN KEY (job_order_id) REFERENCES public.joborders(id) ON DELETE CASCADE
 );
 CREATE TABLE public.rental_assets (
@@ -180,11 +186,14 @@ CREATE TABLE public.rentals (
   created_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz,
+  deleted_by uuid,
   CONSTRAINT rentals_pkey PRIMARY KEY (id),
   CONSTRAINT rentals_rental_asset_id_fkey FOREIGN KEY (rental_asset_id) REFERENCES public.rental_assets(id),
   CONSTRAINT rentals_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
   CONSTRAINT rentals_technician_id_fkey FOREIGN KEY (technician_id) REFERENCES public.users(id),
   CONSTRAINT rentals_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id),
+  CONSTRAINT rentals_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.users(id),
   CONSTRAINT rentals_billing_account_id_fkey FOREIGN KEY (billing_account_id) REFERENCES public.billing_accounts(id),
   CONSTRAINT rentals_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );

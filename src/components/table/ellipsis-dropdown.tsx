@@ -103,11 +103,11 @@ export function EllipsisDropdown({
                       {isDeleting ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Deleting
+                          Archiving
                         </>
                       ) : (
                         <>
-                          <Trash size={14} strokeWidth={1.5} /> Delete
+                          <Trash size={14} strokeWidth={1.5} /> Archive
                         </>
                       )}
                     </CommandItem>

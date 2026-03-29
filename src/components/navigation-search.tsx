@@ -23,8 +23,12 @@ import {
   Search,
   Archive,
   Building2,
+  FileText,
+  Handshake,
   Home,
+  Package,
   Printer,
+  ReceiptText,
   Settings,
   ShieldCheck,
   UserRoundCog,
@@ -43,7 +47,7 @@ import { useDevConsole } from "./dev-console/dev-console-context";
 // Navigation items configuration
 const navigationItems = [
   {
-    group: "Dashboard",
+    group: "Operations",
     items: [
       {
         icon: Printer,
@@ -51,11 +55,12 @@ const navigationItems = [
         path: "/dashboard/job-order",
         keywords: ["job order dashboard", "job", "dashboard"],
       },
-    ],
-  },
-  {
-    group: "Main",
-    items: [
+      {
+        icon: Handshake,
+        title: "Rental Dashboard",
+        path: "/dashboard/rental",
+        keywords: ["rental dashboard", "rental", "dashboard"],
+      },
       {
         icon: Printer,
         title: "Job Orders",
@@ -63,10 +68,27 @@ const navigationItems = [
         keywords: ["job orders", "jobs", "orders", "work"],
       },
       {
-        icon: Archive,
-        title: "Materials",
-        path: "/materials",
-        keywords: ["materials", "inventory", "stock", "supplies"],
+        icon: Handshake,
+        title: "Rentals",
+        path: "/rentals",
+        keywords: ["rentals", "rental orders", "leasing", "operations"],
+      },
+      {
+        icon: FileText,
+        title: "Quotations",
+        path: "/quotations",
+        keywords: ["quotation", "quote", "proposal", "estimate"],
+      },
+    ],
+  },
+  {
+    group: "Finance",
+    items: [
+      {
+        icon: ReceiptText,
+        title: "Billing",
+        path: "/billing",
+        keywords: ["billing", "accounts receivable", "finance", "payments"],
       },
       {
         icon: WalletMinimal,
@@ -74,11 +96,28 @@ const navigationItems = [
         path: "/expenses",
         keywords: ["expenses", "costs", "spending", "finance"],
       },
+    ],
+  },
+  {
+    group: "Management",
+    items: [
       {
         icon: UsersRound,
         title: "Clients",
         path: "/clients",
         keywords: ["clients", "customers", "users"],
+      },
+      {
+        icon: Package,
+        title: "Materials",
+        path: "/materials",
+        keywords: ["materials", "inventory", "stock", "supplies"],
+      },
+      {
+        icon: Package,
+        title: "Rental Printers",
+        path: "/rental-assets",
+        keywords: ["rental assets", "printers", "inventory", "units"],
       },
       {
         icon: Wrench,
@@ -97,6 +136,12 @@ const navigationItems = [
   {
     group: "System",
     items: [
+      {
+        icon: Archive,
+        title: "Archive",
+        path: "/archive",
+        keywords: ["archive", "restore", "deleted", "soft delete"],
+      },
       {
         icon: Settings,
         title: "Settings",

@@ -39,7 +39,7 @@ const BatchDeleteDialog = ({
     []
   );
 
-  const requiredConfirmationText = "DELETE FOREVER";
+  const requiredConfirmationText = "ARCHIVE NOW";
   const isQuotationMode = mode === "quotation";
   const entityLabel = isQuotationMode ? "quotations" : "job orders";
   const entityLabelTitle = isQuotationMode ? "Quotations" : "Job Orders";
@@ -95,7 +95,7 @@ const BatchDeleteDialog = ({
     },
     onSuccess: () => {
       toast.success(
-        `Successfully deleted ${jobOrdersToDelete.length} ${entityLabel}`
+        `Successfully archived ${jobOrdersToDelete.length} ${entityLabel}`
       );
       setIsDeleteDialogOpen(false);
       setIsConfirmDialogOpen(false);
@@ -106,7 +106,7 @@ const BatchDeleteDialog = ({
       onSuccess?.();
     },
     onError: (error) => {
-      toast.error(error.message || `Failed to delete ${entityLabel}`);
+      toast.error(error.message || `Failed to archive ${entityLabel}`);
     },
   });
 
@@ -155,7 +155,7 @@ const BatchDeleteDialog = ({
         <DialogTrigger asChild>
           <button className="cursor-pointer flex gap-1 items-center border text-red-400 hover:text-red-600 border-red-300 hover:border-red-400 text-sm w-fit px-2 py-1 rounded-lg transition-colors">
             <Trash2 size={16} />
-            Batch Delete
+            Batch Archive
           </button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto border-0 shadow-2xl">
@@ -165,10 +165,10 @@ const BatchDeleteDialog = ({
                 <Trash2 size={20} className="text-red-600" />
               </div>
               <h2 className="text-xl font-medium text-gray-900 mb-1">
-                Batch Delete {entityLabelTitle}
+                Batch Archive {entityLabelTitle}
               </h2>
               <p className="text-gray-500 text-xs">
-                Select a date range to delete multiple {entityLabel}
+                Select a date range to archive multiple {entityLabel}
               </p>
             </div>
 
@@ -180,22 +180,20 @@ const BatchDeleteDialog = ({
                 </div>
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-amber-800">
-                    Danger Zone
+                    Review Before Archive
                   </h3>
                   <div className="mt-1 text-sm text-amber-700">
                     {isQuotationMode ? (
                       <p>
-                        This action will permanently delete quotations linked to
-                        job orders in the selected date range. Job orders,
-                        materials, payments, and billing records will remain
-                        intact.
+                        This action will archive quotations linked to job orders
+                        in the selected date range. You can restore them later
+                        from Archive.
                       </p>
                     ) : (
                       <p>
-                        This action will permanently delete all job orders
-                        within the selected date range. This action cannot be
-                        undone and will remove all associated data including
-                        materials, payments, and client information.
+                        This action will archive all job orders within the
+                        selected date range. Relationships, billing links, and
+                        history remain intact and can be restored from Archive.
                       </p>
                     )}
                   </div>
@@ -243,7 +241,7 @@ const BatchDeleteDialog = ({
                     <div className="text-sm text-gray-600">
                       <p className="font-medium text-red-600">
                         {previewData.length} {entityLabelSingle}(s) will be
-                        deleted
+                        archived
                       </p>
                       <div className="mt-2 max-h-24 overflow-y-auto">
                         {previewData.slice(0, 5).map((jo) => (
@@ -280,7 +278,7 @@ const BatchDeleteDialog = ({
                   disabled={!previewData || previewData.length === 0}
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white transition-colors"
                 >
-                  Delete {previewData?.length || 0} {entityLabelTitle}
+                  Archive {previewData?.length || 0} {entityLabelTitle}
                 </Button>
               </div>
             </div>
@@ -297,11 +295,10 @@ const BatchDeleteDialog = ({
                 <Lock size={20} className="text-red-600" />
               </div>
               <h2 className="text-lg font-medium text-gray-900 mb-1">
-                Confirm Deletion
+                Confirm Archive
               </h2>
               <p className="text-xs text-gray-500">
-                This action is irreversible. Please confirm by typing the text
-                below.
+                Confirm by typing the text below.
               </p>
             </div>
 
@@ -326,7 +323,7 @@ const BatchDeleteDialog = ({
               </div>
 
               <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded">
-                <strong>What will be deleted:</strong>
+                <strong>What will be archived:</strong>
                 <ul className="mt-1 space-y-1">
                   <li>
                     • {jobOrdersToDelete.length} {entityLabelSingle}(s)
@@ -334,16 +331,16 @@ const BatchDeleteDialog = ({
                   <li>
                     •{" "}
                     {isQuotationMode
-                      ? "Only quotation and quotation item records"
-                      : "All associated materials and payments"}
+                      ? "Quotation rows are moved to Archive"
+                      : "Job order rows are moved to Archive"}
                   </li>
                   <li>
                     •{" "}
                     {isQuotationMode
-                      ? "Linked job orders will remain intact"
-                      : "All related technical reports"}
+                      ? "Linked job orders remain intact"
+                      : "Linked quotations are also archived"}
                   </li>
-                  <li>• This action cannot be undone</li>
+                  <li>• Records can be restored from Archive</li>
                 </ul>
               </div>
 
@@ -368,12 +365,12 @@ const BatchDeleteDialog = ({
                   {isDeleting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-                      Deleting...
+                      Archiving...
                     </>
                   ) : (
                     <>
                       <Trash2 size={16} className="mr-2" />
-                      Delete Forever
+                      Archive Records
                     </>
                   )}
                 </Button>

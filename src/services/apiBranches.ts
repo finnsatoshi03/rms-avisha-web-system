@@ -239,7 +239,10 @@ export async function deleteBranch(branchId: number) {
 }
 
 export async function getBranchJobOrderCounts(): Promise<Record<number, number>> {
-  const { data, error } = await supabase.from("joborders").select("branch_id");
+  const { data, error } = await supabase
+    .from("joborders")
+    .select("branch_id")
+    .is("deleted_at", null);
 
   if (error) {
     throw new Error("Job order counts per branch could not be fetched.");
