@@ -32,6 +32,8 @@ export default function GuidedTour({
   const [validSteps, setValidSteps] = useState<TourStep[]>([]);
   const [stepReady, setStepReady] = useState(false);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const [tooltipSize, setTooltipSize] = useState({ width: 320, height: 220 });
 
   const tour = getTourDefinition(featureKey);
 
@@ -87,7 +89,11 @@ export default function GuidedTour({
   useEffect(() => {
     if (!active || !tour) return;
     const valid = tour.steps.filter((step) => {
-      return document.querySelector(step.target) !== null || step.clickBefore;
+      const hasTarget = document.querySelector(step.target) !== null;
+      const hasClickBefore = step.clickBefore
+        ? document.querySelector(step.clickBefore) !== null
+        : false;
+      return hasTarget || hasClickBefore;
     });
     setValidSteps(valid);
     setCurrentStep(0);
@@ -152,10 +158,26 @@ export default function GuidedTour({
         // Popover already open — just set up cleanup and find the target
         const trigger = document.querySelector(step.clickBefore) as HTMLElement;
         cleanupRef.current = () => {
+          const subSheetBack = document.querySelector(
+            '[data-tour="billing-detail-subsheet-back"]'
+          ) as HTMLElement | null;
+          if (subSheetBack) {
+            subSheetBack.click();
+            return;
+          }
+
+          const alertCancel = document.querySelector(
+            "[data-radix-alert-dialog-cancel]"
+          ) as HTMLElement | null;
+          if (alertCancel) {
+            alertCancel.click();
+            return;
+          }
+
           allowEscapeRef.current = true;
           const tempEscape = new KeyboardEvent("keydown", {
             key: "Escape",
-            bubbles: true,
+            bubbles: false,
             cancelable: true,
           });
           (document.activeElement || trigger || document.body).dispatchEvent(tempEscape);
@@ -167,14 +189,20 @@ export default function GuidedTour({
             input.focus();
             simulateTyping(input, step.typeInto.value);
           }
-          setTimeout(() => findAndShow(10, 250), 500);
+          setTimeout(
+            () => findAndShow(10, 250),
+            step.waitMs ?? 500
+          );
         } else {
           // Clear previous typed text if the input exists
           const cmdkInput = document.querySelector("[cmdk-input]") as HTMLInputElement;
           if (cmdkInput && cmdkInput.value) {
             simulateTyping(cmdkInput, "");
           }
-          setTimeout(() => findAndShow(10, 250), 200);
+          setTimeout(
+            () => findAndShow(10, 250),
+            step.waitMs ?? 200
+          );
         }
       } else {
         // Need to open the popover
@@ -182,10 +210,26 @@ export default function GuidedTour({
         if (trigger) {
           trigger.click();
           cleanupRef.current = () => {
+            const subSheetBack = document.querySelector(
+              '[data-tour="billing-detail-subsheet-back"]'
+            ) as HTMLElement | null;
+            if (subSheetBack) {
+              subSheetBack.click();
+              return;
+            }
+
+            const alertCancel = document.querySelector(
+              "[data-radix-alert-dialog-cancel]"
+            ) as HTMLElement | null;
+            if (alertCancel) {
+              alertCancel.click();
+              return;
+            }
+
             allowEscapeRef.current = true;
             const tempEscape = new KeyboardEvent("keydown", {
               key: "Escape",
-              bubbles: true,
+              bubbles: false,
               cancelable: true,
             });
             (document.activeElement || trigger).dispatchEvent(tempEscape);
@@ -200,7 +244,10 @@ export default function GuidedTour({
               simulateTyping(input, step.typeInto.value);
             }
           }
-          setTimeout(() => findAndShow(10, 250), step.typeInto ? 500 : 100);
+          setTimeout(
+            () => findAndShow(10, 250),
+            step.waitMs ?? (step.typeInto ? 500 : 100)
+          );
         };
 
         setTimeout(afterClick, 300);
@@ -232,6 +279,30 @@ export default function GuidedTour({
       window.removeEventListener("scroll", updateRect, true);
     };
   }, [updateRect]);
+
+  useEffect(() => {
+    if (!active || !stepReady) return;
+    const tooltipEl = tooltipRef.current;
+    if (!tooltipEl) return;
+
+    const measure = () => {
+      const next = {
+        width: Math.round(tooltipEl.offsetWidth || 320),
+        height: Math.round(tooltipEl.offsetHeight || 220),
+      };
+      setTooltipSize((prev) =>
+        prev.width === next.width && prev.height === next.height ? prev : next
+      );
+    };
+
+    measure();
+    const resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(tooltipEl);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [active, stepReady, currentStep]);
 
   const handleNext = () => {
     if (currentStep < validSteps.length - 1) {
@@ -283,31 +354,151 @@ export default function GuidedTour({
   const step = validSteps[currentStep];
   const isLast = currentStep === validSteps.length - 1;
   const isFirst = currentStep === 0;
+  const maxVisibleBullets = 10;
+  const visibleBulletCount = Math.min(validSteps.length, maxVisibleBullets);
+  const activeBulletIndex =
+    validSteps.length <= maxVisibleBullets
+      ? currentStep
+      : Math.min(
+          maxVisibleBullets - 1,
+          Math.round(
+            (currentStep / Math.max(validSteps.length - 1, 1)) *
+              (maxVisibleBullets - 1)
+          )
+        );
   const pad = 8;
 
   const getTooltipPos = (): React.CSSProperties => {
+    const viewportPadding = 8;
     const s: React.CSSProperties = { position: "fixed", zIndex: 10002 };
-    const w = 320;
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const tooltipWidth = Math.max(
+      180,
+      Math.min(360, vw - viewportPadding * 2)
+    );
+    const tooltipHeight = Math.min(
+      Math.max(160, tooltipSize.height || 220),
+      vh - viewportPadding * 2
+    );
+    const gap = pad + 8;
+    const highlightLeft = targetRect.left - pad;
+    const highlightTop = targetRect.top - pad;
+    const highlightRight = targetRect.right + pad;
+    const highlightBottom = targetRect.bottom + pad;
 
-    switch (step.placement) {
-      case "bottom":
-        s.top = targetRect.bottom + pad + 8;
-        s.left = Math.max(8, Math.min(targetRect.left + targetRect.width / 2 - w / 2, window.innerWidth - w - 8));
-        break;
-      case "top":
-        s.bottom = window.innerHeight - targetRect.top + pad + 8;
-        s.left = Math.max(8, Math.min(targetRect.left + targetRect.width / 2 - w / 2, window.innerWidth - w - 8));
-        break;
-      case "left":
-        s.top = targetRect.top + targetRect.height / 2 - 60;
-        s.right = window.innerWidth - targetRect.left + pad + 8;
-        break;
-      case "right":
-        s.top = targetRect.top + targetRect.height / 2 - 60;
-        s.left = targetRect.right + pad + 8;
-        break;
+    const clamp = (value: number, min: number, max: number) =>
+      Math.max(min, Math.min(value, max));
+
+    const placementOrder: TourStep["placement"][] = [
+      step.placement,
+      ...(["bottom", "right", "left", "top"] as TourStep["placement"][]).filter(
+        (p) => p !== step.placement
+      ),
+    ];
+
+    const getCandidate = (placement: TourStep["placement"]) => {
+      let left = 0;
+      let top = 0;
+
+      if (placement === "bottom") {
+        top = targetRect.bottom + gap;
+        left = targetRect.left + targetRect.width / 2 - tooltipWidth / 2;
+      } else if (placement === "top") {
+        top = targetRect.top - tooltipHeight - gap;
+        left = targetRect.left + targetRect.width / 2 - tooltipWidth / 2;
+      } else if (placement === "left") {
+        left = targetRect.left - tooltipWidth - gap;
+        top = targetRect.top + targetRect.height / 2 - tooltipHeight / 2;
+      } else {
+        left = targetRect.right + gap;
+        top = targetRect.top + targetRect.height / 2 - tooltipHeight / 2;
+      }
+
+      return {
+        left: clamp(left, viewportPadding, vw - tooltipWidth - viewportPadding),
+        top: clamp(top, viewportPadding, vh - tooltipHeight - viewportPadding),
+      };
+    };
+
+    const overlapsHighlight = (left: number, top: number) => {
+      const right = left + tooltipWidth;
+      const bottom = top + tooltipHeight;
+      return !(
+        right <= highlightLeft ||
+        left >= highlightRight ||
+        bottom <= highlightTop ||
+        top >= highlightBottom
+      );
+    };
+
+    const targetCoversMostOfViewport =
+      targetRect.height > vh * 0.7 || targetRect.width > vw * 0.85;
+
+    for (const placement of placementOrder) {
+      const candidate = getCandidate(placement);
+      if (!overlapsHighlight(candidate.left, candidate.top)) {
+        return {
+          ...s,
+          left: candidate.left,
+          top: candidate.top,
+          width: tooltipWidth,
+          maxHeight: vh - viewportPadding * 2,
+          overflowY: "auto",
+        };
+      }
     }
-    return s;
+
+    if (targetCoversMostOfViewport) {
+      return {
+        ...s,
+        left: viewportPadding,
+        top: viewportPadding,
+        width: tooltipWidth,
+        maxHeight: Math.max(180, Math.floor(vh * 0.45)),
+        overflowY: "auto",
+      };
+    }
+
+    const freeSpace = {
+      top: targetRect.top - gap - viewportPadding,
+      bottom: vh - targetRect.bottom - gap - viewportPadding,
+      left: targetRect.left - gap - viewportPadding,
+      right: vw - targetRect.right - gap - viewportPadding,
+    };
+    const bestPlacement = (Object.entries(freeSpace).sort(
+      (a, b) => b[1] - a[1]
+    )[0]?.[0] ?? "bottom") as TourStep["placement"];
+    const fallback = getCandidate(bestPlacement);
+
+    if ((freeSpace[bestPlacement] ?? 0) < 160) {
+      const dockedHeight = Math.min(
+        Math.max(180, tooltipHeight),
+        vh - viewportPadding * 2
+      );
+      return {
+        ...s,
+        left: viewportPadding,
+        top: vh - dockedHeight - viewportPadding,
+        width: vw - viewportPadding * 2,
+        maxHeight: dockedHeight,
+        overflowY: "auto",
+      };
+    }
+
+    const maxHeight =
+      bestPlacement === "top" || bestPlacement === "bottom"
+        ? Math.max(160, Math.min(freeSpace[bestPlacement], vh - viewportPadding * 2))
+        : vh - viewportPadding * 2;
+
+    return {
+      ...s,
+      left: fallback.left,
+      top: fallback.top,
+      width: tooltipWidth,
+      maxHeight,
+      overflowY: "auto",
+    };
   };
 
   return createPortal(
@@ -334,20 +525,28 @@ export default function GuidedTour({
 
       {/* Tooltip */}
       <div
+        ref={tooltipRef}
         className="tour-tooltip bg-white rounded-lg shadow-xl border p-4 animate-in fade-in-0 zoom-in-95 duration-200"
-        style={{ ...getTooltipPos(), width: 320 }}
+        style={getTooltipPos()}
       >
         <p className="text-sm font-semibold mb-1">{step.title}</p>
         <p className="text-xs text-muted-foreground leading-relaxed">{step.content}</p>
 
         <div className="flex items-center justify-between mt-4">
-          <div className="flex gap-1.5">
-            {validSteps.map((_, i) => (
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex gap-1.5 shrink-0">
+              {Array.from({ length: visibleBulletCount }).map((_, i) => (
               <span
                 key={i}
-                className={`inline-block h-1.5 w-1.5 rounded-full ${i === currentStep ? "bg-primary" : "bg-gray-300"}`}
+                className={`inline-block h-1.5 w-1.5 rounded-full ${
+                  i === activeBulletIndex ? "bg-primary" : "bg-gray-300"
+                }`}
               />
-            ))}
+              ))}
+            </div>
+            <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+              {currentStep + 1}/{validSteps.length}
+            </span>
           </div>
 
           <div className="flex gap-1.5">

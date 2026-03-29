@@ -22,6 +22,10 @@ import {
   SelectContent,
   SelectItem,
 } from "../ui/select";
+import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
+import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
+import GuidedTour from "../onboarding/guided-tour";
+import TourReplayButton from "../onboarding/tour-replay-button";
 
 const CUTOFF_DAYS = Array.from({ length: 28 }, (_, i) => i + 1);
 
@@ -56,6 +60,15 @@ export default function BillingAccountFormSheet({
   const createMutation = useCreateBillingAccount();
   const updateMutation = useUpdateBillingAccount();
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
+
+  const {
+    showAnnouncement,
+    showTour,
+    onboardingData,
+    startTour,
+    completeTour,
+    replayTour,
+  } = useFeatureOnboarding("billing_account_create");
 
   useEffect(() => {
     if (isEditMode && existingAccount) {
@@ -122,6 +135,13 @@ export default function BillingAccountFormSheet({
 
   return (
     <form onSubmit={handleSubmit}>
+      {/* ── Tour replay ── */}
+      {!isEditMode && (
+        <div className="flex justify-end mb-1">
+          <TourReplayButton onClick={replayTour} label="How to create an account" />
+        </div>
+      )}
+
       {/* ── Top pills ─ same as JO form ──────────────────────────── */}
       <div className="flex flex-wrap gap-2 mb-2 items-center">
         <div className="px-3 py-1 bg-gray-200 rounded-full text-gray-600 text-xs w-fit flex items-center gap-1">
@@ -168,7 +188,7 @@ export default function BillingAccountFormSheet({
           )}
         </div>
       ) : (
-        <div className="mb-2">
+        <div className="mb-2" data-tour="billing-form-client">
           <ClientAutoSuggest
             selectedClient={selectedClient}
             onClientSelect={(client) => setSelectedClient(client)}
@@ -186,7 +206,7 @@ export default function BillingAccountFormSheet({
       )}
 
       {/* ── Basic Information ─ same rounded-xl box as JO ────────── */}
-      <div>
+      <div data-tour="billing-form-contact">
         <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">
           Basic Information
         </h2>
@@ -223,7 +243,7 @@ export default function BillingAccountFormSheet({
       </div>
 
       {/* ── Account Settings ─ border-b rows, label left / value right ── */}
-      <div>
+      <div data-tour="billing-form-settings">
         <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
           Account Settings
         </h2>
@@ -304,7 +324,7 @@ export default function BillingAccountFormSheet({
       </div>
 
       {/* ── Actions ─ same layout as JO form ────────────────────── */}
-      <div className="flex md:flex-row flex-col md:justify-between mt-4">
+      <div className="flex md:flex-row flex-col md:justify-between mt-4" data-tour="billing-form-submit">
         <Button
           type="submit"
           disabled={
@@ -330,6 +350,21 @@ export default function BillingAccountFormSheet({
           Cancel
         </Button>
       </div>
+      {/* Onboarding Tour */}
+      {!isEditMode && (
+        <>
+          <FeatureAnnouncementModal
+            open={showAnnouncement}
+            onboarding={onboardingData}
+            onStartTour={startTour}
+          />
+          <GuidedTour
+            featureKey="billing_account_create"
+            active={showTour}
+            onComplete={completeTour}
+          />
+        </>
+      )}
     </form>
   );
 }

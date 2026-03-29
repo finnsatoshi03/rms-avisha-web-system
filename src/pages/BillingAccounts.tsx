@@ -37,6 +37,10 @@ import { BillingAccount, BillingAccountStatus } from "../lib/billing-types";
 import { formatNumberWithCommas } from "../lib/helpers";
 import BillingAccountFormSheet from "../components/billing/billing-account-form";
 import BillingAccountSheetContent from "../components/billing/billing-account-sheet";
+import { useFeatureOnboarding } from "../components/onboarding/useFeatureOnboarding";
+import FeatureAnnouncementModal from "../components/onboarding/feature-announcement-modal";
+import GuidedTour from "../components/onboarding/guided-tour";
+import TourReplayButton from "../components/onboarding/tour-replay-button";
 
 const statusVariant: Record<BillingAccountStatus, string> = {
   active: "bg-green-100 text-green-800 border-green-200",
@@ -63,6 +67,53 @@ export default function BillingAccounts() {
   );
 
   const canCreate = isDev || isAdmin || isManager;
+
+  const {
+    showAnnouncement,
+    showTour,
+    onboardingData,
+    startTour,
+    completeTour,
+    replayTour,
+  } = useFeatureOnboarding("billing_accounts");
+
+  // Mock data shown during tour when no real accounts exist
+  const MOCK_ACCOUNTS: BillingAccount[] = [
+    {
+      id: "mock-1",
+      client_id: 0,
+      account_number: "BA-01-001",
+      status: "active",
+      credit_limit: 50000,
+      interest_rate: 2,
+      billing_cutoff_day: 1,
+      billing_contact_name: "Accounting Dept",
+      billing_contact_email: "billing@sunshine.com",
+      billing_contact_phone: "+63 912 345 6789",
+      notes: null,
+      created_by: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      clients: { id: 0, name: "Sunshine Electronics Corp.", contact_number: "+63 912 345 6789", email: "billing@sunshine.com", type: "company", created_at: "", updated_at: "", is_active: true, address: null, notes: null } as any,
+    },
+    {
+      id: "mock-2",
+      client_id: 0,
+      account_number: "BA-01-002",
+      status: "active",
+      credit_limit: 25000,
+      interest_rate: 2,
+      billing_cutoff_day: 15,
+      billing_contact_name: null,
+      billing_contact_email: "juan@email.com",
+      billing_contact_phone: "+63 917 123 4567",
+      notes: null,
+      created_by: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      clients: { id: 0, name: "Juan dela Cruz", contact_number: "+63 917 123 4567", email: "juan@email.com", type: "individual", created_at: "", updated_at: "", is_active: true, address: null, notes: null } as any,
+    },
+  ];
 
   // Deep link support — open sheet if URL has :id
   useEffect(() => {
@@ -99,6 +150,9 @@ export default function BillingAccounts() {
     });
   }, [accounts, searchTerm, statusFilter]);
 
+  const showMockData = showTour && filteredAccounts.length === 0;
+  const displayAccounts = showMockData ? MOCK_ACCOUNTS : filteredAccounts;
+
   const resetFilters = () => {
     setSearchTerm("");
     setStatusFilter("all");
@@ -130,9 +184,13 @@ export default function BillingAccounts() {
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between">
-        <HeaderText>Billing Accounts</HeaderText>
+        <div className="flex items-center gap-2">
+          <HeaderText>Billing Accounts</HeaderText>
+          <TourReplayButton onClick={replayTour} label="How billing works" />
+        </div>
         {canCreate && (
           <Button
+            data-tour="billing-create"
             onClick={() => setCreateSheetOpen(true)}
             className="gap-1.5"
             size="sm"
@@ -145,7 +203,7 @@ export default function BillingAccounts() {
 
       {/* Filters */}
       <div className="my-4 flex sm:flex-row flex-col sm:gap-3 gap-2">
-        <div className="relative">
+        <div className="relative" data-tour="billing-search">
           <Input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -156,7 +214,7 @@ export default function BillingAccounts() {
         </div>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px] h-fit px-2 py-1 border border-gray-400 rounded-lg text-gray-700 text-sm">
+          <SelectTrigger data-tour="billing-status-filter" className="w-[150px] h-fit px-2 py-1 border border-gray-400 rounded-lg text-gray-700 text-sm">
             <Filter size={14} className="mr-1 opacity-60" />
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -180,7 +238,7 @@ export default function BillingAccounts() {
       </div>
 
       {/* Table */}
-      {filteredAccounts.length === 0 ? (
+      {displayAccounts.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
           <ReceiptText
             size={48}
@@ -205,7 +263,7 @@ export default function BillingAccounts() {
           )}
         </div>
       ) : (
-        <div className="flex-1 border rounded-lg overflow-auto">
+        <div className="flex-1 border rounded-lg overflow-auto" data-tour="billing-table">
           <Table>
             <TableHeader>
               <TableRow className="bg-gray-50">
@@ -227,7 +285,7 @@ export default function BillingAccounts() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAccounts.map((account) => (
+              {displayAccounts.map((account) => (
                 <TableRow
                   key={account.id}
                   className={`cursor-pointer transition-colors ${
@@ -235,7 +293,7 @@ export default function BillingAccounts() {
                       ? "bg-primary/5 hover:bg-primary/10"
                       : "hover:bg-gray-50"
                   }`}
-                  onClick={() => handleOpenAccount(account.id)}
+                  onClick={() => !showMockData && handleOpenAccount(account.id)}
                 >
                   <TableCell className="font-mono text-sm">
                     {account.account_number}
@@ -293,16 +351,14 @@ export default function BillingAccounts() {
       )}
 
       <p className="text-xs text-gray-400 mt-3">
-        {filteredAccounts.length} account
-        {filteredAccounts.length !== 1 ? "s" : ""}
-        {hasActiveFilters ? " (filtered)" : ""}
+        {showMockData ? "Demo data shown during tour" : `${filteredAccounts.length} account${filteredAccounts.length !== 1 ? "s" : ""}${hasActiveFilters ? " (filtered)" : ""}`}
       </p>
 
       {/* Create Account Sheet */}
       <Sheet open={createSheetOpen} onOpenChange={setCreateSheetOpen}>
         <SheetContent className="min-w-[50vw] overflow-y-auto">
           <SheetHeader>
-            <SheetTitle className="font-bold">New Billing Account</SheetTitle>
+            <SheetTitle className="font-bold flex items-center gap-2">New Billing Account</SheetTitle>
             <Separator className="my-2" />
             <BillingAccountFormSheet
               onClose={() => setCreateSheetOpen(false)}
@@ -336,6 +392,18 @@ export default function BillingAccounts() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Onboarding Tour */}
+      <FeatureAnnouncementModal
+        open={showAnnouncement}
+        onboarding={onboardingData}
+        onStartTour={startTour}
+      />
+      <GuidedTour
+        featureKey="billing_accounts"
+        active={showTour}
+        onComplete={completeTour}
+      />
     </div>
   );
 }

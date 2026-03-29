@@ -1,29 +1,35 @@
 import { ReactNode } from "react";
-import { useSearchParams } from "react-router-dom";
 import { useUser } from "../auth/useUser";
-import { useFeatureFlag } from "../../hooks/useFeatureFlag";
 import Loader from "../ui/loader";
-import BillingLockedExperience from "./billing-locked-experience";
+import { useFeatureFlag } from "../../hooks/useFeatureFlag";
 
 interface BillingGuardProps {
   children: ReactNode;
 }
 
 /**
- * Wraps the billing module. If the feature flag is disabled and the user
- * is not a dev, renders the demo walkthrough / lock screen instead.
- * Dev role always sees the real billing module regardless of flag state.
- *
- * Dev can preview the demo by navigating to /billing?demo=true
+ * Wraps the billing module.
+ * - Dev/Admin/Manager: see real billing when feature is enabled
+ * - Technicians: no access (sidebar already hides the link)
+ * - If feature flag is disabled, shows a simple "not available" message
  */
 export default function BillingGuard({ children }: BillingGuardProps) {
-  const { isDev } = useUser();
+  const { isDev, isAdmin, isManager, isTechnician } = useUser();
   const { enabled, loading } = useFeatureFlag("feature_billing_enabled");
-  const [searchParams] = useSearchParams();
-  const forceDemo = searchParams.get("demo") === "true";
 
-  // Dev can force demo mode via ?demo=true for preview/testing
-  if (isDev && !forceDemo) return <>{children}</>;
+  // Technicians should never see billing
+  if (isTechnician) {
+    return (
+      <div className="h-full w-full flex items-center justify-center">
+        <p className="text-sm text-muted-foreground">
+          You don't have access to the billing module.
+        </p>
+      </div>
+    );
+  }
+
+  // Dev always sees billing regardless of flag
+  if (isDev) return <>{children}</>;
 
   if (loading) {
     return (
@@ -33,9 +39,15 @@ export default function BillingGuard({ children }: BillingGuardProps) {
     );
   }
 
-  // Feature enabled and not forcing demo — show real billing
-  if (enabled && !forceDemo) return <>{children}</>;
+  // Feature enabled — show billing for admin/manager
+  if (enabled && (isAdmin || isManager)) return <>{children}</>;
 
-  // Feature disabled (or forced demo) — show demo / lock screen
-  return <BillingLockedExperience />;
+  // Feature disabled
+  return (
+    <div className="h-full w-full flex items-center justify-center">
+      <p className="text-sm text-muted-foreground">
+        The billing module is not yet activated. Contact your system administrator.
+      </p>
+    </div>
+  );
 }
