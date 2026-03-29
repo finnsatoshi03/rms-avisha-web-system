@@ -16,6 +16,7 @@ import RentalBillingSection from "../billing/rental-billing-section";
 import { useDownpayment } from "../job-order/useDownpayment";
 import { useRentalStatusUpdate } from "./useRentalStatusUpdate";
 import { useUpdateRental } from "./useUpdateRental";
+import { applySourcePayment } from "../../services/apiBilling";
 import ReturnInspectionDialog from "./return-inspection-dialog";
 import RentalPaymentDialog from "./rental-payment-dialog";
 import RentalConsumableManager from "./rental-consumable-manager";
@@ -63,6 +64,7 @@ import {
   Package,
   X,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 interface RentalDetailSheetProps {
   open: boolean;
@@ -201,6 +203,18 @@ export default function RentalDetailSheet({
   const consumables = (rental.rental_consumables || []) as RentalConsumable[];
   const isFormReadonly = !isEditMode;
   const canEdit = ["Created", "Released", "Ongoing"].includes(rental.status);
+  const billingSync = (rental.payment_details as any)?.billing_sync;
+  const amountDue = (() => {
+    const mirroredRemaining = Number(billingSync?.remaining_balance);
+    if (Number.isFinite(mirroredRemaining)) {
+      return Math.max(mirroredRemaining, 0);
+    }
+
+    return Math.max(
+      Number(rental.grand_total || 0) - Number(rental.downpayment || 0),
+      0
+    );
+  })();
 
   function handleStatusChange(status: RentalStatus) {
     if (status === "Returned") {
@@ -208,6 +222,18 @@ export default function RentalDetailSheet({
       return;
     }
     if (status === "Completed") {
+      if (amountDue <= 0) {
+        statusMutation.mutate(
+          { ids: [rental!.id], status: "Completed" },
+          {
+            onSuccess: () => {
+              onOpenChange(false);
+            },
+          }
+        );
+        return;
+      }
+
       setPaymentOpen(true);
       return;
     }
@@ -223,16 +249,24 @@ export default function RentalDetailSheet({
     );
   }
 
-  function handlePaymentSubmit() {
-    statusMutation.mutate(
-      { ids: [rental!.id], status: "Completed" },
-      {
-        onSuccess: () => {
-          setPaymentOpen(false);
-          onOpenChange(false);
-        },
-      }
-    );
+  async function handlePaymentSubmit(payments: Record<string, number>) {
+    try {
+      await applySourcePayment("rental", rental!.id, payments);
+      statusMutation.mutate(
+        { ids: [rental!.id], status: "Completed" },
+        {
+          onSuccess: () => {
+            setPaymentOpen(false);
+            onOpenChange(false);
+          },
+        }
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to process payment."
+      );
+    }
   }
 
   function handleClientSelect(client: Client) {
@@ -920,7 +954,7 @@ export default function RentalDetailSheet({
         open={paymentOpen}
         onClose={() => setPaymentOpen(false)}
         onSubmit={handlePaymentSubmit}
-        grandTotal={Number(rental.grand_total)}
+        grandTotal={amountDue}
         rentalNo={rental.rental_no}
       />
     </>

@@ -190,6 +190,8 @@ export function useRecordBillingPayment() {
       queryClient.invalidateQueries({ queryKey: ["billing_line_items", variables.billing_account_id] });
       queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
       queryClient.invalidateQueries({ queryKey: ["billing_dashboard_summary"] });
+      queryClient.invalidateQueries({ queryKey: ["job_order"] });
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
       toast.success("Payment recorded successfully");
     },
     onError: (error: Error) => {

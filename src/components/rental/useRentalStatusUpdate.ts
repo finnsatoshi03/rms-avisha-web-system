@@ -12,6 +12,10 @@ export function useRentalStatusUpdate() {
       toast.success("Rental status updated");
       queryClient.invalidateQueries({ queryKey: ["rentals"] });
       queryClient.invalidateQueries({ queryKey: ["rental_assets"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
     },
     onError: (error: Error) => {
       toast.error(error.message);

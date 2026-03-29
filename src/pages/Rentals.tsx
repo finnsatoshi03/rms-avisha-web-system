@@ -22,6 +22,7 @@ import RentalDetailSheet from "../components/rental/rental-detail-sheet";
 import RentalPaymentDialog from "../components/rental/rental-payment-dialog";
 import { RentalData, RentalStatus } from "../lib/types";
 import { deleteRentals } from "../services/apiRentals";
+import { applySourcePayment } from "../services/apiBilling";
 import { useRentalStatusUpdate } from "../components/rental/useRentalStatusUpdate";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { pdf } from "@react-pdf/renderer";
@@ -60,6 +61,21 @@ function getStatusBadgeClass(status: string, isSelected: boolean) {
     "px-3 py-0.5 rounded-full text-xs font-bold cursor-pointer truncate transition-all duration-200";
   const statusClass = getStatusClass(status);
   return `${baseClass} ${statusClass} ${isSelected ? "ring-2 ring-offset-2" : ""}`;
+}
+
+function getRentalAmountDue(rental: RentalData | null): number {
+  if (!rental) return 0;
+
+  const billingSync = (rental.payment_details as any)?.billing_sync;
+  const mirroredRemaining = Number(billingSync?.remaining_balance);
+  if (Number.isFinite(mirroredRemaining)) {
+    return Math.max(mirroredRemaining, 0);
+  }
+
+  return Math.max(
+    Number(rental.grand_total || 0) - Number(rental.downpayment || 0),
+    0
+  );
 }
 
 export default function Rentals() {
@@ -208,6 +224,14 @@ export default function Rentals() {
         return;
       }
 
+      if (getRentalAmountDue(selectedRental) <= 0) {
+        statusMutation.mutate(
+          { ids: [selectedRental.id], status: "Completed" },
+          { onSuccess: () => setSelectedIds([]) }
+        );
+        return;
+      }
+
       setRentalToComplete(selectedRental);
       setBulkPaymentOpen(true);
       return;
@@ -219,19 +243,32 @@ export default function Rentals() {
     );
   };
 
-  const handleBulkPaymentSubmit = (_payments: Record<string, number>) => {
+  const handleBulkPaymentSubmit = async (payments: Record<string, number>) => {
     if (!rentalToComplete) return;
 
-    statusMutation.mutate(
-      { ids: [rentalToComplete.id], status: "Completed" },
-      {
-        onSuccess: () => {
-          setSelectedIds([]);
-          setBulkPaymentOpen(false);
-          setRentalToComplete(null);
-        },
-      }
-    );
+    try {
+      await applySourcePayment("rental", rentalToComplete.id, payments);
+      statusMutation.mutate(
+        { ids: [rentalToComplete.id], status: "Completed" },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+            queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+            queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+            queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+            setSelectedIds([]);
+            setBulkPaymentOpen(false);
+            setRentalToComplete(null);
+          },
+        }
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to process rental payment."
+      );
+    }
   };
 
   const handleEdit = (rental: RentalData) => {
@@ -513,7 +550,7 @@ export default function Rentals() {
           setRentalToComplete(null);
         }}
         onSubmit={handleBulkPaymentSubmit}
-        grandTotal={Number(rentalToComplete?.grand_total || 0)}
+        grandTotal={getRentalAmountDue(rentalToComplete)}
         rentalNo={rentalToComplete?.rental_no || ""}
       />
 

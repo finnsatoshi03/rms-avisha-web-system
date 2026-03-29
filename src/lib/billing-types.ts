@@ -3,6 +3,8 @@ import { Client } from "./types";
 export type BillingAccountStatus = "active" | "suspended" | "closed";
 export type BillingLineItemType = "charge" | "interest" | "adjustment" | "credit";
 export type BillingStatementStatus = "draft" | "finalized" | "sent";
+export type BillingSourceType = "job_order" | "rental";
+export type BillingPaymentStatus = "pending" | "partial" | "paid";
 
 export type BillingAccount = {
   id: string;
@@ -30,10 +32,15 @@ export type BillingLineItem = {
   billing_account_id: string;
   job_order_id: number | null;
   rental_id: number | null;
+  source_type?: BillingSourceType | null;
+  source_id?: number | null;
   branch_id: number;
   type: BillingLineItemType;
   description: string;
   amount: number;
+  total_paid?: number;
+  remaining_balance?: number;
+  payment_status?: BillingPaymentStatus;
   balance_at_time: number | null;
   due_date: string | null;
   created_by: string | null;
@@ -123,6 +130,18 @@ export type RecordPaymentData = {
   reference_number?: string;
   notes?: string;
   allocations?: { line_item_id: string; amount: number }[];
+};
+
+export type SourcePaymentResult = {
+  source_type: BillingSourceType;
+  source_id: number;
+  billing_account_id: string | null;
+  payment_id: string | null;
+  total_amount: number;
+  total_paid: number;
+  remaining_balance: number;
+  payment_status: BillingPaymentStatus;
+  is_transferred_to_billing: boolean;
 };
 
 export type LedgerEntry = {

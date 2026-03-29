@@ -3,7 +3,9 @@ import { supabase } from "./supabase";
 import {
   BillingAccount,
   BillingLineItem,
+  BillingSourceType,
   BillingPayment,
+  SourcePaymentResult,
   BillingStatement,
   BillingAging,
   BillingDashboardSummary,
@@ -13,6 +15,30 @@ import {
   RecordPaymentData,
   LedgerEntry,
 } from "../lib/billing-types";
+
+function getSplitPaymentTotal(payments: Record<string, number>): number {
+  return Object.values(payments).reduce((acc, amount) => acc + Number(amount || 0), 0);
+}
+
+function getPaymentMethodAndNotes(payments: Record<string, number>): {
+  paymentMethod: string;
+  notes: string | null;
+} {
+  const entries = Object.entries(payments).filter(([, amount]) => Number(amount) > 0);
+  if (entries.length === 0) {
+    return { paymentMethod: "cash", notes: null };
+  }
+
+  if (entries.length === 1) {
+    return { paymentMethod: entries[0][0], notes: null };
+  }
+
+  const notes = `Split payment: ${entries
+    .map(([method, amount]) => `${method}:${Number(amount).toFixed(2)}`)
+    .join(", ")}`;
+
+  return { paymentMethod: "split", notes };
+}
 
 // ========================
 // Billing Accounts
@@ -138,23 +164,13 @@ export async function getBillingLineItems(accountId: string): Promise<BillingLin
 
   if (error) throw new Error("Failed to fetch line items: " + error.message);
 
-  // Get paid amounts for each line item
-  if (data && data.length > 0) {
-    const lineItemIds = data.map((li) => li.id);
-    const { data: allocations } = await supabase
-      .from("billing_payment_allocations")
-      .select("billing_line_item_id, amount")
-      .in("billing_line_item_id", lineItemIds);
-
-    const paidMap: Record<string, number> = {};
-    (allocations || []).forEach((a: any) => {
-      paidMap[a.billing_line_item_id] = (paidMap[a.billing_line_item_id] || 0) + a.amount;
-    });
-
-    return data.map((li) => ({ ...li, paid_amount: paidMap[li.id] || 0 }));
-  }
-
-  return data || [];
+  return (data || []).map((li: any) => ({
+    ...li,
+    amount: Number(li.amount || 0),
+    total_paid: Number(li.total_paid || 0),
+    remaining_balance: Number(li.remaining_balance || 0),
+    paid_amount: Number(li.total_paid || 0),
+  }));
 }
 
 // ========================
@@ -246,6 +262,39 @@ export async function recordBillingPayment(paymentData: RecordPaymentData): Prom
   }
 
   return payment;
+}
+
+export async function applySourcePayment(
+  sourceType: BillingSourceType,
+  sourceId: number,
+  payments: Record<string, number>,
+  options?: {
+    paymentDate?: string;
+    referenceNumber?: string;
+    notes?: string;
+  }
+): Promise<SourcePaymentResult> {
+  const amount = getSplitPaymentTotal(payments);
+  if (amount <= 0) {
+    throw new Error("Payment amount must be greater than zero");
+  }
+
+  const { paymentMethod, notes: splitNotes } = getPaymentMethodAndNotes(payments);
+  const { data: userData } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase.rpc("apply_source_payment", {
+    p_source_type: sourceType,
+    p_source_id: sourceId,
+    p_amount: amount,
+    p_payment_date: options?.paymentDate || new Date().toISOString().slice(0, 10),
+    p_payment_method: paymentMethod,
+    p_reference_number: options?.referenceNumber || null,
+    p_notes: options?.notes || splitNotes,
+    p_created_by: userData.user?.id || null,
+  });
+
+  if (error) throw new Error("Failed to apply payment: " + error.message);
+  return data as SourcePaymentResult;
 }
 
 // ========================

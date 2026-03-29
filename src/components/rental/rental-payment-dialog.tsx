@@ -63,7 +63,7 @@ export default function RentalPaymentDialog({
     } else {
       setIsSubmitDisabled(!splitPayments);
     }
-  }, [payments, selectedMethods, totalEntered, splitPayments, grandTotal]);
+  }, [payments, selectedMethods, splitPayments, grandTotal]);
 
   const handlePaymentChange = (method: string, value: string) => {
     setPayments({ ...payments, [method]: Number(value) });

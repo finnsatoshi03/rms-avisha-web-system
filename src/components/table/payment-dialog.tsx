@@ -48,6 +48,10 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   const [confirmMethod, setConfirmMethod] = useState<string>("");
 
   const [isSubmitDisabled, setIsSubmitDisabled] = useState<boolean>(true);
+  const payableTotal = Math.max(
+    Number(order.grand_total || 0) - Number(order.downpayment || 0),
+    0
+  );
 
   useEffect(() => {
     const total = Object.values(payments).reduce(
@@ -58,12 +62,12 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
 
     if (splitPayments) {
       setIsSubmitDisabled(
-        selectedMethods.length === 0 || totalEntered !== order.grand_total
+        selectedMethods.length === 0 || total !== payableTotal
       );
     } else {
       setIsSubmitDisabled(!splitPayments);
     }
-  }, [payments, selectedMethods, totalEntered, splitPayments, confirmMethod]);
+  }, [payments, selectedMethods, splitPayments, payableTotal]);
 
   const handlePaymentChange = (method: string, value: string) => {
     setPayments({ ...payments, [method]: Number(value) });
@@ -89,11 +93,11 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
 
   const handleConfirmPayment = () => {
     if (!splitPayments) {
-      const newPayments = { [confirmMethod]: order.grand_total ?? 0 };
+      const newPayments = { [confirmMethod]: payableTotal };
       onSubmit(newPayments);
-    } else if (totalEntered !== order.grand_total) {
+    } else if (totalEntered !== payableTotal) {
       alert(
-        `Total entered (${totalEntered}) does not match the order total (${order.grand_total}).`
+        `Total entered (${totalEntered}) does not match the order total (${payableTotal}).`
       );
       return;
     } else {
@@ -121,7 +125,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
             </DialogDescription>
             <DialogTitle className="text-3xl font-bold md:text-5xl">
               <span className="opacity-60">₱</span>
-              {formatNumberWithCommas(order.grand_total ?? 0)}
+              {formatNumberWithCommas(payableTotal)}
             </DialogTitle>
           </DialogHeader>
 
@@ -218,7 +222,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
               <AlertDialogDescription>
                 Are you sure you want to process full payment with{" "}
                 {confirmMethod.toUpperCase()} for ₱
-                {formatNumberWithCommas(order.grand_total ?? 0)}?
+                {formatNumberWithCommas(payableTotal)}?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <Button

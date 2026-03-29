@@ -40,9 +40,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteJobOrder,
   duplicateJobOrder,
-  updateJobOrderPayment,
   updateJobOrderStatus,
 } from "../services/apiJobOrders";
+import { applySourcePayment } from "../services/apiBilling";
 import {
   deleteQuotationsByJobOrderIds,
   getQuotationsByJobOrder,
@@ -267,6 +267,33 @@ export default function Table({
     );
   };
 
+  const markTransferredOrderCompleted = (
+    order: JobOrderData,
+    options?: { clearSelectedRows?: boolean }
+  ) => {
+    updateStatusMutate(
+      { ids: [order.id], status: "Completed" },
+      {
+        onSuccess: () => {
+          updateStatus(order.order_no, "Completed");
+          if (options?.clearSelectedRows) {
+            setSelectedRows([]);
+          }
+          toast.success("Job Order completed (payment via billing account)");
+          queryClient.invalidateQueries({ queryKey: ["job_order"] });
+          queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+          queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+          queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+          queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+        },
+        onError: (error) => {
+          toast.error("An error occurred while updating the Job Order status");
+          console.error(error);
+        },
+      }
+    );
+  };
+
   const handleStatusChange = (order_no: string, status: Status) => {
     const orderToUpdate = orders.find((order) => order.order_no === order_no);
 
@@ -290,20 +317,7 @@ export default function Table({
       if (status.label === "Completed") {
         // If JO is transferred to billing, skip payment dialog — payment is handled via billing
         if (orderToUpdate.transferred_to_billing) {
-          updateStatusMutate(
-            { ids: [orderToUpdate.id], status: "Completed" },
-            {
-              onSuccess: () => {
-                updateStatus(order_no, "Completed");
-                toast.success("Job Order completed (payment via billing account)");
-                queryClient.invalidateQueries({ queryKey: ["job_order"] });
-              },
-              onError: (error) => {
-                toast.error("An error occurred while updating the Job Order status");
-                console.error(error);
-              },
-            }
-          );
+          markTransferredOrderCompleted(orderToUpdate);
           setOpenPopover(null);
           return;
         }
@@ -332,48 +346,55 @@ export default function Table({
     setOpenPopover(null);
   };
 
-  const handlePaymentSubmit = (payments: Record<string, number>) => {
+  const handlePaymentSubmit = async (payments: Record<string, number>) => {
+    if (!selectedOrder) return;
+
     const totalPayment = Object.values(payments).reduce(
       (acc, amount) => acc + amount,
       0
     );
+    const amountDue = Math.max(
+      Number(selectedOrder.grand_total || 0) - Number(selectedOrder.downpayment || 0),
+      0
+    );
 
-    // For non-billing JOs, payment must match grand_total
-    // For JOs with downpayment, the payment dialog handles the remaining amount
-    if (totalPayment !== selectedOrder?.grand_total) {
+    // Payment must match the current amount due (grand total less downpayment).
+    if (Math.abs(totalPayment - amountDue) > 0.01) {
       alert(
-        `The total payment amount (${totalPayment}) does not match the order total (${selectedOrder?.grand_total})`
+        `The total payment amount (${totalPayment}) does not match the order total (${amountDue})`
       );
       return;
     }
 
-    updateJobOrderPayment(selectedOrder.id, payments)
-      .then(() => {
-        updateStatusMutate(
-          { ids: [selectedOrder.id], status: "Completed" },
-          {
-            onSuccess: () => {
-              toast.success(
-                "Job Order status updated and payment processed successfully"
-              );
-              queryClient.invalidateQueries({ queryKey: ["job_order"] });
-              setSelectedRows([]);
-            },
-            onError: (error) => {
-              toast.error(
-                "An error occurred while updating the Job Order status"
-              );
-              console.error(error);
-            },
-          }
-        );
-      })
-      .catch((error) => {
-        toast.error("An error occurred while updating the payment details");
-        console.error(error);
-      });
-
-    setShowPaymentDialog(false);
+    try {
+      await applySourcePayment("job_order", selectedOrder.id, payments);
+      updateStatusMutate(
+        { ids: [selectedOrder.id], status: "Completed" },
+        {
+          onSuccess: () => {
+            toast.success(
+              "Job Order status updated and payment processed successfully"
+            );
+            queryClient.invalidateQueries({ queryKey: ["job_order"] });
+            queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+            queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+            queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+            queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+            setSelectedRows([]);
+            setShowPaymentDialog(false);
+          },
+          onError: (error) => {
+            toast.error(
+              "An error occurred while updating the Job Order status"
+            );
+            console.error(error);
+          },
+        }
+      );
+    } catch (error) {
+      toast.error("An error occurred while updating the payment details");
+      console.error(error);
+    }
   };
 
   const handleBulkStatusChange = (status: Status) => {
@@ -406,6 +427,13 @@ export default function Table({
           (order) => order.id === selectedRows[0]
         );
         if (orderToUpdate) {
+          if (orderToUpdate.transferred_to_billing) {
+            markTransferredOrderCompleted(orderToUpdate, {
+              clearSelectedRows: true,
+            });
+            return;
+          }
+
           const isTechnicalReportEmpty =
             !orderToUpdate.technical_report ||
             orderToUpdate.technical_report.trim() === "";

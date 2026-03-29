@@ -397,6 +397,7 @@ export type RentalData = {
   downpayment: number;
   grand_total: number;
   notes: string | null;
+  payment_details?: null | object;
   billing_account_id: string | null;
   transferred_to_billing: boolean;
   transferred_to_billing_at: string | null;
