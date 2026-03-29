@@ -48,7 +48,7 @@ export default function BillingAccountFormSheet({
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [creditLimit, setCreditLimit] = useState<string>("0");
   const [billingCutoffDay, setBillingCutoffDay] = useState<string>("1");
-  const [interestRate, setInterestRate] = useState<string>("2.00");
+  const [interestRate, setInterestRate] = useState<string>("0.00");
   const [billingContactName, setBillingContactName] = useState("");
   const [billingContactEmail, setBillingContactEmail] = useState("");
   const [billingContactPhone, setBillingContactPhone] = useState("");
@@ -85,7 +85,7 @@ export default function BillingAccountFormSheet({
     if (isEditMode && existingAccount) {
       setCreditLimit(String(existingAccount.credit_limit ?? 0));
       setBillingCutoffDay(String(existingAccount.billing_cutoff_day ?? 1));
-      setInterestRate(String(existingAccount.interest_rate ?? 2.0));
+      setInterestRate(String(existingAccount.interest_rate ?? 0.0));
       setBillingContactName(existingAccount.billing_contact_name ?? "");
       setBillingContactEmail(existingAccount.billing_contact_email ?? "");
       setBillingContactPhone(existingAccount.billing_contact_phone ?? "");
@@ -99,6 +99,17 @@ export default function BillingAccountFormSheet({
   const clientHasExistingAccount =
     !isEditMode && existingClientAccount && selectedClient;
 
+  const parseInterestRate = (value: string): number => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const handleClientPick = (client: Client) => {
+    setSelectedClient(client);
+    setBillingContactEmail(client.email || "");
+    setBillingContactPhone(client.contact_number || "");
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -108,7 +119,7 @@ export default function BillingAccountFormSheet({
       const data: CreateBillingAccountData = {
         client_id: selectedClient.id,
         credit_limit: Number(creditLimit) || 0,
-        interest_rate: Number(interestRate) || 2.0,
+        interest_rate: parseInterestRate(interestRate),
         billing_cutoff_day: Number(billingCutoffDay),
         billing_contact_name: billingContactName || undefined,
         billing_contact_email: billingContactEmail || undefined,
@@ -127,7 +138,7 @@ export default function BillingAccountFormSheet({
           id: accountId!,
           updates: {
             credit_limit: Number(creditLimit) || 0,
-            interest_rate: Number(interestRate) || 2.0,
+            interest_rate: parseInterestRate(interestRate),
             billing_cutoff_day: Number(billingCutoffDay),
             billing_contact_name: billingContactName || undefined,
             billing_contact_email: billingContactEmail || undefined,
@@ -195,8 +206,8 @@ export default function BillingAccountFormSheet({
         <div className="mb-2" data-tour="billing-form-client">
           <ClientAutoSuggest
             selectedClient={selectedClient}
-            onClientSelect={(client) => setSelectedClient(client)}
-            onClientCreate={(client) => setSelectedClient(client)}
+            onClientSelect={handleClientPick}
+            onClientCreate={handleClientPick}
           />
         </div>
       )}

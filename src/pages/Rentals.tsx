@@ -19,6 +19,7 @@ import { useRentals } from "../components/rental/useRentals";
 import RentalForm from "../components/rental/rental-form";
 import RentalTable from "../components/rental/rental-table";
 import RentalDetailSheet from "../components/rental/rental-detail-sheet";
+import RentalPaymentDialog from "../components/rental/rental-payment-dialog";
 import { RentalData, RentalStatus } from "../lib/types";
 import { deleteRentals } from "../services/apiRentals";
 import { useRentalStatusUpdate } from "../components/rental/useRentalStatusUpdate";
@@ -92,6 +93,10 @@ export default function Rentals() {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printRentalNo, setPrintRentalNo] = useState<string | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [bulkPaymentOpen, setBulkPaymentOpen] = useState(false);
+  const [rentalToComplete, setRentalToComplete] = useState<RentalData | null>(
+    null
+  );
 
   const {
     showAnnouncement,
@@ -189,9 +194,43 @@ export default function Rentals() {
   };
 
   const handleStatusChange = (ids: number[], status: string) => {
+    if (status === "Completed") {
+      if (ids.length !== 1) {
+        toast.error(
+          "Bulk completion is not allowed. Please complete rentals individually to process payment."
+        );
+        return;
+      }
+
+      const selectedRental = rentals.find((r) => r.id === ids[0]);
+      if (!selectedRental) {
+        toast.error("Selected rental not found.");
+        return;
+      }
+
+      setRentalToComplete(selectedRental);
+      setBulkPaymentOpen(true);
+      return;
+    }
+
     statusMutation.mutate(
       { ids, status },
       { onSuccess: () => setSelectedIds([]) }
+    );
+  };
+
+  const handleBulkPaymentSubmit = (_payments: Record<string, number>) => {
+    if (!rentalToComplete) return;
+
+    statusMutation.mutate(
+      { ids: [rentalToComplete.id], status: "Completed" },
+      {
+        onSuccess: () => {
+          setSelectedIds([]);
+          setBulkPaymentOpen(false);
+          setRentalToComplete(null);
+        },
+      }
     );
   };
 
@@ -466,6 +505,16 @@ export default function Rentals() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         rental={selectedRental}
+      />
+      <RentalPaymentDialog
+        open={bulkPaymentOpen}
+        onClose={() => {
+          setBulkPaymentOpen(false);
+          setRentalToComplete(null);
+        }}
+        onSubmit={handleBulkPaymentSubmit}
+        grandTotal={Number(rentalToComplete?.grand_total || 0)}
+        rentalNo={rentalToComplete?.rental_no || ""}
       />
 
       {/* Onboarding */}

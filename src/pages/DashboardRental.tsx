@@ -3,6 +3,7 @@ import HeaderText from "../components/ui/headerText";
 import { useUser } from "../components/auth/useUser";
 import { getRentalsFiltered } from "../services/apiRentals";
 import { getRentalAssets } from "../services/apiRentalAssets";
+import { useBillingDashboardSummary } from "../components/billing/useBilling";
 import { RentalAsset, RentalData } from "../lib/types";
 import { StatusBadge, rentalStatuses } from "../components/table/status-popover";
 import Loader from "../components/ui/loader";
@@ -39,24 +40,27 @@ export default function DashboardRental() {
       }),
   });
 
-  const { data: completedData } = useQuery({
+  const { data: completedData, isLoading: completedLoading } = useQuery({
     queryKey: ["rentals", "dashboard", "completed", getBranchId()],
     queryFn: () =>
       getRentalsFiltered({
-        limit: 5,
+        limit: 1000,
         branchId: getBranchId(),
         statusFilters: ["Completed"],
       }),
   });
+
+  const { data: billingSummary, isLoading: billingLoading } =
+    useBillingDashboardSummary(getBranchId() ?? undefined);
 
   const { data: assets } = useQuery({
     queryKey: ["rental_assets", getBranchId()],
     queryFn: () => getRentalAssets({ branchId: getBranchId() }),
   });
 
-  const isLoading = activeLoading || overdueLoading;
+  const isLoading =
+    activeLoading || overdueLoading || completedLoading || billingLoading;
 
-  const activeRentals = (activeData?.data || []) as RentalData[];
   const overdueRentals = (overdueData?.data || []) as RentalData[];
   const completedRentals = (completedData?.data || []) as RentalData[];
   const activeCount = activeData?.meta?.totalCount || 0;
@@ -67,10 +71,12 @@ export default function DashboardRental() {
   );
   const totalAssets = (assets || []).filter((a: RentalAsset) => !a.deleted);
 
-  const activeRevenue = activeRentals.reduce(
-    (sum, r) => sum + Number(r.grand_total),
-    0
-  );
+  const directCompletedRevenue = completedRentals.reduce((sum, rental) => {
+    if (rental.transferred_to_billing) return sum;
+    return sum + Number(rental.grand_total || 0);
+  }, 0);
+  const billingCollectedRevenue = Number(billingSummary?.total_collected || 0);
+  const activeRevenue = directCompletedRevenue + billingCollectedRevenue;
 
   if (isLoading)
     return (
@@ -164,6 +170,9 @@ export default function DashboardRental() {
               prefix="₱"
             />
           </div>
+          <p className="text-xs text-gray-500">
+            Completed rentals + billing payments
+          </p>
         </div>
       </div>
 
@@ -226,7 +235,7 @@ export default function DashboardRental() {
             </p>
           ) : (
             <div className="space-y-3">
-              {completedRentals.map((rental) => (
+              {completedRentals.slice(0, 5).map((rental) => (
                 <div
                   key={rental.id}
                   className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0"
