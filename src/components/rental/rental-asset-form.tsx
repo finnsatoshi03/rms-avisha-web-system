@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -33,16 +34,17 @@ import {
 import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
 import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
 import GuidedTour from "../onboarding/guided-tour";
-import TourReplayButton from "../onboarding/tour-replay-button";
 
 interface RentalAssetFormProps {
   editAsset?: RentalAsset | null;
   onSuccess?: () => void;
+  onReplayReady?: (replay: (() => void) | null) => void;
 }
 
 export default function RentalAssetForm({
   editAsset,
   onSuccess,
+  onReplayReady,
 }: RentalAssetFormProps) {
   const { branchId, isAdmin } = useUser();
   const createMutation = useCreateRentalAsset();
@@ -57,6 +59,16 @@ export default function RentalAssetForm({
     completeTour,
     replayTour,
   } = useFeatureOnboarding("rental_asset_create");
+
+  useEffect(() => {
+    if (isEditing) {
+      onReplayReady?.(null);
+      return;
+    }
+
+    onReplayReady?.(replayTour);
+    return () => onReplayReady?.(null);
+  }, [isEditing, replayTour, onReplayReady]);
 
   const { data: branches } = useQuery({
     queryKey: ["branches"],
@@ -97,12 +109,6 @@ export default function RentalAssetForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)}>
-        {!isEditing && (
-          <div className="flex justify-end mb-2">
-            <TourReplayButton onClick={replayTour} label="How to add a printer" />
-          </div>
-        )}
-
         {/* Printer Info */}
         <div data-tour="rental-asset-create-info">
           <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">

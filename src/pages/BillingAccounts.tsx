@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Search, Plus, ReceiptText, Filter } from "lucide-react";
+import { Search, Plus, ReceiptText, Filter, Download } from "lucide-react";
+import { pdf } from "@react-pdf/renderer";
+import toast from "react-hot-toast";
 
 import HeaderText from "../components/ui/headerText";
 import Loader from "../components/ui/loader";
@@ -33,11 +35,20 @@ import { Separator } from "../components/ui/separator";
 
 import { useBillingAccounts } from "../components/billing/useBilling";
 import { useUser } from "../components/auth/useUser";
-import { BillingAccount, BillingAccountStatus } from "../lib/billing-types";
+import {
+  BillingAccount,
+  BillingAccountStatus,
+  BillingLineItem,
+  BillingPayment,
+  BillingStatement,
+} from "../lib/billing-types";
 import { Client } from "../lib/types";
 import { formatNumberWithCommas } from "../lib/helpers";
 import BillingAccountFormSheet from "../components/billing/billing-account-form";
 import BillingAccountSheetContent from "../components/billing/billing-account-sheet";
+import BillingStatementPDF, {
+  BillingStatementPDFData,
+} from "../components/billing/billing-statement-pdf";
 import { useFeatureOnboarding } from "../components/onboarding/useFeatureOnboarding";
 import FeatureAnnouncementModal from "../components/onboarding/feature-announcement-modal";
 import GuidedTour from "../components/onboarding/guided-tour";
@@ -64,6 +75,7 @@ export default function BillingAccounts() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [createTourReplay, setCreateTourReplay] = useState<(() => void) | null>(null);
+  const [downloadingMockPdf, setDownloadingMockPdf] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
     null
   );
@@ -178,6 +190,19 @@ export default function BillingAccounts() {
 
   const showMockData = showTour && filteredAccounts.length === 0;
   const displayAccounts = showMockData ? MOCK_ACCOUNTS : filteredAccounts;
+  const allAccounts = (accounts as BillingAccount[]) ?? [];
+  const selectedAccountForMockPdf =
+    (selectedAccountId
+      ? allAccounts.find((a) => a.id === selectedAccountId)
+      : null) ??
+    (selectedAccountId
+      ? MOCK_ACCOUNTS.find((a) => a.id === selectedAccountId)
+      : null);
+  const mockPdfAccount =
+    selectedAccountForMockPdf ??
+    displayAccounts[0] ??
+    allAccounts[0] ??
+    MOCK_ACCOUNTS[0];
 
   const resetFilters = () => {
     setSearchTerm("");
@@ -207,6 +232,104 @@ export default function BillingAccounts() {
     []
   );
 
+  const handleDownloadMockStatementPDF = useCallback(async () => {
+    if (downloadingMockPdf || !mockPdfAccount) return;
+    setDownloadingMockPdf(true);
+
+    const now = new Date();
+    const periodStart = new Date(now);
+    periodStart.setDate(periodStart.getDate() - 30);
+    const dueDate = new Date(now);
+    dueDate.setDate(dueDate.getDate() + 30);
+
+    const lineItems: BillingLineItem[] = [
+      {
+        id: "mock-li-1",
+        billing_account_id: mockPdfAccount.id,
+        job_order_id: 1,
+        rental_id: null,
+        branch_id: 1,
+        type: "charge",
+        description: "JO JO-01-001 - Printer Repair",
+        amount: 4700,
+        balance_at_time: 4700,
+        due_date: dueDate.toISOString().slice(0, 10),
+        created_by: null,
+        created_at: now.toISOString(),
+      },
+    ];
+
+    const payments: BillingPayment[] = [
+      {
+        id: "mock-pay-1",
+        billing_account_id: mockPdfAccount.id,
+        amount: 3500,
+        payment_date: now.toISOString().slice(0, 10),
+        payment_method: "gcash",
+        reference_number: "MOCK-3500",
+        notes: null,
+        created_by: null,
+        created_at: now.toISOString(),
+      },
+    ];
+
+    const statement: BillingStatement = {
+      id: "mock-stmt-dev",
+      billing_account_id: mockPdfAccount.id,
+      statement_number: `SOA-MOCK-${now
+        .toISOString()
+        .replace(/[-:]/g, "")
+        .slice(0, 13)}`,
+      period_start: periodStart.toISOString().slice(0, 10),
+      period_end: now.toISOString().slice(0, 10),
+      previous_balance: 0,
+      new_charges: 4700,
+      payments_received: 3500,
+      interest_applied: 0,
+      current_balance: 1200,
+      due_date: dueDate.toISOString().slice(0, 10),
+      branch_filter: null,
+      status: "finalized",
+      generated_by: null,
+      generated_at: now.toISOString(),
+      sent_at: null,
+      pdf_url: null,
+    };
+
+    const pdfData: BillingStatementPDFData = {
+      statement,
+      accountNumber: mockPdfAccount.account_number,
+      clientName: mockPdfAccount.clients?.name ?? "Mock Client",
+      clientContact:
+        mockPdfAccount.billing_contact_phone ??
+        mockPdfAccount.clients?.contact_number ??
+        null,
+      clientEmail:
+        mockPdfAccount.billing_contact_email ??
+        mockPdfAccount.clients?.email ??
+        null,
+      interestRate: mockPdfAccount.interest_rate ?? 2,
+      lineItems,
+      payments,
+    };
+
+    try {
+      const blob = await pdf(<BillingStatementPDF data={pdfData} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${statement.statement_number}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Mock statement PDF downloaded");
+    } catch (err) {
+      toast.error("Failed to generate mock statement PDF");
+      console.error(err);
+    } finally {
+      setDownloadingMockPdf(false);
+    }
+  }, [downloadingMockPdf, mockPdfAccount]);
+
   if (isLoading)
     return (
       <div className="h-full w-full flex items-center justify-center">
@@ -221,17 +344,31 @@ export default function BillingAccounts() {
           <HeaderText>Billing Accounts</HeaderText>
           <TourReplayButton onClick={replayTour} label="How billing works" />
         </div>
-        {canCreate && (
-          <Button
-            data-tour="billing-create"
-            onClick={() => setCreateSheetOpen(true)}
-            className="gap-1.5"
-            size="sm"
-          >
-            <Plus size={16} />
-            Create Account
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isDev && (
+            <Button
+              variant="outline"
+              onClick={handleDownloadMockStatementPDF}
+              disabled={downloadingMockPdf}
+              className="gap-1.5"
+              size="sm"
+            >
+              <Download size={14} />
+              {downloadingMockPdf ? "Generating Mock PDF..." : "Mock SOA PDF"}
+            </Button>
+          )}
+          {canCreate && (
+            <Button
+              data-tour="billing-create"
+              onClick={() => setCreateSheetOpen(true)}
+              className="gap-1.5"
+              size="sm"
+            >
+              <Plus size={16} />
+              Create Account
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}

@@ -16,7 +16,7 @@ Font.register({ family: "Montserrat-Bold", src: font1 });
 Font.register({ family: "Montserrat-Black", src: font2 });
 
 function amt(value: number): string {
-  return `₱${formatNumberWithCommas(Math.abs(value))}`;
+  return `P${formatNumberWithCommas(Math.abs(value))}`;
 }
 
 function fmtDate(dateStr: string): string {
@@ -145,7 +145,7 @@ export default function BillingStatementPDF({
           <View style={styles.tableRow}>
             <Text
               style={[
-                styles.tabelCol66,
+                styles.summaryHeaderLabel,
                 {
                   fontSize: 8,
                   textTransform: "uppercase",
@@ -157,67 +157,55 @@ export default function BillingStatementPDF({
             >
               Account Summary
             </Text>
-            <Text style={[styles.tableLabel, { borderRight: "1px solid black" }]}>
-              &nbsp;
-            </Text>
-            <Text style={styles.tableLabel}>Amount</Text>
+            <Text style={styles.summaryHeaderAmount}>Amount</Text>
           </View>
 
           {/* Previous Balance */}
           <View style={styles.tableRow}>
-            <Text style={[styles.tabelCol66, { borderRight: "1px solid black" }]}>
+            <Text style={[styles.summaryLabel, { borderRight: "1px solid black" }]}>
               Previous Balance (before {fmtDate(s.period_start)})
             </Text>
-            <Text style={[styles.tableCol17, { borderRight: "1px solid black" }]}>
-              &nbsp;
-            </Text>
-            <Text style={styles.tableCol17}>{amt(s.previous_balance)}</Text>
+            <Text style={styles.summaryAmount}>{amt(s.previous_balance)}</Text>
           </View>
 
           {/* New Charges */}
           <View style={styles.tableRow}>
-            <Text style={[styles.tabelCol66, { borderRight: "1px solid black" }]}>
+            <Text style={[styles.summaryLabel, { borderRight: "1px solid black" }]}>
               New Charges
             </Text>
-            <Text style={[styles.tableCol17, { borderRight: "1px solid black" }]}>
-              &nbsp;
-            </Text>
-            <Text style={styles.tableCol17}>{amt(s.new_charges)}</Text>
+            <Text style={styles.summaryAmount}>{amt(s.new_charges)}</Text>
           </View>
 
           {/* Interest */}
           {s.interest_applied > 0 && (
             <View style={styles.tableRow}>
-              <Text style={[styles.tabelCol66, { borderRight: "1px solid black", color: "#d97706" }]}>
+              <Text style={[styles.summaryLabel, { borderRight: "1px solid black", color: "#d97706" }]}>
                 Interest Applied ({data.interestRate}%)
               </Text>
-              <Text style={[styles.tableCol17, { borderRight: "1px solid black" }]}>
-                &nbsp;
+              <Text style={[styles.summaryAmount, { color: "#d97706" }]}>
+                {amt(s.interest_applied)}
               </Text>
-              <Text style={[styles.tableCol17, { color: "#d97706" }]}>{amt(s.interest_applied)}</Text>
             </View>
           )}
 
           {/* Payments */}
           {s.payments_received > 0 && (
             <View style={styles.tableRow}>
-              <Text style={[styles.tabelCol66, { borderRight: "1px solid black", color: "#16a34a" }]}>
+              <Text style={[styles.summaryLabel, { borderRight: "1px solid black", color: "#16a34a" }]}>
                 Payments Received
               </Text>
-              <Text style={[styles.tableCol17, { borderRight: "1px solid black" }]}>
-                &nbsp;
+              <Text style={[styles.summaryAmount, { color: "#16a34a" }]}>
+                -{amt(s.payments_received)}
               </Text>
-              <Text style={[styles.tableCol17, { color: "#16a34a" }]}>-{amt(s.payments_received)}</Text>
             </View>
           )}
 
           {/* Total Due */}
           <View style={styles.tableRow}>
-            <Text style={[styles.tabelCol66, { borderRight: "1px solid black" }]}>&nbsp;</Text>
-            <Text style={[styles.tableLabel, { borderRight: "1px solid black", fontSize: 10 }]}>
+            <Text style={[styles.summaryTotalLabel, { borderRight: "1px solid black" }]}>
               Total Due
             </Text>
-            <Text style={[styles.tableCol17, { fontFamily: "Montserrat-Bold", fontSize: 11, color: "#f12924" }]}>
+            <Text style={styles.summaryTotalAmount}>
               {amt(s.current_balance)}
             </Text>
           </View>
@@ -470,6 +458,46 @@ const styles = StyleSheet.create({
     fontSize: 9,
     padding: 2,
     width: "66.64%",
+  },
+  summaryHeaderLabel: {
+    width: "83.34%",
+    padding: 2,
+    fontSize: 7,
+  },
+  summaryHeaderAmount: {
+    width: "16.66%",
+    padding: 2,
+    fontSize: 7,
+    textAlign: "right",
+    textTransform: "uppercase",
+    fontFamily: "Montserrat-Bold",
+  },
+  summaryLabel: {
+    width: "83.34%",
+    padding: 2,
+    fontSize: 9,
+  },
+  summaryAmount: {
+    width: "16.66%",
+    padding: 2,
+    fontSize: 9,
+    textAlign: "right",
+  },
+  summaryTotalLabel: {
+    width: "83.34%",
+    padding: 2,
+    fontSize: 10,
+    textTransform: "uppercase",
+    textAlign: "right",
+    fontFamily: "Montserrat-Bold",
+  },
+  summaryTotalAmount: {
+    width: "16.66%",
+    padding: 2,
+    fontSize: 11,
+    color: "#f12924",
+    textAlign: "right",
+    fontFamily: "Montserrat-Bold",
   },
   tableClientInfo: {
     fontSize: 9,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Search, X, Trash2 } from "lucide-react";
 import HeaderText from "../components/ui/headerText";
@@ -77,6 +77,9 @@ export default function RentalAssets() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [createTourReplay, setCreateTourReplay] = useState<(() => void) | null>(
+    null
+  );
   const [editAsset, setEditAsset] = useState<RentalAsset | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -159,9 +162,17 @@ export default function RentalAssets() {
   };
 
   const handleRowClick = (asset: RentalAsset) => {
+    setCreateTourReplay(null);
     setEditAsset(asset);
     setIsSheetOpen(true);
   };
+
+  const handleCreateReplayReady = useCallback(
+    (replay: (() => void) | null) => {
+      setCreateTourReplay(() => replay);
+    },
+    []
+  );
 
   const handleDelete = () => {
     Promise.all(selectedIds.map((id) => deleteMutation.mutateAsync(id)))
@@ -221,6 +232,7 @@ export default function RentalAssets() {
             data-tour="rental-assets-add"
             onClick={() => {
               setEditAsset(null);
+              setCreateTourReplay(null);
               setIsSheetOpen(true);
             }}
           >
@@ -382,13 +394,22 @@ export default function RentalAssets() {
         open={isSheetOpen}
         onOpenChange={(v) => {
           setIsSheetOpen(v);
-          if (!v) setEditAsset(null);
+          if (!v) {
+            setEditAsset(null);
+            setCreateTourReplay(null);
+          }
         }}
       >
         <SheetContent className="min-w-[35vw] overflow-y-auto">
           <SheetHeader>
-            <SheetTitle className="font-bold">
-              {editAsset ? "Edit Printer" : "Add Rental Printer"}
+            <SheetTitle className="font-bold flex items-center gap-2">
+              <span>{editAsset ? "Edit Printer" : "Add Rental Printer"}</span>
+              {!editAsset && createTourReplay && (
+                <TourReplayButton
+                  onClick={createTourReplay}
+                  label="How to add a printer"
+                />
+              )}
             </SheetTitle>
             <Separator className="my-2" />
             <RentalAssetForm
@@ -396,7 +417,9 @@ export default function RentalAssets() {
               onSuccess={() => {
                 setIsSheetOpen(false);
                 setEditAsset(null);
+                setCreateTourReplay(null);
               }}
+              onReplayReady={handleCreateReplayReady}
             />
           </SheetHeader>
         </SheetContent>

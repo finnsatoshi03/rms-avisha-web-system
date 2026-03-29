@@ -82,6 +82,9 @@ export default function Rentals() {
     [key: string]: "asc" | "desc" | null;
   }>({});
   const [isRentalSheetOpen, setIsRentalSheetOpen] = useState(false);
+  const [createTourReplay, setCreateTourReplay] = useState<(() => void) | null>(
+    null
+  );
   const [selectedRental, setSelectedRental] = useState<RentalData | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -197,6 +200,13 @@ export default function Rentals() {
     setDetailOpen(true);
   };
 
+  const handleCreateReplayReady = useCallback(
+    (replay: (() => void) | null) => {
+      setCreateTourReplay(() => replay);
+    },
+    []
+  );
+
   const handleExportPdf = async (rental: RentalData) => {
     try {
       const blob = await pdf(<RentalPDF rental={rental} />).toBlob();
@@ -274,27 +284,45 @@ export default function Rentals() {
           <Separator orientation="vertical" className="mx-2 h-[1.5rem]" />
 
           {/* Add Rental Sheet */}
-          <Sheet open={isRentalSheetOpen} onOpenChange={setIsRentalSheetOpen}>
+          <Sheet
+            open={isRentalSheetOpen}
+            onOpenChange={(open) => {
+              setIsRentalSheetOpen(open);
+              if (!open) setCreateTourReplay(null);
+            }}
+          >
             <SheetTrigger asChild>
-              <button className="px-4 py-1.5 text-sm bg-primaryRed hover:bg-hoveredRed text-white flex items-center rounded-lg gap-1" data-tour="rentals-add">
+              <button
+                className="px-4 py-1.5 text-sm bg-primaryRed hover:bg-hoveredRed text-white flex items-center rounded-lg gap-1"
+                data-tour="rentals-add"
+                onClick={() => setCreateTourReplay(null)}
+              >
                 <Plus size={18} />
                 Add
               </button>
             </SheetTrigger>
             <SheetContent className="min-w-[50vw] overflow-y-auto">
               <SheetHeader>
-                <SheetTitle className="font-bold">
-                  Create New Rental
+                <SheetTitle className="font-bold flex items-center gap-2">
+                  <span>Create New Rental</span>
+                  {createTourReplay && (
+                    <TourReplayButton
+                      onClick={createTourReplay}
+                      label="How to create a rental"
+                    />
+                  )}
                 </SheetTitle>
                 <Separator className="my-2" />
                 <RentalForm
                   onSuccess={(rentalData) => {
                     setIsRentalSheetOpen(false);
+                    setCreateTourReplay(null);
                     if (rentalData?.rental_no) {
                       setPrintRentalNo(rentalData.rental_no);
                       setPrintDialogOpen(true);
                     }
                   }}
+                  onReplayReady={handleCreateReplayReady}
                 />
               </SheetHeader>
             </SheetContent>

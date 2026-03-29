@@ -42,13 +42,16 @@ import { format } from "date-fns";
 import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
 import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
 import GuidedTour from "../onboarding/guided-tour";
-import TourReplayButton from "../onboarding/tour-replay-button";
 
 interface RentalFormProps {
   onSuccess?: (rentalData?: { rental_no: string }) => void;
+  onReplayReady?: (replay: (() => void) | null) => void;
 }
 
-export default function RentalForm({ onSuccess }: RentalFormProps) {
+export default function RentalForm({
+  onSuccess,
+  onReplayReady,
+}: RentalFormProps) {
   const { user, branchId, isAdmin } = useUser();
   const createMutation = useCreateRental();
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -70,6 +73,11 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
     completeTour,
     replayTour,
   } = useFeatureOnboarding("rental_create");
+
+  useEffect(() => {
+    onReplayReady?.(replayTour);
+    return () => onReplayReady?.(null);
+  }, [replayTour, onReplayReady]);
 
   const { data: branches } = useQuery({
     queryKey: ["branches"],
@@ -198,10 +206,6 @@ export default function RentalForm({ onSuccess }: RentalFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)}>
-        <div className="flex justify-end mb-2">
-          <TourReplayButton onClick={replayTour} label="How to create a rental" />
-        </div>
-
         {/* Client Name — prominent like JO form */}
         <FormField
           control={form.control}
