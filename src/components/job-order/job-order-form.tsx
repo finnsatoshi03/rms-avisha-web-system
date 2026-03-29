@@ -109,6 +109,8 @@ const rateOptions = [
   { label: "Return for Warranty", value: 0 },
 ];
 
+const QUOTATION_PRINT_DELAY_MS = 300;
+
 interface MaterialStockItem {
   id: number;
   material_name: string;
@@ -365,6 +367,26 @@ export default function JobOrderForm({
   const [includeManualItemsInTotal, setIncludeManualItemsInTotal] = useState(
     editSession ? Boolean(editValues.include_quotation_items) : false
   );
+
+  useEffect(() => {
+    console.log("[PrintFlow] state changed", {
+      isPrinting,
+      printDialogOpen,
+      printSelectionDialogOpen,
+      quotationPrintDialogOpen,
+    });
+  }, [
+    isPrinting,
+    printDialogOpen,
+    printSelectionDialogOpen,
+    quotationPrintDialogOpen,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      console.log("[PrintFlow] JobOrderForm unmounted");
+    };
+  }, []);
 
   // Feature onboarding - only active on create (not edit)
   const {
@@ -629,6 +651,10 @@ export default function JobOrderForm({
     type?: "company" | "client" | "both" | null
   ) => {
     setIsPrinting(true);
+    console.log("[PrintFlow] Job order print started", {
+      orderNo: data.order_no,
+      copyType: type,
+    });
 
     // Find the technician by order_received ID
     const orderReceivedTechnician = technicians.find(
@@ -661,15 +687,20 @@ export default function JobOrderForm({
 
     iframe.onload = function () {
       setTimeout(function () {
+        console.log("[PrintFlow] Job order before print");
         iframe.contentWindow?.print();
+        console.log("[PrintFlow] Job order print call returned");
       }, 1);
     };
 
     iframe.src = src;
 
     const afterPrint = () => {
+      console.log("[PrintFlow] Job order after print");
       setIsPrinting(false);
       setPrintDialogOpen(false);
+      setPrintSelectionDialogOpen(false);
+      setQuotationPrintDialogOpen(false);
       saveAs(asBlob, `job-order-${type || "both"}.pdf`);
       if (onClose) onClose();
       URL.revokeObjectURL(src);
@@ -680,6 +711,10 @@ export default function JobOrderForm({
 
   const generateQuotationPDF = async (quotationData: CreateQuotationData) => {
     setIsPrinting(true);
+    console.log("[PrintFlow] Quotation print started", {
+      quoteNo: quotationData?.quote_no,
+      jobOrderNo: quotationData?.job_order_no,
+    });
 
     try {
       const endDate = new Date();
@@ -715,15 +750,20 @@ export default function JobOrderForm({
 
       iframe.onload = function () {
         setTimeout(function () {
+          console.log("[PrintFlow] Quotation before print");
           iframe.contentWindow?.print();
-        }, 1);
+          console.log("[PrintFlow] Quotation print call returned");
+        }, QUOTATION_PRINT_DELAY_MS);
       };
 
       iframe.src = src;
 
       const afterPrint = () => {
+        console.log("[PrintFlow] Quotation after print");
         setIsPrinting(false);
         setPrintDialogOpen(false);
+        setPrintSelectionDialogOpen(false);
+        setQuotationPrintDialogOpen(false);
         saveAs(asBlob, `quotation-${Date.now()}.pdf`);
         if (onClose) onClose();
         URL.revokeObjectURL(src);
@@ -741,6 +781,10 @@ export default function JobOrderForm({
     quotationData: CreateQuotationData
   ) => {
     setIsPrinting(true);
+    console.log("[PrintFlow] Merged print started", {
+      orderNo: jobOrderData?.order_no,
+      quoteNo: quotationData?.quote_no,
+    });
 
     const quotationPDFData = {
       ...quotationData,
@@ -784,15 +828,20 @@ export default function JobOrderForm({
 
       iframe.onload = function () {
         setTimeout(function () {
+          console.log("[PrintFlow] Merged before print");
           iframe.contentWindow?.print();
+          console.log("[PrintFlow] Merged print call returned");
         }, 1);
       };
 
       iframe.src = src;
 
       const afterPrint = () => {
+        console.log("[PrintFlow] Merged after print");
         setIsPrinting(false);
         setPrintDialogOpen(false);
+        setPrintSelectionDialogOpen(false);
+        setQuotationPrintDialogOpen(false);
         saveAs(asBlob, `job-order-with-quotation-${Date.now()}.pdf`);
         if (onClose) onClose();
         URL.revokeObjectURL(src);
@@ -1095,6 +1144,7 @@ export default function JobOrderForm({
   };
 
   const handlePrintSelection = (option: "quotation" | "job_order" | "both") => {
+    console.log("[PrintFlow] Print selection chosen", { option });
     setPrintSelectionDialogOpen(false);
 
     if (option === "quotation") {
@@ -2646,15 +2696,15 @@ export default function JobOrderForm({
       <QuotationPrintDialog
         open={quotationPrintDialogOpen}
         onClose={() => {
+          console.log("[PrintFlow] Quotation print prompt dismissed");
           setQuotationPrintDialogOpen(false);
           if (onClose) onClose();
         }}
         onPrint={() => {
+          console.log("[PrintFlow] Quotation print prompt confirmed");
           if (quotationData) {
             generateQuotationPDF(quotationData);
           }
-          setQuotationPrintDialogOpen(false);
-          if (onClose) onClose();
         }}
         loading={isPrinting}
       />

@@ -83,19 +83,17 @@ export async function updateBillingAccount(
 }
 
 export async function deleteBillingAccount(id: string): Promise<void> {
-  const { error } = await supabase
-    .from("billing_accounts")
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.rpc("delete_billing_account_safe", {
+    p_account_id: id,
+  });
 
-  if (error) {
-    if (error.code === "23503") {
-      throw new Error(
-        "Cannot delete this account because it has linked records (transactions, statements, or source documents). Suspend it instead."
-      );
-    }
-    throw new Error("Failed to delete billing account: " + error.message);
+  if (!error) return;
+
+  if (error.code === "P0001" || error.code === "23503") {
+    throw new Error(error.message);
   }
+
+  throw new Error("Failed to delete billing account: " + error.message);
 }
 
 // ========================
