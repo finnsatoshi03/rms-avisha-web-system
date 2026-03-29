@@ -42,7 +42,10 @@ import {
   duplicateJobOrder,
   updateJobOrderStatus,
 } from "../services/apiJobOrders";
-import { applySourcePayment } from "../services/apiBilling";
+import {
+  applySourcePayment,
+  recalculateLinkedSourceBilling,
+} from "../services/apiBilling";
 import {
   deleteQuotationsByJobOrderIds,
   getQuotationsByJobOrder,
@@ -53,6 +56,8 @@ import toast from "react-hot-toast";
 import { Separator } from "@radix-ui/react-separator";
 import { TableCellWithHover } from "./job-order/cell-hover";
 import { PaymentDialog } from "./table/payment-dialog";
+import BillingImpactConfirmDialog from "./billing/billing-impact-confirm-dialog";
+import { isBillingLinkedSource } from "../lib/billing-sync";
 
 export default function Table({
   data,
@@ -136,6 +141,14 @@ export default function Table({
 
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<JobOrderData | null>(null);
+  const [billingImpactDialogOpen, setBillingImpactDialogOpen] = useState(false);
+  const [billingImpactPending, setBillingImpactPending] = useState(false);
+  const [billingImpactOrders, setBillingImpactOrders] = useState<JobOrderData[]>(
+    []
+  );
+  const [billingImpactAction, setBillingImpactAction] = useState<
+    (() => void) | null
+  >(null);
 
   // Fetch quotations for selected job order (only when single row is selected)
   const { data: quotations = [] } = useQuery({
@@ -267,6 +280,28 @@ export default function Table({
     );
   };
 
+  const isOrderBillingLinked = (order: JobOrderData) =>
+    isBillingLinkedSource({
+      sourceType: "job_order",
+      sourceId: order.id,
+      transferredToBilling: order.transferred_to_billing,
+      paymentDetails: order.payment_details,
+    });
+
+  const openBillingImpactGuard = (
+    ordersToRecalculate: JobOrderData[],
+    action: () => void
+  ) => {
+    if (ordersToRecalculate.length === 0) {
+      action();
+      return;
+    }
+
+    setBillingImpactOrders(ordersToRecalculate);
+    setBillingImpactAction(() => action);
+    setBillingImpactDialogOpen(true);
+  };
+
   const markTransferredOrderCompleted = (
     order: JobOrderData,
     options?: { clearSelectedRows?: boolean }
@@ -285,6 +320,68 @@ export default function Table({
           queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
           queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
           queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+        },
+        onError: (error) => {
+          toast.error("An error occurred while updating the Job Order status");
+          console.error(error);
+        },
+      }
+    );
+  };
+
+  const handleBillingImpactProceed = async () => {
+    if (!billingImpactAction) return;
+
+    setBillingImpactPending(true);
+    try {
+      for (const order of billingImpactOrders) {
+        await recalculateLinkedSourceBilling("job_order", order.id, {
+          reason: "Manual status/edit flow recalculation",
+        });
+      }
+
+      billingImpactAction();
+      toast.success(
+        "Billing has been updated based on your changes. Previous payments were adjusted."
+      );
+      setBillingImpactDialogOpen(false);
+      setBillingImpactOrders([]);
+      setBillingImpactAction(null);
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to recalculate linked billing record."
+      );
+    } finally {
+      setBillingImpactPending(false);
+    }
+  };
+
+  const performSingleStatusChange = (
+    orderToUpdate: JobOrderData,
+    status: Status
+  ) => {
+    if (status.label === "Completed") {
+      // If JO is transferred to billing, skip payment dialog — payment is handled via billing
+      if (orderToUpdate.transferred_to_billing) {
+        markTransferredOrderCompleted(orderToUpdate);
+        setOpenPopover(null);
+        return;
+      }
+      setShowPaymentDialog(true);
+      setSelectedOrder(orderToUpdate);
+      return;
+    }
+
+    updateStatusMutate(
+      { ids: [orderToUpdate.id], status: status.label },
+      {
+        onSuccess: () => {
+          updateStatus(orderToUpdate.order_no, status.label);
+          toast.success("Job Order status updated successfully");
+          queryClient.invalidateQueries({ queryKey: ["job_order"] });
         },
         onError: (error) => {
           toast.error("An error occurred while updating the Job Order status");
@@ -314,34 +411,18 @@ export default function Table({
         return;
       }
 
-      if (status.label === "Completed") {
-        // If JO is transferred to billing, skip payment dialog — payment is handled via billing
-        if (orderToUpdate.transferred_to_billing) {
-          markTransferredOrderCompleted(orderToUpdate);
-          setOpenPopover(null);
-          return;
-        }
-        setShowPaymentDialog(true);
-        setSelectedOrder(orderToUpdate);
-        return;
-      }
+      const needsBillingGuard =
+        status.label !== orderToUpdate.status &&
+        orderToUpdate.status === "Completed" &&
+        isOrderBillingLinked(orderToUpdate);
 
-      updateStatusMutate(
-        { ids: [orderToUpdate.id], status: status.label },
-        {
-          onSuccess: () => {
-            updateStatus(order_no, status.label);
-            toast.success("Job Order status updated successfully");
-            queryClient.invalidateQueries({ queryKey: ["job_order"] });
-          },
-          onError: (error) => {
-            toast.error(
-              "An error occurred while updating the Job Order status"
-            );
-            console.error(error);
-          },
-        }
-      );
+      if (needsBillingGuard) {
+        openBillingImpactGuard([orderToUpdate], () =>
+          performSingleStatusChange(orderToUpdate, status)
+        );
+      } else {
+        performSingleStatusChange(orderToUpdate, status);
+      }
     }
     setOpenPopover(null);
   };
@@ -464,30 +545,45 @@ export default function Table({
   const confirmBulkStatusChange = () => {
     if (statusToChange) {
       const idsToUpdate = selectedRows;
-      updateStatusMutate(
-        { ids: idsToUpdate, status: statusToChange.label },
-        {
-          onSuccess: () => {
-            setOrders((prevOrders) =>
-              prevOrders.map((order) =>
-                idsToUpdate.includes(order.id)
-                  ? { ...order, status: statusToChange.label }
-                  : order
-              )
-            );
-            setSelectedRows([]);
-            setStatusToChange(null);
-            toast.success("Job Orders status updated successfully");
-            queryClient.invalidateQueries({ queryKey: ["job_order"] });
-          },
-          onError: (error) => {
-            toast.error(
-              "An error occurred while updating the Job Orders status"
-            );
-            console.error(error);
-          },
-        }
+      const linkedOrders = orders.filter(
+        (order) =>
+          idsToUpdate.includes(order.id) &&
+          order.status === "Completed" &&
+          statusToChange.label !== order.status &&
+          isOrderBillingLinked(order)
       );
+
+      const applyBulkStatus = () =>
+        updateStatusMutate(
+          { ids: idsToUpdate, status: statusToChange.label },
+          {
+            onSuccess: () => {
+              setOrders((prevOrders) =>
+                prevOrders.map((order) =>
+                  idsToUpdate.includes(order.id)
+                    ? { ...order, status: statusToChange.label }
+                    : order
+                )
+              );
+              setSelectedRows([]);
+              setStatusToChange(null);
+              toast.success("Job Orders status updated successfully");
+              queryClient.invalidateQueries({ queryKey: ["job_order"] });
+            },
+            onError: (error) => {
+              toast.error(
+                "An error occurred while updating the Job Orders status"
+              );
+              console.error(error);
+            },
+          }
+        );
+
+      if (linkedOrders.length > 0) {
+        openBillingImpactGuard(linkedOrders, applyBulkStatus);
+      } else {
+        applyBulkStatus();
+      }
       setConfirmStatusDialogOpen(false);
     }
   };
@@ -891,7 +987,25 @@ export default function Table({
         open={showPaymentDialog}
         onClose={() => setShowPaymentDialog(false)}
         onSubmit={handlePaymentSubmit}
+        isBillingLinked={
+          selectedOrder ? isOrderBillingLinked(selectedOrder) : false
+        }
         order={selectedOrder ?? ({} as JobOrderData)}
+      />
+      <BillingImpactConfirmDialog
+        open={billingImpactDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (billingImpactPending) return;
+            setBillingImpactDialogOpen(false);
+            setBillingImpactOrders([]);
+            setBillingImpactAction(null);
+            return;
+          }
+          setBillingImpactDialogOpen(open);
+        }}
+        onProceed={handleBillingImpactProceed}
+        isPending={billingImpactPending}
       />
       <ConfirmDialog
         isOpen={confirmStatusDialogOpen}

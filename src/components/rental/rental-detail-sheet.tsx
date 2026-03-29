@@ -16,7 +16,10 @@ import RentalBillingSection from "../billing/rental-billing-section";
 import { useDownpayment } from "../job-order/useDownpayment";
 import { useRentalStatusUpdate } from "./useRentalStatusUpdate";
 import { useUpdateRental } from "./useUpdateRental";
-import { applySourcePayment } from "../../services/apiBilling";
+import {
+  applySourcePayment,
+  recalculateLinkedSourceBilling,
+} from "../../services/apiBilling";
 import ReturnInspectionDialog from "./return-inspection-dialog";
 import RentalPaymentDialog from "./rental-payment-dialog";
 import RentalConsumableManager from "./rental-consumable-manager";
@@ -24,7 +27,8 @@ import RentalAssetSelect from "./rental-asset-select";
 import ClientAutoSuggest from "../job-order/client-auto-suggest";
 import PhoneInput from "../ui/phone-input";
 import { useUser } from "../auth/useUser";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { getBranches } from "../../services/apiBranches";
 import { getTechnicians } from "../../services/apiTechnicians";
 import {
@@ -61,10 +65,17 @@ import {
   ClipboardCheck,
   Clock,
   Edit,
+  Link2,
   Package,
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import BillingImpactConfirmDialog from "../billing/billing-impact-confirm-dialog";
+import {
+  getBillingSyncSnapshot,
+  getPaymentStatusLabel,
+  isBillingLinkedSource,
+} from "../../lib/billing-sync";
 
 interface RentalDetailSheetProps {
   open: boolean;
@@ -98,9 +109,16 @@ export default function RentalDetailSheet({
   onOpenChange,
   rental,
 }: RentalDetailSheetProps) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [inspectionOpen, setInspectionOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [billingImpactDialogOpen, setBillingImpactDialogOpen] = useState(false);
+  const [billingImpactPending, setBillingImpactPending] = useState(false);
+  const [billingImpactAction, setBillingImpactAction] = useState<
+    (() => Promise<void>) | null
+  >(null);
   const statusMutation = useRentalStatusUpdate();
   const updateMutation = useUpdateRental();
   const { user, branchId, isAdmin } = useUser();
@@ -197,13 +215,22 @@ export default function RentalDetailSheet({
   const adjustedGrandTotal = rentalGrandTotal - (downpaymentValue ?? 0);
 
   if (!rental) return null;
+  const rentalRecord = rental;
 
-  const transitions = statusTransitions[rental.status] || [];
-  const inspection = rental.rental_inspections as any;
-  const consumables = (rental.rental_consumables || []) as RentalConsumable[];
+  const transitions = statusTransitions[rentalRecord.status] || [];
+  const inspection = rentalRecord.rental_inspections as any;
+  const consumables = (rentalRecord.rental_consumables || []) as RentalConsumable[];
   const isFormReadonly = !isEditMode;
-  const canEdit = ["Created", "Released", "Ongoing"].includes(rental.status);
-  const billingSync = (rental.payment_details as any)?.billing_sync;
+  const canEdit = ["Created", "Released", "Ongoing"].includes(rentalRecord.status);
+  const billingSync = getBillingSyncSnapshot(rentalRecord.payment_details);
+  const isBillingLinked = isBillingLinkedSource({
+    sourceType: "rental",
+    sourceId: rentalRecord.id,
+    transferredToBilling: rentalRecord.transferred_to_billing,
+    paymentDetails: rentalRecord.payment_details,
+  });
+  const billingStatusLabel = getPaymentStatusLabel(billingSync?.payment_status);
+  const canOpenBillingAccount = Boolean(rentalRecord.billing_account_id);
   const amountDue = (() => {
     const mirroredRemaining = Number(billingSync?.remaining_balance);
     if (Number.isFinite(mirroredRemaining)) {
@@ -216,37 +243,79 @@ export default function RentalDetailSheet({
     );
   })();
 
-  function handleStatusChange(status: RentalStatus) {
+  const openBillingImpactGuard = (action: () => Promise<void>) => {
+    if (!isBillingLinked) {
+      void action();
+      return;
+    }
+
+    setBillingImpactAction(() => action);
+    setBillingImpactDialogOpen(true);
+  };
+
+  const handleBillingImpactProceed = async () => {
+    if (!billingImpactAction) return;
+
+    setBillingImpactPending(true);
+    try {
+      await billingImpactAction();
+      await recalculateLinkedSourceBilling("rental", rentalRecord.id, {
+        reason: "Rental modification recalculation",
+      });
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+      toast.success(
+        "Billing has been updated based on your changes. Previous payments were adjusted."
+      );
+      setBillingImpactDialogOpen(false);
+      setBillingImpactAction(null);
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to recalculate linked billing record."
+      );
+    } finally {
+      setBillingImpactPending(false);
+    }
+  };
+
+  async function performStatusChange(status: RentalStatus) {
     if (status === "Returned") {
       setInspectionOpen(true);
       return;
     }
+
     if (status === "Completed") {
       if (amountDue <= 0) {
-        statusMutation.mutate(
-          { ids: [rental!.id], status: "Completed" },
-          {
-            onSuccess: () => {
-              onOpenChange(false);
-            },
-          }
-        );
+        await statusMutation.mutateAsync({ ids: [rentalRecord.id], status: "Completed" });
+        onOpenChange(false);
         return;
       }
 
       setPaymentOpen(true);
       return;
     }
-    statusMutation.mutate(
-      { ids: [rental!.id], status },
-      {
-        onSuccess: () => {
-          if (status === "Cancelled") {
-            onOpenChange(false);
-          }
-        },
-      }
-    );
+
+    await statusMutation.mutateAsync({ ids: [rentalRecord.id], status });
+    if (status === "Cancelled") {
+      onOpenChange(false);
+    }
+  }
+
+  function handleStatusChange(status: RentalStatus) {
+    if (status === rentalRecord.status) return;
+
+    if (isBillingLinked && rentalRecord.status === "Completed") {
+      openBillingImpactGuard(() => performStatusChange(status));
+      return;
+    }
+
+    void performStatusChange(status);
   }
 
   async function handlePaymentSubmit(payments: Record<string, number>) {
@@ -277,32 +346,58 @@ export default function RentalDetailSheet({
     form.setValue("email", client.email || "");
   }
 
-  function onSubmit(values: RentalFormValues) {
-    updateMutation.mutate(
-      {
-        rentalId: rental!.id,
-        data: {
-          rental_asset_id: values.rental_asset_id,
-          client_id: values.client_id || undefined,
-          name: values.name,
-          contact_number: values.contact_number,
-          email: values.email,
-          technician_id: values.technician_id,
-          branch_id: values.branch_id,
-          start_date: values.start_date,
-          end_date: values.end_date,
-          due_date: values.due_date,
-          rental_type: values.rental_type,
-          rate_amount: values.rate_amount,
-          discount: selectedDiscount ?? 0,
-          downpayment: downpaymentValue ?? 0,
-          notes: values.notes,
-        },
-      },
-      {
-        onSuccess: () => setIsEditMode(false),
-      }
+  const hasHighImpactRentalChanges = (values: RentalFormValues) => {
+    const hasNumberChange = (current: number, next: number) =>
+      Math.abs(Number(current || 0) - Number(next || 0)) > 0.009;
+
+    return (
+      Number(values.rental_asset_id) !== Number(rentalRecord.rental_asset_id) ||
+      values.rental_type !== rentalRecord.rental_type ||
+      (values.start_date || "") !== (rentalRecord.start_date || "") ||
+      (values.end_date || "") !== (rentalRecord.end_date || "") ||
+      (values.due_date || "") !== (rentalRecord.due_date || "") ||
+      hasNumberChange(Number(rentalRecord.rate_amount || 0), Number(values.rate_amount || 0)) ||
+      hasNumberChange(Number(rentalRecord.discount || 0), Number(selectedDiscount ?? 0)) ||
+      hasNumberChange(
+        Number(rentalRecord.downpayment || 0),
+        Number(downpaymentValue ?? 0)
+      )
     );
+  };
+
+  function onSubmit(values: RentalFormValues) {
+    const updatePayload = {
+      rental_asset_id: values.rental_asset_id,
+      client_id: values.client_id || undefined,
+      name: values.name,
+      contact_number: values.contact_number,
+      email: values.email,
+      technician_id: values.technician_id,
+      branch_id: values.branch_id,
+      start_date: values.start_date,
+      end_date: values.end_date,
+      due_date: values.due_date,
+      rental_type: values.rental_type,
+      rate_amount: values.rate_amount,
+      discount: selectedDiscount ?? 0,
+      downpayment: downpaymentValue ?? 0,
+      notes: values.notes,
+    };
+
+    const performUpdate = async () => {
+      await updateMutation.mutateAsync({
+        rentalId: rentalRecord.id,
+        data: updatePayload,
+      });
+      setIsEditMode(false);
+    };
+
+    if (isBillingLinked && hasHighImpactRentalChanges(values)) {
+      openBillingImpactGuard(performUpdate);
+      return;
+    }
+
+    void performUpdate();
   }
 
   return (
@@ -318,7 +413,15 @@ export default function RentalDetailSheet({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setIsEditMode(true)}
+                    onClick={() => {
+                      if (isBillingLinked) {
+                        openBillingImpactGuard(async () => {
+                          setIsEditMode(true);
+                        });
+                        return;
+                      }
+                      setIsEditMode(true);
+                    }}
                     className="px-3 py-1 h-fit text-xs flex items-center gap-1"
                   >
                     <Edit size={12} strokeWidth={1.5} />
@@ -376,6 +479,24 @@ export default function RentalDetailSheet({
               <span className={`px-3 py-0.5 rounded-full text-xs font-bold ${getStatusClass(rental.status)}`}>
                 {rental.status}
               </span>
+              {isBillingLinked && (
+                <div className="flex items-center gap-2 px-3 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  <Link2 size={10} />
+                  <span>Linked to Billing Account</span>
+                  <span className="opacity-80">Status: {billingStatusLabel}</span>
+                  {canOpenBillingAccount && (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs text-blue-800"
+                      onClick={() => navigate(`/billing/${rental.billing_account_id}`)}
+                    >
+                      Open
+                    </Button>
+                  )}
+                </div>
+              )}
               {rental.is_overdue && (
                 <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1">
                   <AlertTriangle size={10} />
@@ -729,6 +850,9 @@ export default function RentalDetailSheet({
                   consumables={consumables}
                   branchId={rental.branch_id}
                   canEdit={canEdit}
+                  onFinancialImpactChange={
+                    isBillingLinked ? openBillingImpactGuard : undefined
+                  }
                 />
               </div>
 
@@ -956,6 +1080,21 @@ export default function RentalDetailSheet({
         onSubmit={handlePaymentSubmit}
         grandTotal={amountDue}
         rentalNo={rental.rental_no}
+        isBillingLinked={isBillingLinked}
+      />
+      <BillingImpactConfirmDialog
+        open={billingImpactDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (billingImpactPending) return;
+            setBillingImpactDialogOpen(false);
+            setBillingImpactAction(null);
+            return;
+          }
+          setBillingImpactDialogOpen(open);
+        }}
+        onProceed={handleBillingImpactProceed}
+        isPending={billingImpactPending}
       />
     </>
   );

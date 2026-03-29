@@ -149,12 +149,29 @@ Deno.serve(async (req) => {
 
       const { data: prevPayments } = await supabaseAdmin
         .from("billing_payments")
-        .select("amount")
+        .select(`
+          payment_date,
+          billing_payment_allocations (
+            amount,
+            status
+          )
+        `)
         .eq("billing_account_id", account.id)
         .lt("payment_date", periodStartStr);
 
       const prevPaid = (prevPayments || []).reduce(
-        (sum: number, p: { amount: number }) => sum + Number(p.amount),
+        (
+          sum: number,
+          p: { billing_payment_allocations?: Array<{ amount: number; status?: string | null }> }
+        ) =>
+          sum +
+          (p.billing_payment_allocations || [])
+            .filter((allocation) => (allocation.status || "active") === "active")
+            .reduce(
+              (allocationSum, allocation) =>
+                allocationSum + Number(allocation.amount || 0),
+              0
+            ),
         0
       );
 
@@ -191,13 +208,30 @@ Deno.serve(async (req) => {
       // Payments in period
       const { data: periodPaymentData } = await supabaseAdmin
         .from("billing_payments")
-        .select("amount")
+        .select(`
+          payment_date,
+          billing_payment_allocations (
+            amount,
+            status
+          )
+        `)
         .eq("billing_account_id", account.id)
         .gte("payment_date", periodStartStr)
         .lte("payment_date", periodEndStr);
 
       const paymentsReceived = (periodPaymentData || []).reduce(
-        (sum: number, p: { amount: number }) => sum + Number(p.amount),
+        (
+          sum: number,
+          p: { billing_payment_allocations?: Array<{ amount: number; status?: string | null }> }
+        ) =>
+          sum +
+          (p.billing_payment_allocations || [])
+            .filter((allocation) => (allocation.status || "active") === "active")
+            .reduce(
+              (allocationSum, allocation) =>
+                allocationSum + Number(allocation.amount || 0),
+              0
+            ),
         0
       );
 

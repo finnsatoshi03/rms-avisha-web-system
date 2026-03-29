@@ -22,7 +22,10 @@ import RentalDetailSheet from "../components/rental/rental-detail-sheet";
 import RentalPaymentDialog from "../components/rental/rental-payment-dialog";
 import { RentalData, RentalStatus } from "../lib/types";
 import { deleteRentals } from "../services/apiRentals";
-import { applySourcePayment } from "../services/apiBilling";
+import {
+  applySourcePayment,
+  recalculateLinkedSourceBilling,
+} from "../services/apiBilling";
 import { useRentalStatusUpdate } from "../components/rental/useRentalStatusUpdate";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { pdf } from "@react-pdf/renderer";
@@ -46,6 +49,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../components/ui/alert-dialog";
+import BillingImpactConfirmDialog from "../components/billing/billing-impact-confirm-dialog";
+import { isBillingLinkedSource } from "../lib/billing-sync";
 
 const allStatuses: { label: string; value: RentalStatus }[] = [
   { label: "Created", value: "Created" },
@@ -113,6 +118,14 @@ export default function Rentals() {
   const [rentalToComplete, setRentalToComplete] = useState<RentalData | null>(
     null
   );
+  const [billingImpactDialogOpen, setBillingImpactDialogOpen] = useState(false);
+  const [billingImpactPending, setBillingImpactPending] = useState(false);
+  const [billingImpactRentals, setBillingImpactRentals] = useState<RentalData[]>(
+    []
+  );
+  const [billingImpactAction, setBillingImpactAction] = useState<
+    (() => Promise<void>) | null
+  >(null);
 
   const {
     showAnnouncement,
@@ -163,6 +176,63 @@ export default function Rentals() {
 
   const statusMutation = useRentalStatusUpdate();
 
+  const isRentalBillingLinked = (rental: RentalData) =>
+    isBillingLinkedSource({
+      sourceType: "rental",
+      sourceId: rental.id,
+      transferredToBilling: rental.transferred_to_billing,
+      paymentDetails: rental.payment_details,
+    });
+
+  const openBillingImpactGuard = (
+    rentalsToRecalculate: RentalData[],
+    action: () => Promise<void>
+  ) => {
+    if (rentalsToRecalculate.length === 0) {
+      void action();
+      return;
+    }
+
+    setBillingImpactRentals(rentalsToRecalculate);
+    setBillingImpactAction(() => action);
+    setBillingImpactDialogOpen(true);
+  };
+
+  const handleBillingImpactProceed = async () => {
+    if (!billingImpactAction) return;
+
+    setBillingImpactPending(true);
+    try {
+      for (const rental of billingImpactRentals) {
+        await recalculateLinkedSourceBilling("rental", rental.id, {
+          reason: "Manual rental status/edit flow recalculation",
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+
+      await billingImpactAction();
+      toast.success(
+        "Billing has been updated based on your changes. Previous payments were adjusted."
+      );
+      setBillingImpactDialogOpen(false);
+      setBillingImpactRentals([]);
+      setBillingImpactAction(null);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to recalculate linked billing record."
+      );
+    } finally {
+      setBillingImpactPending(false);
+    }
+  };
+
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => deleteRentals(ids),
     onSuccess: () => {
@@ -209,7 +279,7 @@ export default function Rentals() {
     setDetailOpen(true);
   };
 
-  const handleStatusChange = (ids: number[], status: string) => {
+  const performStatusChange = async (ids: number[], status: string) => {
     if (status === "Completed") {
       if (ids.length !== 1) {
         toast.error(
@@ -225,10 +295,11 @@ export default function Rentals() {
       }
 
       if (getRentalAmountDue(selectedRental) <= 0) {
-        statusMutation.mutate(
-          { ids: [selectedRental.id], status: "Completed" },
-          { onSuccess: () => setSelectedIds([]) }
-        );
+        await statusMutation.mutateAsync({
+          ids: [selectedRental.id],
+          status: "Completed",
+        });
+        setSelectedIds([]);
         return;
       }
 
@@ -237,10 +308,27 @@ export default function Rentals() {
       return;
     }
 
-    statusMutation.mutate(
-      { ids, status },
-      { onSuccess: () => setSelectedIds([]) }
+    await statusMutation.mutateAsync({ ids, status });
+    setSelectedIds([]);
+  };
+
+  const handleStatusChange = (ids: number[], status: string) => {
+    const rentalsToUpdate = rentals.filter((rental) => ids.includes(rental.id));
+    const linkedRentals = rentalsToUpdate.filter(
+      (rental) =>
+        rental.status === "Completed" &&
+        status !== rental.status &&
+        isRentalBillingLinked(rental)
     );
+
+    if (linkedRentals.length > 0) {
+      openBillingImpactGuard(linkedRentals, () =>
+        performStatusChange(ids, status)
+      );
+      return;
+    }
+
+    void performStatusChange(ids, status);
   };
 
   const handleBulkPaymentSubmit = async (payments: Record<string, number>) => {
@@ -552,6 +640,24 @@ export default function Rentals() {
         onSubmit={handleBulkPaymentSubmit}
         grandTotal={getRentalAmountDue(rentalToComplete)}
         rentalNo={rentalToComplete?.rental_no || ""}
+        isBillingLinked={
+          rentalToComplete ? isRentalBillingLinked(rentalToComplete) : false
+        }
+      />
+      <BillingImpactConfirmDialog
+        open={billingImpactDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (billingImpactPending) return;
+            setBillingImpactDialogOpen(false);
+            setBillingImpactRentals([]);
+            setBillingImpactAction(null);
+            return;
+          }
+          setBillingImpactDialogOpen(open);
+        }}
+        onProceed={handleBillingImpactProceed}
+        isPending={billingImpactPending}
       />
 
       {/* Onboarding */}

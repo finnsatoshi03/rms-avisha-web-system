@@ -13,11 +13,13 @@ import {
   Clock,
   Edit,
   Info,
+  Link2,
   Loader2,
   Plus,
   Trash,
   X,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import {
   Form,
@@ -67,6 +69,7 @@ import {
   renderWarrantyInfo,
 } from "../../lib/helpers";
 import { createEditJobOrder } from "../../services/apiJobOrders";
+import { recalculateLinkedSourceBilling } from "../../services/apiBilling";
 import { getMaterialStocks } from "../../services/apiMaterials";
 import { getQuotationsByJobOrder } from "../../services/apiQuotations";
 import { getBranches } from "../../services/apiBranches";
@@ -98,6 +101,12 @@ import {
   CommandItem,
 } from "../ui/command";
 import { cn } from "../../lib/utils";
+import {
+  getBillingSyncSnapshot,
+  getPaymentStatusLabel,
+  isBillingLinkedSource,
+} from "../../lib/billing-sync";
+import BillingImpactConfirmDialog from "../billing/billing-impact-confirm-dialog";
 
 const rateOptions = [
   { label: "Walk-in Service", value: 1500 },
@@ -319,6 +328,7 @@ export default function JobOrderForm({
       : [];
 
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [contactNumber, setContactNumber] = useState("+63 ");
   const [selectedClient, setSelectedClient] = useState<Client | null>(
     editSession && clients ? (clients as Client) : null
@@ -367,6 +377,12 @@ export default function JobOrderForm({
   const [includeManualItemsInTotal, setIncludeManualItemsInTotal] = useState(
     editSession ? Boolean(editValues.include_quotation_items) : false
   );
+  const [billingImpactDialogOpen, setBillingImpactDialogOpen] = useState(false);
+  const [billingImpactPending, setBillingImpactPending] = useState(false);
+  const [billingImpactAction, setBillingImpactAction] = useState<
+    (() => Promise<void>) | null
+  >(null);
+  const [closeAfterBillingImpact, setCloseAfterBillingImpact] = useState(false);
 
   useEffect(() => {
     console.log("[PrintFlow] state changed", {
@@ -427,15 +443,6 @@ export default function JobOrderForm({
       originalClientName: string | null;
     }) =>
       createEditJobOrder(newJobOrder, jobOrderId, clientId, originalClientName),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["job_order"] });
-      toast.success("Job order successfully edited!");
-      if (onClose) onClose();
-    },
-    onError: (error) => {
-      toast.error("An error occurred. Please try again.");
-      console.error(error);
-    },
   });
   // console.log(editValuesWithClient.materials);
 
@@ -609,6 +616,63 @@ export default function JobOrderForm({
 
   const adjustedGrandTotal =
     grandTotal - (selectedDiscount ?? 0) - (downpaymentValue ?? 0);
+  const billingSync = getBillingSyncSnapshot(jobOrderToEdit.payment_details);
+  const isBillingLinked = editSession
+    ? isBillingLinkedSource({
+        sourceType: "job_order",
+        sourceId: Number(editId || 0),
+        transferredToBilling: jobOrderToEdit.transferred_to_billing,
+        paymentDetails: jobOrderToEdit.payment_details,
+      })
+    : false;
+  const billingStatusLabel = getPaymentStatusLabel(billingSync?.payment_status);
+  const canOpenBillingAccount = Boolean(jobOrderToEdit.billing_account_id);
+
+  const openBillingImpactGuard = (
+    action: () => Promise<void>,
+    options?: { closeAfterSuccess?: boolean }
+  ) => {
+    if (!isBillingLinked) {
+      void action();
+      return;
+    }
+
+    setCloseAfterBillingImpact(Boolean(options?.closeAfterSuccess));
+    setBillingImpactAction(() => action);
+    setBillingImpactDialogOpen(true);
+  };
+
+  const handleBillingImpactProceed = async () => {
+    if (!billingImpactAction) return;
+
+    setBillingImpactPending(true);
+    try {
+      await billingImpactAction();
+      await recalculateLinkedSourceBilling("job_order", Number(editId), {
+        reason: "Job order modification recalculation",
+      });
+      queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+      toast.success(
+        "Billing has been updated based on your changes. Previous payments were adjusted."
+      );
+      if (closeAfterBillingImpact && onClose) onClose();
+      setBillingImpactDialogOpen(false);
+      setBillingImpactAction(null);
+      setCloseAfterBillingImpact(false);
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to recalculate linked billing record."
+      );
+    } finally {
+      setBillingImpactPending(false);
+    }
+  };
 
   const filteredTechnicians = useMemo(() => {
     if (isFormReadonly) {
@@ -854,6 +918,83 @@ export default function JobOrderForm({
     }
   };
 
+  const normalizeMaterialEntries = (
+    items: Array<{
+      material_id?: string | number;
+      material?: string;
+      quantity?: number;
+      unitPrice?: number;
+      used?: boolean | null;
+    }> = []
+  ) =>
+    items
+      .map((item) => ({
+        material_id: Number(item.material_id || 0),
+        material: String(item.material || "").trim().toLowerCase(),
+        quantity: Number(item.quantity || 0),
+        unitPrice: Number(item.unitPrice || 0),
+        used: Boolean(item.used),
+      }))
+      .sort((a, b) => {
+        if (a.material_id !== b.material_id) {
+          return a.material_id - b.material_id;
+        }
+        if (a.material !== b.material) {
+          return a.material.localeCompare(b.material);
+        }
+        return a.quantity - b.quantity;
+      });
+
+  const hasHighImpactJobOrderChanges = (submittedValues: CreateJobOrderData) => {
+    const hasNumberChange = (current: number, next: number) =>
+      Math.abs(Number(current || 0) - Number(next || 0)) > 0.009;
+
+    const currentMaterials = normalizeMaterialEntries(
+      (jobOrderToEdit.materials || []).map((material) => ({
+        material_id: material.material_id,
+        material: material.material_description,
+        quantity: material.quantity,
+        unitPrice: material.unit_price,
+        used: material.used,
+      }))
+    );
+    const nextMaterials = normalizeMaterialEntries(
+      (submittedValues.materials || []).map((material) => ({
+        material_id: material.material_id,
+        material: material.material,
+        quantity: material.quantity,
+        unitPrice: material.unitPrice,
+        used: material.used,
+      }))
+    );
+
+    return (
+      hasNumberChange(Number(editValues.rate || 0), Number(submittedValues.rate || 0)) ||
+      hasNumberChange(Number(editValues.amount || 0), Number(submittedValues.amount || 0)) ||
+      hasNumberChange(
+        Number(editValues.material_total || 0),
+        Number(submittedValues.material_total || 0)
+      ) ||
+      hasNumberChange(
+        Number(editValues.labor_total || 0),
+        Number(submittedValues.labor_total || 0)
+      ) ||
+      hasNumberChange(
+        Number(editValues.discount || 0),
+        Number(submittedValues.discount || 0)
+      ) ||
+      hasNumberChange(
+        Number(editValues.downpayment || 0),
+        Number(submittedValues.downpayment || 0)
+      ) ||
+      hasNumberChange(
+        Number(editValues.grand_total || 0),
+        Number(submittedValues.grand_total || 0)
+      ) ||
+      JSON.stringify(currentMaterials) !== JSON.stringify(nextMaterials)
+    );
+  };
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     // Filter out any undefined or null material entries
     const filteredMaterials = values.materials
@@ -927,18 +1068,44 @@ export default function JobOrderForm({
       is_manual_rate: isManualRate,
     };
 
-    if (editSession) {
-      editJobOrder({
-        newJobOrder: submittedValues,
-        jobOrderId: editId,
-        clientId,
-        originalClientName: clients?.name || null,
+    const submitEditedJobOrder = async (
+      payload: CreateJobOrderData,
+      options?: { closeAfterSuccess?: boolean }
+    ) => {
+      await new Promise<void>((resolve, reject) => {
+        editJobOrder(
+          {
+            newJobOrder: payload,
+            jobOrderId: editId,
+            clientId,
+            originalClientName: clients?.name || null,
+          },
+          {
+            onSuccess: () => {
+              queryClient.invalidateQueries({ queryKey: ["job_order"] });
+              toast.success("Job order successfully edited!");
+              if (options?.closeAfterSuccess !== false && onClose) {
+                onClose();
+              }
+              resolve();
+            },
+            onError: (error) => {
+              console.error(error);
+              toast.error("An error occurred. Please try again.");
+              reject(error);
+            },
+          }
+        );
       });
+    };
 
-      // Handle quotation creation/update for existing job orders
-      if (quotationData && isCreatingQuotation) {
+    if (editSession) {
+      const requiresBillingRecalculation =
+        isBillingLinked && hasHighImpactJobOrderChanges(submittedValues);
+      const syncQuotationForEditedJobOrder = async () => {
+        if (!quotationData || !isCreatingQuotation) return;
+
         try {
-          // Always set quotations as final
           const finalQuotationData = {
             ...quotationData,
             status: "approved" as const,
@@ -947,42 +1114,48 @@ export default function JobOrderForm({
           };
 
           if (existingQuotations && existingQuotations.length > 0) {
-            // Update existing quotation
             const { updateQuotation } = await import(
               "../../services/apiQuotations"
             );
-            await updateQuotation(
-              existingQuotations[0].id!,
-              finalQuotationData
-            );
+            await updateQuotation(existingQuotations[0].id!, finalQuotationData);
             toast.success("Quotation updated successfully!");
-            // No print prompt for quotation edits
-          } else {
-            // Create new quotation - this is a new quotation being added to existing job order
-            const { addQuotationToJobOrder } = await import(
-              "../../services/apiQuotations"
-            );
-            const response = await addQuotationToJobOrder(
-              editId,
-              finalQuotationData
-            );
-            const finalUpdatedQuotationData = {
-              ...quotationData,
-              quote_no: response.quote_no,
-              job_order_no: response.job_order_no,
-            };
-            toast.success("Quotation created successfully!");
-
-            // Show print prompt for new quotation added to existing job order
-            setQuotationData(finalUpdatedQuotationData);
-            setQuotationPrintDialogOpen(true);
+            return;
           }
+
+          const { addQuotationToJobOrder } = await import(
+            "../../services/apiQuotations"
+          );
+          const response = await addQuotationToJobOrder(editId, finalQuotationData);
+          const finalUpdatedQuotationData = {
+            ...quotationData,
+            quote_no: response.quote_no,
+            job_order_no: response.job_order_no,
+          };
+          toast.success("Quotation created successfully!");
+          setQuotationData(finalUpdatedQuotationData);
+          setQuotationPrintDialogOpen(true);
         } catch (error) {
           console.error("Error saving quotation:", error);
           toast.error(
             "Job order updated but quotation failed. Please create quotation manually."
           );
         }
+      };
+
+      const runEditFlow = async (closeAfterSuccess: boolean) => {
+        await submitEditedJobOrder(submittedValues, { closeAfterSuccess });
+        await syncQuotationForEditedJobOrder();
+      };
+
+      if (requiresBillingRecalculation) {
+        openBillingImpactGuard(
+          async () => {
+            await runEditFlow(false);
+          },
+          { closeAfterSuccess: true }
+        );
+      } else {
+        void runEditFlow(true);
       }
     } else {
       createJobOrder(submittedValues, {
@@ -1404,12 +1577,40 @@ export default function JobOrderForm({
                   : ""}
               </div>
             )}
+            {isBillingLinked && (
+              <div className="px-3 py-1 bg-blue-100 rounded-full text-blue-800 text-xs w-fit flex items-center gap-2">
+                <Link2 size={12} strokeWidth={1.5} />
+                <span>Linked to Billing Account</span>
+                <span className="opacity-80">Status: {billingStatusLabel}</span>
+                {canOpenBillingAccount && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-blue-800"
+                    onClick={() =>
+                      navigate(`/billing/${jobOrderToEdit.billing_account_id}`)
+                    }
+                  >
+                    Open
+                  </Button>
+                )}
+              </div>
+            )}
             {readonly && !isEditMode && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setIsEditMode(true)}
+                onClick={() => {
+                  if (isBillingLinked) {
+                    openBillingImpactGuard(async () => {
+                      setIsEditMode(true);
+                    });
+                    return;
+                  }
+                  setIsEditMode(true);
+                }}
                 className="px-3 py-1 h-fit text-xs flex items-center gap-1"
               >
                 <Edit size={12} strokeWidth={1.5} />
@@ -2627,6 +2828,21 @@ export default function JobOrderForm({
         onOpenChange={setDiscountDialogOpen}
         grandTotal={grandTotal}
         onSelectDiscount={handleSelectDiscount}
+      />
+      <BillingImpactConfirmDialog
+        open={billingImpactDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (billingImpactPending) return;
+            setBillingImpactDialogOpen(false);
+            setBillingImpactAction(null);
+            setCloseAfterBillingImpact(false);
+            return;
+          }
+          setBillingImpactDialogOpen(open);
+        }}
+        onProceed={handleBillingImpactProceed}
+        isPending={billingImpactPending}
       />
       <PrintOptionsDialog
         open={printDialogOpen}

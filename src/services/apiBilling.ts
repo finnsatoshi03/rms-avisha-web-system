@@ -6,6 +6,7 @@ import {
   BillingSourceType,
   BillingPayment,
   SourcePaymentResult,
+  SourceRecalculationResult,
   BillingStatement,
   BillingAging,
   BillingDashboardSummary,
@@ -203,7 +204,7 @@ export async function getBillingPayments(accountId: string): Promise<BillingPaym
     .select(`
       *,
       billing_payment_allocations (
-        id, amount, billing_line_item_id,
+        id, amount, status, reversed_at, reversed_by, reversal_reason, billing_line_item_id,
         billing_line_items:billing_line_item_id (id, description, job_order_id)
       )
     `)
@@ -295,6 +296,29 @@ export async function applySourcePayment(
 
   if (error) throw new Error("Failed to apply payment: " + error.message);
   return data as SourcePaymentResult;
+}
+
+export async function recalculateLinkedSourceBilling(
+  sourceType: BillingSourceType,
+  sourceId: number,
+  options?: {
+    reason?: string;
+  }
+): Promise<SourceRecalculationResult> {
+  const { data: userData } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase.rpc("recalculate_linked_source_billing", {
+    p_source_type: sourceType,
+    p_source_id: sourceId,
+    p_reason: options?.reason || null,
+    p_reversed_by: userData.user?.id || null,
+  });
+
+  if (error) {
+    throw new Error("Failed to recalculate linked billing: " + error.message);
+  }
+
+  return data as SourceRecalculationResult;
 }
 
 // ========================
@@ -416,13 +440,21 @@ export async function getBillingLedger(accountId: string): Promise<LedgerEntry[]
 
   // Add payments as ledger entries
   payments.forEach((p) => {
+    const effectiveCredit = (p.allocations || [])
+      .filter((allocation: any) => allocation.status !== "reversed")
+      .reduce((sum: number, allocation: any) => sum + Number(allocation.amount || 0), 0);
+
+    if (effectiveCredit <= 0) {
+      return;
+    }
+
     entries.push({
       id: p.id,
       date: p.created_at,
       type: "payment",
       description: `Payment - ${p.payment_method || "Unknown"}${p.reference_number ? ` (${p.reference_number})` : ""}`,
       debit: 0,
-      credit: p.amount,
+      credit: effectiveCredit,
       balance: 0,
       source: "payment",
     });

@@ -32,6 +32,7 @@ interface PaymentDialogProps {
   onClose: () => void;
   onSubmit: (payments: Record<string, number>) => void;
   order: JobOrderData;
+  isBillingLinked?: boolean;
 }
 
 export const PaymentDialog: React.FC<PaymentDialogProps> = ({
@@ -39,12 +40,17 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   onClose,
   onSubmit,
   order,
+  isBillingLinked = false,
 }) => {
   const [payments, setPayments] = useState<Record<string, number>>({});
   const [selectedMethods, setSelectedMethods] = useState<string[]>([]);
   const [totalEntered, setTotalEntered] = useState<number>(0);
   const [splitPayments, setSplitPayments] = useState<boolean>(false);
   const [showConfirm, setShowConfirm] = useState<boolean>(false);
+  const [showBillingConfirm, setShowBillingConfirm] = useState<boolean>(false);
+  const [pendingPayments, setPendingPayments] = useState<
+    Record<string, number> | null
+  >(null);
   const [confirmMethod, setConfirmMethod] = useState<string>("");
 
   const [isSubmitDisabled, setIsSubmitDisabled] = useState<boolean>(true);
@@ -91,20 +97,46 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
     }
   };
 
-  const handleConfirmPayment = () => {
+  const resolvePaymentsToSubmit = () => {
     if (!splitPayments) {
-      const newPayments = { [confirmMethod]: payableTotal };
-      onSubmit(newPayments);
-    } else if (totalEntered !== payableTotal) {
+      if (!confirmMethod) return null;
+      return { [confirmMethod]: payableTotal };
+    }
+
+    if (totalEntered !== payableTotal) {
       alert(
         `Total entered (${totalEntered}) does not match the order total (${payableTotal}).`
       );
-      return;
-    } else {
-      onSubmit(payments);
+      return null;
     }
 
+    return payments;
+  };
+
+  const submitPayments = (payload: Record<string, number>) => {
+    onSubmit(payload);
     setShowConfirm(false);
+    setShowBillingConfirm(false);
+    setPendingPayments(null);
+  };
+
+  const handleConfirmPayment = () => {
+    const payload = resolvePaymentsToSubmit();
+    if (!payload) return;
+
+    if (isBillingLinked) {
+      setPendingPayments(payload);
+      setShowBillingConfirm(true);
+      setShowConfirm(false);
+      return;
+    }
+
+    submitPayments(payload);
+  };
+
+  const handleBillingConfirm = () => {
+    if (!pendingPayments) return;
+    submitPayments(pendingPayments);
   };
 
   const toggleSplitPayments = () => {
@@ -233,6 +265,46 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
               Yes, Confirm
             </Button>
             <Button variant={"secondary"} onClick={() => setShowConfirm(false)}>
+              Cancel
+            </Button>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      {showBillingConfirm && (
+        <AlertDialog
+          open={showBillingConfirm}
+          onOpenChange={(nextOpen) => {
+            setShowBillingConfirm(nextOpen);
+            if (!nextOpen) {
+              setPendingPayments(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                This payment will reflect in Billing Statement
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This job order is linked or transferred to billing.
+                Confirming this payment will update the billing statement and
+                remaining balance.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <Button
+              variant={"default"}
+              onClick={handleBillingConfirm}
+              className="bg-green-500 hover:bg-green-600"
+            >
+              Confirm & Update Billing
+            </Button>
+            <Button
+              variant={"secondary"}
+              onClick={() => {
+                setShowBillingConfirm(false);
+                setPendingPayments(null);
+              }}
+            >
               Cancel
             </Button>
           </AlertDialogContent>

@@ -24,6 +24,7 @@ interface RentalConsumableManagerProps {
   consumables: RentalConsumable[];
   branchId: number;
   canEdit: boolean;
+  onFinancialImpactChange?: (action: () => Promise<void>) => void;
 }
 
 export default function RentalConsumableManager({
@@ -31,6 +32,7 @@ export default function RentalConsumableManager({
   consumables,
   branchId,
   canEdit,
+  onFinancialImpactChange,
 }: RentalConsumableManagerProps) {
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -48,13 +50,19 @@ export default function RentalConsumableManager({
       <h2></h2>
 
       {consumables.map((c) => (
-        <ConsumableRow key={c.id} consumable={c} canEdit={canEdit} />
+        <ConsumableRow
+          key={c.id}
+          consumable={c}
+          canEdit={canEdit}
+          onFinancialImpactChange={onFinancialImpactChange}
+        />
       ))}
 
       {showAddForm && (
         <AddConsumableRow
           rentalId={rentalId}
           branchId={branchId}
+          onFinancialImpactChange={onFinancialImpactChange}
           onClose={() => setShowAddForm(false)}
         />
       )}
@@ -92,9 +100,11 @@ export default function RentalConsumableManager({
 function ConsumableRow({
   consumable,
   canEdit,
+  onFinancialImpactChange,
 }: {
   consumable: RentalConsumable;
   canEdit: boolean;
+  onFinancialImpactChange?: (action: () => Promise<void>) => void;
 }) {
   const queryClient = useQueryClient();
   const removeMutation = useMutation({
@@ -131,7 +141,15 @@ function ConsumableRow({
             variant="destructive"
             size="icon"
             className="text-xs p-2 h-fit w-fit"
-            onClick={() => removeMutation.mutate()}
+            onClick={() => {
+              if (onFinancialImpactChange) {
+                onFinancialImpactChange(async () => {
+                  await removeMutation.mutateAsync();
+                });
+                return;
+              }
+              removeMutation.mutate();
+            }}
             disabled={removeMutation.isPending}
           >
             <Trash size={12} strokeWidth={1.5} />
@@ -145,10 +163,12 @@ function ConsumableRow({
 function AddConsumableRow({
   rentalId,
   branchId,
+  onFinancialImpactChange,
   onClose,
 }: {
   rentalId: number;
   branchId: number;
+  onFinancialImpactChange?: (action: () => Promise<void>) => void;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -322,7 +342,15 @@ function AddConsumableRow({
           type="button"
           size="sm"
           className="h-fit px-2 py-1 text-xs"
-          onClick={() => addMutation.mutate()}
+          onClick={() => {
+            if (onFinancialImpactChange) {
+              onFinancialImpactChange(async () => {
+                await addMutation.mutateAsync();
+              });
+              return;
+            }
+            addMutation.mutate();
+          }}
           disabled={!description || quantity < 1 || addMutation.isPending}
         >
           {addMutation.isPending ? "..." : "Add"}

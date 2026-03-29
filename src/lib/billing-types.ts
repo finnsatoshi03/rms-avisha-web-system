@@ -56,6 +56,10 @@ export type BillingPayment = {
   id: string;
   billing_account_id: string;
   amount: number;
+  status?: "posted" | "partially_reversed" | "reversed";
+  reversed_at?: string | null;
+  reversed_by?: string | null;
+  reversal_reason?: string | null;
   payment_date: string;
   payment_method: string | null;
   reference_number: string | null;
@@ -72,6 +76,10 @@ export type BillingPaymentAllocation = {
   billing_payment_id: string;
   billing_line_item_id: string;
   amount: number;
+  status?: "active" | "reversed";
+  reversed_at?: string | null;
+  reversed_by?: string | null;
+  reversal_reason?: string | null;
   created_at: string;
   billing_line_items?: BillingLineItem;
 };
@@ -142,6 +150,21 @@ export type SourcePaymentResult = {
   remaining_balance: number;
   payment_status: BillingPaymentStatus;
   is_transferred_to_billing: boolean;
+};
+
+export type SourceRecalculationResult = {
+  source_type: BillingSourceType;
+  source_id: number;
+  billing_account_id: string | null;
+  total_amount: number;
+  total_paid: number;
+  remaining_balance: number;
+  payment_status: BillingPaymentStatus;
+  line_items_updated: number;
+  allocations_reversed: number;
+  payments_touched: number;
+  amount_reversed: number;
+  skipped: boolean;
 };
 
 export type LedgerEntry = {

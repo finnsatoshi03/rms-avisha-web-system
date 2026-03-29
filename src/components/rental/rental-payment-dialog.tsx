@@ -32,6 +32,7 @@ interface RentalPaymentDialogProps {
   onSubmit: (payments: Record<string, number>) => void;
   grandTotal: number;
   rentalNo: string;
+  isBillingLinked?: boolean;
 }
 
 export default function RentalPaymentDialog({
@@ -40,12 +41,17 @@ export default function RentalPaymentDialog({
   onSubmit,
   grandTotal,
   rentalNo,
+  isBillingLinked = false,
 }: RentalPaymentDialogProps) {
   const [payments, setPayments] = useState<Record<string, number>>({});
   const [selectedMethods, setSelectedMethods] = useState<string[]>([]);
   const [totalEntered, setTotalEntered] = useState(0);
   const [splitPayments, setSplitPayments] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showBillingConfirm, setShowBillingConfirm] = useState(false);
+  const [pendingPayments, setPendingPayments] = useState<
+    Record<string, number> | null
+  >(null);
   const [confirmMethod, setConfirmMethod] = useState("");
   const [isSubmitDisabled, setIsSubmitDisabled] = useState(true);
 
@@ -87,18 +93,46 @@ export default function RentalPaymentDialog({
     }
   };
 
-  const handleConfirmPayment = () => {
+  const resolvePaymentsToSubmit = () => {
     if (!splitPayments) {
-      onSubmit({ [confirmMethod]: grandTotal });
-    } else if (totalEntered !== grandTotal) {
+      if (!confirmMethod) return null;
+      return { [confirmMethod]: grandTotal };
+    }
+
+    if (totalEntered !== grandTotal) {
       alert(
         `Total entered (${totalEntered}) does not match the rental total (${grandTotal}).`
       );
-      return;
-    } else {
-      onSubmit(payments);
+      return null;
     }
+
+    return payments;
+  };
+
+  const submitPayments = (payload: Record<string, number>) => {
+    onSubmit(payload);
     setShowConfirm(false);
+    setShowBillingConfirm(false);
+    setPendingPayments(null);
+  };
+
+  const handleConfirmPayment = () => {
+    const payload = resolvePaymentsToSubmit();
+    if (!payload) return;
+
+    if (isBillingLinked) {
+      setPendingPayments(payload);
+      setShowBillingConfirm(true);
+      setShowConfirm(false);
+      return;
+    }
+
+    submitPayments(payload);
+  };
+
+  const handleBillingConfirm = () => {
+    if (!pendingPayments) return;
+    submitPayments(pendingPayments);
   };
 
   const toggleSplitPayments = () => {
@@ -219,6 +253,46 @@ export default function RentalPaymentDialog({
               Yes, Confirm
             </Button>
             <Button variant="secondary" onClick={() => setShowConfirm(false)}>
+              Cancel
+            </Button>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      {showBillingConfirm && (
+        <AlertDialog
+          open={showBillingConfirm}
+          onOpenChange={(nextOpen) => {
+            setShowBillingConfirm(nextOpen);
+            if (!nextOpen) {
+              setPendingPayments(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                This payment will reflect in Billing Statement
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This rental is linked or transferred to billing. Confirming
+                this payment will update the billing statement and remaining
+                balance.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <Button
+              variant="default"
+              onClick={handleBillingConfirm}
+              className="bg-green-500 hover:bg-green-600"
+            >
+              Confirm & Update Billing
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowBillingConfirm(false);
+                setPendingPayments(null);
+              }}
+            >
               Cancel
             </Button>
           </AlertDialogContent>
