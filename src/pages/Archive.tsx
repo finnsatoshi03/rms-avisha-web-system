@@ -9,6 +9,7 @@ import HeaderText from "../components/ui/headerText";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
 import { Separator } from "../components/ui/separator";
 import {
@@ -44,6 +45,7 @@ import {
 import { PaginationControls } from "../components/table/pagination-controls";
 import { SelectionBar } from "../components/table/selection-bar";
 import { useUser } from "../components/auth/useUser";
+import { isManagerReauthPasswordValid } from "../components/auth/manager-auth";
 
 import {
   ArchiveDeletedUser,
@@ -145,6 +147,8 @@ export default function Archive() {
   const [permanentDeleteDialogOpen, setPermanentDeleteDialogOpen] =
     useState(false);
   const [pendingActionIds, setPendingActionIds] = useState<number[]>([]);
+  const [deleteAuthPassword, setDeleteAuthPassword] = useState("");
+  const [deleteAuthError, setDeleteAuthError] = useState<string | null>(null);
 
   const effectiveBranchFilter = isManager ? userBranchId ?? null : null;
 
@@ -343,7 +347,18 @@ export default function Archive() {
   const openPermanentDeleteDialog = (ids: number[]) => {
     if (ids.length === 0) return;
     setPendingActionIds(ids);
+    setDeleteAuthPassword("");
+    setDeleteAuthError(null);
     setPermanentDeleteDialogOpen(true);
+  };
+
+  const confirmPermanentDelete = () => {
+    if (!isManagerReauthPasswordValid(deleteAuthPassword)) {
+      setDeleteAuthError("Incorrect manager password.");
+      return;
+    }
+
+    permanentDeleteMutation.mutate(pendingActionIds);
   };
 
   const toggleSelectAll = () => {
@@ -617,7 +632,13 @@ export default function Archive() {
 
       <AlertDialog
         open={permanentDeleteDialogOpen}
-        onOpenChange={setPermanentDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setPermanentDeleteDialogOpen(open);
+          if (!open) {
+            setDeleteAuthPassword("");
+            setDeleteAuthError(null);
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -635,12 +656,34 @@ export default function Archive() {
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="archive-delete-auth-password">
+              Manager Password
+            </Label>
+            <Input
+              id="archive-delete-auth-password"
+              type="password"
+              value={deleteAuthPassword}
+              onChange={(event) => {
+                setDeleteAuthPassword(event.target.value);
+                if (deleteAuthError) {
+                  setDeleteAuthError(null);
+                }
+              }}
+              placeholder="Enter manager password"
+            />
+            {deleteAuthError ? (
+              <p className="text-xs text-red-600">{deleteAuthError}</p>
+            ) : null}
+          </div>
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={permanentDeleteMutation.isPending}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => permanentDeleteMutation.mutate(pendingActionIds)}
+              onClick={confirmPermanentDelete}
               disabled={permanentDeleteMutation.isPending}
               className="bg-red-600 hover:bg-red-700"
             >
