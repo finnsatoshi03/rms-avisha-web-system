@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
 import {
@@ -26,6 +26,8 @@ import { pdf } from "@react-pdf/renderer";
 
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
+import { Checkbox } from "../ui/checkbox";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import {
   Table,
   TableHeader,
@@ -121,6 +123,9 @@ const statementStatusBadge: Record<string, string> = {
   sent: "bg-green-100 text-green-700 border-green-200",
 };
 
+const STATEMENT_SEND_HINT_STORAGE_KEY = "billing_statement_send_hint_hidden";
+type StatementActionType = "finalize" | "send";
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function amt(value: number | null | undefined): string {
@@ -175,6 +180,16 @@ function HelpTip({ text }: { text: string }) {
 // ─── Sub-sheet types ────────────────────────────────────────────────────────
 
 type SubSheetType = "payment" | "attach-jo" | "attach-rental" | "statement" | "edit" | null;
+
+type GenerateStatementsResult = {
+  account_id: string;
+  status: string;
+};
+
+type GenerateStatementsResponse = {
+  statements_generated?: number;
+  results?: GenerateStatementsResult[];
+};
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -267,6 +282,17 @@ export default function BillingAccountSheetContent({
   const [sourceFilter, setSourceFilter] = useState<"all" | "job_order" | "rental">("all");
   const [sendingStatementId, setSendingStatementId] = useState<string | null>(null);
   const [downloadingStatementId, setDownloadingStatementId] = useState<string | null>(null);
+  const [highlightStatementAction, setHighlightStatementAction] =
+    useState<StatementActionType | null>(null);
+  const [showStatementActionHint, setShowStatementActionHint] = useState(false);
+  const [statementHintAction, setStatementHintAction] =
+    useState<StatementActionType>("send");
+  const [dontRemindStatementActionHint, setDontRemindStatementActionHint] =
+    useState(false);
+  const [suppressStatementActionHint, setSuppressStatementActionHint] =
+    useState(false);
+  const statementAttentionTimerRef = useRef<number | null>(null);
+  const statementHighlightTimerRef = useRef<number | null>(null);
 
   // Mock data for detail tour when account has no data
   const tourActive = showDetailTour;
@@ -442,6 +468,123 @@ export default function BillingAccountSheetContent({
     });
   }, [effectiveLedger, sourceFilter]);
 
+  useEffect(() => {
+    const savedValue = window.localStorage.getItem(
+      STATEMENT_SEND_HINT_STORAGE_KEY
+    );
+    setSuppressStatementActionHint(savedValue === "1");
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (statementAttentionTimerRef.current) {
+        window.clearTimeout(statementAttentionTimerRef.current);
+      }
+      if (statementHighlightTimerRef.current) {
+        window.clearTimeout(statementHighlightTimerRef.current);
+      }
+    };
+  }, []);
+
+  const dismissStatementActionHint = useCallback(() => {
+    if (dontRemindStatementActionHint) {
+      window.localStorage.setItem(STATEMENT_SEND_HINT_STORAGE_KEY, "1");
+      setSuppressStatementActionHint(true);
+    }
+    setShowStatementActionHint(false);
+  }, [dontRemindStatementActionHint]);
+
+  const focusStatementsAndHighlightAction = useCallback((preferredAction: StatementActionType) => {
+    setStatementsOpen(true);
+    if (activeSubSheet) {
+      setActiveSubSheet(null);
+    }
+
+    let attempts = 0;
+    const maxAttempts = 12;
+
+    const run = () => {
+      const section = document.querySelector(
+        '[data-tour="billing-detail-statements-section"]'
+      ) as HTMLElement | null;
+      const table = document.querySelector(
+        '[data-tour="billing-detail-statements-table"]'
+      ) as HTMLElement | null;
+      (table || section)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      const targetSelector =
+        preferredAction === "finalize"
+          ? '[data-statement-finalize-cta="true"]'
+          : '[data-statement-send-cta="true"]';
+      const targetButtons = document.querySelectorAll(targetSelector);
+      const fallbackButtons =
+        preferredAction === "finalize"
+          ? document.querySelectorAll('[data-statement-send-cta="true"]')
+          : [];
+
+      let actionToHighlight: StatementActionType | null = null;
+      if (targetButtons.length > 0) {
+        actionToHighlight = preferredAction;
+      } else if (preferredAction === "finalize" && fallbackButtons.length > 0) {
+        actionToHighlight = "send";
+      }
+
+      if (actionToHighlight || attempts >= maxAttempts) {
+        if (actionToHighlight) {
+          setHighlightStatementAction(actionToHighlight);
+          if (!suppressStatementActionHint) {
+            setDontRemindStatementActionHint(false);
+            setStatementHintAction(actionToHighlight);
+            setShowStatementActionHint(true);
+          }
+          if (statementHighlightTimerRef.current) {
+            window.clearTimeout(statementHighlightTimerRef.current);
+          }
+          statementHighlightTimerRef.current = window.setTimeout(() => {
+            setHighlightStatementAction(null);
+          }, 8000);
+        } else {
+          setHighlightStatementAction(null);
+          setShowStatementActionHint(false);
+        }
+        return;
+      }
+
+      attempts += 1;
+      statementAttentionTimerRef.current = window.setTimeout(run, 250);
+    };
+
+    if (statementAttentionTimerRef.current) {
+      window.clearTimeout(statementAttentionTimerRef.current);
+    }
+    statementAttentionTimerRef.current = window.setTimeout(run, 180);
+  }, [activeSubSheet, suppressStatementActionHint]);
+
+  const focusStatementsForManualGeneration = useCallback(() => {
+    focusStatementsAndHighlightAction("finalize");
+  }, [focusStatementsAndHighlightAction]);
+
+  const focusStatementsForSend = useCallback(() => {
+    focusStatementsAndHighlightAction("send");
+  }, [focusStatementsAndHighlightAction]);
+
+  const clearStatementAttention = useCallback(() => {
+    setShowStatementActionHint(false);
+    setHighlightStatementAction(null);
+  }, []);
+
+  const statementHintTitle =
+    statementHintAction === "finalize"
+      ? "Statement created as draft"
+      : "Statement ready to send";
+  const statementHintDescription =
+    statementHintAction === "finalize"
+      ? 'Click the "Finalize" action first, then send it to the client.'
+      : 'Use the "Send" action to email it to the client.';
+
   const openSubSheet = useCallback((type: SubSheetType) => {
     setActiveSubSheet(type);
   }, []);
@@ -496,6 +639,10 @@ export default function BillingAccountSheetContent({
     updateStatement.mutate({
       id: statementId,
       updates: { status: "finalized" },
+    }, {
+      onSuccess: () => {
+        focusStatementsForSend();
+      },
     });
   }
 
@@ -1322,6 +1469,33 @@ export default function BillingAccountSheetContent({
         )}
       </CollapsibleTrigger>
       <CollapsibleContent>
+        {showStatementActionHint && (
+          <Alert className="mb-2 border-amber-200 bg-amber-50 text-amber-900 p-2.5">
+            <AlertTitle className="text-xs font-semibold">{statementHintTitle}</AlertTitle>
+            <AlertDescription className="text-xs text-amber-900">
+              {statementHintDescription}
+            </AlertDescription>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-[11px] text-amber-800">
+                <Checkbox
+                  checked={dontRemindStatementActionHint}
+                  onCheckedChange={(checked) =>
+                    setDontRemindStatementActionHint(checked === true)
+                  }
+                />
+                Don't remind me again
+              </label>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-[11px]"
+                onClick={dismissStatementActionHint}
+              >
+                Got it
+              </Button>
+            </div>
+          </Alert>
+        )}
         {statementsLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 2 }).map((_, i) => (
@@ -1408,8 +1582,16 @@ export default function BillingAccountSheetContent({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-5 px-1.5 text-[10px] text-blue-600 hover:text-blue-700"
-                                onClick={() => handleFinalizeStatement(s.id)}
+                                className={`h-5 px-1.5 text-[10px] text-blue-600 hover:text-blue-700 ${
+                                  highlightStatementAction === "finalize"
+                                    ? "ring-2 ring-amber-400 rounded-md bg-amber-50 animate-pulse"
+                                    : ""
+                                }`}
+                                data-statement-finalize-cta="true"
+                                onClick={() => {
+                                  clearStatementAttention();
+                                  handleFinalizeStatement(s.id);
+                                }}
                                 disabled={updateStatement.isPending}
                               >
                                 {updateStatement.isPending ? "..." : "Finalize"}
@@ -1426,8 +1608,16 @@ export default function BillingAccountSheetContent({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-5 px-1.5 text-[10px] text-green-600 hover:text-green-700"
-                                onClick={() => handleSendStatement(s)}
+                                className={`h-5 px-1.5 text-[10px] text-green-600 hover:text-green-700 ${
+                                  highlightStatementAction === "send"
+                                    ? "ring-2 ring-amber-400 rounded-md bg-amber-50 animate-pulse"
+                                    : ""
+                                }`}
+                                data-statement-send-cta="true"
+                                onClick={() => {
+                                  clearStatementAttention();
+                                  handleSendStatement(s);
+                                }}
                                 disabled={sendingStatementId === s.id}
                               >
                                 {sendingStatementId === s.id ? "Sending..." : "Send"}
@@ -1444,8 +1634,16 @@ export default function BillingAccountSheetContent({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-5 px-1.5 text-[10px] text-muted-foreground"
-                                onClick={() => handleSendStatement(s)}
+                                className={`h-5 px-1.5 text-[10px] text-muted-foreground ${
+                                  highlightStatementAction === "send"
+                                    ? "ring-2 ring-amber-400 rounded-md bg-amber-50 animate-pulse"
+                                    : ""
+                                }`}
+                                data-statement-send-cta="true"
+                                onClick={() => {
+                                  clearStatementAttention();
+                                  handleSendStatement(s);
+                                }}
                                 disabled={sendingStatementId === s.id}
                               >
                                 {sendingStatementId === s.id ? "..." : "Resend"}
@@ -1693,6 +1891,7 @@ export default function BillingAccountSheetContent({
             <GenerateStatementPanel
               accountId={accountId}
               onClose={closeSubSheet}
+              onGenerated={focusStatementsForManualGeneration}
             />
           </div>
         )}
@@ -1794,16 +1993,21 @@ export default function BillingAccountSheetContent({
             <AlertDialogTitle>Apply Monthly Interest</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
+                <Alert className="border-blue-200 bg-blue-50 text-blue-700">
+                  <Info size={16} className="text-blue-700" />
+                  <AlertTitle>Automated by default</AlertTitle>
+                  <AlertDescription className="text-xs text-blue-700">
+                    Interest application is already automated in billing operations. This manual action is a fallback for urgent retries or when a client reports missing charges.
+                  </AlertDescription>
+                </Alert>
                 {interestAlreadyApplied && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-start gap-2">
-                    <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
-                    <div>
-                      <p className="font-medium">Interest already applied for {currentCycle}</p>
-                      <p className="text-xs text-amber-600 mt-0.5">
-                        The system has already applied interest for this billing cycle. Running again will have no effect (idempotent).
-                      </p>
-                    </div>
-                  </div>
+                  <Alert className="border-amber-200 bg-amber-50 text-amber-800">
+                    <CheckCircle2 size={16} className="text-amber-700" />
+                    <AlertTitle>Interest already applied for {currentCycle}</AlertTitle>
+                    <AlertDescription className="text-xs text-amber-700">
+                      The system has already applied interest for this billing cycle. Running again will have no effect (idempotent).
+                    </AlertDescription>
+                  </Alert>
                 )}
 
                 <p>
@@ -1835,7 +2039,7 @@ export default function BillingAccountSheetContent({
                 )}
 
                 <p className="text-xs text-muted-foreground">
-                  A new interest line item will be added to the ledger. This action cannot be undone.
+                  Manual run is optional fallback only. A new interest line item will be added to the ledger and cannot be undone.
                 </p>
               </div>
             </AlertDialogDescription>
@@ -1861,6 +2065,13 @@ export default function BillingAccountSheetContent({
             <AlertDialogTitle>Send Billing Reminders</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
+                <Alert className="border-blue-200 bg-blue-50 text-blue-700">
+                  <Info size={16} className="text-blue-700" />
+                  <AlertTitle>Automated by default</AlertTitle>
+                  <AlertDescription className="text-xs text-blue-700">
+                    Reminder emails are already automated. Use this only as a manual fallback when a client says they did not receive the scheduled reminder.
+                  </AlertDescription>
+                </Alert>
                 <p>
                   This will send billing reminder emails to <strong className="text-foreground">all active accounts</strong> with outstanding balances.
                 </p>
@@ -1885,19 +2096,27 @@ export default function BillingAccountSheetContent({
                 </div>
 
                 {!recipientEmail && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    No email address is configured for this account or its client. The reminder will be logged as failed.
-                  </div>
+                  <Alert variant="destructive" className="border-red-200 bg-red-50 text-red-700">
+                    <XCircle size={16} className="text-red-700" />
+                    <AlertTitle>No recipient email configured</AlertTitle>
+                    <AlertDescription className="text-xs text-red-700">
+                      No email address is configured for this account or its client. The reminder will be logged as failed.
+                    </AlertDescription>
+                  </Alert>
                 )}
 
                 {balance <= 0 && (
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-                    This account has no outstanding balance. It will be skipped during the reminder process.
-                  </div>
+                  <Alert className="border-blue-200 bg-blue-50 text-blue-700">
+                    <Info size={16} className="text-blue-700" />
+                    <AlertTitle>Account will be skipped</AlertTitle>
+                    <AlertDescription className="text-xs text-blue-700">
+                      This account has no outstanding balance. It will be skipped during the reminder process.
+                    </AlertDescription>
+                  </Alert>
                 )}
 
                 <p className="text-xs text-muted-foreground">
-                  Emails will be sent to all qualifying accounts, not just this one. Delivery status will be logged in the Email History section.
+                  Manual run is a fallback and still targets all qualifying active accounts, not just this one. Delivery status is logged in Email History.
                 </p>
               </div>
             </AlertDialogDescription>
@@ -1927,8 +2146,15 @@ export default function BillingAccountSheetContent({
             <AlertDialogTitle>Auto-Generate Statements</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
+                <Alert className="border-blue-200 bg-blue-50 text-blue-700">
+                  <Info size={16} className="text-blue-700" />
+                  <AlertTitle>Automated by default</AlertTitle>
+                  <AlertDescription className="text-xs text-blue-700">
+                    Statement generation is already automated. Use this manual run only as a fallback when a client reports that their scheduled SOA was not received.
+                  </AlertDescription>
+                </Alert>
                 <p>
-                  This will automatically generate a Statement of Account for <strong className="text-foreground">all active accounts</strong> for the previous billing period, and email them to clients.
+                  This will generate a Statement of Account for <strong className="text-foreground">all active accounts</strong> for the previous billing period as finalized, ready to send.
                 </p>
 
                 <div className="rounded-lg border bg-muted/50 p-3 space-y-1.5 text-sm">
@@ -1946,7 +2172,7 @@ export default function BillingAccountSheetContent({
                   </div>
                   {recipientEmail && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Will email to</span>
+                      <span className="text-muted-foreground">Contact email on file</span>
                       <span className="font-medium text-foreground text-right truncate max-w-[200px]">
                         {recipientEmail}
                       </span>
@@ -1955,23 +2181,21 @@ export default function BillingAccountSheetContent({
                 </div>
 
                 {latestStatement && (
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 flex items-start gap-2">
-                    <Info size={16} className="mt-0.5 shrink-0" />
-                    <div>
-                      <p className="font-medium">Latest statement: {latestStatement.statement_number}</p>
-                      <p className="text-xs text-blue-600 mt-0.5">
+                  <Alert className="border-blue-200 bg-blue-50 text-blue-700">
+                    <Info size={16} className="text-blue-700" />
+                    <AlertTitle>Latest statement: {latestStatement.statement_number}</AlertTitle>
+                    <AlertDescription className="text-xs text-blue-700 space-y-1">
+                      <p>
                         Period: {format(new Date(latestStatement.period_start), "MMM d")} - {format(new Date(latestStatement.period_end), "MMM d, yyyy")}
                         {" "}({latestStatement.status})
                       </p>
-                      <p className="text-xs text-blue-600 mt-0.5">
-                        If a statement already exists for the next period, it will be skipped (idempotent).
-                      </p>
-                    </div>
-                  </div>
+                      <p>If a statement already exists for the next period, it will be skipped (idempotent).</p>
+                    </AlertDescription>
+                  </Alert>
                 )}
 
                 <p className="text-xs text-muted-foreground">
-                  Statements will be created as "finalized" and automatically emailed if the account has a valid email address. This runs for all active accounts.
+                  Manual run is fallback behavior. Statements are generated as "finalized" for all active accounts. Use the Statements table to send manually.
                 </p>
               </div>
             </AlertDialogDescription>
@@ -1983,12 +2207,22 @@ export default function BillingAccountSheetContent({
             <AlertDialogAction
               onClick={() => {
                 generateStatements.mutate(undefined, {
+                  onSuccess: (data: GenerateStatementsResponse) => {
+                    const generatedForThisAccount = data.results?.some(
+                      (result) =>
+                        result.account_id === accountId &&
+                        result.status === "generated"
+                    );
+                    if (generatedForThisAccount) {
+                      focusStatementsForSend();
+                    }
+                  },
                   onSettled: () => setShowGenerateSOAConfirm(false),
                 });
               }}
               disabled={generateStatements.isPending}
             >
-              {generateStatements.isPending ? "Generating..." : "Generate & Send SOA"}
+              {generateStatements.isPending ? "Generating..." : "Generate SOA"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

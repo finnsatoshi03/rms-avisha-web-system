@@ -17,6 +17,7 @@ import { BillingStatement } from "../../lib/billing-types";
 interface GenerateStatementPanelProps {
   accountId: string;
   onClose: () => void;
+  onGenerated?: () => void;
 }
 
 function toDateStr(d: Date): string {
@@ -70,6 +71,7 @@ function getAutoperiod(
 export default function GenerateStatementPanel({
   accountId,
   onClose,
+  onGenerated,
 }: GenerateStatementPanelProps) {
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
@@ -119,6 +121,7 @@ export default function GenerateStatementPanel({
       {
         onSuccess: () => {
           onClose();
+          onGenerated?.();
         },
       }
     );

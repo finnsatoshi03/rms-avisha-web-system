@@ -25,7 +25,6 @@ import {
 import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
 import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
 import GuidedTour from "../onboarding/guided-tour";
-import TourReplayButton from "../onboarding/tour-replay-button";
 
 const CUTOFF_DAYS = Array.from({ length: 28 }, (_, i) => i + 1);
 
@@ -33,12 +32,14 @@ interface BillingAccountFormSheetProps {
   accountId?: string;
   onClose: () => void;
   onSuccess: (accountId: string) => void;
+  onReplayReady?: (replay: (() => void) | null) => void;
 }
 
 export default function BillingAccountFormSheet({
   accountId,
   onClose,
   onSuccess,
+  onReplayReady,
 }: BillingAccountFormSheetProps) {
   const isEditMode = !!accountId;
 
@@ -69,6 +70,16 @@ export default function BillingAccountFormSheet({
     completeTour,
     replayTour,
   } = useFeatureOnboarding("billing_account_create");
+
+  useEffect(() => {
+    if (isEditMode) {
+      onReplayReady?.(null);
+      return;
+    }
+
+    onReplayReady?.(replayTour);
+    return () => onReplayReady?.(null);
+  }, [isEditMode, replayTour, onReplayReady]);
 
   useEffect(() => {
     if (isEditMode && existingAccount) {
@@ -135,13 +146,6 @@ export default function BillingAccountFormSheet({
 
   return (
     <form onSubmit={handleSubmit}>
-      {/* ── Tour replay ── */}
-      {!isEditMode && (
-        <div className="flex justify-end mb-1">
-          <TourReplayButton onClick={replayTour} label="How to create an account" />
-        </div>
-      )}
-
       {/* ── Top pills ─ same as JO form ──────────────────────────── */}
       <div className="flex flex-wrap gap-2 mb-2 items-center">
         <div className="px-3 py-1 bg-gray-200 rounded-full text-gray-600 text-xs w-fit flex items-center gap-1">

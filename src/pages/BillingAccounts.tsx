@@ -34,6 +34,7 @@ import { Separator } from "../components/ui/separator";
 import { useBillingAccounts } from "../components/billing/useBilling";
 import { useUser } from "../components/auth/useUser";
 import { BillingAccount, BillingAccountStatus } from "../lib/billing-types";
+import { Client } from "../lib/types";
 import { formatNumberWithCommas } from "../lib/helpers";
 import BillingAccountFormSheet from "../components/billing/billing-account-form";
 import BillingAccountSheetContent from "../components/billing/billing-account-sheet";
@@ -62,6 +63,7 @@ export default function BillingAccounts() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const [createTourReplay, setCreateTourReplay] = useState<(() => void) | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
     null
   );
@@ -78,6 +80,30 @@ export default function BillingAccounts() {
   } = useFeatureOnboarding("billing_accounts");
 
   // Mock data shown during tour when no real accounts exist
+  const mockCompanyClient: Client = {
+    id: 0,
+    name: "Sunshine Electronics Corp.",
+    contact_number: "+63 912 345 6789",
+    email: "billing@sunshine.com",
+    type: "company",
+    address: null,
+    notes: null,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  const mockIndividualClient: Client = {
+    id: 0,
+    name: "Juan dela Cruz",
+    contact_number: "+63 917 123 4567",
+    email: "juan@email.com",
+    type: "individual",
+    address: null,
+    notes: null,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
   const MOCK_ACCOUNTS: BillingAccount[] = [
     {
       id: "mock-1",
@@ -94,7 +120,7 @@ export default function BillingAccounts() {
       created_by: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      clients: { id: 0, name: "Sunshine Electronics Corp.", contact_number: "+63 912 345 6789", email: "billing@sunshine.com", type: "company", created_at: "", updated_at: "", is_active: true, address: null, notes: null } as any,
+      clients: mockCompanyClient,
     },
     {
       id: "mock-2",
@@ -111,7 +137,7 @@ export default function BillingAccounts() {
       created_by: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      clients: { id: 0, name: "Juan dela Cruz", contact_number: "+63 917 123 4567", email: "juan@email.com", type: "individual", created_at: "", updated_at: "", is_active: true, address: null, notes: null } as any,
+      clients: mockIndividualClient,
     },
   ];
 
@@ -173,6 +199,13 @@ export default function BillingAccounts() {
     setSelectedAccountId(null);
     navigate("/billing", { replace: true });
   }, [navigate]);
+
+  const handleCreateReplayReady = useCallback(
+    (replay: (() => void) | null) => {
+      setCreateTourReplay(() => replay);
+    },
+    []
+  );
 
   if (isLoading)
     return (
@@ -288,11 +321,10 @@ export default function BillingAccounts() {
               {displayAccounts.map((account) => (
                 <TableRow
                   key={account.id}
-                  className={`cursor-pointer transition-colors ${
-                    selectedAccountId === account.id
+                  className={`cursor-pointer transition-colors ${selectedAccountId === account.id
                       ? "bg-primary/5 hover:bg-primary/10"
                       : "hover:bg-gray-50"
-                  }`}
+                    }`}
                   onClick={() => !showMockData && handleOpenAccount(account.id)}
                 >
                   <TableCell className="font-mono text-sm">
@@ -334,13 +366,13 @@ export default function BillingAccounts() {
                   <TableCell className="text-sm text-gray-500">
                     {account.created_at
                       ? new Date(account.created_at).toLocaleDateString(
-                          "en-US",
-                          {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          }
-                        )
+                        "en-US",
+                        {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        }
+                      )
                       : "—"}
                   </TableCell>
                 </TableRow>
@@ -355,17 +387,36 @@ export default function BillingAccounts() {
       </p>
 
       {/* Create Account Sheet */}
-      <Sheet open={createSheetOpen} onOpenChange={setCreateSheetOpen}>
+      <Sheet
+        open={createSheetOpen}
+        onOpenChange={(open) => {
+          setCreateSheetOpen(open);
+          if (!open) setCreateTourReplay(null);
+        }}
+      >
         <SheetContent className="min-w-[50vw] overflow-y-auto">
           <SheetHeader>
-            <SheetTitle className="font-bold flex items-center gap-2">New Billing Account</SheetTitle>
+            <SheetTitle className="font-bold flex items-center gap-2">
+              <span>New Billing Account</span>
+              {createTourReplay && (
+                <TourReplayButton
+                  onClick={createTourReplay}
+                  label="How to create an account"
+                />
+              )}
+            </SheetTitle>
             <Separator className="my-2" />
             <BillingAccountFormSheet
-              onClose={() => setCreateSheetOpen(false)}
+              onClose={() => {
+                setCreateSheetOpen(false);
+                setCreateTourReplay(null);
+              }}
               onSuccess={(accountId) => {
                 setCreateSheetOpen(false);
+                setCreateTourReplay(null);
                 handleOpenAccount(accountId);
               }}
+              onReplayReady={handleCreateReplayReady}
             />
           </SheetHeader>
           <SheetDescription></SheetDescription>
