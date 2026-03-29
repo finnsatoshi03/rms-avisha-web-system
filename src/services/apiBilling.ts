@@ -82,6 +82,22 @@ export async function updateBillingAccount(
   return data;
 }
 
+export async function deleteBillingAccount(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("billing_accounts")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    if (error.code === "23503") {
+      throw new Error(
+        "Cannot delete this account because it has linked records (transactions, statements, or source documents). Suspend it instead."
+      );
+    }
+    throw new Error("Failed to delete billing account: " + error.message);
+  }
+}
+
 // ========================
 // Balance & Aging
 // ========================

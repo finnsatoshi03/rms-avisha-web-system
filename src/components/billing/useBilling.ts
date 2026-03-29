@@ -5,6 +5,7 @@ import {
   getBillingAccountByClientId,
   createBillingAccount,
   updateBillingAccount,
+  deleteBillingAccount,
   getBillingAccountBalance,
   getBillingAccountAging,
   getBillingLineItems,
@@ -155,6 +156,21 @@ export function useUpdateBillingAccount() {
       queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
       queryClient.invalidateQueries({ queryKey: ["billing_account", data.id] });
       toast.success("Billing account updated");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+export function useDeleteBillingAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteBillingAccount(id),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+      queryClient.removeQueries({ queryKey: ["billing_account", id] });
+      toast.success("Billing account deleted");
     },
     onError: (error: Error) => {
       toast.error(error.message);

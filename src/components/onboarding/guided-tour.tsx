@@ -22,6 +22,115 @@ function simulateTyping(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
+function simulatePress(target: HTMLElement) {
+  target.focus();
+
+  const mouseEventInit: MouseEventInit = {
+    bubbles: true,
+    cancelable: true,
+    button: 0,
+    buttons: 1,
+    detail: 1,
+  };
+
+  if (typeof PointerEvent !== "undefined") {
+    target.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        ...mouseEventInit,
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+      })
+    );
+  }
+
+  target.dispatchEvent(new MouseEvent("mousedown", mouseEventInit));
+
+  if (typeof PointerEvent !== "undefined") {
+    target.dispatchEvent(
+      new PointerEvent("pointerup", {
+        ...mouseEventInit,
+        buttons: 0,
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+      })
+    );
+  }
+
+  target.dispatchEvent(
+    new MouseEvent("mouseup", {
+      ...mouseEventInit,
+      buttons: 0,
+    })
+  );
+  target.dispatchEvent(new MouseEvent("click", mouseEventInit));
+}
+
+function triggerTourStepAction(trigger: HTMLElement) {
+  const popupType = trigger.getAttribute("aria-haspopup");
+
+  // Radix dropdown menus rely on pointer interactions.
+  if (popupType === "menu") {
+    simulatePress(trigger);
+    return;
+  }
+
+  trigger.click();
+}
+
+function closeTourTransientUI(trigger?: HTMLElement | null) {
+  const subSheetBack = document.querySelector(
+    '[data-tour="billing-detail-subsheet-back"]'
+  ) as HTMLElement | null;
+  if (subSheetBack) {
+    subSheetBack.click();
+    return;
+  }
+
+  const alertCancel = document.querySelector(
+    "[data-radix-alert-dialog-cancel]"
+  ) as HTMLElement | null;
+  if (alertCancel) {
+    alertCancel.click();
+    return;
+  }
+
+  const openAlertDialog = document.querySelector(
+    '[role="alertdialog"]'
+  ) as HTMLElement | null;
+  if (openAlertDialog) {
+    const explicitCancel = openAlertDialog.querySelector(
+      "[data-radix-alert-dialog-cancel]"
+    ) as HTMLElement | null;
+    if (explicitCancel) {
+      explicitCancel.click();
+      return;
+    }
+
+    const fallbackCancel = Array.from(
+      openAlertDialog.querySelectorAll("button")
+    ).find((button) => {
+      if ((button as HTMLButtonElement).disabled) return false;
+      const label = button.textContent?.trim().toLowerCase() ?? "";
+      return label === "cancel" || label === "close";
+    }) as HTMLButtonElement | undefined;
+
+    if (fallbackCancel) {
+      fallbackCancel.click();
+      return;
+    }
+  }
+
+  if (!trigger || !document.contains(trigger)) return;
+
+  const expanded = trigger.getAttribute("aria-expanded");
+  const hasPopup = trigger.hasAttribute("aria-haspopup");
+  if (expanded === "true" || hasPopup) {
+    triggerTourStepAction(trigger);
+  }
+}
+
 export default function GuidedTour({
   featureKey,
   active,
@@ -46,7 +155,6 @@ export default function GuidedTour({
 
   const tourActiveRef = useRef(false);
   tourActiveRef.current = active;
-  const allowEscapeRef = useRef(false);
 
   // Block Escape key and outside clicks/pointerdown from dismissing popovers/dialogs while tour is active
   useEffect(() => {
@@ -54,11 +162,6 @@ export default function GuidedTour({
 
     const blockEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        // Allow intentional cleanup escapes through
-        if (allowEscapeRef.current) {
-          allowEscapeRef.current = false;
-          return;
-        }
         e.stopPropagation();
         e.preventDefault();
       }
@@ -66,6 +169,8 @@ export default function GuidedTour({
 
     // Block pointer events that could dismiss popovers (outside click detection)
     const blockPointerDown = (e: PointerEvent | MouseEvent) => {
+      // Allow programmatic interactions used by the tour itself.
+      if (!e.isTrusted) return;
       const target = e.target as HTMLElement;
       // Allow clicks inside the tour tooltip
       if (target.closest(".tour-tooltip")) return;
@@ -88,14 +193,9 @@ export default function GuidedTour({
 
   useEffect(() => {
     if (!active || !tour) return;
-    const valid = tour.steps.filter((step) => {
-      const hasTarget = document.querySelector(step.target) !== null;
-      const hasClickBefore = step.clickBefore
-        ? document.querySelector(step.clickBefore) !== null
-        : false;
-      return hasTarget || hasClickBefore;
-    });
-    setValidSteps(valid);
+    // Keep the full definition and let runtime step resolution/skip logic
+    // handle elements that appear later (dialogs, collapsibles, async content).
+    setValidSteps(tour.steps);
     setCurrentStep(0);
     setStepReady(false);
   }, [active, tour]);
@@ -157,31 +257,7 @@ export default function GuidedTour({
       if (alreadyOpen) {
         // Popover already open — just set up cleanup and find the target
         const trigger = document.querySelector(step.clickBefore) as HTMLElement;
-        cleanupRef.current = () => {
-          const subSheetBack = document.querySelector(
-            '[data-tour="billing-detail-subsheet-back"]'
-          ) as HTMLElement | null;
-          if (subSheetBack) {
-            subSheetBack.click();
-            return;
-          }
-
-          const alertCancel = document.querySelector(
-            "[data-radix-alert-dialog-cancel]"
-          ) as HTMLElement | null;
-          if (alertCancel) {
-            alertCancel.click();
-            return;
-          }
-
-          allowEscapeRef.current = true;
-          const tempEscape = new KeyboardEvent("keydown", {
-            key: "Escape",
-            bubbles: false,
-            cancelable: true,
-          });
-          (document.activeElement || trigger || document.body).dispatchEvent(tempEscape);
-        };
+        cleanupRef.current = () => closeTourTransientUI(trigger);
         // Clear any typed value from previous step
         if (step.typeInto) {
           const input = document.querySelector(step.typeInto.selector) as HTMLInputElement;
@@ -208,32 +284,8 @@ export default function GuidedTour({
         // Need to open the popover
         const trigger = document.querySelector(step.clickBefore) as HTMLElement;
         if (trigger) {
-          trigger.click();
-          cleanupRef.current = () => {
-            const subSheetBack = document.querySelector(
-              '[data-tour="billing-detail-subsheet-back"]'
-            ) as HTMLElement | null;
-            if (subSheetBack) {
-              subSheetBack.click();
-              return;
-            }
-
-            const alertCancel = document.querySelector(
-              "[data-radix-alert-dialog-cancel]"
-            ) as HTMLElement | null;
-            if (alertCancel) {
-              alertCancel.click();
-              return;
-            }
-
-            allowEscapeRef.current = true;
-            const tempEscape = new KeyboardEvent("keydown", {
-              key: "Escape",
-              bubbles: false,
-              cancelable: true,
-            });
-            (document.activeElement || trigger).dispatchEvent(tempEscape);
-          };
+          triggerTourStepAction(trigger);
+          cleanupRef.current = () => closeTourTransientUI(trigger);
         }
 
         const afterClick = () => {
@@ -308,6 +360,10 @@ export default function GuidedTour({
     if (currentStep < validSteps.length - 1) {
       const currentStepDef = validSteps[currentStep];
       const nextStep = validSteps[currentStep + 1];
+      if (currentStepDef?.skipCleanupOnAdvance) {
+        setCurrentStep((prev) => prev + 1);
+        return;
+      }
       // If both steps use the same clickBefore trigger, keep the popover open — don't cleanup
       if (currentStepDef?.clickBefore && nextStep?.clickBefore && currentStepDef.clickBefore === nextStep.clickBefore) {
         // Clear cleanup so the step effect doesn't re-click the same trigger

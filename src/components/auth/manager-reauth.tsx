@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Button } from "../ui/button";
-
-const FIXED_PASSWORD = "rmlacap09";
+import { isManagerReauthPasswordValid } from "./manager-auth";
 
 export default function ManagerReAuth() {
   const [password, setPassword] = useState("");
@@ -14,7 +13,7 @@ export default function ManagerReAuth() {
     e.preventDefault();
     setIsLoading(true);
 
-    if (password === FIXED_PASSWORD) {
+    if (isManagerReauthPasswordValid(password)) {
       localStorage.setItem("managerReAuthenticated", "true");
       navigate("/dashboard/job-order");
     } else {

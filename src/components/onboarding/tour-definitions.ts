@@ -6,6 +6,7 @@ export type TourStep = {
   clickBefore?: string; // CSS selector to click before showing this step
   typeInto?: { selector: string; value: string }; // simulate typing into an input
   waitMs?: number; // ms to wait after actions for DOM to update
+  skipCleanupOnAdvance?: boolean; // keep temporary UI state when going to next step
 };
 
 export type TourDefinition = {
@@ -254,6 +255,22 @@ const tours: Record<string, TourDefinition> = {
         placement: "bottom",
       },
       {
+        target: '[data-tour="billing-detail-more-actions"]',
+        title: "More account actions",
+        content:
+          "Important account controls like Suspend/Activate and Delete are kept under this menu to keep the main action area focused on daily billing work.",
+        placement: "left",
+      },
+      {
+        target: '[data-tour="billing-detail-more-actions-menu"]',
+        title: "Suspend or delete account",
+        content:
+          "Open this menu when you need account-level controls. Suspend/Activate toggles account status, while Delete permanently removes the account and requires manager password confirmation.",
+        placement: "left",
+        clickBefore: '[data-tour="billing-detail-more-actions"]',
+        waitMs: 250,
+      },
+      {
         target: '[data-tour="billing-detail-balance"]',
         title: "Balance & aging",
         content:
@@ -379,6 +396,7 @@ const tours: Record<string, TourDefinition> = {
         placement: "bottom",
         clickBefore: '[data-tour="billing-detail-jo-section"]',
         waitMs: 300,
+        skipCleanupOnAdvance: true,
       },
       {
         target: '[data-tour="billing-detail-rental-section"]',
@@ -395,6 +413,7 @@ const tours: Record<string, TourDefinition> = {
         placement: "bottom",
         clickBefore: '[data-tour="billing-detail-rental-section"]',
         waitMs: 300,
+        skipCleanupOnAdvance: true,
       },
       {
         target: '[data-tour="billing-detail-payments-section"]',
@@ -411,6 +430,7 @@ const tours: Record<string, TourDefinition> = {
         placement: "bottom",
         clickBefore: '[data-tour="billing-detail-payments-section"]',
         waitMs: 300,
+        skipCleanupOnAdvance: true,
       },
       {
         target: '[data-tour="billing-detail-statements-section"]',
@@ -427,6 +447,7 @@ const tours: Record<string, TourDefinition> = {
         placement: "bottom",
         clickBefore: '[data-tour="billing-detail-statements-section"]',
         waitMs: 300,
+        skipCleanupOnAdvance: true,
       },
       {
         target: '[data-tour="billing-detail-interest-logs"]',
@@ -443,6 +464,7 @@ const tours: Record<string, TourDefinition> = {
         placement: "bottom",
         clickBefore: '[data-tour="billing-detail-interest-logs"]',
         waitMs: 300,
+        skipCleanupOnAdvance: true,
       },
       {
         target: '[data-tour="billing-detail-email-logs"]',
@@ -459,6 +481,7 @@ const tours: Record<string, TourDefinition> = {
         placement: "bottom",
         clickBefore: '[data-tour="billing-detail-email-logs"]',
         waitMs: 300,
+        skipCleanupOnAdvance: true,
       },
       {
         target: '[data-tour="billing-detail-dialog-payment"]',

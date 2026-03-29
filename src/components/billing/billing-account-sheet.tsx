@@ -21,12 +21,17 @@ import {
   CheckCircle2,
   XCircle,
   Download,
+  MoreHorizontal,
+  Ban,
+  Trash2,
 } from "lucide-react";
 import { pdf } from "@react-pdf/renderer";
 
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Checkbox } from "../ui/checkbox";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import {
   Table,
@@ -59,6 +64,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 import {
   useBillingAccount,
@@ -69,6 +81,8 @@ import {
   useBillingPayments,
   useBillingStatements,
   useApplyAccountInterest,
+  useUpdateBillingAccount,
+  useDeleteBillingAccount,
   useUpdateBillingStatement,
   useBillingInterestLogs,
   useEmailLogs,
@@ -78,9 +92,11 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../services/supabase";
 import { useUser } from "../auth/useUser";
+import { isManagerReauthPasswordValid } from "../auth/manager-auth";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import {
   BillingAccount,
+  BillingAccountStatus,
   LedgerEntry,
   BillingLineItem,
   BillingPayment,
@@ -202,7 +218,7 @@ export default function BillingAccountSheetContent({
   accountId,
   onClose,
 }: BillingAccountSheetContentProps) {
-  const { isDev, isAdmin } = useUser();
+  const { isDev, isAdmin, isManager } = useUser();
   const queryClient = useQueryClient();
 
   const [activeSubSheet, setActiveSubSheet] = useState<SubSheetType>(null);
@@ -255,6 +271,8 @@ export default function BillingAccountSheetContent({
 
   // Mutations
   const applyInterest = useApplyAccountInterest();
+  const updateAccount = useUpdateBillingAccount();
+  const deleteAccount = useDeleteBillingAccount();
   const updateStatement = useUpdateBillingStatement();
   const sendReminders = useTriggerSendBillingReminders();
   const generateStatements = useTriggerGenerateStatements();
@@ -275,6 +293,11 @@ export default function BillingAccountSheetContent({
   const [jobOrdersOpen, setJobOrdersOpen] = useState(false);
   const [rentalsOpen, setRentalsOpen] = useState(false);
   const [showInterestConfirm, setShowInterestConfirm] = useState(false);
+  const [showStatusConfirm, setShowStatusConfirm] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<BillingAccountStatus | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteAuthPassword, setDeleteAuthPassword] = useState("");
+  const [deleteAuthError, setDeleteAuthError] = useState<string | null>(null);
   const [showRemindersConfirm, setShowRemindersConfirm] = useState(false);
   const [showGenerateSOAConfirm, setShowGenerateSOAConfirm] = useState(false);
   const [interestLogsOpen, setInterestLogsOpen] = useState(false);
@@ -603,6 +626,57 @@ export default function BillingAccountSheetContent({
     });
   }
 
+  function handleRequestStatusChange() {
+    if (!acct) return;
+
+    if (acct.status === "closed") {
+      toast.error("Closed accounts cannot be suspended or reactivated.");
+      return;
+    }
+
+    const nextStatus: BillingAccountStatus =
+      acct.status === "active" ? "suspended" : "active";
+    setPendingStatus(nextStatus);
+    setShowStatusConfirm(true);
+  }
+
+  function confirmStatusChange() {
+    if (!pendingStatus) return;
+
+    updateAccount.mutate(
+      {
+        id: accountId,
+        updates: { status: pendingStatus },
+      },
+      {
+        onSettled: () => {
+          setShowStatusConfirm(false);
+          setPendingStatus(null);
+        },
+      }
+    );
+  }
+
+  function openDeleteDialog() {
+    setDeleteAuthPassword("");
+    setDeleteAuthError(null);
+    setShowDeleteConfirm(true);
+  }
+
+  function confirmDeleteAccount() {
+    if (!isManagerReauthPasswordValid(deleteAuthPassword)) {
+      setDeleteAuthError("Incorrect manager password.");
+      return;
+    }
+
+    deleteAccount.mutate(accountId, {
+      onSuccess: () => {
+        setShowDeleteConfirm(false);
+        onClose();
+      },
+    });
+  }
+
   async function handleDownloadStatementPDF(statement: BillingStatement) {
     if (!acct || downloadingStatementId) return;
     setDownloadingStatementId(statement.id);
@@ -748,6 +822,10 @@ export default function BillingAccountSheetContent({
   const contactEmail =
     acct.billing_contact_email || acct.clients?.email;
   const contactName = acct.billing_contact_name;
+  const canManageAccount = isDev || isAdmin || isManager;
+  const statusActionLabel = acct.status === "active" ? "Suspend" : "Activate";
+  const statusActionTargetLabel =
+    pendingStatus === "suspended" ? "Suspend" : "Activate";
 
   const isCompressed = activeSubSheet !== null;
   const shouldStack = isNarrow && isCompressed;
@@ -756,45 +834,91 @@ export default function BillingAccountSheetContent({
 
   const headerSection = (
     <div className="space-y-3" data-tour="billing-detail-header">
-      {/* Account number + status row */}
+      {/* Account number + tour row */}
       <div className="flex items-center gap-2">
         <span className="font-mono text-sm font-semibold">
           {acct.account_number}
         </span>
         <TourReplayButton onClick={replayDetailTour} label="Account tour" />
-        <Badge
-          variant="outline"
-          className={`text-xs capitalize ${statusVariant[acct.status] ?? ""}`}
-        >
-          {acct.status}
-        </Badge>
       </div>
 
-      {/* Client name + type */}
-      <div>
-        <h2 className="text-xl font-bold tracking-tight leading-tight">
-          {acct.clients?.name ?? "Unknown Client"}
-        </h2>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
-          {acct.clients?.type && (
-            <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full capitalize">
-              {acct.clients.type}
-            </span>
-          )}
-          {contactPhone && (
-            <span className="text-xs text-gray-500 flex items-center gap-1">
-              <Phone size={10} /> {contactPhone}
-            </span>
-          )}
-          {contactEmail && !isCompressed && (
-            <span className="text-xs text-gray-500 flex items-center gap-1">
-              <Mail size={10} /> {contactEmail}
-            </span>
-          )}
-          {contactName && !isCompressed && (
-            <span className="text-xs text-gray-500 flex items-center gap-1">
-              <User size={10} /> {contactName}
-            </span>
+      {/* Account details + status/actions */}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight leading-tight">
+            {acct.clients?.name ?? "Unknown Client"}
+          </h2>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
+            {acct.clients?.type && (
+              <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full capitalize">
+                {acct.clients.type}
+              </span>
+            )}
+            {contactPhone && (
+              <span className="text-xs text-gray-500 flex items-center gap-1">
+                <Phone size={10} /> {contactPhone}
+              </span>
+            )}
+            {contactEmail && !isCompressed && (
+              <span className="text-xs text-gray-500 flex items-center gap-1">
+                <Mail size={10} /> {contactEmail}
+              </span>
+            )}
+            {contactName && !isCompressed && (
+              <span className="text-xs text-gray-500 flex items-center gap-1">
+                <User size={10} /> {contactName}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Badge
+            variant="outline"
+            className={`text-xs capitalize ${statusVariant[acct.status] ?? ""}`}
+          >
+            {acct.status}
+          </Badge>
+          {canManageAccount && (
+            <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 p-0"
+                aria-label="More account actions"
+                data-tour="billing-detail-more-actions"
+              >
+                <MoreHorizontal size={16} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="min-w-[170px]"
+              data-tour="billing-detail-more-actions-menu"
+            >
+              <DropdownMenuItem
+                onClick={handleRequestStatusChange}
+                disabled={updateAccount.isPending || acct.status === "closed"}
+                className="gap-2"
+                data-tour="billing-detail-more-actions-status"
+              >
+                <Ban size={14} />
+                {updateAccount.isPending
+                  ? "Saving..."
+                  : `${statusActionLabel} Account`}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={openDeleteDialog}
+                disabled={deleteAccount.isPending}
+                className="gap-2 text-red-600 focus:text-red-600"
+                data-tour="billing-detail-more-actions-delete"
+              >
+                <Trash2 size={14} />
+                {deleteAccount.isPending ? "Deleting..." : "Delete Account"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
@@ -1985,6 +2109,123 @@ export default function BillingAccountSheetContent({
           </div>
         )}
       </div>
+
+      {/* Suspend/Activate Confirmation Dialog */}
+      <AlertDialog
+        open={showStatusConfirm}
+        onOpenChange={(open) => {
+          setShowStatusConfirm(open);
+          if (!open) {
+            setPendingStatus(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {statusActionTargetLabel} Billing Account
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  {pendingStatus === "suspended"
+                    ? "This account will no longer be eligible for reminder emails and automated statement generation while suspended."
+                    : "This account will be marked as active and included again in automated billing runs."}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Account: <span className="font-medium text-foreground">{acct.account_number}</span>
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowStatusConfirm(false);
+                setPendingStatus(null);
+              }}
+              disabled={updateAccount.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmStatusChange}
+              disabled={updateAccount.isPending || !pendingStatus}
+            >
+              {updateAccount.isPending
+                ? "Saving..."
+                : `${statusActionTargetLabel} Account`}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={showDeleteConfirm}
+        onOpenChange={(open) => {
+          setShowDeleteConfirm(open);
+          if (!open) {
+            setDeleteAuthPassword("");
+            setDeleteAuthError(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Billing Account</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This action is permanent. Enter manager re-authentication password to continue.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Account: <span className="font-medium text-foreground">{acct.account_number}</span>
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="billing-delete-auth-password">
+              Manager Password
+            </Label>
+            <Input
+              id="billing-delete-auth-password"
+              type="password"
+              value={deleteAuthPassword}
+              onChange={(event) => {
+                setDeleteAuthPassword(event.target.value);
+                if (deleteAuthError) {
+                  setDeleteAuthError(null);
+                }
+              }}
+              placeholder="Enter manager password"
+            />
+            {deleteAuthError && (
+              <p className="text-xs text-red-600">{deleteAuthError}</p>
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleteAccount.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteAccount}
+              disabled={deleteAccount.isPending}
+            >
+              {deleteAccount.isPending ? "Deleting..." : "Delete Account"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Apply Interest Confirmation Dialog */}
       <AlertDialog open={showInterestConfirm} onOpenChange={setShowInterestConfirm}>
