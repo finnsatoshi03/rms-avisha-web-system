@@ -12,6 +12,7 @@ import {
 import { getStatusClass, formatNumberWithCommas } from "../../lib/helpers";
 import { format } from "date-fns";
 import DiscountDialog from "../job-order/discount-option-dialog";
+import RentalBillingSection from "../billing/rental-billing-section";
 import { useDownpayment } from "../job-order/useDownpayment";
 import { useRentalStatusUpdate } from "./useRentalStatusUpdate";
 import { useUpdateRental } from "./useUpdateRental";
@@ -845,6 +846,9 @@ export default function RentalDetailSheet({
               setDiscountDialogOpen(false);
             }}
           />
+
+          {/* Billing */}
+          {rental && <RentalBillingSection rental={rental} />}
 
           {/* Inspection */}
           {inspection && (

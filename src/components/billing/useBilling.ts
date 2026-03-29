@@ -14,11 +14,13 @@ import {
   generateBillingStatement,
   updateBillingStatement,
   transferJobOrderToBilling,
+  transferRentalToBilling,
   applyAccountInterest,
   applyMonthlyInterest,
   getBillingDashboardSummary,
   getBillingLedger,
   getEligibleJobOrders,
+  getEligibleRentals,
   getBillingInterestLogs,
   getEmailLogs,
   triggerSendBillingReminders,
@@ -111,6 +113,14 @@ export function useEligibleJobOrders(clientId: number | undefined) {
   });
 }
 
+export function useEligibleRentals(clientId: number | undefined) {
+  return useQuery({
+    queryKey: ["eligible_rentals_for_billing", clientId],
+    queryFn: () => getEligibleRentals(clientId!),
+    enabled: !!clientId,
+  });
+}
+
 export function useBillingDashboardSummary(branchId?: number) {
   return useQuery({
     queryKey: ["billing_dashboard_summary", branchId],
@@ -185,6 +195,34 @@ export function useTransferJobOrderToBilling() {
       queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
       queryClient.invalidateQueries({ queryKey: ["eligible_jos_for_billing"] });
       queryClient.invalidateQueries({ queryKey: ["job_order"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_dashboard_summary"] });
+
+      if (data?.warnings?.length > 0) {
+        data.warnings.forEach((w: { message: string }) => {
+          toast(w.message, { icon: "⚠️", duration: 5000 });
+        });
+      }
+      toast.success(`Transferred ₱${Number(data.amount_transferred).toLocaleString()} to billing`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+export function useTransferRentalToBilling() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ rentalId, accountId }: { rentalId: number; accountId: string }) =>
+      transferRentalToBilling(rentalId, accountId),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["billing_line_items", variables.accountId] });
+      queryClient.invalidateQueries({ queryKey: ["billing_balance", variables.accountId] });
+      queryClient.invalidateQueries({ queryKey: ["billing_aging", variables.accountId] });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger", variables.accountId] });
+      queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["eligible_rentals_for_billing"] });
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
       queryClient.invalidateQueries({ queryKey: ["billing_dashboard_summary"] });
 
       if (data?.warnings?.length > 0) {

@@ -29,6 +29,7 @@ export type BillingLineItem = {
   id: string;
   billing_account_id: string;
   job_order_id: number | null;
+  rental_id: number | null;
   branch_id: number;
   type: BillingLineItemType;
   description: string;
@@ -40,6 +41,7 @@ export type BillingLineItem = {
   // Joined
   branches?: { id: number; name: string; prefix: string };
   joborders?: { id: number; order_no: string; status: string };
+  rentals?: { id: number; rental_no: string; status: string };
   paid_amount?: number;
 };
 

@@ -295,6 +295,25 @@ export default function AppSidebar({
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Billing">
+                    <NavLink
+                      to="billing"
+                      onClick={handleNavClick}
+                      className={({ isActive }) =>
+                        cn(
+                          "w-full",
+                          isActive &&
+                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                        )
+                      }
+                    >
+                      <ReceiptText size={20} />
+                      <span>Billing</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
                   <Collapsible
                     open={isInventoryOpen}
                     onOpenChange={setIsInventoryOpen}
@@ -393,24 +412,7 @@ export default function AppSidebar({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Billing">
-                    <NavLink
-                      to="billing"
-                      onClick={handleNavClick}
-                      className={({ isActive }) =>
-                        cn(
-                          "w-full",
-                          isActive &&
-                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                        )
-                      }
-                    >
-                      <ReceiptText size={20} />
-                      <span>Billing</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+
 
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Technicians">

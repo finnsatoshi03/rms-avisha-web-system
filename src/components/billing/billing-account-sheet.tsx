@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
 import {
@@ -90,6 +90,7 @@ import {
 
 import RecordPaymentPanel from "./record-payment-panel";
 import AttachJobOrderPanel from "./attach-job-order-panel";
+import AttachRentalPanel from "./attach-rental-panel";
 import GenerateStatementPanel from "./generate-statement-panel";
 import BillingAccountFormSheet from "./billing-account-form";
 import BillingStatementPDF, { BillingStatementPDFData } from "./billing-statement-pdf";
@@ -169,7 +170,7 @@ function HelpTip({ text }: { text: string }) {
 
 // ─── Sub-sheet types ────────────────────────────────────────────────────────
 
-type SubSheetType = "payment" | "attach-jo" | "statement" | "edit" | null;
+type SubSheetType = "payment" | "attach-jo" | "attach-rental" | "statement" | "edit" | null;
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -242,11 +243,13 @@ export default function BillingAccountSheetContent({
   const [statementsOpen, setStatementsOpen] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [jobOrdersOpen, setJobOrdersOpen] = useState(false);
+  const [rentalsOpen, setRentalsOpen] = useState(false);
   const [showInterestConfirm, setShowInterestConfirm] = useState(false);
   const [showRemindersConfirm, setShowRemindersConfirm] = useState(false);
   const [showGenerateSOAConfirm, setShowGenerateSOAConfirm] = useState(false);
   const [interestLogsOpen, setInterestLogsOpen] = useState(false);
   const [emailLogsOpen, setEmailLogsOpen] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<"all" | "job_order" | "rental">("all");
   const [sendingStatementId, setSendingStatementId] = useState<string | null>(null);
   const [downloadingStatementId, setDownloadingStatementId] = useState<string | null>(null);
 
@@ -264,6 +267,9 @@ export default function BillingAccountSheetContent({
   const allLineItems = (lineItems ?? []) as BillingLineItem[];
   const joLineItems = allLineItems.filter(
     (li) => li.type === "charge" && li.job_order_id != null
+  );
+  const rentalLineItems = allLineItems.filter(
+    (li) => li.type === "charge" && li.rental_id != null
   );
 
   // Interest breakdown for balance summary
@@ -692,6 +698,19 @@ export default function BillingAccountSheetContent({
       <Button
         size="sm"
         className="gap-1.5 h-8 text-xs"
+        variant={activeSubSheet === "attach-rental" ? "default" : "outline"}
+        onClick={() =>
+          activeSubSheet === "attach-rental"
+            ? closeSubSheet()
+            : openSubSheet("attach-rental")
+        }
+      >
+        <Plus size={13} />
+        Attach Rental
+      </Button>
+      <Button
+        size="sm"
+        className="gap-1.5 h-8 text-xs"
         variant={activeSubSheet === "statement" ? "default" : "outline"}
         onClick={() =>
           activeSubSheet === "statement"
@@ -758,13 +777,40 @@ export default function BillingAccountSheetContent({
 
   // ─── Ledger table ─────────────────────────────────────────────────────────
 
+  const filteredLedger = useMemo(() => {
+    if (!ledger || sourceFilter === "all") return ledger as LedgerEntry[] | undefined;
+    return (ledger as LedgerEntry[]).filter((entry) => {
+      if (entry.source === "payment") return true; // always show payments
+      if (entry.type === "interest" || entry.type === "adjustment" || entry.type === "credit") return true;
+      // For charges, check the description prefix
+      if (sourceFilter === "rental") return entry.description.startsWith("Rental ");
+      if (sourceFilter === "job_order") return entry.description.startsWith("JO ");
+      return true;
+    });
+  }, [ledger, sourceFilter]);
+
   const ledgerSection = (
     <div>
-      <div className="flex items-center gap-1 mb-2">
-        <h3 className="text-xs font-bold opacity-40 uppercase tracking-wider">
-          Transaction Ledger
-        </h3>
-        <HelpTip text="Complete history of all charges, payments, and adjustments on this account. Debit = amount owed, Credit = amount paid." />
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1">
+          <h3 className="text-xs font-bold opacity-40 uppercase tracking-wider">
+            Transaction Ledger
+          </h3>
+          <HelpTip text="Complete history of all charges, payments, and adjustments on this account. Debit = amount owed, Credit = amount paid." />
+        </div>
+        <div className="flex gap-1">
+          {(["all", "job_order", "rental"] as const).map((f) => (
+            <Button
+              key={f}
+              variant={sourceFilter === f ? "default" : "ghost"}
+              size="sm"
+              className="h-6 text-[10px] px-2"
+              onClick={() => setSourceFilter(f)}
+            >
+              {f === "all" ? "All" : f === "job_order" ? "Job Orders" : "Rentals"}
+            </Button>
+          ))}
+        </div>
       </div>
       {ledgerLoading ? (
         <div className="space-y-2">
@@ -772,10 +818,10 @@ export default function BillingAccountSheetContent({
             <Skeleton key={i} className="h-8 w-full" />
           ))}
         </div>
-      ) : !ledger || (ledger as LedgerEntry[]).length === 0 ? (
+      ) : !filteredLedger || filteredLedger.length === 0 ? (
         <div className="flex flex-col items-center py-10 text-gray-400">
           <CreditCard size={32} strokeWidth={1} className="mb-2 opacity-40" />
-          <p className="text-xs">No transactions yet.</p>
+          <p className="text-xs">{sourceFilter !== "all" ? "No matching transactions." : "No transactions yet."}</p>
         </div>
       ) : (
         <div className="border rounded-lg overflow-auto max-h-[400px]">
@@ -824,7 +870,7 @@ export default function BillingAccountSheetContent({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(ledger as LedgerEntry[]).map((entry) => (
+              {filteredLedger.map((entry) => (
                 <TableRow key={entry.id}>
                   <TableCell className="text-xs whitespace-nowrap py-1.5">
                     {format(new Date(entry.date), "MMM d")}
@@ -840,7 +886,7 @@ export default function BillingAccountSheetContent({
                         </Badge>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="text-xs">
-                        {entry.type === "charge" && "Charge from a job order or service"}
+                        {entry.type === "charge" && "Charge from a job order or rental"}
                         {entry.type === "payment" && "Payment received from client"}
                         {entry.type === "interest" && "Monthly interest on overdue balance"}
                         {entry.type === "adjustment" && "Manual balance adjustment"}
@@ -919,6 +965,93 @@ export default function BillingAccountSheetContent({
                     <TableRow key={li.id}>
                       <TableCell className="text-xs font-mono py-1.5">
                         {li.joborders?.order_no ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs py-1.5">
+                        {li.branches?.name ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-right tabular-nums py-1.5">
+                        {amt(li.amount)}
+                      </TableCell>
+                      <TableCell className="text-xs text-right tabular-nums py-1.5">
+                        {amt(paid)}
+                      </TableCell>
+                      <TableCell className="py-1.5">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] px-1.5 py-0 ${
+                            fullyPaid
+                              ? "bg-green-100 text-green-700 border-green-200"
+                              : paid > 0
+                                ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                                : "bg-red-100 text-red-700 border-red-200"
+                          }`}
+                        >
+                          {fullyPaid
+                            ? "Paid"
+                            : paid > 0
+                              ? "Partial"
+                              : "Unpaid"}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
+  const rentalsSection = (
+    <Collapsible open={rentalsOpen} onOpenChange={setRentalsOpen}>
+      <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs font-bold opacity-50 uppercase tracking-wider hover:opacity-80 transition-opacity">
+        <span className="flex items-center gap-1.5">
+          <Receipt size={13} />
+          Attached Rentals ({rentalLineItems.length})
+        </span>
+        {rentalsOpen ? (
+          <ChevronDown size={14} />
+        ) : (
+          <ChevronRight size={14} />
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        {rentalLineItems.length === 0 ? (
+          <p className="text-xs text-gray-400 py-4 text-center">
+            No rentals attached.
+          </p>
+        ) : (
+          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="text-[11px] font-semibold">
+                    Rental #
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    Branch
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold text-right">
+                    Amount
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold text-right">
+                    Paid
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    Status
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rentalLineItems.map((li) => {
+                  const paid = li.paid_amount ?? 0;
+                  const fullyPaid = paid >= li.amount;
+                  return (
+                    <TableRow key={li.id}>
+                      <TableCell className="text-xs font-mono py-1.5">
+                        {li.rentals?.rental_no ?? "—"}
                       </TableCell>
                       <TableCell className="text-xs py-1.5">
                         {li.branches?.name ?? "—"}
@@ -1367,6 +1500,7 @@ export default function BillingAccountSheetContent({
   const subSheetTitle: Record<string, string> = {
     payment: "Record Payment",
     "attach-jo": "Attach Job Orders",
+    "attach-rental": "Attach Rentals",
     statement: "Generate Statement",
     edit: "Edit Account",
   };
@@ -1398,6 +1532,13 @@ export default function BillingAccountSheetContent({
         )}
         {activeSubSheet === "attach-jo" && (
           <AttachJobOrderPanel
+            accountId={accountId}
+            clientId={clientId}
+            onClose={closeSubSheet}
+          />
+        )}
+        {activeSubSheet === "attach-rental" && (
+          <AttachRentalPanel
             accountId={accountId}
             clientId={clientId}
             onClose={closeSubSheet}
@@ -1447,6 +1588,7 @@ export default function BillingAccountSheetContent({
             {ledgerSection}
             <Separator />
             {jobOrdersSection}
+            {rentalsSection}
             {recentPaymentsSection}
             {recentStatementsSection}
             {interestLogsSection}

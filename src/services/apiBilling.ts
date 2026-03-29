@@ -118,7 +118,7 @@ export async function getBillingAccountAging(accountId: string): Promise<Billing
 export async function getBillingLineItems(accountId: string): Promise<BillingLineItem[]> {
   const { data, error } = await supabase
     .from("billing_line_items")
-    .select(`*, branches:branch_id (id, name, prefix), joborders:job_order_id (id, order_no, status)`)
+    .select(`*, branches:branch_id (id, name, prefix), joborders:job_order_id (id, order_no, status), rentals:rental_id (id, rental_no, status)`)
     .eq("billing_account_id", accountId)
     .order("created_at", { ascending: true });
 
@@ -441,6 +441,65 @@ export async function triggerGenerateBillingStatements(): Promise<any> {
 
   if (error) throw new Error("Failed to generate billing statements: " + error.message);
   return data;
+}
+
+// ========================
+// Eligible JOs for transfer
+// ========================
+
+// ========================
+// Transfer Rental to Billing
+// ========================
+
+export async function transferRentalToBilling(
+  rentalId: number,
+  accountId: string
+): Promise<any> {
+  const { data: userData } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase.rpc("transfer_rental_to_billing", {
+    p_rental_id: rentalId,
+    p_account_id: accountId,
+    p_transferred_by: userData.user?.id,
+  });
+
+  if (error) throw new Error("Failed to transfer rental: " + error.message);
+  return data;
+}
+
+// ========================
+// Eligible Rentals for transfer
+// ========================
+
+export async function getEligibleRentals(clientId: number): Promise<any[]> {
+  const { data, error } = await supabase
+    .from("rentals")
+    .select(`
+      id, rental_no, status, grand_total, downpayment, branch_id, rate_amount,
+      consumables_total, discount, rental_type,
+      branches:branch_id (id, name, prefix),
+      rental_assets:rental_asset_id (id, unit_name, model)
+    `)
+    .eq("client_id", clientId)
+    .eq("transferred_to_billing", false)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error("Failed to fetch eligible rentals: " + error.message);
+
+  // Filter to only those with remaining balance
+  return (data || []).filter((rental: any) => {
+    const grandTotal = rental.grand_total || 0;
+    const downpayment = rental.downpayment || 0;
+    const remaining = grandTotal - downpayment;
+
+    // No balance to transfer
+    if (remaining <= 0) return false;
+
+    // Completed rentals with no balance shouldn't be transferred
+    if (rental.status === "Cancelled") return false;
+
+    return true;
+  });
 }
 
 // ========================
