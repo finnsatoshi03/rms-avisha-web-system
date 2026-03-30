@@ -1,26 +1,36 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import {
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "../ui/select";
 import { Checkbox } from "../ui/checkbox";
 import { Separator } from "../ui/separator";
 import { useBillingLineItems, useRecordBillingPayment } from "./useBilling";
-import { RecordPaymentData, BillingLineItem } from "../../lib/billing-types";
+import {
+  BillingLineItem,
+  BillingSourceType,
+  RecordPaymentData,
+} from "../../lib/billing-types";
 import { formatNumberWithCommas } from "../../lib/helpers";
+import {
+  deleteReceiptFile,
+  uploadReceiptFile,
+} from "../../services/apiBilling";
+import ReceiptAttachmentField from "./receipt-attachment-field";
+import ReceiptMissingConfirmDialog from "./receipt-missing-confirm-dialog";
 
 interface RecordPaymentDialogProps {
   open: boolean;
@@ -69,6 +79,12 @@ export default function RecordPaymentDialog({
   const [allocationMode, setAllocationMode] = useState<AllocationMode>("fifo");
   const [notes, setNotes] = useState("");
   const [allocations, setAllocations] = useState<LineItemAllocation[]>([]);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [showMissingReceiptConfirm, setShowMissingReceiptConfirm] =
+    useState(false);
+  const [pendingPayload, setPendingPayload] = useState<RecordPaymentData | null>(
+    null
+  );
 
   const { data: lineItems } = useBillingLineItems(
     allocationMode === "manual" ? accountId : undefined
@@ -82,8 +98,7 @@ export default function RecordPaymentDialog({
     );
   }, [lineItems]);
 
-  // Sync allocations state when unpaid items change
-  useMemo(() => {
+  useEffect(() => {
     if (allocationMode === "manual" && unpaidItems.length > 0) {
       setAllocations((prev) => {
         const existingMap = new Map(prev.map((a) => [a.line_item_id, a]));
@@ -132,6 +147,9 @@ export default function RecordPaymentDialog({
     setAllocationMode("fifo");
     setNotes("");
     setAllocations([]);
+    setReceiptFile(null);
+    setShowMissingReceiptConfirm(false);
+    setPendingPayload(null);
   }
 
   function handleClose(value: boolean) {
@@ -164,7 +182,49 @@ export default function RecordPaymentDialog({
     );
   }
 
-  async function handleSubmit() {
+  function resolveReceiptSourceContext():
+    | { sourceType: BillingSourceType; sourceId: number }
+    | { sourceType: "billing"; sourceId: string } {
+    if (allocationMode === "manual") {
+      const selectedLineItemIds = new Set(
+        allocations
+          .filter((a) => a.checked && a.amount > 0)
+          .map((a) => a.line_item_id)
+      );
+      const selectedLineItems = unpaidItems.filter((item) =>
+        selectedLineItemIds.has(item.id)
+      );
+
+      const uniqueSources = new Set(
+        selectedLineItems
+          .filter(
+            (item) =>
+              (item.source_type === "job_order" || item.source_type === "rental") &&
+              item.source_id != null
+          )
+          .map((item) => `${item.source_type}:${item.source_id}`)
+      );
+
+      if (uniqueSources.size === 1) {
+        const [source] = Array.from(uniqueSources);
+        const [sourceType, sourceIdText] = source.split(":");
+        const sourceId = Number(sourceIdText);
+        if (
+          (sourceType === "job_order" || sourceType === "rental") &&
+          Number.isFinite(sourceId)
+        ) {
+          return {
+            sourceType,
+            sourceId,
+          };
+        }
+      }
+    }
+
+    return { sourceType: "billing", sourceId: accountId };
+  }
+
+  function buildPayload(): RecordPaymentData {
     const payload: RecordPaymentData = {
       billing_account_id: accountId,
       amount: parsedAmount,
@@ -180,11 +240,70 @@ export default function RecordPaymentDialog({
         .map((a) => ({ line_item_id: a.line_item_id, amount: a.amount }));
     }
 
-    recordPayment.mutate(payload, {
-      onSuccess: () => {
-        handleClose(false);
-      },
-    });
+    return payload;
+  }
+
+  function processPaymentSubmission(payload: RecordPaymentData) {
+    const receiptSourceContext = resolveReceiptSourceContext();
+
+    const mutateWithPayload = (payloadToSubmit: RecordPaymentData) => {
+      recordPayment.mutate(payloadToSubmit, {
+        onSuccess: () => {
+          handleClose(false);
+        },
+        onError: async () => {
+          if (payloadToSubmit.receipt_url) {
+            try {
+              await deleteReceiptFile(payloadToSubmit.receipt_url);
+            } catch (deleteError) {
+              console.error("Failed to rollback receipt upload", deleteError);
+            }
+          }
+        },
+      });
+    };
+
+    if (!receiptFile) {
+      mutateWithPayload(payload);
+      return;
+    }
+
+    void (async () => {
+      try {
+        const receiptPath = await uploadReceiptFile({
+          sourceType: receiptSourceContext.sourceType,
+          sourceId: receiptSourceContext.sourceId,
+          file: receiptFile,
+        });
+
+        mutateWithPayload({
+          ...payload,
+          receipt_url: receiptPath,
+          receipt_source_type:
+            receiptSourceContext.sourceType === "billing"
+              ? undefined
+              : receiptSourceContext.sourceType,
+          receipt_source_id:
+            receiptSourceContext.sourceType === "billing"
+              ? undefined
+              : receiptSourceContext.sourceId,
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+  }
+
+  function handleSubmit() {
+    const payload = buildPayload();
+
+    if (!receiptFile) {
+      setPendingPayload(payload);
+      setShowMissingReceiptConfirm(true);
+      return;
+    }
+
+    processPaymentSubmission(payload);
   }
 
   return (
@@ -195,7 +314,6 @@ export default function RecordPaymentDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Amount */}
           <div className="space-y-1.5">
             <Label htmlFor="payment-amount">Amount *</Label>
             <div className="relative">
@@ -215,7 +333,6 @@ export default function RecordPaymentDialog({
             </div>
           </div>
 
-          {/* Payment Date */}
           <div className="space-y-1.5">
             <Label htmlFor="payment-date">Payment Date</Label>
             <Input
@@ -226,7 +343,6 @@ export default function RecordPaymentDialog({
             />
           </div>
 
-          {/* Payment Method */}
           <div className="space-y-1.5">
             <Label>Payment Method</Label>
             <Select value={paymentMethod} onValueChange={setPaymentMethod}>
@@ -243,7 +359,6 @@ export default function RecordPaymentDialog({
             </Select>
           </div>
 
-          {/* Reference Number */}
           <div className="space-y-1.5">
             <Label htmlFor="payment-ref">Reference Number</Label>
             <Input
@@ -256,7 +371,6 @@ export default function RecordPaymentDialog({
 
           <Separator />
 
-          {/* Allocation Mode */}
           <div className="space-y-1.5">
             <Label>Allocation Mode</Label>
             <div className="flex gap-2">
@@ -279,20 +393,21 @@ export default function RecordPaymentDialog({
             </div>
           </div>
 
-          {/* Manual Allocation List */}
           {allocationMode === "manual" && (
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium">Unpaid Line Items</span>
                 <span
                   className={
-                    Math.abs(allocatedTotal - parsedAmount) < 0.01 && parsedAmount > 0
+                    Math.abs(allocatedTotal - parsedAmount) < 0.01 &&
+                    parsedAmount > 0
                       ? "text-green-600 font-medium"
                       : "text-muted-foreground"
                   }
                 >
-                  Allocated: ₱{formatNumberWithCommas(Math.round(allocatedTotal * 100) / 100)} / ₱
-                  {formatNumberWithCommas(Math.round(parsedAmount * 100) / 100)}
+                  Allocated: ₱
+                  {formatNumberWithCommas(Math.round(allocatedTotal * 100) / 100)}{" "}
+                  / ₱{formatNumberWithCommas(Math.round(parsedAmount * 100) / 100)}
                 </span>
               </div>
 
@@ -325,7 +440,9 @@ export default function RecordPaymentDialog({
                           </p>
                           <div className="flex gap-3 text-xs text-muted-foreground">
                             <span>Total: ₱{formatNumberWithCommas(item.amount)}</span>
-                            <span>Paid: ₱{formatNumberWithCommas(item.paid_amount || 0)}</span>
+                            <span>
+                              Paid: ₱{formatNumberWithCommas(item.paid_amount || 0)}
+                            </span>
                             <span className="font-medium text-foreground">
                               Remaining: ₱{formatNumberWithCommas(remaining)}
                             </span>
@@ -356,8 +473,10 @@ export default function RecordPaymentDialog({
                 allocatedTotal > 0 &&
                 Math.abs(allocatedTotal - parsedAmount) >= 0.01 && (
                   <p className="text-sm text-destructive">
-                    Allocation total (₱{formatNumberWithCommas(Math.round(allocatedTotal * 100) / 100)}) must
-                    equal payment amount (₱{formatNumberWithCommas(Math.round(parsedAmount * 100) / 100)}).
+                    Allocation total (₱
+                    {formatNumberWithCommas(Math.round(allocatedTotal * 100) / 100)})
+                    must equal payment amount (₱
+                    {formatNumberWithCommas(Math.round(parsedAmount * 100) / 100)}).
                   </p>
                 )}
             </div>
@@ -365,7 +484,6 @@ export default function RecordPaymentDialog({
 
           <Separator />
 
-          {/* Notes */}
           <div className="space-y-1.5">
             <Label htmlFor="payment-notes">Notes</Label>
             <textarea
@@ -376,6 +494,12 @@ export default function RecordPaymentDialog({
               onChange={(e) => setNotes(e.target.value)}
             />
           </div>
+
+          <ReceiptAttachmentField
+            file={receiptFile}
+            onFileChange={setReceiptFile}
+            inputId="billing-receipt-upload-dialog"
+          />
         </div>
 
         <DialogFooter>
@@ -390,6 +514,16 @@ export default function RecordPaymentDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+      <ReceiptMissingConfirmDialog
+        open={showMissingReceiptConfirm}
+        onOpenChange={setShowMissingReceiptConfirm}
+        onAttachNow={() => setShowMissingReceiptConfirm(false)}
+        onContinueWithoutReceipt={() => {
+          if (!pendingPayload) return;
+          setShowMissingReceiptConfirm(false);
+          processPaymentSubmission(pendingPayload);
+        }}
+      />
     </Dialog>
   );
 }

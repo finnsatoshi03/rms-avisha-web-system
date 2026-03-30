@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ReceiptText, ExternalLink, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -21,6 +23,11 @@ import {
   useTransferJobOrderToBilling,
   useBillingAccountBalance,
 } from "./useBilling";
+import {
+  deleteReceiptFile,
+  updateSourceReceipt,
+  uploadReceiptFile,
+} from "../../services/apiBilling";
 import { formatNumberWithCommas } from "../../lib/helpers";
 
 interface JoBillingSectionProps {
@@ -29,8 +36,11 @@ interface JoBillingSectionProps {
 
 export default function JoBillingSection({ jobOrder }: JoBillingSectionProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { isTechnician } = useUser();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const receiptInputRef = useRef<HTMLInputElement | null>(null);
 
   const clientId = jobOrder.client_id;
   const { data: billingAccount, isLoading } = useBillingAccountByClient(clientId);
@@ -39,6 +49,7 @@ export default function JoBillingSection({ jobOrder }: JoBillingSectionProps) {
 
   const remainingBalance = (jobOrder.grand_total || 0) - (jobOrder.downpayment || 0);
   const isTransferred = jobOrder.transferred_to_billing;
+  const hasMissingReceipt = !jobOrder.receipt_url;
 
   // Technicians should not see billing info
   if (isTechnician) return null;
@@ -58,6 +69,40 @@ export default function JoBillingSection({ jobOrder }: JoBillingSectionProps) {
       setConfirmOpen(false);
     } catch {
       // Error handled by mutation hook
+    }
+  };
+
+  const handleUploadReceipt = async (file: File | null) => {
+    if (!file) return;
+
+    let receiptPath: string | null = null;
+    setIsUploadingReceipt(true);
+    try {
+      receiptPath = await uploadReceiptFile({
+        sourceType: "job_order",
+        sourceId: jobOrder.id,
+        file,
+      });
+
+      await updateSourceReceipt("job_order", jobOrder.id, receiptPath);
+      toast.success("Receipt attached to job order.");
+      queryClient.invalidateQueries({ queryKey: ["job_order"] });
+    } catch (error) {
+      if (receiptPath) {
+        try {
+          await deleteReceiptFile(receiptPath);
+        } catch (deleteError) {
+          console.error("Failed to rollback receipt upload", deleteError);
+        }
+      }
+      toast.error(
+        error instanceof Error ? error.message : "Failed to upload receipt."
+      );
+    } finally {
+      setIsUploadingReceipt(false);
+      if (receiptInputRef.current) {
+        receiptInputRef.current.value = "";
+      }
     }
   };
 
@@ -191,6 +236,34 @@ export default function JoBillingSection({ jobOrder }: JoBillingSectionProps) {
                   This transfer will exceed the credit limit by ₱
                   {formatNumberWithCommas(balance + remainingBalance - billingAccount.credit_limit)}. Proceed anyway?
                 </span>
+              </div>
+            )}
+
+            {hasMissingReceipt && (
+              <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 space-y-2">
+                <p className="text-xs text-amber-800">
+                  ⚠ No Receipt Attached. This transaction has no proof of
+                  payment. Would you like to attach a receipt now?
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => receiptInputRef.current?.click()}
+                  disabled={isUploadingReceipt}
+                >
+                  {isUploadingReceipt ? "Uploading..." : "Upload Receipt"}
+                </Button>
+                <input
+                  ref={receiptInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="image/jpeg,image/png,application/pdf"
+                  onChange={(event) =>
+                    handleUploadReceipt(event.target.files?.[0] || null)
+                  }
+                />
               </div>
             )}
           </div>

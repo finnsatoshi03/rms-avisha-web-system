@@ -17,6 +17,8 @@ import { JobOrderData } from "../../lib/types";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import ReceiptAttachmentField from "../billing/receipt-attachment-field";
+import ReceiptMissingConfirmDialog from "../billing/receipt-missing-confirm-dialog";
 
 const paymentMethods = [
   { label: "Cash", value: "cash" },
@@ -30,7 +32,7 @@ const paymentMethods = [
 interface PaymentDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (payments: Record<string, number>) => void;
+  onSubmit: (payments: Record<string, number>, receiptFile?: File | null) => void;
   order: JobOrderData;
   isBillingLinked?: boolean;
 }
@@ -48,9 +50,12 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   const [splitPayments, setSplitPayments] = useState<boolean>(false);
   const [showConfirm, setShowConfirm] = useState<boolean>(false);
   const [showBillingConfirm, setShowBillingConfirm] = useState<boolean>(false);
+  const [showMissingReceiptConfirm, setShowMissingReceiptConfirm] =
+    useState<boolean>(false);
   const [pendingPayments, setPendingPayments] = useState<
     Record<string, number> | null
   >(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [confirmMethod, setConfirmMethod] = useState<string>("");
 
   const [isSubmitDisabled, setIsSubmitDisabled] = useState<boolean>(true);
@@ -114,10 +119,21 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   };
 
   const submitPayments = (payload: Record<string, number>) => {
-    onSubmit(payload);
+    onSubmit(payload, receiptFile);
     setShowConfirm(false);
     setShowBillingConfirm(false);
+    setShowMissingReceiptConfirm(false);
     setPendingPayments(null);
+    setReceiptFile(null);
+  };
+
+  const maybeConfirmMissingReceipt = (payload: Record<string, number>) => {
+    if (!receiptFile) {
+      setPendingPayments(payload);
+      setShowMissingReceiptConfirm(true);
+      return;
+    }
+    submitPayments(payload);
   };
 
   const handleConfirmPayment = () => {
@@ -131,12 +147,13 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
       return;
     }
 
-    submitPayments(payload);
+    maybeConfirmMissingReceipt(payload);
   };
 
   const handleBillingConfirm = () => {
     if (!pendingPayments) return;
-    submitPayments(pendingPayments);
+    setShowBillingConfirm(false);
+    maybeConfirmMissingReceipt(pendingPayments);
   };
 
   const toggleSplitPayments = () => {
@@ -243,6 +260,11 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
               Submit Payment
             </Button>
           </div>
+          <ReceiptAttachmentField
+            file={receiptFile}
+            onFileChange={setReceiptFile}
+            inputId="job-order-receipt-upload"
+          />
         </DialogContent>
       </Dialog>
 
@@ -270,6 +292,15 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
           </AlertDialogContent>
         </AlertDialog>
       )}
+      <ReceiptMissingConfirmDialog
+        open={showMissingReceiptConfirm}
+        onOpenChange={setShowMissingReceiptConfirm}
+        onAttachNow={() => setShowMissingReceiptConfirm(false)}
+        onContinueWithoutReceipt={() => {
+          if (!pendingPayments) return;
+          submitPayments(pendingPayments);
+        }}
+      />
       {showBillingConfirm && (
         <AlertDialog
           open={showBillingConfirm}

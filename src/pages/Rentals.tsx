@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, X, Printer, CircleAlert } from "lucide-react";
 import HeaderText from "../components/ui/headerText";
@@ -24,7 +24,10 @@ import { RentalData, RentalStatus } from "../lib/types";
 import { deleteRentals } from "../services/apiRentals";
 import {
   applySourcePayment,
+  deleteReceiptFile,
   recalculateLinkedSourceBilling,
+  updateSourceReceipt,
+  uploadReceiptFile,
 } from "../services/apiBilling";
 import { useRentalStatusUpdate } from "../components/rental/useRentalStatusUpdate";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -113,7 +116,13 @@ export default function Rentals() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printRentalNo, setPrintRentalNo] = useState<string | null>(null);
+  const [printRentalId, setPrintRentalId] = useState<number | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [postPrintReceiptPromptOpen, setPostPrintReceiptPromptOpen] =
+    useState(false);
+  const [isUploadingPostPrintReceipt, setIsUploadingPostPrintReceipt] =
+    useState(false);
+  const postPrintReceiptInputRef = useRef<HTMLInputElement | null>(null);
   const [bulkPaymentOpen, setBulkPaymentOpen] = useState(false);
   const [rentalToComplete, setRentalToComplete] = useState<RentalData | null>(
     null
@@ -332,11 +341,25 @@ export default function Rentals() {
     void performStatusChange(ids, status);
   };
 
-  const handleBulkPaymentSubmit = async (payments: Record<string, number>) => {
+  const handleBulkPaymentSubmit = async (
+    payments: Record<string, number>,
+    receiptFile?: File | null
+  ) => {
     if (!rentalToComplete) return;
 
+    let uploadedReceiptPath: string | null = null;
     try {
-      await applySourcePayment("rental", rentalToComplete.id, payments);
+      if (receiptFile) {
+        uploadedReceiptPath = await uploadReceiptFile({
+          sourceType: "rental",
+          sourceId: rentalToComplete.id,
+          file: receiptFile,
+        });
+      }
+
+      await applySourcePayment("rental", rentalToComplete.id, payments, {
+        receiptUrl: uploadedReceiptPath,
+      });
       statusMutation.mutate(
         { ids: [rentalToComplete.id], status: "Completed" },
         {
@@ -352,6 +375,13 @@ export default function Rentals() {
         }
       );
     } catch (error) {
+      if (uploadedReceiptPath) {
+        try {
+          await deleteReceiptFile(uploadedReceiptPath);
+        } catch (deleteError) {
+          console.error("Failed to rollback receipt upload", deleteError);
+        }
+      }
       toast.error(
         error instanceof Error
           ? error.message
@@ -385,6 +415,7 @@ export default function Rentals() {
   const handlePrintAfterCreate = async () => {
     if (!printRentalNo) return;
     setIsPrinting(true);
+    let didExport = false;
     try {
       // Find the newly created rental from the query data
       const rental = rentals.find((r) => r.rental_no === printRentalNo);
@@ -392,6 +423,7 @@ export default function Rentals() {
         const blob = await pdf(<RentalPDF rental={rental} />).toBlob();
         saveAs(blob, `Rental-${rental.rental_no}.pdf`);
         toast.success("PDF exported");
+        didExport = true;
       } else {
         toast.error("Rental not found yet — try exporting from the table.");
       }
@@ -401,6 +433,60 @@ export default function Rentals() {
       setIsPrinting(false);
       setPrintDialogOpen(false);
       setPrintRentalNo(null);
+      if (didExport && printRentalId) {
+        setPostPrintReceiptPromptOpen(true);
+      } else if (!didExport) {
+        setPrintRentalId(null);
+      }
+    }
+  };
+
+  const clearPostPrintReceiptPrompt = () => {
+    setPostPrintReceiptPromptOpen(false);
+    setPrintRentalId(null);
+    if (postPrintReceiptInputRef.current) {
+      postPrintReceiptInputRef.current.value = "";
+    }
+  };
+
+  const handlePostPrintReceiptUpload = async (file: File | null) => {
+    if (!file || !printRentalId) return;
+
+    let uploadedReceiptPath: string | null = null;
+    setIsUploadingPostPrintReceipt(true);
+    try {
+      uploadedReceiptPath = await uploadReceiptFile({
+        sourceType: "rental",
+        sourceId: printRentalId,
+        file,
+      });
+
+      await updateSourceReceipt("rental", printRentalId, uploadedReceiptPath);
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({
+        queryKey: ["source_latest_receipt", "rental", printRentalId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["source_receipt_stats", "rental", printRentalId],
+      });
+      toast.success("Receipt attached to rental.");
+      clearPostPrintReceiptPrompt();
+    } catch (error) {
+      if (uploadedReceiptPath) {
+        try {
+          await deleteReceiptFile(uploadedReceiptPath);
+        } catch (deleteError) {
+          console.error("Failed to rollback post-print receipt upload", deleteError);
+        }
+      }
+      toast.error(
+        error instanceof Error ? error.message : "Failed to upload receipt."
+      );
+    } finally {
+      setIsUploadingPostPrintReceipt(false);
+      if (postPrintReceiptInputRef.current) {
+        postPrintReceiptInputRef.current.value = "";
+      }
     }
   };
 
@@ -484,6 +570,7 @@ export default function Rentals() {
                     setCreateTourReplay(null);
                     if (rentalData?.rental_no) {
                       setPrintRentalNo(rentalData.rental_no);
+                      setPrintRentalId(rentalData.rental_id);
                       setPrintDialogOpen(true);
                     }
                   }}
@@ -728,9 +815,54 @@ export default function Rentals() {
         onClose={() => {
           setPrintDialogOpen(false);
           setPrintRentalNo(null);
+          setPrintRentalId(null);
         }}
         onSelectOption={() => handlePrintAfterCreate()}
         loading={isPrinting}
+      />
+      <AlertDialog
+        open={postPrintReceiptPromptOpen}
+        onOpenChange={(open) => {
+          setPostPrintReceiptPromptOpen(open);
+          if (!open) {
+            clearPostPrintReceiptPrompt();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Attach Receipt or Document</AlertDialogTitle>
+            <AlertDialogDescription>
+              Would you like to attach a receipt or supporting document now?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                clearPostPrintReceiptPrompt();
+              }}
+            >
+              Skip
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              onClick={() => postPrintReceiptInputRef.current?.click()}
+              disabled={isUploadingPostPrintReceipt}
+            >
+              {isUploadingPostPrintReceipt ? "Uploading..." : "Upload"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <input
+        ref={postPrintReceiptInputRef}
+        type="file"
+        className="hidden"
+        accept="image/jpeg,image/png,application/pdf"
+        disabled={isUploadingPostPrintReceipt}
+        onChange={(event) =>
+          void handlePostPrintReceiptUpload(event.target.files?.[0] || null)
+        }
       />
     </div>
   );

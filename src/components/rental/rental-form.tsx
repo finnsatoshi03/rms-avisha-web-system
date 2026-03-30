@@ -44,7 +44,7 @@ import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
 import GuidedTour from "../onboarding/guided-tour";
 
 interface RentalFormProps {
-  onSuccess?: (rentalData?: { rental_no: string }) => void;
+  onSuccess?: (rentalData?: { rental_no: string; rental_id: number }) => void;
   onReplayReady?: (replay: (() => void) | null) => void;
 }
 
@@ -182,7 +182,7 @@ export default function RentalForm({
       },
       {
         onSuccess: (result) => {
-          onSuccess?.({ rental_no: result.rental_no });
+          onSuccess?.({ rental_no: result.rental_no, rental_id: result.rental.id });
         },
       }
     );

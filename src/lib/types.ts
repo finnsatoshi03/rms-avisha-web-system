@@ -221,6 +221,9 @@ export type JobOrderData = {
   order_received_user?: User;
   downpayment: null | number;
   payment_details: null | object;
+  receipt_url?: null | string;
+  receipt_uploaded_at?: null | string;
+  receipt_uploaded_by?: null | string;
   is_manual_rate: null | boolean;
   include_quotation_items: null | boolean;
   billing_account_id: null | string;
@@ -290,6 +293,9 @@ export type CreateJobOrderData = {
   technical_report?: string;
   downpayment?: number;
   payment_details?: object;
+  receipt_url?: string;
+  receipt_uploaded_at?: string;
+  receipt_uploaded_by?: string;
   isCreatingQuotation?: boolean;
   is_manual_rate?: boolean;
   include_quotation_items?: boolean;
@@ -400,6 +406,9 @@ export type RentalData = {
   grand_total: number;
   notes: string | null;
   payment_details?: null | object;
+  receipt_url?: string | null;
+  receipt_uploaded_at?: string | null;
+  receipt_uploaded_by?: string | null;
   billing_account_id: string | null;
   transferred_to_billing: boolean;
   transferred_to_billing_at: string | null;

@@ -60,6 +60,9 @@ export type BillingPayment = {
   reversed_at?: string | null;
   reversed_by?: string | null;
   reversal_reason?: string | null;
+  receipt_url?: string | null;
+  receipt_uploaded_at?: string | null;
+  receipt_uploaded_by?: string | null;
   payment_date: string;
   payment_method: string | null;
   reference_number: string | null;
@@ -137,6 +140,9 @@ export type RecordPaymentData = {
   payment_method: string;
   reference_number?: string;
   notes?: string;
+  receipt_url?: string;
+  receipt_source_type?: BillingSourceType;
+  receipt_source_id?: number;
   allocations?: { line_item_id: string; amount: number }[];
 };
 
@@ -150,6 +156,7 @@ export type SourcePaymentResult = {
   remaining_balance: number;
   payment_status: BillingPaymentStatus;
   is_transferred_to_billing: boolean;
+  receipt_url?: string | null;
 };
 
 export type SourceRecalculationResult = {
@@ -165,6 +172,24 @@ export type SourceRecalculationResult = {
   payments_touched: number;
   amount_reversed: number;
   skipped: boolean;
+};
+
+export type SourceReceiptSummary = {
+  payment_id: string;
+  billing_account_id: string | null;
+  amount: number;
+  payment_date: string;
+  payment_method: string | null;
+  reference_number: string | null;
+  receipt_url: string | null;
+  receipt_uploaded_at: string | null;
+  receipt_uploaded_by: string | null;
+};
+
+export type SourceReceiptStats = {
+  total_payments: number;
+  payments_with_receipt: number;
+  payments_missing_receipt: number;
 };
 
 export type LedgerEntry = {

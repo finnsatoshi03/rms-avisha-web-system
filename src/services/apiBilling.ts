@@ -7,6 +7,8 @@ import {
   BillingPayment,
   SourcePaymentResult,
   SourceRecalculationResult,
+  SourceReceiptStats,
+  SourceReceiptSummary,
   BillingStatement,
   BillingAging,
   BillingDashboardSummary,
@@ -16,6 +18,178 @@ import {
   RecordPaymentData,
   LedgerEntry,
 } from "../lib/billing-types";
+
+export const RECEIPT_BUCKET = "billing-receipts";
+export const MAX_RECEIPT_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_RECEIPT_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "application/pdf",
+]);
+
+type ReceiptStorageSourceType = BillingSourceType | "billing";
+
+function getReceiptExtension(file: File): string {
+  const normalizedName = file.name?.toLowerCase() || "";
+  const knownByName = normalizedName.split(".").pop();
+  if (knownByName && knownByName.length <= 6) {
+    return knownByName;
+  }
+
+  switch (file.type) {
+    case "image/jpeg":
+      return "jpg";
+    case "image/png":
+      return "png";
+    case "application/pdf":
+      return "pdf";
+    default:
+      return "bin";
+  }
+}
+
+function sanitizeReceiptPath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+export function validateReceiptFile(file: File): string | null {
+  if (!ALLOWED_RECEIPT_MIME_TYPES.has(file.type)) {
+    return "Only JPG, PNG, or PDF files are allowed.";
+  }
+
+  if (file.size > MAX_RECEIPT_FILE_SIZE_BYTES) {
+    return "Receipt file must be 10MB or below.";
+  }
+
+  return null;
+}
+
+export function buildReceiptStoragePath(params: {
+  sourceType: ReceiptStorageSourceType;
+  sourceId: number | string;
+  file: File;
+}): string {
+  const sourceFolder =
+    params.sourceType === "job_order"
+      ? "job-orders"
+      : params.sourceType === "rental"
+        ? "rentals"
+        : "billing";
+
+  const sourceId = String(params.sourceId);
+  const extension = getReceiptExtension(params.file);
+  const randomId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+  const fileName = `${Date.now()}-${randomId}.${extension}`;
+
+  return `${sourceFolder}/${sourceId}/${fileName}`;
+}
+
+export function resolveReceiptStorageContextFromPayment(
+  payment: BillingPayment,
+  fallbackAccountId?: string
+): { sourceType: ReceiptStorageSourceType; sourceId: number | string } {
+  const allocations = payment.allocations || [];
+  const uniqueSources = new Set(
+    allocations
+      .map((allocation) => allocation.billing_line_items)
+      .filter(
+        (lineItem): lineItem is BillingLineItem =>
+          Boolean(
+            lineItem &&
+              (lineItem.source_type === "job_order" ||
+                lineItem.source_type === "rental") &&
+              lineItem.source_id != null
+          )
+      )
+      .map((lineItem) => `${lineItem.source_type}:${lineItem.source_id}`)
+  );
+
+  if (uniqueSources.size === 1) {
+    const [sourceKey] = Array.from(uniqueSources);
+    const [sourceType, sourceIdText] = sourceKey.split(":");
+    const sourceId = Number(sourceIdText);
+    if (
+      (sourceType === "job_order" || sourceType === "rental") &&
+      Number.isFinite(sourceId)
+    ) {
+      return { sourceType, sourceId };
+    }
+  }
+
+  return {
+    sourceType: "billing",
+    sourceId: fallbackAccountId || payment.billing_account_id,
+  };
+}
+
+export async function uploadReceiptFile(params: {
+  sourceType: ReceiptStorageSourceType;
+  sourceId: number | string;
+  file: File;
+}): Promise<string> {
+  const validationError = validateReceiptFile(params.file);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  const storagePath = buildReceiptStoragePath(params);
+  const { error } = await supabase.storage
+    .from(RECEIPT_BUCKET)
+    .upload(storagePath, params.file, {
+      cacheControl: "3600",
+      contentType: params.file.type || undefined,
+      upsert: false,
+    });
+
+  if (error) {
+    throw new Error("Failed to upload receipt: " + error.message);
+  }
+
+  return storagePath;
+}
+
+export async function deleteReceiptFile(receiptUrl: string): Promise<void> {
+  const path = sanitizeReceiptPath(receiptUrl || "");
+  if (!path || /^https?:\/\//i.test(path)) {
+    return;
+  }
+
+  const { error } = await supabase.storage.from(RECEIPT_BUCKET).remove([path]);
+  if (error) {
+    throw new Error("Failed to delete previous receipt: " + error.message);
+  }
+}
+
+export async function getSignedReceiptUrl(
+  receiptUrl: string,
+  expiresInSeconds = 60 * 15
+): Promise<string> {
+  const normalized = sanitizeReceiptPath(receiptUrl || "");
+  if (!normalized) {
+    throw new Error("Receipt URL is missing.");
+  }
+
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized;
+  }
+
+  const { data, error } = await supabase.storage
+    .from(RECEIPT_BUCKET)
+    .createSignedUrl(normalized, expiresInSeconds);
+
+  if (error) {
+    throw new Error("Failed to generate signed receipt URL: " + error.message);
+  }
+
+  if (!data?.signedUrl) {
+    throw new Error("Signed URL was not returned.");
+  }
+
+  return data.signedUrl;
+}
 
 function getSplitPaymentTotal(payments: Record<string, number>): number {
   return Object.values(payments).reduce((acc, amount) => acc + Number(amount || 0), 0);
@@ -205,7 +379,14 @@ export async function getBillingPayments(accountId: string): Promise<BillingPaym
       *,
       billing_payment_allocations (
         id, amount, status, reversed_at, reversed_by, reversal_reason, billing_line_item_id,
-        billing_line_items:billing_line_item_id (id, description, job_order_id)
+        billing_line_items:billing_line_item_id (
+          id,
+          description,
+          job_order_id,
+          rental_id,
+          source_type,
+          source_id
+        )
       )
     `)
     .eq("billing_account_id", accountId)
@@ -232,6 +413,8 @@ export async function recordBillingPayment(paymentData: RecordPaymentData): Prom
       reference_number: paymentData.reference_number || null,
       notes: paymentData.notes || null,
       created_by: userData.user?.id,
+      receipt_url: paymentData.receipt_url || null,
+      receipt_uploaded_by: paymentData.receipt_url ? userData.user?.id || null : null,
     })
     .select()
     .single();
@@ -265,6 +448,106 @@ export async function recordBillingPayment(paymentData: RecordPaymentData): Prom
   return payment;
 }
 
+export async function updateBillingPaymentReceipt(
+  paymentId: string,
+  receiptUrl: string | null
+): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const updates = receiptUrl
+    ? {
+        receipt_url: sanitizeReceiptPath(receiptUrl),
+        receipt_uploaded_by: userData.user?.id || null,
+      }
+    : {
+        receipt_url: null,
+        receipt_uploaded_by: null,
+      };
+
+  const { error } = await supabase
+    .from("billing_payments")
+    .update(updates)
+    .eq("id", paymentId);
+
+  if (error) {
+    throw new Error("Failed to update billing receipt: " + error.message);
+  }
+}
+
+export async function updateSourceReceipt(
+  sourceType: BillingSourceType,
+  sourceId: number,
+  receiptUrl: string | null
+): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const tableName = sourceType === "job_order" ? "joborders" : "rentals";
+  const updates = receiptUrl
+    ? {
+        receipt_url: sanitizeReceiptPath(receiptUrl),
+        receipt_uploaded_at: new Date().toISOString(),
+        receipt_uploaded_by: userData.user?.id || null,
+      }
+    : {
+        receipt_url: null,
+        receipt_uploaded_at: null,
+        receipt_uploaded_by: null,
+      };
+
+  const { error } = await supabase.from(tableName).update(updates).eq("id", sourceId);
+  if (error) {
+    throw new Error("Failed to update source receipt: " + error.message);
+  }
+}
+
+export async function getSourceLatestReceipt(
+  sourceType: BillingSourceType,
+  sourceId: number
+): Promise<SourceReceiptSummary | null> {
+  const { data, error } = await supabase.rpc("get_source_latest_receipt", {
+    p_source_type: sourceType,
+    p_source_id: sourceId,
+  });
+
+  if (error) {
+    throw new Error("Failed to fetch source receipt: " + error.message);
+  }
+
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row) return null;
+
+  return {
+    payment_id: row.payment_id,
+    billing_account_id: row.billing_account_id,
+    amount: Number(row.amount || 0),
+    payment_date: row.payment_date,
+    payment_method: row.payment_method,
+    reference_number: row.reference_number,
+    receipt_url: row.receipt_url,
+    receipt_uploaded_at: row.receipt_uploaded_at,
+    receipt_uploaded_by: row.receipt_uploaded_by,
+  };
+}
+
+export async function getSourceReceiptStats(
+  sourceType: BillingSourceType,
+  sourceId: number
+): Promise<SourceReceiptStats> {
+  const { data, error } = await supabase.rpc("get_source_receipt_stats", {
+    p_source_type: sourceType,
+    p_source_id: sourceId,
+  });
+
+  if (error) {
+    throw new Error("Failed to fetch source receipt stats: " + error.message);
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    total_payments: Number(row?.total_payments || 0),
+    payments_with_receipt: Number(row?.payments_with_receipt || 0),
+    payments_missing_receipt: Number(row?.payments_missing_receipt || 0),
+  };
+}
+
 export async function applySourcePayment(
   sourceType: BillingSourceType,
   sourceId: number,
@@ -273,6 +556,7 @@ export async function applySourcePayment(
     paymentDate?: string;
     referenceNumber?: string;
     notes?: string;
+    receiptUrl?: string | null;
   }
 ): Promise<SourcePaymentResult> {
   const amount = getSplitPaymentTotal(payments);
@@ -295,7 +579,20 @@ export async function applySourcePayment(
   });
 
   if (error) throw new Error("Failed to apply payment: " + error.message);
-  return data as SourcePaymentResult;
+
+  const result = data as SourcePaymentResult;
+  const receiptUrl = options?.receiptUrl ? sanitizeReceiptPath(options.receiptUrl) : null;
+
+  if (receiptUrl) {
+    if (result.payment_id) {
+      await updateBillingPaymentReceipt(result.payment_id, receiptUrl);
+    } else {
+      await updateSourceReceipt(sourceType, sourceId, receiptUrl);
+    }
+    result.receipt_url = receiptUrl;
+  }
+
+  return result;
 }
 
 export async function recalculateLinkedSourceBilling(

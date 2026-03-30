@@ -1,19 +1,29 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import {
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "../ui/select";
 import { Checkbox } from "../ui/checkbox";
 import { Textarea } from "../ui/textarea";
 import { useBillingLineItems, useRecordBillingPayment } from "./useBilling";
-import { RecordPaymentData, BillingLineItem } from "../../lib/billing-types";
+import {
+  BillingLineItem,
+  BillingSourceType,
+  RecordPaymentData,
+} from "../../lib/billing-types";
 import { formatNumberWithCommas } from "../../lib/helpers";
+import {
+  deleteReceiptFile,
+  uploadReceiptFile,
+} from "../../services/apiBilling";
+import ReceiptAttachmentField from "./receipt-attachment-field";
+import ReceiptMissingConfirmDialog from "./receipt-missing-confirm-dialog";
 
 interface RecordPaymentPanelProps {
   accountId: string;
@@ -59,6 +69,12 @@ export default function RecordPaymentPanel({
   const [allocationMode, setAllocationMode] = useState<AllocationMode>("fifo");
   const [notes, setNotes] = useState("");
   const [allocations, setAllocations] = useState<LineItemAllocation[]>([]);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [showMissingReceiptConfirm, setShowMissingReceiptConfirm] =
+    useState(false);
+  const [pendingPayload, setPendingPayload] = useState<RecordPaymentData | null>(
+    null
+  );
 
   const { data: lineItems } = useBillingLineItems(
     allocationMode === "manual" ? accountId : undefined
@@ -72,7 +88,7 @@ export default function RecordPaymentPanel({
     );
   }, [lineItems]);
 
-  useMemo(() => {
+  useEffect(() => {
     if (allocationMode === "manual" && unpaidItems.length > 0) {
       setAllocations((prev) => {
         const existingMap = new Map(prev.map((a) => [a.line_item_id, a]));
@@ -120,9 +136,7 @@ export default function RecordPaymentPanel({
           ? {
               ...a,
               checked,
-              amount: checked
-                ? Math.min(a.maxAmount, Math.max(a.amount, 0))
-                : 0,
+              amount: checked ? Math.min(a.maxAmount, Math.max(a.amount, 0)) : 0,
             }
           : a
       )
@@ -140,9 +154,49 @@ export default function RecordPaymentPanel({
     );
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function resolveReceiptSourceContext():
+    | { sourceType: BillingSourceType; sourceId: number }
+    | { sourceType: "billing"; sourceId: string } {
+    if (allocationMode === "manual") {
+      const selectedLineItemIds = new Set(
+        allocations
+          .filter((a) => a.checked && a.amount > 0)
+          .map((a) => a.line_item_id)
+      );
+      const selectedLineItems = unpaidItems.filter((item) =>
+        selectedLineItemIds.has(item.id)
+      );
 
+      const uniqueSources = new Set(
+        selectedLineItems
+          .filter(
+            (item) =>
+              (item.source_type === "job_order" || item.source_type === "rental") &&
+              item.source_id != null
+          )
+          .map((item) => `${item.source_type}:${item.source_id}`)
+      );
+
+      if (uniqueSources.size === 1) {
+        const [source] = Array.from(uniqueSources);
+        const [sourceType, sourceIdText] = source.split(":");
+        const sourceId = Number(sourceIdText);
+        if (
+          (sourceType === "job_order" || sourceType === "rental") &&
+          Number.isFinite(sourceId)
+        ) {
+          return {
+            sourceType,
+            sourceId,
+          };
+        }
+      }
+    }
+
+    return { sourceType: "billing", sourceId: accountId };
+  }
+
+  function buildPayload(): RecordPaymentData {
     const payload: RecordPaymentData = {
       billing_account_id: accountId,
       amount: parsedAmount,
@@ -158,223 +212,292 @@ export default function RecordPaymentPanel({
         .map((a) => ({ line_item_id: a.line_item_id, amount: a.amount }));
     }
 
-    recordPayment.mutate(payload, {
-      onSuccess: () => {
-        onClose();
-      },
-    });
+    return payload;
+  }
+
+  function processPaymentSubmission(payload: RecordPaymentData) {
+    const receiptSourceContext = resolveReceiptSourceContext();
+
+    const mutateWithPayload = (payloadToSubmit: RecordPaymentData) => {
+      recordPayment.mutate(payloadToSubmit, {
+        onSuccess: () => {
+          onClose();
+        },
+        onError: async () => {
+          if (payloadToSubmit.receipt_url) {
+            try {
+              await deleteReceiptFile(payloadToSubmit.receipt_url);
+            } catch (deleteError) {
+              console.error("Failed to rollback receipt upload", deleteError);
+            }
+          }
+        },
+      });
+    };
+
+    if (!receiptFile) {
+      mutateWithPayload(payload);
+      return;
+    }
+
+    void (async () => {
+      try {
+        const receiptPath = await uploadReceiptFile({
+          sourceType: receiptSourceContext.sourceType,
+          sourceId: receiptSourceContext.sourceId,
+          file: receiptFile,
+        });
+
+        mutateWithPayload({
+          ...payload,
+          receipt_url: receiptPath,
+          receipt_source_type:
+            receiptSourceContext.sourceType === "billing"
+              ? undefined
+              : receiptSourceContext.sourceType,
+          receipt_source_id:
+            receiptSourceContext.sourceType === "billing"
+              ? undefined
+              : receiptSourceContext.sourceId,
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const payload = buildPayload();
+
+    if (!receiptFile) {
+      setPendingPayload(payload);
+      setShowMissingReceiptConfirm(true);
+      return;
+    }
+
+    processPaymentSubmission(payload);
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      {/* ── Payment Details ──────────────────────────────────── */}
-      <div>
-        <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">
-          Payment Details
-        </h2>
-        <div className="grid md:grid-cols-2 grid-cols-1 gap-2 px-4 py-2 border rounded-xl">
-          <div className="space-y-0">
-            <p className="text-sm font-medium leading-none">Amount *</p>
-            <div className="flex items-center">
-              <span className="text-sm text-muted-foreground mr-1">₱</span>
+    <>
+      <form onSubmit={handleSubmit}>
+        <div>
+          <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">
+            Payment Details
+          </h2>
+          <div className="grid md:grid-cols-2 grid-cols-1 gap-2 px-4 py-2 border rounded-xl">
+            <div className="space-y-0">
+              <p className="text-sm font-medium leading-none">Amount *</p>
+              <div className="flex items-center">
+                <span className="text-sm text-muted-foreground mr-1">₱</span>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="space-y-0">
+              <p className="text-sm font-medium leading-none">Date</p>
               <Input
-                type="number"
-                min="0.01"
-                step="0.01"
-                placeholder="0.00"
+                type="date"
                 className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                autoFocus
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
               />
             </div>
           </div>
-          <div className="space-y-0">
-            <p className="text-sm font-medium leading-none">Date</p>
-            <Input
-              type="date"
-              className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
-              value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Method & Reference ───────────────────────────────── */}
-      <div>
-        <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
-          Method & Reference
-        </h2>
-
-        <div className="border-b py-2">
-          <div className="space-y-0 flex justify-between items-center w-full">
-            <p className="text-sm font-medium leading-none">Payment Method</p>
-            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-              <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
-                <SelectValue placeholder="Select method" />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {PAYMENT_METHODS.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
 
-        <div className="border-b py-2">
-          <div className="space-y-0 flex justify-between items-center w-full">
-            <p className="text-sm font-medium leading-none">Reference #</p>
-            <Input
-              placeholder="Optional"
-              className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
-              value={referenceNumber}
-              onChange={(e) => setReferenceNumber(e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
+        <div>
+          <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
+            Method & Reference
+          </h2>
 
-      {/* ── Allocation ───────────────────────────────────────── */}
-      <div>
-        <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
-          Allocation
-        </h2>
-
-        <div className="border-b py-2">
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant={allocationMode === "fifo" ? "default" : "outline"}
-              onClick={() => setAllocationMode("fifo")}
-              className="text-xs h-7"
-            >
-              Apply to balance
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={allocationMode === "manual" ? "default" : "outline"}
-              onClick={() => setAllocationMode("manual")}
-              className="text-xs h-7"
-            >
-              Specific items
-            </Button>
-          </div>
-        </div>
-
-        {/* Manual Allocation List */}
-        {allocationMode === "manual" && (
-          <div className="mt-2">
-            <div className="flex items-center justify-between text-xs mb-2">
-              <span className="font-medium">Unpaid Items</span>
-              <span
-                className={
-                  Math.abs(allocatedTotal - parsedAmount) < 0.01 &&
-                  parsedAmount > 0
-                    ? "text-green-600 font-medium"
-                    : "text-muted-foreground"
-                }
-              >
-                ₱{formatNumberWithCommas(Math.round(allocatedTotal * 100) / 100)}{" "}
-                / ₱{formatNumberWithCommas(Math.round(parsedAmount * 100) / 100)}
-              </span>
+          <div className="border-b py-2">
+            <div className="space-y-0 flex justify-between items-center w-full">
+              <p className="text-sm font-medium leading-none">Payment Method</p>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {PAYMENT_METHODS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-
-            {unpaidItems.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No unpaid items.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto border rounded-xl p-2">
-                {unpaidItems.map((item) => {
-                  const remaining = item.amount - (item.paid_amount || 0);
-                  const alloc = allocations.find(
-                    (a) => a.line_item_id === item.id
-                  );
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex items-start gap-2 p-2 rounded hover:bg-muted/50"
-                    >
-                      <Checkbox
-                        checked={alloc?.checked ?? false}
-                        onCheckedChange={(checked) =>
-                          handleToggleItem(item.id, !!checked)
-                        }
-                        className="mt-0.5"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">
-                          {item.description}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          Remaining: ₱{formatNumberWithCommas(remaining)}
-                        </p>
-                      </div>
-                      <Input
-                        type="number"
-                        min="0"
-                        max={remaining}
-                        step="0.01"
-                        placeholder="0.00"
-                        className="h-7 text-xs w-24"
-                        disabled={!alloc?.checked}
-                        value={alloc?.checked ? alloc.amount || "" : ""}
-                        onChange={(e) =>
-                          handleAllocationAmount(item.id, e.target.value)
-                        }
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {parsedAmount > 0 &&
-              allocatedTotal > 0 &&
-              Math.abs(allocatedTotal - parsedAmount) >= 0.01 && (
-                <p className="text-xs text-destructive mt-1">
-                  Allocation must equal payment amount.
-                </p>
-              )}
           </div>
-        )}
-      </div>
 
-      {/* ── Notes ── */}
-      <div>
-        <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">Notes</h2>
-        <Textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Optional notes about this payment..."
-          rows={3}
-          className="text-sm"
-        />
-      </div>
+          <div className="border-b py-2">
+            <div className="space-y-0 flex justify-between items-center w-full">
+              <p className="text-sm font-medium leading-none">Reference #</p>
+              <Input
+                placeholder="Optional"
+                className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
+                value={referenceNumber}
+                onChange={(e) => setReferenceNumber(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
 
-      {/* ── Actions ─ same layout as edit form ──────────────── */}
-      <div className="flex md:flex-row flex-col md:justify-between mt-4">
-        <Button
-          type="submit"
-          disabled={!canSubmit || recordPayment.isPending}
-        >
-          {recordPayment.isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Recording..
-            </>
-          ) : (
-            "Record Payment"
+        <div>
+          <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">Allocation</h2>
+
+          <div className="border-b py-2">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={allocationMode === "fifo" ? "default" : "outline"}
+                onClick={() => setAllocationMode("fifo")}
+                className="text-xs h-7"
+              >
+                Apply to balance
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={allocationMode === "manual" ? "default" : "outline"}
+                onClick={() => setAllocationMode("manual")}
+                className="text-xs h-7"
+              >
+                Specific items
+              </Button>
+            </div>
+          </div>
+
+          {allocationMode === "manual" && (
+            <div className="mt-2">
+              <div className="flex items-center justify-between text-xs mb-2">
+                <span className="font-medium">Unpaid Items</span>
+                <span
+                  className={
+                    Math.abs(allocatedTotal - parsedAmount) < 0.01 &&
+                    parsedAmount > 0
+                      ? "text-green-600 font-medium"
+                      : "text-muted-foreground"
+                  }
+                >
+                  ₱{formatNumberWithCommas(Math.round(allocatedTotal * 100) / 100)}{" "}
+                  / ₱{formatNumberWithCommas(Math.round(parsedAmount * 100) / 100)}
+                </span>
+              </div>
+
+              {unpaidItems.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No unpaid items.</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto border rounded-xl p-2">
+                  {unpaidItems.map((item) => {
+                    const remaining = item.amount - (item.paid_amount || 0);
+                    const alloc = allocations.find(
+                      (a) => a.line_item_id === item.id
+                    );
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-start gap-2 p-2 rounded hover:bg-muted/50"
+                      >
+                        <Checkbox
+                          checked={alloc?.checked ?? false}
+                          onCheckedChange={(checked) =>
+                            handleToggleItem(item.id, !!checked)
+                          }
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">
+                            {item.description}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Remaining: ₱{formatNumberWithCommas(remaining)}
+                          </p>
+                        </div>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={remaining}
+                          step="0.01"
+                          placeholder="0.00"
+                          className="h-7 text-xs w-24"
+                          disabled={!alloc?.checked}
+                          value={alloc?.checked ? alloc.amount || "" : ""}
+                          onChange={(e) =>
+                            handleAllocationAmount(item.id, e.target.value)
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {parsedAmount > 0 &&
+                allocatedTotal > 0 &&
+                Math.abs(allocatedTotal - parsedAmount) >= 0.01 && (
+                  <p className="text-xs text-destructive mt-1">
+                    Allocation must equal payment amount.
+                  </p>
+                )}
+            </div>
           )}
-        </Button>
-        <Button type="button" variant="ghost" onClick={onClose}>
-          Cancel
-        </Button>
-      </div>
-    </form>
+        </div>
+
+        <div>
+          <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">Notes</h2>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Optional notes about this payment..."
+            rows={3}
+            className="text-sm"
+          />
+        </div>
+
+        <div className="mt-4">
+          <ReceiptAttachmentField
+            file={receiptFile}
+            onFileChange={setReceiptFile}
+            inputId="billing-receipt-upload-panel"
+          />
+        </div>
+
+        <div className="flex md:flex-row flex-col md:justify-between mt-4">
+          <Button type="submit" disabled={!canSubmit || recordPayment.isPending}>
+            {recordPayment.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Recording..
+              </>
+            ) : (
+              "Record Payment"
+            )}
+          </Button>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+      <ReceiptMissingConfirmDialog
+        open={showMissingReceiptConfirm}
+        onOpenChange={setShowMissingReceiptConfirm}
+        onAttachNow={() => setShowMissingReceiptConfirm(false)}
+        onContinueWithoutReceipt={() => {
+          if (!pendingPayload) return;
+          setShowMissingReceiptConfirm(false);
+          processPaymentSubmission(pendingPayload);
+        }}
+      />
+    </>
   );
 }

@@ -44,7 +44,9 @@ import {
 } from "../services/apiJobOrders";
 import {
   applySourcePayment,
+  deleteReceiptFile,
   recalculateLinkedSourceBilling,
+  uploadReceiptFile,
 } from "../services/apiBilling";
 import {
   deleteQuotationsByJobOrderIds,
@@ -428,7 +430,10 @@ export default function Table({
     setOpenPopover(null);
   };
 
-  const handlePaymentSubmit = async (payments: Record<string, number>) => {
+  const handlePaymentSubmit = async (
+    payments: Record<string, number>,
+    receiptFile?: File | null
+  ) => {
     if (!selectedOrder) return;
 
     const totalPayment = Object.values(payments).reduce(
@@ -448,8 +453,19 @@ export default function Table({
       return;
     }
 
+    let uploadedReceiptPath: string | null = null;
     try {
-      await applySourcePayment("job_order", selectedOrder.id, payments);
+      if (receiptFile) {
+        uploadedReceiptPath = await uploadReceiptFile({
+          sourceType: "job_order",
+          sourceId: selectedOrder.id,
+          file: receiptFile,
+        });
+      }
+
+      await applySourcePayment("job_order", selectedOrder.id, payments, {
+        receiptUrl: uploadedReceiptPath,
+      });
       updateStatusMutate(
         { ids: [selectedOrder.id], status: "Completed" },
         {
@@ -474,6 +490,13 @@ export default function Table({
         }
       );
     } catch (error) {
+      if (uploadedReceiptPath) {
+        try {
+          await deleteReceiptFile(uploadedReceiptPath);
+        } catch (deleteError) {
+          console.error("Failed to rollback receipt upload", deleteError);
+        }
+      }
       toast.error("An error occurred while updating the payment details");
       console.error(error);
     }

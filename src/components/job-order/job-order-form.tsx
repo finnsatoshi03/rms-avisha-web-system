@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -69,7 +69,15 @@ import {
   renderWarrantyInfo,
 } from "../../lib/helpers";
 import { createEditJobOrder } from "../../services/apiJobOrders";
-import { recalculateLinkedSourceBilling } from "../../services/apiBilling";
+import {
+  deleteReceiptFile,
+  getSignedReceiptUrl,
+  getSourceLatestReceipt,
+  getSourceReceiptStats,
+  recalculateLinkedSourceBilling,
+  updateSourceReceipt,
+  uploadReceiptFile,
+} from "../../services/apiBilling";
 import { getMaterialStocks } from "../../services/apiMaterials";
 import { getQuotationsByJobOrder } from "../../services/apiQuotations";
 import { getBranches } from "../../services/apiBranches";
@@ -107,6 +115,7 @@ import {
   isBillingLinkedSource,
 } from "../../lib/billing-sync";
 import BillingImpactConfirmDialog from "../billing/billing-impact-confirm-dialog";
+import ReceiptMissingConfirmDialog from "../billing/receipt-missing-confirm-dialog";
 
 const rateOptions = [
   { label: "Walk-in Service", value: 1500 },
@@ -383,6 +392,15 @@ export default function JobOrderForm({
     (() => Promise<void>) | null
   >(null);
   const [closeAfterBillingImpact, setCloseAfterBillingImpact] = useState(false);
+  const [openingReceipt, setOpeningReceipt] = useState(false);
+  const [postPrintReceiptSourceId, setPostPrintReceiptSourceId] = useState<
+    number | null
+  >(null);
+  const [postPrintReceiptPromptOpen, setPostPrintReceiptPromptOpen] =
+    useState(false);
+  const [isUploadingPostPrintReceipt, setIsUploadingPostPrintReceipt] =
+    useState(false);
+  const postPrintReceiptInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     console.log("[PrintFlow] state changed", {
@@ -627,6 +645,42 @@ export default function JobOrderForm({
     : false;
   const billingStatusLabel = getPaymentStatusLabel(billingSync?.payment_status);
   const canOpenBillingAccount = Boolean(jobOrderToEdit.billing_account_id);
+  const { data: linkedLatestReceipt } = useQuery({
+    queryKey: ["source_latest_receipt", "job_order", Number(editId)],
+    queryFn: () => getSourceLatestReceipt("job_order", Number(editId)),
+    enabled: editSession && isBillingLinked && Boolean(editId),
+  });
+  const { data: linkedReceiptStats } = useQuery({
+    queryKey: ["source_receipt_stats", "job_order", Number(editId)],
+    queryFn: () => getSourceReceiptStats("job_order", Number(editId)),
+    enabled: editSession && isBillingLinked && Boolean(editId),
+  });
+  const effectiveReceiptUrl =
+    linkedLatestReceipt?.receipt_url || jobOrderToEdit.receipt_url || null;
+  const hasMissingReceipt = editSession
+    ? isBillingLinked
+      ? Boolean(linkedReceiptStats?.payments_missing_receipt)
+      : editValuesWithClient.status === "Completed" && !effectiveReceiptUrl
+    : false;
+
+  const handleOpenReceipt = async () => {
+    if (!effectiveReceiptUrl || openingReceipt) return;
+
+    setOpeningReceipt(true);
+    try {
+      const signedUrl = await getSignedReceiptUrl(effectiveReceiptUrl);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to open receipt attachment."
+      );
+    } finally {
+      setOpeningReceipt(false);
+    }
+  };
 
   const openBillingImpactGuard = (
     action: () => Promise<void>,
@@ -710,6 +764,72 @@ export default function JobOrderForm({
     name: "materials",
   });
 
+  const finalizePrintFlow = () => {
+    if (postPrintReceiptSourceId) {
+      setPostPrintReceiptPromptOpen(true);
+      return;
+    }
+
+    if (onClose) {
+      onClose();
+    }
+  };
+
+  const clearPostPrintReceiptPrompt = () => {
+    setPostPrintReceiptPromptOpen(false);
+    setPostPrintReceiptSourceId(null);
+    if (postPrintReceiptInputRef.current) {
+      postPrintReceiptInputRef.current.value = "";
+    }
+  };
+
+  const handlePostPrintReceiptUpload = async (file: File | null) => {
+    if (!file || !postPrintReceiptSourceId) {
+      return;
+    }
+
+    let uploadedReceiptPath: string | null = null;
+    setIsUploadingPostPrintReceipt(true);
+
+    try {
+      uploadedReceiptPath = await uploadReceiptFile({
+        sourceType: "job_order",
+        sourceId: postPrintReceiptSourceId,
+        file,
+      });
+
+      await updateSourceReceipt("job_order", postPrintReceiptSourceId, uploadedReceiptPath);
+      queryClient.invalidateQueries({ queryKey: ["job_order"] });
+      queryClient.invalidateQueries({
+        queryKey: ["source_latest_receipt", "job_order", postPrintReceiptSourceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["source_receipt_stats", "job_order", postPrintReceiptSourceId],
+      });
+      toast.success("Receipt attached to job order.");
+      clearPostPrintReceiptPrompt();
+      if (onClose) {
+        onClose();
+      }
+    } catch (error) {
+      if (uploadedReceiptPath) {
+        try {
+          await deleteReceiptFile(uploadedReceiptPath);
+        } catch (deleteError) {
+          console.error("Failed to rollback post-print receipt upload", deleteError);
+        }
+      }
+      toast.error(
+        error instanceof Error ? error.message : "Failed to upload receipt."
+      );
+    } finally {
+      setIsUploadingPostPrintReceipt(false);
+      if (postPrintReceiptInputRef.current) {
+        postPrintReceiptInputRef.current.value = "";
+      }
+    }
+  };
+
   const generatePDF = async (
     data: CreateJobOrderData,
     type?: "company" | "client" | "both" | null
@@ -766,8 +886,8 @@ export default function JobOrderForm({
       setPrintSelectionDialogOpen(false);
       setQuotationPrintDialogOpen(false);
       saveAs(asBlob, `job-order-${type || "both"}.pdf`);
-      if (onClose) onClose();
       URL.revokeObjectURL(src);
+      finalizePrintFlow();
     };
 
     window.addEventListener("focus", afterPrint, { once: true });
@@ -829,8 +949,8 @@ export default function JobOrderForm({
         setPrintSelectionDialogOpen(false);
         setQuotationPrintDialogOpen(false);
         saveAs(asBlob, `quotation-${Date.now()}.pdf`);
-        if (onClose) onClose();
         URL.revokeObjectURL(src);
+        finalizePrintFlow();
       };
 
       window.addEventListener("focus", afterPrint, { once: true });
@@ -907,8 +1027,8 @@ export default function JobOrderForm({
         setPrintSelectionDialogOpen(false);
         setQuotationPrintDialogOpen(false);
         saveAs(asBlob, `job-order-with-quotation-${Date.now()}.pdf`);
-        if (onClose) onClose();
         URL.revokeObjectURL(src);
+        finalizePrintFlow();
       };
 
       window.addEventListener("focus", afterPrint, { once: true });
@@ -1206,6 +1326,7 @@ export default function JobOrderForm({
             ...submittedValues,
             order_no: response.order_no,
           });
+          setPostPrintReceiptSourceId(response.jobOrder);
 
           // Show print selection dialog if in quotation mode, otherwise show regular print dialog
           if (isCreatingQuotation && quotationData) {
@@ -1598,20 +1719,32 @@ export default function JobOrderForm({
                 )}
               </div>
             )}
+            {effectiveReceiptUrl && (
+              <div className="px-3 py-1 bg-emerald-100 rounded-full text-emerald-800 text-xs w-fit flex items-center gap-2">
+                <span>Receipt attached</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs text-emerald-800"
+                  onClick={handleOpenReceipt}
+                  disabled={openingReceipt}
+                >
+                  {openingReceipt ? "Opening..." : "View Attachment"}
+                </Button>
+              </div>
+            )}
+            {!effectiveReceiptUrl && hasMissingReceipt && (
+              <div className="px-3 py-1 bg-amber-100 rounded-full text-amber-800 text-xs w-fit flex items-center gap-2">
+                <span>⚠ Missing Receipt</span>
+              </div>
+            )}
             {readonly && !isEditMode && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  if (isBillingLinked) {
-                    openBillingImpactGuard(async () => {
-                      setIsEditMode(true);
-                    });
-                    return;
-                  }
-                  setIsEditMode(true);
-                }}
+                onClick={() => setIsEditMode(true)}
                 className="px-3 py-1 h-fit text-xs flex items-center gap-1"
               >
                 <Edit size={12} strokeWidth={1.5} />
@@ -2849,6 +2982,7 @@ export default function JobOrderForm({
         open={printDialogOpen}
         onClose={() => {
           setPrintDialogOpen(false);
+          setPostPrintReceiptSourceId(null);
           if (onClose) {
             onClose();
           }
@@ -2904,6 +3038,7 @@ export default function JobOrderForm({
         open={printSelectionDialogOpen}
         onClose={() => {
           setPrintSelectionDialogOpen(false);
+          setPostPrintReceiptSourceId(null);
           if (onClose) onClose();
         }}
         onSelectOption={handlePrintSelection}
@@ -2915,6 +3050,7 @@ export default function JobOrderForm({
         onClose={() => {
           console.log("[PrintFlow] Quotation print prompt dismissed");
           setQuotationPrintDialogOpen(false);
+          setPostPrintReceiptSourceId(null);
           if (onClose) onClose();
         }}
         onPrint={() => {
@@ -2924,6 +3060,32 @@ export default function JobOrderForm({
           }
         }}
         loading={isPrinting}
+      />
+      <ReceiptMissingConfirmDialog
+        open={postPrintReceiptPromptOpen}
+        onOpenChange={setPostPrintReceiptPromptOpen}
+        title="Attach Receipt or Document"
+        description="Would you like to attach a receipt or supporting document now?"
+        onAttachNow={() => {
+          setPostPrintReceiptPromptOpen(false);
+          postPrintReceiptInputRef.current?.click();
+        }}
+        onContinueWithoutReceipt={() => {
+          clearPostPrintReceiptPrompt();
+          if (onClose) {
+            onClose();
+          }
+        }}
+      />
+      <input
+        ref={postPrintReceiptInputRef}
+        type="file"
+        accept="image/jpeg,image/png,application/pdf"
+        className="hidden"
+        disabled={isUploadingPostPrintReceipt}
+        onChange={(event) =>
+          void handlePostPrintReceiptUpload(event.target.files?.[0] || null)
+        }
       />
 
       <QuotationDeleteDialog

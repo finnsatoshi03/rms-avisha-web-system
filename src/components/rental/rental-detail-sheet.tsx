@@ -18,7 +18,12 @@ import { useRentalStatusUpdate } from "./useRentalStatusUpdate";
 import { useUpdateRental } from "./useUpdateRental";
 import {
   applySourcePayment,
+  deleteReceiptFile,
+  getSignedReceiptUrl,
+  getSourceLatestReceipt,
+  getSourceReceiptStats,
   recalculateLinkedSourceBilling,
+  uploadReceiptFile,
 } from "../../services/apiBilling";
 import ReturnInspectionDialog from "./return-inspection-dialog";
 import RentalPaymentDialog from "./rental-payment-dialog";
@@ -119,6 +124,7 @@ export default function RentalDetailSheet({
   const [billingImpactAction, setBillingImpactAction] = useState<
     (() => Promise<void>) | null
   >(null);
+  const [openingReceipt, setOpeningReceipt] = useState(false);
   const statusMutation = useRentalStatusUpdate();
   const updateMutation = useUpdateRental();
   const { user, branchId, isAdmin } = useUser();
@@ -214,23 +220,67 @@ export default function RentalDetailSheet({
 
   const adjustedGrandTotal = rentalGrandTotal - (downpaymentValue ?? 0);
 
-  if (!rental) return null;
   const rentalRecord = rental;
-
-  const transitions = statusTransitions[rentalRecord.status] || [];
-  const inspection = rentalRecord.rental_inspections as any;
-  const consumables = (rentalRecord.rental_consumables || []) as RentalConsumable[];
+  const rentalId = rentalRecord?.id ?? 0;
+  const transitions = rentalRecord ? statusTransitions[rentalRecord.status] || [] : [];
+  const inspection = rentalRecord?.rental_inspections as any;
+  const consumables = (rentalRecord?.rental_consumables || []) as RentalConsumable[];
   const isFormReadonly = !isEditMode;
-  const canEdit = ["Created", "Released", "Ongoing"].includes(rentalRecord.status);
-  const billingSync = getBillingSyncSnapshot(rentalRecord.payment_details);
-  const isBillingLinked = isBillingLinkedSource({
-    sourceType: "rental",
-    sourceId: rentalRecord.id,
-    transferredToBilling: rentalRecord.transferred_to_billing,
-    paymentDetails: rentalRecord.payment_details,
-  });
+  const canEdit = rentalRecord
+    ? ["Created", "Released", "Ongoing"].includes(rentalRecord.status)
+    : false;
+  const billingSync = rentalRecord
+    ? getBillingSyncSnapshot(rentalRecord.payment_details)
+    : null;
+  const isBillingLinked = rentalRecord
+    ? isBillingLinkedSource({
+      sourceType: "rental",
+      sourceId: rentalRecord.id,
+      transferredToBilling: rentalRecord.transferred_to_billing,
+      paymentDetails: rentalRecord.payment_details,
+    })
+    : false;
   const billingStatusLabel = getPaymentStatusLabel(billingSync?.payment_status);
-  const canOpenBillingAccount = Boolean(rentalRecord.billing_account_id);
+  const canOpenBillingAccount = Boolean(rentalRecord?.billing_account_id);
+  const { data: linkedLatestReceipt } = useQuery({
+    queryKey: ["source_latest_receipt", "rental", rentalId],
+    queryFn: () => getSourceLatestReceipt("rental", rentalId),
+    enabled: isBillingLinked && rentalId > 0,
+  });
+  const { data: linkedReceiptStats } = useQuery({
+    queryKey: ["source_receipt_stats", "rental", rentalId],
+    queryFn: () => getSourceReceiptStats("rental", rentalId),
+    enabled: isBillingLinked && rentalId > 0,
+  });
+  const effectiveReceiptUrl =
+    linkedLatestReceipt?.receipt_url || rentalRecord?.receipt_url || null;
+  const hasMissingReceipt = !rentalRecord
+    ? false
+    : isBillingLinked
+      ? Boolean(linkedReceiptStats?.payments_missing_receipt)
+      : rentalRecord.status === "Completed" && !effectiveReceiptUrl;
+
+  if (!rentalRecord) return null;
+  const rentalData = rentalRecord;
+
+  const handleOpenReceipt = async () => {
+    if (!effectiveReceiptUrl || openingReceipt) return;
+
+    setOpeningReceipt(true);
+    try {
+      const signedUrl = await getSignedReceiptUrl(effectiveReceiptUrl);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to open receipt attachment."
+      );
+    } finally {
+      setOpeningReceipt(false);
+    }
+  };
   const amountDue = (() => {
     const mirroredRemaining = Number(billingSync?.remaining_balance);
     if (Number.isFinite(mirroredRemaining)) {
@@ -259,7 +309,7 @@ export default function RentalDetailSheet({
     setBillingImpactPending(true);
     try {
       await billingImpactAction();
-      await recalculateLinkedSourceBilling("rental", rentalRecord.id, {
+      await recalculateLinkedSourceBilling("rental", rentalData.id, {
         reason: "Rental modification recalculation",
       });
       queryClient.invalidateQueries({ queryKey: ["rentals"] });
@@ -292,7 +342,7 @@ export default function RentalDetailSheet({
 
     if (status === "Completed") {
       if (amountDue <= 0) {
-        await statusMutation.mutateAsync({ ids: [rentalRecord.id], status: "Completed" });
+        await statusMutation.mutateAsync({ ids: [rentalData.id], status: "Completed" });
         onOpenChange(false);
         return;
       }
@@ -301,16 +351,16 @@ export default function RentalDetailSheet({
       return;
     }
 
-    await statusMutation.mutateAsync({ ids: [rentalRecord.id], status });
+    await statusMutation.mutateAsync({ ids: [rentalData.id], status });
     if (status === "Cancelled") {
       onOpenChange(false);
     }
   }
 
   function handleStatusChange(status: RentalStatus) {
-    if (status === rentalRecord.status) return;
+    if (status === rentalData.status) return;
 
-    if (isBillingLinked && rentalRecord.status === "Completed") {
+    if (isBillingLinked && rentalData.status === "Completed") {
       openBillingImpactGuard(() => performStatusChange(status));
       return;
     }
@@ -318,11 +368,25 @@ export default function RentalDetailSheet({
     void performStatusChange(status);
   }
 
-  async function handlePaymentSubmit(payments: Record<string, number>) {
+  async function handlePaymentSubmit(
+    payments: Record<string, number>,
+    receiptFile?: File | null
+  ) {
+    let uploadedReceiptPath: string | null = null;
     try {
-      await applySourcePayment("rental", rental!.id, payments);
+      if (receiptFile) {
+        uploadedReceiptPath = await uploadReceiptFile({
+          sourceType: "rental",
+          sourceId: rentalData.id,
+          file: receiptFile,
+        });
+      }
+
+      await applySourcePayment("rental", rentalData.id, payments, {
+        receiptUrl: uploadedReceiptPath,
+      });
       statusMutation.mutate(
-        { ids: [rental!.id], status: "Completed" },
+        { ids: [rentalData.id], status: "Completed" },
         {
           onSuccess: () => {
             setPaymentOpen(false);
@@ -331,6 +395,13 @@ export default function RentalDetailSheet({
         }
       );
     } catch (error) {
+      if (uploadedReceiptPath) {
+        try {
+          await deleteReceiptFile(uploadedReceiptPath);
+        } catch (deleteError) {
+          console.error("Failed to rollback receipt upload", deleteError);
+        }
+      }
       console.error(error);
       toast.error(
         error instanceof Error ? error.message : "Failed to process payment."
@@ -386,7 +457,7 @@ export default function RentalDetailSheet({
 
     const performUpdate = async () => {
       await updateMutation.mutateAsync({
-        rentalId: rentalRecord.id,
+        rentalId: rentalData.id,
         data: updatePayload,
       });
       setIsEditMode(false);
@@ -472,7 +543,7 @@ export default function RentalDetailSheet({
             </div>
 
             {/* Rental number + status badges */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <span className="bg-primaryRed text-white px-3 py-0.5 rounded-full text-xs font-medium">
                 {rental.rental_no}
               </span>
@@ -495,6 +566,26 @@ export default function RentalDetailSheet({
                       Open
                     </Button>
                   )}
+                </div>
+              )}
+              {effectiveReceiptUrl && (
+                <div className="flex items-center gap-2 px-3 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                  <span>Receipt attached</span>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-emerald-800"
+                    onClick={handleOpenReceipt}
+                    disabled={openingReceipt}
+                  >
+                    {openingReceipt ? "Opening..." : "View Attachment"}
+                  </Button>
+                </div>
+              )}
+              {!effectiveReceiptUrl && hasMissingReceipt && (
+                <div className="flex items-center gap-2 px-3 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                  <span>⚠ Missing Receipt</span>
                 </div>
               )}
               {rental.is_overdue && (

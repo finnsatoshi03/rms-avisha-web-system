@@ -91,6 +91,13 @@ import {
 } from "./useBilling";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../services/supabase";
+import {
+  deleteReceiptFile,
+  getSignedReceiptUrl,
+  resolveReceiptStorageContextFromPayment,
+  updateBillingPaymentReceipt,
+  uploadReceiptFile,
+} from "../../services/apiBilling";
 import { useUser } from "../auth/useUser";
 import { isManagerReauthPasswordValid } from "../auth/manager-auth";
 import { formatNumberWithCommas } from "../../lib/helpers";
@@ -314,8 +321,15 @@ export default function BillingAccountSheetContent({
     useState(false);
   const [suppressStatementActionHint, setSuppressStatementActionHint] =
     useState(false);
+  const [replacingReceiptPaymentId, setReplacingReceiptPaymentId] = useState<string | null>(
+    null
+  );
+  const [pendingReceiptPayment, setPendingReceiptPayment] =
+    useState<BillingPayment | null>(null);
+  const [receiptInputKey, setReceiptInputKey] = useState(0);
   const statementAttentionTimerRef = useRef<number | null>(null);
   const statementHighlightTimerRef = useRef<number | null>(null);
+  const paymentReceiptInputRef = useRef<HTMLInputElement | null>(null);
 
   // Mock data for detail tour when account has no data
   const tourActive = showDetailTour;
@@ -496,6 +510,60 @@ export default function BillingAccountSheetContent({
   // Use mock data for tour if payments are empty
   const rawPayments = (payments ?? []) as BillingPayment[];
   const effectivePayments: BillingPayment[] = tourActive && rawPayments.length === 0 ? MOCK_PAYMENTS : rawPayments;
+  const paymentsMissingReceiptCount = useMemo(
+    () =>
+      effectivePayments.filter((payment) => {
+        const activeAllocations = (payment.allocations || []).filter(
+          (allocation) => allocation.status !== "reversed"
+        );
+        if (activeAllocations.length > 0) {
+          return !payment.receipt_url;
+        }
+        return payment.amount > 0 && !payment.receipt_url;
+      }).length,
+    [effectivePayments]
+  );
+  const lineItemReceiptSummary = useMemo(() => {
+    const summary = new Map<
+      string,
+      { total: number; withReceipt: number; latestReceiptUrl: string | null }
+    >();
+
+    effectivePayments.forEach((payment) => {
+      const receiptUrl = payment.receipt_url || null;
+      (payment.allocations || [])
+        .filter((allocation) => allocation.status !== "reversed")
+        .forEach((allocation) => {
+          const lineItemId = allocation.billing_line_item_id;
+          if (!lineItemId) return;
+
+          const current = summary.get(lineItemId) || {
+            total: 0,
+            withReceipt: 0,
+            latestReceiptUrl: null,
+          };
+
+          current.total += 1;
+          if (receiptUrl) {
+            current.withReceipt += 1;
+            if (!current.latestReceiptUrl) {
+              current.latestReceiptUrl = receiptUrl;
+            }
+          }
+
+          summary.set(lineItemId, current);
+        });
+    });
+
+    return summary;
+  }, [effectivePayments]);
+  const paymentReceiptMap = useMemo(() => {
+    const map = new Map<string, string | null>();
+    effectivePayments.forEach((payment) => {
+      map.set(payment.id, payment.receipt_url || null);
+    });
+    return map;
+  }, [effectivePayments]);
 
   // Filtered ledger for source filter
   const filteredLedger = useMemo(() => {
@@ -812,6 +880,87 @@ export default function BillingAccountSheetContent({
       console.error(err);
     } finally {
       setSendingStatementId(null);
+    }
+  }
+
+  async function handleOpenReceiptPath(receiptUrl: string) {
+    try {
+      const signedUrl = await getSignedReceiptUrl(receiptUrl);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to open receipt attachment."
+      );
+    }
+  }
+
+  async function handleViewReceipt(payment: BillingPayment) {
+    if (!payment.receipt_url) {
+      toast.error("No receipt attached for this payment.");
+      return;
+    }
+
+    await handleOpenReceiptPath(payment.receipt_url);
+  }
+
+  function handleStartReplaceReceipt(payment: BillingPayment) {
+    setPendingReceiptPayment(payment);
+    paymentReceiptInputRef.current?.click();
+  }
+
+  async function handleReplaceReceiptSelection(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file = event.target.files?.[0];
+    const payment = pendingReceiptPayment;
+    event.target.value = "";
+    setReceiptInputKey((previous) => previous + 1);
+
+    if (!file || !payment) {
+      return;
+    }
+
+    const context = resolveReceiptStorageContextFromPayment(payment, accountId);
+    let uploadedPath: string | null = null;
+    setReplacingReceiptPaymentId(payment.id);
+
+    try {
+      uploadedPath = await uploadReceiptFile({
+        sourceType: context.sourceType,
+        sourceId: context.sourceId,
+        file,
+      });
+
+      await updateBillingPaymentReceipt(payment.id, uploadedPath);
+
+      if (payment.receipt_url && payment.receipt_url !== uploadedPath) {
+        try {
+          await deleteReceiptFile(payment.receipt_url);
+        } catch (cleanupError) {
+          console.error("Failed to clean up previous receipt file", cleanupError);
+        }
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["billing_payments", accountId] });
+      toast.success("Payment receipt updated.");
+    } catch (error) {
+      if (uploadedPath) {
+        try {
+          await deleteReceiptFile(uploadedPath);
+        } catch (cleanupError) {
+          console.error("Failed to rollback uploaded receipt file", cleanupError);
+        }
+      }
+      console.error(error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update payment receipt."
+      );
+    } finally {
+      setReplacingReceiptPaymentId(null);
+      setPendingReceiptPayment(null);
     }
   }
 
@@ -1302,47 +1451,93 @@ export default function BillingAccountSheetContent({
                     </TooltipContent>
                   </Tooltip>
                 </TableHead>
+                <TableHead className="text-[11px] font-semibold">
+                  Proof
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLedger.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell className="text-xs whitespace-nowrap py-1.5">
-                    {format(new Date(entry.date), "MMM d")}
-                  </TableCell>
-                  <TableCell className="py-1.5">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] capitalize px-1.5 py-0 cursor-default ${ledgerTypeBadge[entry.type] ?? ""}`}
-                        >
-                          {entry.type}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="text-xs">
-                        {entry.type === "charge" && "Charge from a job order or rental"}
-                        {entry.type === "payment" && "Payment received from client"}
-                        {entry.type === "interest" && "Monthly interest on overdue balance"}
-                        {entry.type === "adjustment" && "Manual balance adjustment"}
-                        {entry.type === "credit" && "Credit / refund applied"}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell className="text-xs max-w-[200px] truncate py-1.5">
-                    {entry.description}
-                  </TableCell>
-                  <TableCell className="text-xs text-right tabular-nums py-1.5">
-                    {entry.debit > 0 ? amt(entry.debit) : ""}
-                  </TableCell>
-                  <TableCell className="text-xs text-right tabular-nums text-green-600 py-1.5">
-                    {entry.credit > 0 ? amt(entry.credit) : ""}
-                  </TableCell>
-                  <TableCell className="text-xs text-right tabular-nums font-medium py-1.5">
-                    {amt(entry.balance)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filteredLedger.map((entry) => {
+                const paymentReceiptUrl =
+                  entry.type === "payment"
+                    ? paymentReceiptMap.get(entry.id) || null
+                    : null;
+                const isMissingPaymentProof =
+                  entry.type === "payment" && !paymentReceiptUrl;
+
+                return (
+                  <TableRow key={entry.id}>
+                    <TableCell className="text-xs whitespace-nowrap py-1.5">
+                      {format(new Date(entry.date), "MMM d")}
+                    </TableCell>
+                    <TableCell className="py-1.5">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] capitalize px-1.5 py-0 cursor-default ${ledgerTypeBadge[entry.type] ?? ""}`}
+                          >
+                            {entry.type}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          {entry.type === "charge" && "Charge from a job order or rental"}
+                          {entry.type === "payment" && "Payment received from client"}
+                          {entry.type === "interest" && "Monthly interest on overdue balance"}
+                          {entry.type === "adjustment" && "Manual balance adjustment"}
+                          {entry.type === "credit" && "Credit / refund applied"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell className="text-xs max-w-[200px] truncate py-1.5">
+                      {entry.description}
+                    </TableCell>
+                    <TableCell className="text-xs text-right tabular-nums py-1.5">
+                      {entry.debit > 0 ? amt(entry.debit) : ""}
+                    </TableCell>
+                    <TableCell className="text-xs text-right tabular-nums text-green-600 py-1.5">
+                      {entry.credit > 0 ? amt(entry.credit) : ""}
+                    </TableCell>
+                    <TableCell className="text-xs text-right tabular-nums font-medium py-1.5">
+                      {amt(entry.balance)}
+                    </TableCell>
+                    <TableCell className="py-1.5">
+                      {entry.type !== "payment" ? (
+                        <span className="text-xs text-gray-400">—</span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {paymentReceiptUrl ? (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 border-green-200"
+                            >
+                              Attached
+                            </Badge>
+                          ) : isMissingPaymentProof ? (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 border-amber-200"
+                            >
+                              Missing
+                            </Badge>
+                          ) : null}
+                          {paymentReceiptUrl && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 text-[11px]"
+                              onClick={() => void handleOpenReceiptPath(paymentReceiptUrl)}
+                            >
+                              View
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -1390,12 +1585,25 @@ export default function BillingAccountSheetContent({
                   <TableHead className="text-[11px] font-semibold">
                     Status
                   </TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    Proof
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {joLineItems.map((li) => {
                   const paid = li.paid_amount ?? 0;
                   const fullyPaid = paid >= li.amount;
+                  const proofSummary = lineItemReceiptSummary.get(li.id);
+                  const proofTotal = proofSummary?.total ?? 0;
+                  const proofWithReceipt = proofSummary?.withReceipt ?? 0;
+                  const proofReceiptUrl = proofSummary?.latestReceiptUrl ?? null;
+                  const isProofMissing =
+                    paid > 0 && (proofTotal === 0 || proofWithReceipt === 0);
+                  const isProofPartial =
+                    paid > 0 && proofTotal > 0 && proofWithReceipt > 0 && proofWithReceipt < proofTotal;
+                  const isProofAttached =
+                    paid > 0 && proofTotal > 0 && proofWithReceipt === proofTotal;
                   return (
                     <TableRow key={li.id}>
                       <TableCell className="text-xs font-mono py-1.5">
@@ -1427,6 +1635,49 @@ export default function BillingAccountSheetContent({
                               ? "Partial"
                               : "Unpaid"}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="py-1.5">
+                        {paid <= 0 ? (
+                          <span className="text-xs text-gray-400">—</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {isProofAttached && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 border-green-200"
+                              >
+                                Attached
+                              </Badge>
+                            )}
+                            {isProofPartial && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 bg-yellow-100 text-yellow-700 border-yellow-200"
+                              >
+                                Partial
+                              </Badge>
+                            )}
+                            {isProofMissing && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 border-amber-200"
+                              >
+                                Missing
+                              </Badge>
+                            )}
+                            {proofReceiptUrl && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-[11px]"
+                                onClick={() => void handleOpenReceiptPath(proofReceiptUrl)}
+                              >
+                                View
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -1477,12 +1728,25 @@ export default function BillingAccountSheetContent({
                   <TableHead className="text-[11px] font-semibold">
                     Status
                   </TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    Proof
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rentalLineItems.map((li) => {
                   const paid = li.paid_amount ?? 0;
                   const fullyPaid = paid >= li.amount;
+                  const proofSummary = lineItemReceiptSummary.get(li.id);
+                  const proofTotal = proofSummary?.total ?? 0;
+                  const proofWithReceipt = proofSummary?.withReceipt ?? 0;
+                  const proofReceiptUrl = proofSummary?.latestReceiptUrl ?? null;
+                  const isProofMissing =
+                    paid > 0 && (proofTotal === 0 || proofWithReceipt === 0);
+                  const isProofPartial =
+                    paid > 0 && proofTotal > 0 && proofWithReceipt > 0 && proofWithReceipt < proofTotal;
+                  const isProofAttached =
+                    paid > 0 && proofTotal > 0 && proofWithReceipt === proofTotal;
                   return (
                     <TableRow key={li.id}>
                       <TableCell className="text-xs font-mono py-1.5">
@@ -1515,6 +1779,49 @@ export default function BillingAccountSheetContent({
                               : "Unpaid"}
                         </Badge>
                       </TableCell>
+                      <TableCell className="py-1.5">
+                        {paid <= 0 ? (
+                          <span className="text-xs text-gray-400">—</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {isProofAttached && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 border-green-200"
+                              >
+                                Attached
+                              </Badge>
+                            )}
+                            {isProofPartial && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 bg-yellow-100 text-yellow-700 border-yellow-200"
+                              >
+                                Partial
+                              </Badge>
+                            )}
+                            {isProofMissing && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 border-amber-200"
+                              >
+                                Missing
+                              </Badge>
+                            )}
+                            {proofReceiptUrl && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-[11px]"
+                                onClick={() => void handleOpenReceiptPath(proofReceiptUrl)}
+                              >
+                                View
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -1541,6 +1848,16 @@ export default function BillingAccountSheetContent({
         )}
       </CollapsibleTrigger>
       <CollapsibleContent>
+        {paymentsMissingReceiptCount > 0 && (
+          <Alert className="mb-2 border-amber-200 bg-amber-50 text-amber-900 p-2.5">
+            <AlertTitle className="text-xs font-semibold">Missing Receipt</AlertTitle>
+            <AlertDescription className="text-xs text-amber-900">
+              {paymentsMissingReceiptCount}{" "}
+              {paymentsMissingReceiptCount === 1 ? "payment is" : "payments are"} missing
+              proof of payment.
+            </AlertDescription>
+          </Alert>
+        )}
         {paymentsLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 2 }).map((_, i) => (
@@ -1568,25 +1885,73 @@ export default function BillingAccountSheetContent({
                   <TableHead className="text-[11px] font-semibold">
                     Ref #
                   </TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    Receipt
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {effectivePayments.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="text-xs whitespace-nowrap py-1.5">
-                      {format(new Date(p.payment_date), "MMM d, yy")}
-                    </TableCell>
-                    <TableCell className="text-xs text-right tabular-nums font-medium text-green-700 py-1.5">
-                      {amt(p.amount)}
-                    </TableCell>
-                    <TableCell className="text-xs capitalize py-1.5">
-                      {p.payment_method ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-xs font-mono py-1.5">
-                      {p.reference_number ?? "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {effectivePayments.map((p) => {
+                  const hasReceipt = Boolean(p.receipt_url);
+                  const isReplacing = replacingReceiptPaymentId === p.id;
+
+                  return (
+                    <TableRow key={p.id}>
+                      <TableCell className="text-xs whitespace-nowrap py-1.5">
+                        {format(new Date(p.payment_date), "MMM d, yy")}
+                      </TableCell>
+                      <TableCell className="text-xs text-right tabular-nums font-medium text-green-700 py-1.5">
+                        {amt(p.amount)}
+                      </TableCell>
+                      <TableCell className="text-xs capitalize py-1.5">
+                        {p.payment_method ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs font-mono py-1.5">
+                        {p.reference_number ?? "—"}
+                      </TableCell>
+                      <TableCell className="py-1.5">
+                        <div className="flex items-center gap-2">
+                          {hasReceipt ? (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 border-green-200"
+                            >
+                              Attached
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 border-amber-200"
+                            >
+                              Missing
+                            </Badge>
+                          )}
+                          {hasReceipt && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 text-[11px]"
+                              onClick={() => handleViewReceipt(p)}
+                            >
+                              View
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-[11px]"
+                            onClick={() => handleStartReplaceReceipt(p)}
+                            disabled={isReplacing}
+                          >
+                            {isReplacing ? "Uploading..." : hasReceipt ? "Replace" : "Attach"}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -2155,6 +2520,14 @@ export default function BillingAccountSheetContent({
           </div>
         )}
       </div>
+      <input
+        key={receiptInputKey}
+        ref={paymentReceiptInputRef}
+        type="file"
+        accept=".jpg,.jpeg,.png,application/pdf"
+        className="hidden"
+        onChange={handleReplaceReceiptSelection}
+      />
 
       {/* Suspend/Activate Confirmation Dialog */}
       <AlertDialog
