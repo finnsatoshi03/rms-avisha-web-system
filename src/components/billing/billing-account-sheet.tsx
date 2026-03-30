@@ -1728,13 +1728,18 @@ export default function BillingAccountSheetContent({
                   const proofSummary = lineItemReceiptSummary.get(li.id);
                   const proofTotal = proofSummary?.total ?? 0;
                   const proofWithReceipt = proofSummary?.withReceipt ?? 0;
-                  const proofReceiptUrl = proofSummary?.latestReceiptUrl ?? null;
-                  const isProofMissing =
-                    paid > 0 && (proofTotal === 0 || proofWithReceipt === 0);
+                  const sourceReceiptUrl = li.receipt_url || null;
+                  const proofReceiptUrl =
+                    proofSummary?.latestReceiptUrl ?? sourceReceiptUrl;
+                  const isProofMissing = paid > 0 && !proofReceiptUrl;
                   const isProofPartial =
-                    paid > 0 && proofTotal > 0 && proofWithReceipt > 0 && proofWithReceipt < proofTotal;
+                    paid > 0 &&
+                    !sourceReceiptUrl &&
+                    proofTotal > 0 &&
+                    proofWithReceipt > 0 &&
+                    proofWithReceipt < proofTotal;
                   const isProofAttached =
-                    paid > 0 && proofTotal > 0 && proofWithReceipt === proofTotal;
+                    paid > 0 && Boolean(proofReceiptUrl) && !isProofPartial;
                   return (
                     <TableRow key={li.id}>
                       <TableCell className="text-xs font-mono py-1.5">
@@ -1871,13 +1876,18 @@ export default function BillingAccountSheetContent({
                   const proofSummary = lineItemReceiptSummary.get(li.id);
                   const proofTotal = proofSummary?.total ?? 0;
                   const proofWithReceipt = proofSummary?.withReceipt ?? 0;
-                  const proofReceiptUrl = proofSummary?.latestReceiptUrl ?? null;
-                  const isProofMissing =
-                    paid > 0 && (proofTotal === 0 || proofWithReceipt === 0);
+                  const sourceReceiptUrl = li.receipt_url || null;
+                  const proofReceiptUrl =
+                    proofSummary?.latestReceiptUrl ?? sourceReceiptUrl;
+                  const isProofMissing = paid > 0 && !proofReceiptUrl;
                   const isProofPartial =
-                    paid > 0 && proofTotal > 0 && proofWithReceipt > 0 && proofWithReceipt < proofTotal;
+                    paid > 0 &&
+                    !sourceReceiptUrl &&
+                    proofTotal > 0 &&
+                    proofWithReceipt > 0 &&
+                    proofWithReceipt < proofTotal;
                   const isProofAttached =
-                    paid > 0 && proofTotal > 0 && proofWithReceipt === proofTotal;
+                    paid > 0 && Boolean(proofReceiptUrl) && !isProofPartial;
                   return (
                     <TableRow key={li.id}>
                       <TableCell className="text-xs font-mono py-1.5">

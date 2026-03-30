@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { rentalFormSchema, RentalFormValues } from "./rentalSchema";
@@ -23,6 +23,7 @@ import {
   getSourceLatestReceipt,
   getSourceReceiptStats,
   recalculateLinkedSourceBilling,
+  updateSourceReceipt,
   uploadReceiptFile,
 } from "../../services/apiBilling";
 import ReturnInspectionDialog from "./return-inspection-dialog";
@@ -125,9 +126,12 @@ export default function RentalDetailSheet({
     (() => Promise<void>) | null
   >(null);
   const [openingReceipt, setOpeningReceipt] = useState(false);
+  const sourceReceiptInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadingSourceReceipt, setIsUploadingSourceReceipt] =
+    useState(false);
   const statusMutation = useRentalStatusUpdate();
   const updateMutation = useUpdateRental();
-  const { user, branchId, isAdmin } = useUser();
+  const { user, branchId, isAdmin, isTechnician } = useUser();
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [rentalMonths, setRentalMonths] = useState(1);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
@@ -257,8 +261,10 @@ export default function RentalDetailSheet({
   const hasMissingReceipt = !rentalRecord
     ? false
     : isBillingLinked
-      ? Boolean(linkedReceiptStats?.payments_missing_receipt)
+      ? Boolean(linkedReceiptStats?.payments_missing_receipt) ||
+        (rentalRecord.status === "Completed" && !effectiveReceiptUrl)
       : rentalRecord.status === "Completed" && !effectiveReceiptUrl;
+  const canManageSourceReceipt = Boolean(rentalRecord) && !isTechnician;
 
   if (!rentalRecord) return null;
   const rentalData = rentalRecord;
@@ -281,6 +287,63 @@ export default function RentalDetailSheet({
       setOpeningReceipt(false);
     }
   };
+
+  const handleSourceReceiptUpload = async (file: File | null) => {
+    if (!file || !canManageSourceReceipt) return;
+
+    const sourceId = rentalData.id;
+    const previousReceiptPath = effectiveReceiptUrl || null;
+    let uploadedReceiptPath: string | null = null;
+    setIsUploadingSourceReceipt(true);
+    try {
+      uploadedReceiptPath = await uploadReceiptFile({
+        sourceType: "rental",
+        sourceId,
+        file,
+      });
+
+      await updateSourceReceipt("rental", sourceId, uploadedReceiptPath);
+
+      if (
+        previousReceiptPath &&
+        previousReceiptPath !== uploadedReceiptPath
+      ) {
+        try {
+          await deleteReceiptFile(previousReceiptPath);
+        } catch (cleanupError) {
+          console.error("Failed to clean up previous receipt file", cleanupError);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({
+        queryKey: ["source_latest_receipt", "rental", sourceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["source_receipt_stats", "rental", sourceId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      toast.success(previousReceiptPath ? "Receipt replaced." : "Receipt attached.");
+    } catch (error) {
+      if (uploadedReceiptPath) {
+        try {
+          await deleteReceiptFile(uploadedReceiptPath);
+        } catch (deleteError) {
+          console.error("Failed to rollback source receipt upload", deleteError);
+        }
+      }
+      console.error(error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update receipt."
+      );
+    } finally {
+      setIsUploadingSourceReceipt(false);
+      if (sourceReceiptInputRef.current) {
+        sourceReceiptInputRef.current.value = "";
+      }
+    }
+  };
+
   const amountDue = (() => {
     const mirroredRemaining = Number(billingSync?.remaining_balance);
     if (Number.isFinite(mirroredRemaining)) {
@@ -588,11 +651,50 @@ export default function RentalDetailSheet({
                   >
                     {openingReceipt ? "Opening..." : "View Attachment"}
                   </Button>
+                  {canManageSourceReceipt && (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs text-emerald-800"
+                      onClick={() => sourceReceiptInputRef.current?.click()}
+                      disabled={isUploadingSourceReceipt}
+                    >
+                      {isUploadingSourceReceipt ? "Uploading..." : "Replace"}
+                    </Button>
+                  )}
                 </div>
               )}
               {!effectiveReceiptUrl && hasMissingReceipt && (
                 <div className="flex items-center gap-2 px-3 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                   <span>⚠ Missing Receipt</span>
+                  {canManageSourceReceipt && (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs text-amber-800"
+                      onClick={() => sourceReceiptInputRef.current?.click()}
+                      disabled={isUploadingSourceReceipt}
+                    >
+                      {isUploadingSourceReceipt ? "Uploading..." : "Upload Receipt"}
+                    </Button>
+                  )}
+                </div>
+              )}
+              {!effectiveReceiptUrl && !hasMissingReceipt && canManageSourceReceipt && (
+                <div className="flex items-center gap-2 px-3 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                  <span>No Receipt Attached</span>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-slate-700"
+                    onClick={() => sourceReceiptInputRef.current?.click()}
+                    disabled={isUploadingSourceReceipt}
+                  >
+                    {isUploadingSourceReceipt ? "Uploading..." : "Upload Receipt"}
+                  </Button>
                 </div>
               )}
               {rental.is_overdue && (
@@ -1164,6 +1266,16 @@ export default function RentalDetailSheet({
           )}
         </SheetContent>
       </Sheet>
+      <input
+        ref={sourceReceiptInputRef}
+        type="file"
+        accept="image/jpeg,image/png,application/pdf"
+        className="hidden"
+        disabled={isUploadingSourceReceipt}
+        onChange={(event) =>
+          void handleSourceReceiptUpload(event.target.files?.[0] || null)
+        }
+      />
 
       <ReturnInspectionDialog
         open={inspectionOpen}

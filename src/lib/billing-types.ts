@@ -42,6 +42,9 @@ export type BillingLineItem = {
   total_paid?: number;
   remaining_balance?: number;
   payment_status?: BillingPaymentStatus;
+  receipt_url?: string | null;
+  receipt_uploaded_at?: string | null;
+  receipt_uploaded_by?: string | null;
   balance_at_time: number | null;
   due_date: string | null;
   created_by: string | null;

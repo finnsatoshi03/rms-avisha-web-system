@@ -401,6 +401,9 @@ export default function JobOrderForm({
   const [isUploadingPostPrintReceipt, setIsUploadingPostPrintReceipt] =
     useState(false);
   const postPrintReceiptInputRef = useRef<HTMLInputElement | null>(null);
+  const sourceReceiptInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadingSourceReceipt, setIsUploadingSourceReceipt] =
+    useState(false);
 
   useEffect(() => {
     console.log("[PrintFlow] state changed", {
@@ -435,6 +438,7 @@ export default function JobOrderForm({
   const {
     isAdmin,
     isManager,
+    isTechnician,
     branchId: currentUserBranchId,
     user,
   } = useUser();
@@ -659,9 +663,12 @@ export default function JobOrderForm({
     linkedLatestReceipt?.receipt_url || jobOrderToEdit.receipt_url || null;
   const hasMissingReceipt = editSession
     ? isBillingLinked
-      ? Boolean(linkedReceiptStats?.payments_missing_receipt)
+      ? Boolean(linkedReceiptStats?.payments_missing_receipt) ||
+        (editValuesWithClient.status === "Completed" && !effectiveReceiptUrl)
       : editValuesWithClient.status === "Completed" && !effectiveReceiptUrl
     : false;
+  const canManageSourceReceipt =
+    editSession && Boolean(editId) && !isTechnician;
 
   const handleOpenReceipt = async () => {
     if (!effectiveReceiptUrl || openingReceipt) return;
@@ -679,6 +686,64 @@ export default function JobOrderForm({
       );
     } finally {
       setOpeningReceipt(false);
+    }
+  };
+
+  const handleSourceReceiptUpload = async (file: File | null) => {
+    if (!file || !canManageSourceReceipt) return;
+
+    const sourceId = Number(editId || 0);
+    if (!Number.isFinite(sourceId) || sourceId <= 0) return;
+
+    const previousReceiptPath = effectiveReceiptUrl || null;
+    let uploadedReceiptPath: string | null = null;
+    setIsUploadingSourceReceipt(true);
+    try {
+      uploadedReceiptPath = await uploadReceiptFile({
+        sourceType: "job_order",
+        sourceId,
+        file,
+      });
+
+      await updateSourceReceipt("job_order", sourceId, uploadedReceiptPath);
+
+      if (
+        previousReceiptPath &&
+        previousReceiptPath !== uploadedReceiptPath
+      ) {
+        try {
+          await deleteReceiptFile(previousReceiptPath);
+        } catch (cleanupError) {
+          console.error("Failed to clean up previous receipt file", cleanupError);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["job_order"] });
+      queryClient.invalidateQueries({
+        queryKey: ["source_latest_receipt", "job_order", sourceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["source_receipt_stats", "job_order", sourceId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      toast.success(previousReceiptPath ? "Receipt replaced." : "Receipt attached.");
+    } catch (error) {
+      if (uploadedReceiptPath) {
+        try {
+          await deleteReceiptFile(uploadedReceiptPath);
+        } catch (deleteError) {
+          console.error("Failed to rollback source receipt upload", deleteError);
+        }
+      }
+      console.error(error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update receipt."
+      );
+    } finally {
+      setIsUploadingSourceReceipt(false);
+      if (sourceReceiptInputRef.current) {
+        sourceReceiptInputRef.current.value = "";
+      }
     }
   };
 
@@ -1732,11 +1797,50 @@ export default function JobOrderForm({
                 >
                   {openingReceipt ? "Opening..." : "View Attachment"}
                 </Button>
+                {canManageSourceReceipt && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-emerald-800"
+                    onClick={() => sourceReceiptInputRef.current?.click()}
+                    disabled={isUploadingSourceReceipt}
+                  >
+                    {isUploadingSourceReceipt ? "Uploading..." : "Replace"}
+                  </Button>
+                )}
               </div>
             )}
             {!effectiveReceiptUrl && hasMissingReceipt && (
               <div className="px-3 py-1 bg-amber-100 rounded-full text-amber-800 text-xs w-fit flex items-center gap-2">
                 <span>⚠ Missing Receipt</span>
+                {canManageSourceReceipt && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-amber-800"
+                    onClick={() => sourceReceiptInputRef.current?.click()}
+                    disabled={isUploadingSourceReceipt}
+                  >
+                    {isUploadingSourceReceipt ? "Uploading..." : "Upload Receipt"}
+                  </Button>
+                )}
+              </div>
+            )}
+            {!effectiveReceiptUrl && !hasMissingReceipt && canManageSourceReceipt && (
+              <div className="px-3 py-1 bg-slate-100 rounded-full text-slate-700 text-xs w-fit flex items-center gap-2">
+                <span>No Receipt Attached</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs text-slate-700"
+                  onClick={() => sourceReceiptInputRef.current?.click()}
+                  disabled={isUploadingSourceReceipt}
+                >
+                  {isUploadingSourceReceipt ? "Uploading..." : "Upload Receipt"}
+                </Button>
               </div>
             )}
             {readonly && !isEditMode && (
@@ -3085,6 +3189,16 @@ export default function JobOrderForm({
         disabled={isUploadingPostPrintReceipt}
         onChange={(event) =>
           void handlePostPrintReceiptUpload(event.target.files?.[0] || null)
+        }
+      />
+      <input
+        ref={sourceReceiptInputRef}
+        type="file"
+        accept="image/jpeg,image/png,application/pdf"
+        className="hidden"
+        disabled={isUploadingSourceReceipt}
+        onChange={(event) =>
+          void handleSourceReceiptUpload(event.target.files?.[0] || null)
         }
       />
 
