@@ -46,6 +46,7 @@ export default function JoBillingSection({ jobOrder }: JoBillingSectionProps) {
   const { data: billingAccount, isLoading } = useBillingAccountByClient(clientId);
   const { data: balance } = useBillingAccountBalance(billingAccount?.id);
   const transferMutation = useTransferJobOrderToBilling();
+  const isTransactionBusy = transferMutation.isPending || isUploadingReceipt;
 
   const remainingBalance = (jobOrder.grand_total || 0) - (jobOrder.downpayment || 0);
   const isTransferred = jobOrder.transferred_to_billing;
@@ -104,6 +105,11 @@ export default function JoBillingSection({ jobOrder }: JoBillingSectionProps) {
         receiptInputRef.current.value = "";
       }
     }
+  };
+
+  const handleConfirmDialogChange = (nextOpen: boolean) => {
+    if (!nextOpen && isTransactionBusy) return;
+    setConfirmOpen(nextOpen);
   };
 
   return (
@@ -195,8 +201,21 @@ export default function JoBillingSection({ jobOrder }: JoBillingSectionProps) {
       </div>
 
       {/* Transfer confirmation dialog */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+      <Dialog open={confirmOpen} onOpenChange={handleConfirmDialogChange}>
+        <DialogContent
+          className="sm:max-w-[425px]"
+          closeDisabled={isTransactionBusy}
+          onEscapeKeyDown={(event) => {
+            if (isTransactionBusy) {
+              event.preventDefault();
+            }
+          }}
+          onInteractOutside={(event) => {
+            if (isTransactionBusy) {
+              event.preventDefault();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Transfer to Billing</DialogTitle>
           </DialogHeader>
@@ -251,7 +270,7 @@ export default function JoBillingSection({ jobOrder }: JoBillingSectionProps) {
                   variant="outline"
                   className="h-7 text-xs"
                   onClick={() => receiptInputRef.current?.click()}
-                  disabled={isUploadingReceipt}
+                  disabled={isTransactionBusy}
                 >
                   {isUploadingReceipt ? "Uploading..." : "Upload Receipt"}
                 </Button>
@@ -260,6 +279,7 @@ export default function JoBillingSection({ jobOrder }: JoBillingSectionProps) {
                   type="file"
                   className="hidden"
                   accept="image/jpeg,image/png,application/pdf"
+                  disabled={isTransactionBusy}
                   onChange={(event) =>
                     handleUploadReceipt(event.target.files?.[0] || null)
                   }
@@ -268,12 +288,16 @@ export default function JoBillingSection({ jobOrder }: JoBillingSectionProps) {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+              disabled={isTransactionBusy}
+            >
               Cancel
             </Button>
             <Button
               onClick={handleTransfer}
-              disabled={transferMutation.isPending}
+              disabled={isTransactionBusy}
             >
               {transferMutation.isPending ? "Transferring..." : "Transfer"}
             </Button>

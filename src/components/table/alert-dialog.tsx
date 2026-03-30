@@ -26,14 +26,20 @@ export const ConfirmDialog = ({
   destructive,
   isPending,
 }: ConfirmDialogProps) => (
-  <AlertDialog open={isOpen} onOpenChange={onClose}>
+  <AlertDialog
+    open={isOpen}
+    onOpenChange={(nextOpen) => {
+      if (!nextOpen && isPending) return;
+      if (!nextOpen) onClose();
+    }}
+  >
     <AlertDialogContent>
       <AlertDialogHeader>
         <AlertDialogTitle>Confirm Action</AlertDialogTitle>
         <AlertDialogDescription>{message}</AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        <Button variant="ghost" onClick={onClose}>
+        <Button variant="ghost" onClick={onClose} disabled={isPending}>
           Cancel
         </Button>
         <Button

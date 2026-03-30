@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import ReceiptAttachmentField from "../billing/receipt-attachment-field";
 import ReceiptMissingConfirmDialog from "../billing/receipt-missing-confirm-dialog";
+import { useTransactionHandler } from "../../hooks/useTransactionHandler";
 
 const paymentMethods = [
   { label: "Cash", value: "cash" },
@@ -31,7 +33,10 @@ const paymentMethods = [
 interface RentalPaymentDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (payments: Record<string, number>, receiptFile?: File | null) => void;
+  onSubmit: (
+    payments: Record<string, number>,
+    receiptFile?: File | null
+  ) => Promise<void>;
   grandTotal: number;
   rentalNo: string;
   isBillingLinked?: boolean;
@@ -59,6 +64,10 @@ export default function RentalPaymentDialog({
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [confirmMethod, setConfirmMethod] = useState("");
   const [isSubmitDisabled, setIsSubmitDisabled] = useState(true);
+  const transaction = useTransactionHandler();
+
+  const isProcessing = transaction.isLoading;
+  const disableInteraction = isProcessing;
 
   useEffect(() => {
     const total = Object.values(payments).reduce(
@@ -68,34 +77,65 @@ export default function RentalPaymentDialog({
     setTotalEntered(total);
 
     if (splitPayments) {
-      setIsSubmitDisabled(
-        selectedMethods.length === 0 || total !== grandTotal
-      );
+      setIsSubmitDisabled(selectedMethods.length === 0 || total !== grandTotal);
     } else {
       setIsSubmitDisabled(!splitPayments);
     }
   }, [payments, selectedMethods, splitPayments, grandTotal]);
 
+  useEffect(() => {
+    if (!open && !isProcessing) {
+      resetFormState();
+      transaction.reset();
+    }
+  }, [open, isProcessing, transaction.reset]);
+
+  function resetFormState() {
+    setPayments({});
+    setSelectedMethods([]);
+    setTotalEntered(0);
+    setSplitPayments(false);
+    setShowConfirm(false);
+    setShowBillingConfirm(false);
+    setShowMissingReceiptConfirm(false);
+    setPendingPayments(null);
+    setReceiptFile(null);
+    setConfirmMethod("");
+    setIsSubmitDisabled(true);
+  }
+
+  function handleMainDialogChange(nextOpen: boolean) {
+    if (nextOpen) return;
+    if (disableInteraction) return;
+    onClose();
+  }
+
   const handlePaymentChange = (method: string, value: string) => {
+    if (disableInteraction) return;
     setPayments({ ...payments, [method]: Number(value) });
   };
 
   const handleMethodSelect = (method: string) => {
+    if (disableInteraction) return;
+
     if (!splitPayments) {
       setConfirmMethod(method);
       setShowConfirm(true);
-    } else {
-      if (selectedMethods.includes(method)) {
-        setSelectedMethods(selectedMethods.filter((m) => m !== method));
-        setPayments((prev) => {
-          const updated = { ...prev };
-          delete updated[method];
-          return updated;
-        });
-      } else {
-        setSelectedMethods([...selectedMethods, method]);
-      }
+      transaction.setConfirming();
+      return;
     }
+
+    if (selectedMethods.includes(method)) {
+      setSelectedMethods(selectedMethods.filter((m) => m !== method));
+      setPayments((prev) => {
+        const updated = { ...prev };
+        delete updated[method];
+        return updated;
+      });
+      return;
+    }
+
+    setSelectedMethods([...selectedMethods, method]);
   };
 
   const resolvePaymentsToSubmit = () => {
@@ -114,25 +154,43 @@ export default function RentalPaymentDialog({
     return payments;
   };
 
-  const submitPayments = (payload: Record<string, number>) => {
-    onSubmit(payload, receiptFile);
+  const runSubmission = async (payload: Record<string, number>) => {
+    if (disableInteraction) return;
+
     setShowConfirm(false);
     setShowBillingConfirm(false);
     setShowMissingReceiptConfirm(false);
-    setPendingPayments(null);
-    setReceiptFile(null);
+
+    const success = await transaction.run(
+      async () => {
+        await onSubmit(payload, receiptFile);
+      },
+      {
+        errorMessage: "Payment failed. Please try again.",
+        successMessage: "Payment recorded successfully.",
+        keepSuccessStateMs: 500,
+      }
+    );
+
+    if (!success) return;
+
+    transaction.reset();
+    onClose();
   };
 
   const maybeConfirmMissingReceipt = (payload: Record<string, number>) => {
     if (!receiptFile) {
       setPendingPayments(payload);
       setShowMissingReceiptConfirm(true);
+      transaction.setConfirming();
       return;
     }
-    submitPayments(payload);
+    void runSubmission(payload);
   };
 
   const handleConfirmPayment = () => {
+    if (disableInteraction) return;
+
     const payload = resolvePaymentsToSubmit();
     if (!payload) return;
 
@@ -140,6 +198,7 @@ export default function RentalPaymentDialog({
       setPendingPayments(payload);
       setShowBillingConfirm(true);
       setShowConfirm(false);
+      transaction.setConfirming();
       return;
     }
 
@@ -147,12 +206,14 @@ export default function RentalPaymentDialog({
   };
 
   const handleBillingConfirm = () => {
-    if (!pendingPayments) return;
+    if (disableInteraction || !pendingPayments) return;
     setShowBillingConfirm(false);
     maybeConfirmMissingReceipt(pendingPayments);
   };
 
   const toggleSplitPayments = () => {
+    if (disableInteraction) return;
+
     if (splitPayments) {
       setPayments({});
       setSelectedMethods([]);
@@ -162,8 +223,20 @@ export default function RentalPaymentDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent>
+      <Dialog open={open} onOpenChange={handleMainDialogChange}>
+        <DialogContent
+          closeDisabled={disableInteraction}
+          onEscapeKeyDown={(event) => {
+            if (disableInteraction) {
+              event.preventDefault();
+            }
+          }}
+          onInteractOutside={(event) => {
+            if (disableInteraction) {
+              event.preventDefault();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogDescription className="opacity-60 text-xs md:text-sm">
               Complete Rental {rentalNo} — Total Amount
@@ -186,6 +259,7 @@ export default function RentalPaymentDialog({
                     }`}
                     variant="outline"
                     onClick={() => handleMethodSelect(method.value)}
+                    disabled={disableInteraction}
                   >
                     {method.label}
                   </Button>
@@ -207,6 +281,7 @@ export default function RentalPaymentDialog({
                       selectedMethods.includes(method.value) ? "selected" : ""
                     }`}
                     onClick={() => handleMethodSelect(method.value)}
+                    disabled={disableInteraction}
                   >
                     {method.label}
                   </Button>
@@ -217,6 +292,7 @@ export default function RentalPaymentDialog({
                       placeholder={`Enter amount for ${method.label}`}
                       pattern="[0-9]*"
                       inputMode="numeric"
+                      disabled={disableInteraction}
                       onChange={(e) =>
                         handlePaymentChange(method.value, e.target.value)
                       }
@@ -236,28 +312,66 @@ export default function RentalPaymentDialog({
             }`}
             variant={splitPayments ? "default" : "outline"}
             onClick={toggleSplitPayments}
+            disabled={disableInteraction}
           >
             {splitPayments ? "Cancel Split Payments" : "Split Payments"}
           </Button>
 
+          {isProcessing && (
+            <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm">
+              <div className="flex items-center gap-2 font-medium">
+                <Loader2 size={16} className="animate-spin" />
+                <span>Processing Payment...</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Please wait.</p>
+            </div>
+          )}
+
+          {transaction.isSuccess && transaction.successMessage && (
+            <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+              {transaction.successMessage}
+            </div>
+          )}
+
+          {transaction.isError && transaction.error && (
+            <p className="text-sm text-destructive">{transaction.error}</p>
+          )}
+
           <div className="grid grid-cols-[0.5fr_1fr] gap-2 mt-4">
-            <Button variant="secondary" onClick={onClose}>
+            <Button
+              variant="secondary"
+              onClick={onClose}
+              disabled={disableInteraction}
+            >
               Cancel
             </Button>
-            <Button onClick={handleConfirmPayment} disabled={isSubmitDisabled}>
-              Submit Payment
+            <Button
+              onClick={handleConfirmPayment}
+              disabled={isSubmitDisabled || disableInteraction}
+            >
+              {isProcessing ? "Processing..." : "Submit Payment"}
             </Button>
           </div>
           <ReceiptAttachmentField
             file={receiptFile}
             onFileChange={setReceiptFile}
             inputId="rental-receipt-upload"
+            disabled={disableInteraction}
           />
         </DialogContent>
       </Dialog>
 
       {showConfirm && (
-        <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <AlertDialog
+          open={showConfirm}
+          onOpenChange={(nextOpen) => {
+            if (disableInteraction) return;
+            setShowConfirm(nextOpen);
+            if (!nextOpen) {
+              transaction.setIdle();
+            }
+          }}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
@@ -271,10 +385,19 @@ export default function RentalPaymentDialog({
               variant="default"
               onClick={handleConfirmPayment}
               className="bg-green-500 hover:bg-green-600"
+              disabled={disableInteraction}
             >
-              Yes, Confirm
+              {isProcessing ? "Processing..." : "Yes, Confirm"}
             </Button>
-            <Button variant="secondary" onClick={() => setShowConfirm(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (disableInteraction) return;
+                setShowConfirm(false);
+                transaction.setIdle();
+              }}
+              disabled={disableInteraction}
+            >
               Cancel
             </Button>
           </AlertDialogContent>
@@ -282,20 +405,33 @@ export default function RentalPaymentDialog({
       )}
       <ReceiptMissingConfirmDialog
         open={showMissingReceiptConfirm}
-        onOpenChange={setShowMissingReceiptConfirm}
-        onAttachNow={() => setShowMissingReceiptConfirm(false)}
-        onContinueWithoutReceipt={() => {
-          if (!pendingPayments) return;
-          submitPayments(pendingPayments);
+        onOpenChange={(nextOpen) => {
+          if (disableInteraction) return;
+          setShowMissingReceiptConfirm(nextOpen);
+          if (!nextOpen) {
+            transaction.setIdle();
+          }
         }}
+        onAttachNow={() => {
+          if (disableInteraction) return;
+          setShowMissingReceiptConfirm(false);
+          transaction.setIdle();
+        }}
+        onContinueWithoutReceipt={() => {
+          if (!pendingPayments || disableInteraction) return;
+          void runSubmission(pendingPayments);
+        }}
+        disabled={disableInteraction}
       />
       {showBillingConfirm && (
         <AlertDialog
           open={showBillingConfirm}
           onOpenChange={(nextOpen) => {
+            if (disableInteraction) return;
             setShowBillingConfirm(nextOpen);
             if (!nextOpen) {
               setPendingPayments(null);
+              transaction.setIdle();
             }
           }}
         >
@@ -305,24 +441,27 @@ export default function RentalPaymentDialog({
                 This payment will reflect in Billing Statement
               </AlertDialogTitle>
               <AlertDialogDescription>
-                This rental is linked or transferred to billing. Confirming
-                this payment will update the billing statement and remaining
-                balance.
+                This rental is linked or transferred to billing. Confirming this
+                payment will update the billing statement and remaining balance.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <Button
               variant="default"
               onClick={handleBillingConfirm}
               className="bg-green-500 hover:bg-green-600"
+              disabled={disableInteraction}
             >
               Confirm & Update Billing
             </Button>
             <Button
               variant="secondary"
               onClick={() => {
+                if (disableInteraction) return;
                 setShowBillingConfirm(false);
                 setPendingPayments(null);
+                transaction.setIdle();
               }}
+              disabled={disableInteraction}
             >
               Cancel
             </Button>

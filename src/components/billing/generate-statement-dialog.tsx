@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,7 @@ import {
 } from "../ui/select";
 import { useGenerateBillingStatement } from "./useBilling";
 import { supabase } from "../../services/supabase";
+import { useTransactionHandler } from "../../hooks/useTransactionHandler";
 
 interface GenerateStatementDialogProps {
   open: boolean;
@@ -41,6 +43,8 @@ export default function GenerateStatementDialog({
   const [branches, setBranches] = useState<{ id: number; name: string }[]>([]);
 
   const generateStatement = useGenerateBillingStatement();
+  const transaction = useTransactionHandler();
+  const isProcessing = transaction.isLoading;
 
   // Fetch branches
   useEffect(() => {
@@ -60,31 +64,57 @@ export default function GenerateStatementDialog({
     setPeriodStart("");
     setPeriodEnd(todayString());
     setBranchFilter("all");
+    transaction.reset();
+  }
+
+  function handleDialogChange(nextOpen: boolean) {
+    if (!nextOpen && isProcessing) return;
+    if (!nextOpen) {
+      resetForm();
+    }
+    onOpenChange(nextOpen);
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!periodStart || !periodEnd) return;
 
-    generateStatement.mutate(
-      {
-        accountId,
-        periodStart,
-        periodEnd,
-        branchFilter: branchFilter === "all" ? undefined : Number(branchFilter),
+    void transaction.run(
+      async () => {
+        await generateStatement.mutateAsync({
+          accountId,
+          periodStart,
+          periodEnd,
+          branchFilter: branchFilter === "all" ? undefined : Number(branchFilter),
+        });
       },
       {
-        onSuccess: () => {
-          resetForm();
-          onOpenChange(false);
-        },
+        errorMessage: "Failed to generate statement. Please try again.",
+        successMessage: "Statement generated successfully.",
       }
-    );
+    ).then((success) => {
+      if (!success) return;
+      resetForm();
+      onOpenChange(false);
+    });
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={handleDialogChange}>
+      <DialogContent
+        className="sm:max-w-md"
+        closeDisabled={isProcessing}
+        onEscapeKeyDown={(event) => {
+          if (isProcessing) {
+            event.preventDefault();
+          }
+        }}
+        onInteractOutside={(event) => {
+          if (isProcessing) {
+            event.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Generate Statement</DialogTitle>
         </DialogHeader>
@@ -98,6 +128,7 @@ export default function GenerateStatementDialog({
               required
               value={periodStart}
               onChange={(e) => setPeriodStart(e.target.value)}
+              disabled={isProcessing}
             />
           </div>
 
@@ -109,12 +140,17 @@ export default function GenerateStatementDialog({
               required
               value={periodEnd}
               onChange={(e) => setPeriodEnd(e.target.value)}
+              disabled={isProcessing}
             />
           </div>
 
           <div className="space-y-2">
             <Label>Branch</Label>
-            <Select value={branchFilter} onValueChange={setBranchFilter}>
+            <Select
+              value={branchFilter}
+              onValueChange={setBranchFilter}
+              disabled={isProcessing}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="All Branches" />
               </SelectTrigger>
@@ -129,19 +165,40 @@ export default function GenerateStatementDialog({
             </Select>
           </div>
 
+          {isProcessing && (
+            <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm">
+              <div className="flex items-center gap-2 font-medium">
+                <Loader2 size={16} className="animate-spin" />
+                <span>Generating Statement...</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Please wait.</p>
+            </div>
+          )}
+
+          {transaction.isSuccess && transaction.successMessage && (
+            <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+              {transaction.successMessage}
+            </div>
+          )}
+
+          {transaction.isError && transaction.error && (
+            <p className="text-sm text-destructive">{transaction.error}</p>
+          )}
+
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleDialogChange(false)}
+              disabled={isProcessing}
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={!periodStart || !periodEnd || generateStatement.isPending}
+              disabled={!periodStart || !periodEnd || isProcessing}
             >
-              {generateStatement.isPending ? "Generating..." : "Generate"}
+              {isProcessing ? "Generating..." : "Generate"}
             </Button>
           </DialogFooter>
         </form>

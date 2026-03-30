@@ -1,5 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Loader2 } from "lucide-react";
 import { inspectionFormSchema, InspectionFormValues } from "./rentalSchema";
 import { useSaveInspection } from "./useSaveInspection";
 import { useRentalStatusUpdate } from "./useRentalStatusUpdate";
@@ -47,6 +48,7 @@ export default function ReturnInspectionDialog({
   const { user } = useUser();
   const saveMutation = useSaveInspection();
   const statusMutation = useRentalStatusUpdate();
+  const isProcessing = saveMutation.isPending || statusMutation.isPending;
 
   const form = useForm<InspectionFormValues>({
     resolver: zodResolver(inspectionFormSchema),
@@ -63,11 +65,10 @@ export default function ReturnInspectionDialog({
     },
   });
 
-  function onSubmit(values: InspectionFormValues) {
-    if (!rental) return;
-
-    saveMutation.mutate(
-      {
+  async function onSubmit(values: InspectionFormValues) {
+    if (!rental || isProcessing) return;
+    try {
+      await saveMutation.mutateAsync({
         rentalId: rental.id,
         data: {
           ...values,
@@ -75,24 +76,42 @@ export default function ReturnInspectionDialog({
           meter_reading_end: values.meter_reading_end ?? undefined,
           inspected_by: user?.id,
         },
-      },
-      {
-        onSuccess: () => {
-          if (["Released", "Ongoing"].includes(rental.status)) {
-            statusMutation.mutate({
-              ids: [rental.id],
-              status: "Returned",
-            });
-          }
-          onOpenChange(false);
-        },
+      });
+
+      if (["Released", "Ongoing"].includes(rental.status)) {
+        await statusMutation.mutateAsync({
+          ids: [rental.id],
+          status: "Returned",
+        });
       }
-    );
+
+      onOpenChange(false);
+    } catch (error) {
+      console.error(error);
+    }
   }
 
+  const handleDialogChange = (nextOpen: boolean) => {
+    if (!nextOpen && isProcessing) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={handleDialogChange}>
+      <DialogContent
+        className="max-w-lg max-h-[90vh] overflow-y-auto"
+        closeDisabled={isProcessing}
+        onEscapeKeyDown={(event) => {
+          if (isProcessing) {
+            event.preventDefault();
+          }
+        }}
+        onInteractOutside={(event) => {
+          if (isProcessing) {
+            event.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Return Inspection — {rental?.rental_no}</DialogTitle>
         </DialogHeader>
@@ -114,6 +133,7 @@ export default function ReturnInspectionDialog({
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
+                        disabled={isProcessing}
                       >
                         <FormControl>
                           <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0">
@@ -140,6 +160,7 @@ export default function ReturnInspectionDialog({
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
+                        disabled={isProcessing}
                       >
                         <FormControl>
                           <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0">
@@ -184,6 +205,7 @@ export default function ReturnInspectionDialog({
                                 e.target.value ? Number(e.target.value) : null
                               )
                             }
+                            disabled={isProcessing}
                           />
                         </FormControl>
                       </div>
@@ -209,6 +231,7 @@ export default function ReturnInspectionDialog({
                                 e.target.value ? Number(e.target.value) : null
                               )
                             }
+                            disabled={isProcessing}
                           />
                         </FormControl>
                       </div>
@@ -236,6 +259,7 @@ export default function ReturnInspectionDialog({
                           placeholder="List returned accessories..."
                           className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-[60%] text-right"
                           {...field}
+                          disabled={isProcessing}
                         />
                       </FormControl>
                     </div>
@@ -255,6 +279,7 @@ export default function ReturnInspectionDialog({
                           placeholder="List any missing items..."
                           className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-[60%] text-right"
                           {...field}
+                          disabled={isProcessing}
                         />
                       </FormControl>
                     </div>
@@ -279,6 +304,7 @@ export default function ReturnInspectionDialog({
                       <Textarea
                         placeholder="Describe any damage..."
                         {...field}
+                        disabled={isProcessing}
                       />
                     </FormControl>
                     <FormMessage />
@@ -302,6 +328,7 @@ export default function ReturnInspectionDialog({
                             className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-[100px] text-right ml-3"
                             {...field}
                             onChange={(e) => field.onChange(Number(e.target.value))}
+                            disabled={isProcessing}
                           />
                         </div>
                       </FormControl>
@@ -323,6 +350,7 @@ export default function ReturnInspectionDialog({
                     <Textarea
                       placeholder="Additional inspection notes..."
                       {...field}
+                      disabled={isProcessing}
                     />
                   </FormControl>
                   <FormMessage />
@@ -330,18 +358,27 @@ export default function ReturnInspectionDialog({
               )}
             />
 
+            {isProcessing && (
+              <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm mb-3">
+                <div className="flex items-center gap-2 font-medium">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Saving inspection...</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Please wait.</p>
+              </div>
+            )}
+
             <DialogFooter>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
+                disabled={isProcessing}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={saveMutation.isPending}>
-                {saveMutation.isPending
-                  ? "Saving..."
-                  : "Save Inspection & Mark Returned"}
+              <Button type="submit" disabled={isProcessing}>
+                {isProcessing ? "Saving..." : "Save Inspection & Mark Returned"}
               </Button>
             </DialogFooter>
           </form>

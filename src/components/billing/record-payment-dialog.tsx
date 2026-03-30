@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,7 @@ import {
 } from "../../services/apiBilling";
 import ReceiptAttachmentField from "./receipt-attachment-field";
 import ReceiptMissingConfirmDialog from "./receipt-missing-confirm-dialog";
+import { useTransactionHandler } from "../../hooks/useTransactionHandler";
 
 interface RecordPaymentDialogProps {
   open: boolean;
@@ -90,6 +92,8 @@ export default function RecordPaymentDialog({
     allocationMode === "manual" ? accountId : undefined
   );
   const recordPayment = useRecordBillingPayment();
+  const transaction = useTransactionHandler();
+  const isProcessing = transaction.isLoading;
 
   const unpaidItems = useMemo(() => {
     if (!lineItems) return [];
@@ -150,9 +154,11 @@ export default function RecordPaymentDialog({
     setReceiptFile(null);
     setShowMissingReceiptConfirm(false);
     setPendingPayload(null);
+    transaction.reset();
   }
 
   function handleClose(value: boolean) {
+    if (!value && isProcessing) return;
     if (!value) resetForm();
     onOpenChange(value);
   }
@@ -243,55 +249,60 @@ export default function RecordPaymentDialog({
     return payload;
   }
 
-  function processPaymentSubmission(payload: RecordPaymentData) {
+  async function processPaymentSubmission(payload: RecordPaymentData) {
     const receiptSourceContext = resolveReceiptSourceContext();
-
-    const mutateWithPayload = (payloadToSubmit: RecordPaymentData) => {
-      recordPayment.mutate(payloadToSubmit, {
-        onSuccess: () => {
-          handleClose(false);
-        },
-        onError: async () => {
-          if (payloadToSubmit.receipt_url) {
-            try {
-              await deleteReceiptFile(payloadToSubmit.receipt_url);
-            } catch (deleteError) {
-              console.error("Failed to rollback receipt upload", deleteError);
-            }
-          }
-        },
-      });
-    };
+    let uploadedReceiptPath: string | null = null;
 
     if (!receiptFile) {
-      mutateWithPayload(payload);
+      await recordPayment.mutateAsync(payload);
       return;
     }
 
-    void (async () => {
-      try {
-        const receiptPath = await uploadReceiptFile({
-          sourceType: receiptSourceContext.sourceType,
-          sourceId: receiptSourceContext.sourceId,
-          file: receiptFile,
-        });
+    try {
+      uploadedReceiptPath = await uploadReceiptFile({
+        sourceType: receiptSourceContext.sourceType,
+        sourceId: receiptSourceContext.sourceId,
+        file: receiptFile,
+      });
 
-        mutateWithPayload({
-          ...payload,
-          receipt_url: receiptPath,
-          receipt_source_type:
-            receiptSourceContext.sourceType === "billing"
-              ? undefined
-              : receiptSourceContext.sourceType,
-          receipt_source_id:
-            receiptSourceContext.sourceType === "billing"
-              ? undefined
-              : receiptSourceContext.sourceId,
-        });
-      } catch (error) {
-        console.error(error);
+      await recordPayment.mutateAsync({
+        ...payload,
+        receipt_url: uploadedReceiptPath,
+        receipt_source_type:
+          receiptSourceContext.sourceType === "billing"
+            ? undefined
+            : receiptSourceContext.sourceType,
+        receipt_source_id:
+          receiptSourceContext.sourceType === "billing"
+            ? undefined
+            : receiptSourceContext.sourceId,
+      });
+    } catch (error) {
+      if (uploadedReceiptPath) {
+        try {
+          await deleteReceiptFile(uploadedReceiptPath);
+        } catch (deleteError) {
+          console.error("Failed to rollback receipt upload", deleteError);
+        }
       }
-    })();
+      throw error;
+    }
+  }
+
+  async function runPaymentSubmission(payload: RecordPaymentData) {
+    const success = await transaction.run(
+      async () => {
+        await processPaymentSubmission(payload);
+      },
+      {
+        errorMessage: "Payment failed. Please try again.",
+        successMessage: "Payment recorded successfully.",
+        keepSuccessStateMs: 500,
+      }
+    );
+
+    if (!success) return;
+    handleClose(false);
   }
 
   function handleSubmit() {
@@ -300,15 +311,29 @@ export default function RecordPaymentDialog({
     if (!receiptFile) {
       setPendingPayload(payload);
       setShowMissingReceiptConfirm(true);
+      transaction.setConfirming();
       return;
     }
 
-    processPaymentSubmission(payload);
+    void runPaymentSubmission(payload);
   }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-lg max-h-[90vh] overflow-y-auto"
+        closeDisabled={isProcessing}
+        onEscapeKeyDown={(event) => {
+          if (isProcessing) {
+            event.preventDefault();
+          }
+        }}
+        onInteractOutside={(event) => {
+          if (isProcessing) {
+            event.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Record Payment</DialogTitle>
         </DialogHeader>
@@ -329,6 +354,7 @@ export default function RecordPaymentDialog({
                 className="pl-7"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                disabled={isProcessing}
               />
             </div>
           </div>
@@ -340,12 +366,17 @@ export default function RecordPaymentDialog({
               type="date"
               value={paymentDate}
               onChange={(e) => setPaymentDate(e.target.value)}
+              disabled={isProcessing}
             />
           </div>
 
           <div className="space-y-1.5">
             <Label>Payment Method</Label>
-            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+            <Select
+              value={paymentMethod}
+              onValueChange={setPaymentMethod}
+              disabled={isProcessing}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select method" />
               </SelectTrigger>
@@ -366,6 +397,7 @@ export default function RecordPaymentDialog({
               placeholder="Optional"
               value={referenceNumber}
               onChange={(e) => setReferenceNumber(e.target.value)}
+              disabled={isProcessing}
             />
           </div>
 
@@ -379,6 +411,7 @@ export default function RecordPaymentDialog({
                 size="sm"
                 variant={allocationMode === "fifo" ? "default" : "outline"}
                 onClick={() => setAllocationMode("fifo")}
+                disabled={isProcessing}
               >
                 Apply to balance
               </Button>
@@ -387,6 +420,7 @@ export default function RecordPaymentDialog({
                 size="sm"
                 variant={allocationMode === "manual" ? "default" : "outline"}
                 onClick={() => setAllocationMode("manual")}
+                disabled={isProcessing}
               >
                 Apply to specific items
               </Button>
@@ -433,6 +467,7 @@ export default function RecordPaymentDialog({
                             handleToggleItem(item.id, !!checked)
                           }
                           className="mt-1"
+                          disabled={isProcessing}
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">
@@ -456,7 +491,7 @@ export default function RecordPaymentDialog({
                             step="0.01"
                             placeholder="0.00"
                             className="h-8 text-sm"
-                            disabled={!alloc?.checked}
+                            disabled={!alloc?.checked || isProcessing}
                             value={alloc?.checked ? alloc.amount || "" : ""}
                             onChange={(e) =>
                               handleAllocationAmount(item.id, e.target.value)
@@ -492,6 +527,7 @@ export default function RecordPaymentDialog({
               placeholder="Optional notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              disabled={isProcessing}
             />
           </div>
 
@@ -499,30 +535,66 @@ export default function RecordPaymentDialog({
             file={receiptFile}
             onFileChange={setReceiptFile}
             inputId="billing-receipt-upload-dialog"
+            disabled={isProcessing}
           />
+
+          {isProcessing && (
+            <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm">
+              <div className="flex items-center gap-2 font-medium">
+                <Loader2 size={16} className="animate-spin" />
+                <span>Processing Payment...</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Please wait.</p>
+            </div>
+          )}
+
+          {transaction.isSuccess && transaction.successMessage && (
+            <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+              {transaction.successMessage}
+            </div>
+          )}
+
+          {transaction.isError && transaction.error && (
+            <p className="text-sm text-destructive">{transaction.error}</p>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => handleClose(false)}>
+          <Button
+            variant="outline"
+            onClick={() => handleClose(false)}
+            disabled={isProcessing}
+          >
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!canSubmit || recordPayment.isPending}
+            disabled={!canSubmit || isProcessing}
           >
-            {recordPayment.isPending ? "Recording..." : "Record Payment"}
+            {isProcessing ? "Processing..." : "Record Payment"}
           </Button>
         </DialogFooter>
       </DialogContent>
       <ReceiptMissingConfirmDialog
         open={showMissingReceiptConfirm}
-        onOpenChange={setShowMissingReceiptConfirm}
-        onAttachNow={() => setShowMissingReceiptConfirm(false)}
+        onOpenChange={(nextOpen) => {
+          if (isProcessing) return;
+          setShowMissingReceiptConfirm(nextOpen);
+          if (!nextOpen) {
+            transaction.setIdle();
+          }
+        }}
+        onAttachNow={() => {
+          if (isProcessing) return;
+          setShowMissingReceiptConfirm(false);
+          transaction.setIdle();
+        }}
         onContinueWithoutReceipt={() => {
           if (!pendingPayload) return;
           setShowMissingReceiptConfirm(false);
-          processPaymentSubmission(pendingPayload);
+          void runPaymentSubmission(pendingPayload);
         }}
+        disabled={isProcessing}
       />
     </Dialog>
   );

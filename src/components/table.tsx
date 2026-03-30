@@ -105,11 +105,14 @@ export default function Table({
     },
   });
 
-  const { mutate: updateStatusMutate, isPending: isUpdatingStatus } =
-    useMutation({
-      mutationFn: ({ ids, status }: { ids: number[]; status: string }) =>
-        updateJobOrderStatus(ids, status),
-    });
+  const {
+    mutate: updateStatusMutate,
+    mutateAsync: updateStatusMutateAsync,
+    isPending: isUpdatingStatus,
+  } = useMutation({
+    mutationFn: ({ ids, status }: { ids: number[]; status: string }) =>
+      updateJobOrderStatus(ids, status),
+  });
 
   const { mutate: duplicateJobOrderMutate, isPending: isDuplicating } =
     useMutation({
@@ -434,7 +437,9 @@ export default function Table({
     payments: Record<string, number>,
     receiptFile?: File | null
   ) => {
-    if (!selectedOrder) return;
+    if (!selectedOrder) {
+      throw new Error("No job order selected for payment.");
+    }
 
     const totalPayment = Object.values(payments).reduce(
       (acc, amount) => acc + amount,
@@ -466,29 +471,18 @@ export default function Table({
       await applySourcePayment("job_order", selectedOrder.id, payments, {
         receiptUrl: uploadedReceiptPath,
       });
-      updateStatusMutate(
-        { ids: [selectedOrder.id], status: "Completed" },
-        {
-          onSuccess: () => {
-            toast.success(
-              "Job Order status updated and payment processed successfully"
-            );
-            queryClient.invalidateQueries({ queryKey: ["job_order"] });
-            queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
-            queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
-            queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
-            queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
-            setSelectedRows([]);
-            setShowPaymentDialog(false);
-          },
-          onError: (error) => {
-            toast.error(
-              "An error occurred while updating the Job Order status"
-            );
-            console.error(error);
-          },
-        }
-      );
+      await updateStatusMutateAsync({
+        ids: [selectedOrder.id],
+        status: "Completed",
+      });
+
+      toast.success("Job Order status updated and payment processed successfully");
+      queryClient.invalidateQueries({ queryKey: ["job_order"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+      setSelectedRows([]);
     } catch (error) {
       if (uploadedReceiptPath) {
         try {
@@ -499,6 +493,7 @@ export default function Table({
       }
       toast.error("An error occurred while updating the payment details");
       console.error(error);
+      throw error;
     }
   };
 

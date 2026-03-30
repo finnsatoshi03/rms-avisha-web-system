@@ -2533,6 +2533,7 @@ export default function BillingAccountSheetContent({
       <AlertDialog
         open={showStatusConfirm}
         onOpenChange={(open) => {
+          if (!open && updateAccount.isPending) return;
           setShowStatusConfirm(open);
           if (!open) {
             setPendingStatus(null);
@@ -2584,6 +2585,7 @@ export default function BillingAccountSheetContent({
       <AlertDialog
         open={showDeleteConfirm}
         onOpenChange={(open) => {
+          if (!open && deleteAccount.isPending) return;
           setShowDeleteConfirm(open);
           if (!open) {
             setDeleteAuthPassword("");
@@ -2647,7 +2649,13 @@ export default function BillingAccountSheetContent({
       </AlertDialog>
 
       {/* Apply Interest Confirmation Dialog */}
-      <AlertDialog open={showInterestConfirm} onOpenChange={setShowInterestConfirm}>
+      <AlertDialog
+        open={showInterestConfirm}
+        onOpenChange={(open) => {
+          if (!open && applyInterest.isPending) return;
+          setShowInterestConfirm(open);
+        }}
+      >
         <AlertDialogContent data-tour="billing-detail-dialog-interest">
           <AlertDialogHeader>
             <AlertDialogTitle>Apply Monthly Interest</AlertDialogTitle>
@@ -2709,7 +2717,10 @@ export default function BillingAccountSheetContent({
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmApplyInterest}
+              onClick={(event) => {
+                event.preventDefault();
+                confirmApplyInterest();
+              }}
               disabled={applyInterest.isPending || interestAlreadyApplied}
             >
               {applyInterest.isPending ? "Applying..." : interestAlreadyApplied ? "Already Applied" : "Apply Interest"}
@@ -2719,7 +2730,13 @@ export default function BillingAccountSheetContent({
       </AlertDialog>
 
       {/* Send Reminders Confirmation Dialog */}
-      <AlertDialog open={showRemindersConfirm} onOpenChange={setShowRemindersConfirm}>
+      <AlertDialog
+        open={showRemindersConfirm}
+        onOpenChange={(open) => {
+          if (!open && sendReminders.isPending) return;
+          setShowRemindersConfirm(open);
+        }}
+      >
         <AlertDialogContent data-tour="billing-detail-dialog-reminders">
           <AlertDialogHeader>
             <AlertDialogTitle>Send Billing Reminders</AlertDialogTitle>
@@ -2786,7 +2803,8 @@ export default function BillingAccountSheetContent({
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
+              onClick={(event) => {
+                event.preventDefault();
                 sendReminders.mutate(undefined, {
                   onSettled: () => setShowRemindersConfirm(false),
                 });
@@ -2800,7 +2818,13 @@ export default function BillingAccountSheetContent({
       </AlertDialog>
 
       {/* Auto-Generate SOA Confirmation Dialog */}
-      <AlertDialog open={showGenerateSOAConfirm} onOpenChange={setShowGenerateSOAConfirm}>
+      <AlertDialog
+        open={showGenerateSOAConfirm}
+        onOpenChange={(open) => {
+          if (!open && generateStatements.isPending) return;
+          setShowGenerateSOAConfirm(open);
+        }}
+      >
         <AlertDialogContent data-tour="billing-detail-dialog-soa">
           <AlertDialogHeader>
             <AlertDialogTitle>Auto-Generate Statements</AlertDialogTitle>
@@ -2865,7 +2889,8 @@ export default function BillingAccountSheetContent({
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
+              onClick={(event) => {
+                event.preventDefault();
                 generateStatements.mutate(undefined, {
                   onSuccess: (data: GenerateStatementsResponse) => {
                     const generatedForThisAccount = data.results?.some(

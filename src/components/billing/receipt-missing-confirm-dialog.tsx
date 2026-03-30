@@ -16,6 +16,7 @@ interface ReceiptMissingConfirmDialogProps {
   onAttachNow: () => void;
   title?: string;
   description?: string;
+  disabled?: boolean;
 }
 
 export default function ReceiptMissingConfirmDialog({
@@ -25,17 +26,27 @@ export default function ReceiptMissingConfirmDialog({
   onAttachNow,
   title = "⚠ No Receipt Attached",
   description = "This transaction has no proof of payment. Would you like to attach a receipt now?",
+  disabled = false,
 }: ReceiptMissingConfirmDialogProps) {
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (disabled && !nextOpen) return;
+        onOpenChange(nextOpen);
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onAttachNow}>Attach Receipt</AlertDialogCancel>
+          <AlertDialogCancel onClick={onAttachNow} disabled={disabled}>
+            Attach Receipt
+          </AlertDialogCancel>
           <AlertDialogAction
+            disabled={disabled}
             onClick={(event) => {
               event.preventDefault();
               onContinueWithoutReceipt();

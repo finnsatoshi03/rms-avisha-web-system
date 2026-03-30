@@ -345,7 +345,20 @@ export default function Rentals() {
     payments: Record<string, number>,
     receiptFile?: File | null
   ) => {
-    if (!rentalToComplete) return;
+    if (!rentalToComplete) {
+      throw new Error("No rental selected for payment.");
+    }
+
+    const totalPayment = Object.values(payments).reduce(
+      (sum, amount) => sum + amount,
+      0
+    );
+    const amountDue = getRentalAmountDue(rentalToComplete);
+    if (Math.abs(totalPayment - amountDue) > 0.01) {
+      throw new Error(
+        `The total payment amount (${totalPayment}) does not match the rental total (${amountDue}).`
+      );
+    }
 
     let uploadedReceiptPath: string | null = null;
     try {
@@ -360,20 +373,17 @@ export default function Rentals() {
       await applySourcePayment("rental", rentalToComplete.id, payments, {
         receiptUrl: uploadedReceiptPath,
       });
-      statusMutation.mutate(
-        { ids: [rentalToComplete.id], status: "Completed" },
-        {
-          onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
-            queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
-            queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
-            queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
-            setSelectedIds([]);
-            setBulkPaymentOpen(false);
-            setRentalToComplete(null);
-          },
-        }
-      );
+      await statusMutation.mutateAsync({
+        ids: [rentalToComplete.id],
+        status: "Completed",
+      });
+      queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+      setSelectedIds([]);
+      setBulkPaymentOpen(false);
+      setRentalToComplete(null);
     } catch (error) {
       if (uploadedReceiptPath) {
         try {
@@ -387,6 +397,7 @@ export default function Rentals() {
           ? error.message
           : "Failed to process rental payment."
       );
+      throw error;
     }
   };
 

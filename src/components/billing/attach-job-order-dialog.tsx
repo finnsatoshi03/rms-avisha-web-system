@@ -160,7 +160,20 @@ export default function AttachJobOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        closeDisabled={transferring}
+        onEscapeKeyDown={(event) => {
+          if (transferring) {
+            event.preventDefault();
+          }
+        }}
+        onInteractOutside={(event) => {
+          if (transferring) {
+            event.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Attach Job Orders</DialogTitle>
         </DialogHeader>

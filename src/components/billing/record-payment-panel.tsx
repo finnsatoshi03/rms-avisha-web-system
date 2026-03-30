@@ -24,6 +24,7 @@ import {
 } from "../../services/apiBilling";
 import ReceiptAttachmentField from "./receipt-attachment-field";
 import ReceiptMissingConfirmDialog from "./receipt-missing-confirm-dialog";
+import { useTransactionHandler } from "../../hooks/useTransactionHandler";
 
 interface RecordPaymentPanelProps {
   accountId: string;
@@ -80,6 +81,8 @@ export default function RecordPaymentPanel({
     allocationMode === "manual" ? accountId : undefined
   );
   const recordPayment = useRecordBillingPayment();
+  const transaction = useTransactionHandler();
+  const isProcessing = transaction.isLoading;
 
   const unpaidItems = useMemo(() => {
     if (!lineItems) return [];
@@ -215,55 +218,60 @@ export default function RecordPaymentPanel({
     return payload;
   }
 
-  function processPaymentSubmission(payload: RecordPaymentData) {
+  async function processPaymentSubmission(payload: RecordPaymentData) {
     const receiptSourceContext = resolveReceiptSourceContext();
-
-    const mutateWithPayload = (payloadToSubmit: RecordPaymentData) => {
-      recordPayment.mutate(payloadToSubmit, {
-        onSuccess: () => {
-          onClose();
-        },
-        onError: async () => {
-          if (payloadToSubmit.receipt_url) {
-            try {
-              await deleteReceiptFile(payloadToSubmit.receipt_url);
-            } catch (deleteError) {
-              console.error("Failed to rollback receipt upload", deleteError);
-            }
-          }
-        },
-      });
-    };
+    let uploadedReceiptPath: string | null = null;
 
     if (!receiptFile) {
-      mutateWithPayload(payload);
+      await recordPayment.mutateAsync(payload);
       return;
     }
 
-    void (async () => {
-      try {
-        const receiptPath = await uploadReceiptFile({
-          sourceType: receiptSourceContext.sourceType,
-          sourceId: receiptSourceContext.sourceId,
-          file: receiptFile,
-        });
+    try {
+      uploadedReceiptPath = await uploadReceiptFile({
+        sourceType: receiptSourceContext.sourceType,
+        sourceId: receiptSourceContext.sourceId,
+        file: receiptFile,
+      });
 
-        mutateWithPayload({
-          ...payload,
-          receipt_url: receiptPath,
-          receipt_source_type:
-            receiptSourceContext.sourceType === "billing"
-              ? undefined
-              : receiptSourceContext.sourceType,
-          receipt_source_id:
-            receiptSourceContext.sourceType === "billing"
-              ? undefined
-              : receiptSourceContext.sourceId,
-        });
-      } catch (error) {
-        console.error(error);
+      await recordPayment.mutateAsync({
+        ...payload,
+        receipt_url: uploadedReceiptPath,
+        receipt_source_type:
+          receiptSourceContext.sourceType === "billing"
+            ? undefined
+            : receiptSourceContext.sourceType,
+        receipt_source_id:
+          receiptSourceContext.sourceType === "billing"
+            ? undefined
+            : receiptSourceContext.sourceId,
+      });
+    } catch (error) {
+      if (uploadedReceiptPath) {
+        try {
+          await deleteReceiptFile(uploadedReceiptPath);
+        } catch (deleteError) {
+          console.error("Failed to rollback receipt upload", deleteError);
+        }
       }
-    })();
+      throw error;
+    }
+  }
+
+  async function runPaymentSubmission(payload: RecordPaymentData) {
+    const success = await transaction.run(
+      async () => {
+        await processPaymentSubmission(payload);
+      },
+      {
+        errorMessage: "Payment failed. Please try again.",
+        successMessage: "Payment recorded successfully.",
+        keepSuccessStateMs: 500,
+      }
+    );
+
+    if (!success) return;
+    onClose();
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -273,10 +281,11 @@ export default function RecordPaymentPanel({
     if (!receiptFile) {
       setPendingPayload(payload);
       setShowMissingReceiptConfirm(true);
+      transaction.setConfirming();
       return;
     }
 
-    processPaymentSubmission(payload);
+    void runPaymentSubmission(payload);
   }
 
   return (
@@ -300,6 +309,7 @@ export default function RecordPaymentPanel({
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   autoFocus
+                  disabled={isProcessing}
                 />
               </div>
             </div>
@@ -310,6 +320,7 @@ export default function RecordPaymentPanel({
                 className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
                 value={paymentDate}
                 onChange={(e) => setPaymentDate(e.target.value)}
+                disabled={isProcessing}
               />
             </div>
           </div>
@@ -323,7 +334,11 @@ export default function RecordPaymentPanel({
           <div className="border-b py-2">
             <div className="space-y-0 flex justify-between items-center w-full">
               <p className="text-sm font-medium leading-none">Payment Method</p>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <Select
+                value={paymentMethod}
+                onValueChange={setPaymentMethod}
+                disabled={isProcessing}
+              >
                 <SelectTrigger className="border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-fit text-right">
                   <SelectValue placeholder="Select method" />
                 </SelectTrigger>
@@ -346,6 +361,7 @@ export default function RecordPaymentPanel({
                 className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0 w-fit text-right"
                 value={referenceNumber}
                 onChange={(e) => setReferenceNumber(e.target.value)}
+                disabled={isProcessing}
               />
             </div>
           </div>
@@ -362,6 +378,7 @@ export default function RecordPaymentPanel({
                 variant={allocationMode === "fifo" ? "default" : "outline"}
                 onClick={() => setAllocationMode("fifo")}
                 className="text-xs h-7"
+                disabled={isProcessing}
               >
                 Apply to balance
               </Button>
@@ -371,6 +388,7 @@ export default function RecordPaymentPanel({
                 variant={allocationMode === "manual" ? "default" : "outline"}
                 onClick={() => setAllocationMode("manual")}
                 className="text-xs h-7"
+                disabled={isProcessing}
               >
                 Specific items
               </Button>
@@ -414,6 +432,7 @@ export default function RecordPaymentPanel({
                             handleToggleItem(item.id, !!checked)
                           }
                           className="mt-0.5"
+                          disabled={isProcessing}
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium truncate">
@@ -430,7 +449,7 @@ export default function RecordPaymentPanel({
                           step="0.01"
                           placeholder="0.00"
                           className="h-7 text-xs w-24"
-                          disabled={!alloc?.checked}
+                          disabled={!alloc?.checked || isProcessing}
                           value={alloc?.checked ? alloc.amount || "" : ""}
                           onChange={(e) =>
                             handleAllocationAmount(item.id, e.target.value)
@@ -461,6 +480,7 @@ export default function RecordPaymentPanel({
             placeholder="Optional notes about this payment..."
             rows={3}
             className="text-sm"
+            disabled={isProcessing}
           />
         </div>
 
@@ -469,34 +489,71 @@ export default function RecordPaymentPanel({
             file={receiptFile}
             onFileChange={setReceiptFile}
             inputId="billing-receipt-upload-panel"
+            disabled={isProcessing}
           />
         </div>
 
+        {isProcessing && (
+          <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm mt-4">
+            <div className="flex items-center gap-2 font-medium">
+              <Loader2 size={16} className="animate-spin" />
+              <span>Processing Payment...</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Please wait.</p>
+          </div>
+        )}
+
+        {transaction.isSuccess && transaction.successMessage && (
+          <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 mt-4">
+            {transaction.successMessage}
+          </div>
+        )}
+
+        {transaction.isError && transaction.error && (
+          <p className="text-sm text-destructive mt-2">{transaction.error}</p>
+        )}
+
         <div className="flex md:flex-row flex-col md:justify-between mt-4">
-          <Button type="submit" disabled={!canSubmit || recordPayment.isPending}>
-            {recordPayment.isPending ? (
+          <Button type="submit" disabled={!canSubmit || isProcessing}>
+            {isProcessing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Recording..
+                Processing...
               </>
             ) : (
               "Record Payment"
             )}
           </Button>
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+            disabled={isProcessing}
+          >
             Cancel
           </Button>
         </div>
       </form>
       <ReceiptMissingConfirmDialog
         open={showMissingReceiptConfirm}
-        onOpenChange={setShowMissingReceiptConfirm}
-        onAttachNow={() => setShowMissingReceiptConfirm(false)}
+        onOpenChange={(nextOpen) => {
+          if (isProcessing) return;
+          setShowMissingReceiptConfirm(nextOpen);
+          if (!nextOpen) {
+            transaction.setIdle();
+          }
+        }}
+        onAttachNow={() => {
+          if (isProcessing) return;
+          setShowMissingReceiptConfirm(false);
+          transaction.setIdle();
+        }}
         onContinueWithoutReceipt={() => {
           if (!pendingPayload) return;
           setShowMissingReceiptConfirm(false);
-          processPaymentSubmission(pendingPayload);
+          void runPaymentSubmission(pendingPayload);
         }}
+        disabled={isProcessing}
       />
     </>
   );

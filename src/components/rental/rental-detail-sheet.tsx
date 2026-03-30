@@ -372,6 +372,16 @@ export default function RentalDetailSheet({
     payments: Record<string, number>,
     receiptFile?: File | null
   ) {
+    const totalPayment = Object.values(payments).reduce(
+      (sum, amount) => sum + amount,
+      0
+    );
+    if (Math.abs(totalPayment - amountDue) > 0.01) {
+      throw new Error(
+        `The total payment amount (${totalPayment}) does not match the rental total (${amountDue}).`
+      );
+    }
+
     let uploadedReceiptPath: string | null = null;
     try {
       if (receiptFile) {
@@ -385,15 +395,11 @@ export default function RentalDetailSheet({
       await applySourcePayment("rental", rentalData.id, payments, {
         receiptUrl: uploadedReceiptPath,
       });
-      statusMutation.mutate(
-        { ids: [rentalData.id], status: "Completed" },
-        {
-          onSuccess: () => {
-            setPaymentOpen(false);
-            onOpenChange(false);
-          },
-        }
-      );
+      await statusMutation.mutateAsync({
+        ids: [rentalData.id],
+        status: "Completed",
+      });
+      onOpenChange(false);
     } catch (error) {
       if (uploadedReceiptPath) {
         try {
@@ -406,6 +412,7 @@ export default function RentalDetailSheet({
       toast.error(
         error instanceof Error ? error.message : "Failed to process payment."
       );
+      throw error;
     }
   }
 
