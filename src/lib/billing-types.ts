@@ -5,6 +5,7 @@ export type BillingLineItemType = "charge" | "interest" | "adjustment" | "credit
 export type BillingStatementStatus = "draft" | "finalized" | "sent";
 export type BillingSourceType = "job_order" | "rental";
 export type BillingPaymentStatus = "pending" | "partial" | "paid";
+export type BillingDeletionMode = "billing_only" | "billing_with_linked";
 
 export type BillingAccount = {
   id: string;
@@ -172,6 +173,54 @@ export type SourceRecalculationResult = {
   payments_touched: number;
   amount_reversed: number;
   skipped: boolean;
+};
+
+export type BillingDeletionLinkedJobOrder = {
+  id: number;
+  order_no: string | null;
+  status: string | null;
+};
+
+export type BillingDeletionLinkedRental = {
+  id: number;
+  rental_no: string | null;
+  status: string | null;
+};
+
+export type BillingAccountDeletionImpact = {
+  account_id: string;
+  account_number: string;
+  linked_job_orders: BillingDeletionLinkedJobOrder[];
+  linked_rentals: BillingDeletionLinkedRental[];
+  payment_count: number;
+  payment_total: number;
+  payment_receipt_count: number;
+  statement_count: number;
+  statement_sent_count: number;
+  email_count: number;
+  email_sent_count: number;
+  source_receipt_count: number;
+  receipt_attachment_count: number;
+};
+
+export type BillingAccountDeletionResult = {
+  deleted: boolean;
+  account_id: string;
+  account_number: string;
+  deletion_mode: BillingDeletionMode;
+  detached_job_orders: number;
+  detached_rentals: number;
+  deleted_job_orders: number;
+  deleted_rentals: number;
+  allocations_reversed: number;
+  allocations_deleted: number;
+  payments_reversed: number;
+  payments_deleted: number;
+  line_items_deleted: number;
+  statements_deleted: number;
+  email_logs_invalidated: number;
+  receipt_paths_to_delete: string[];
+  audit_id: string | null;
 };
 
 export type SourceReceiptSummary = {

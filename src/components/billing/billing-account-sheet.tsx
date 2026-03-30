@@ -82,16 +82,17 @@ import {
   useBillingStatements,
   useApplyAccountInterest,
   useUpdateBillingAccount,
-  useDeleteBillingAccount,
   useUpdateBillingStatement,
   useBillingInterestLogs,
   useEmailLogs,
   useTriggerSendBillingReminders,
   useTriggerGenerateStatements,
 } from "./useBilling";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../services/supabase";
 import {
+  deleteBillingAccountWithStrategy,
+  getBillingAccountDeletionImpact,
   deleteReceiptFile,
   getSignedReceiptUrl,
   resolveReceiptStorageContextFromPayment,
@@ -108,6 +109,8 @@ import {
   BillingLineItem,
   BillingPayment,
   BillingStatement,
+  BillingDeletionMode,
+  BillingAccountDeletionImpact,
   BillingAging,
   BillingInterestLog,
   EmailLog,
@@ -279,7 +282,33 @@ export default function BillingAccountSheetContent({
   // Mutations
   const applyInterest = useApplyAccountInterest();
   const updateAccount = useUpdateBillingAccount();
-  const deleteAccount = useDeleteBillingAccount();
+  const deleteAccount = useMutation({
+    mutationFn: ({
+      id,
+      mode,
+      reason,
+    }: {
+      id: string;
+      mode: BillingDeletionMode;
+      reason?: string;
+    }) => deleteBillingAccountWithStrategy(id, mode, reason),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+      queryClient.removeQueries({ queryKey: ["billing_account", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_payments"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_aging"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_statements"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_interest_logs"] });
+      queryClient.invalidateQueries({ queryKey: ["email_logs"] });
+      queryClient.invalidateQueries({ queryKey: ["job_order"] });
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({ queryKey: ["archive"] });
+      queryClient.invalidateQueries({ queryKey: ["rental_assets"] });
+    },
+  });
   const updateStatement = useUpdateBillingStatement();
   const sendReminders = useTriggerSendBillingReminders();
   const generateStatements = useTriggerGenerateStatements();
@@ -302,7 +331,14 @@ export default function BillingAccountSheetContent({
   const [showInterestConfirm, setShowInterestConfirm] = useState(false);
   const [showStatusConfirm, setShowStatusConfirm] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<BillingAccountStatus | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteImpactDialog, setShowDeleteImpactDialog] = useState(false);
+  const [showDeleteAuthDialog, setShowDeleteAuthDialog] = useState(false);
+  const [showDeleteFinalConfirm, setShowDeleteFinalConfirm] = useState(false);
+  const [selectedDeleteMode, setSelectedDeleteMode] =
+    useState<BillingDeletionMode | null>(null);
+  const [deleteImpactData, setDeleteImpactData] =
+    useState<BillingAccountDeletionImpact | null>(null);
+  const [isLoadingDeleteImpact, setIsLoadingDeleteImpact] = useState(false);
   const [deleteAuthPassword, setDeleteAuthPassword] = useState("");
   const [deleteAuthError, setDeleteAuthError] = useState<string | null>(null);
   const [showRemindersConfirm, setShowRemindersConfirm] = useState(false);
@@ -743,24 +779,115 @@ export default function BillingAccountSheetContent({
     );
   }
 
-  function openDeleteDialog() {
+  function resetDeleteFlow() {
+    setShowDeleteImpactDialog(false);
+    setShowDeleteAuthDialog(false);
+    setShowDeleteFinalConfirm(false);
+    setSelectedDeleteMode(null);
+    setDeleteImpactData(null);
     setDeleteAuthPassword("");
     setDeleteAuthError(null);
-    setShowDeleteConfirm(true);
   }
 
-  function confirmDeleteAccount() {
+  async function openDeleteDialog() {
+    if (!canManageAccount) {
+      toast.error("Only admin/dev/manager accounts can delete billing records.");
+      return;
+    }
+
+    resetDeleteFlow();
+    setIsLoadingDeleteImpact(true);
+    try {
+      const impact = await getBillingAccountDeletionImpact(accountId);
+      setDeleteImpactData(impact);
+      setShowDeleteImpactDialog(true);
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to load billing deletion impact."
+      );
+    } finally {
+      setIsLoadingDeleteImpact(false);
+    }
+  }
+
+  function selectDeleteMode(mode: BillingDeletionMode) {
+    setSelectedDeleteMode(mode);
+    setDeleteAuthPassword("");
+    setDeleteAuthError(null);
+    setShowDeleteImpactDialog(false);
+    setShowDeleteAuthDialog(true);
+  }
+
+  function confirmDeleteAuthorization() {
+    if (!canManageAccount) {
+      setDeleteAuthError(
+        "Only admin/dev/manager accounts can authorize this action."
+      );
+      return;
+    }
+
     if (!isManagerReauthPasswordValid(deleteAuthPassword)) {
       setDeleteAuthError("Incorrect manager password.");
       return;
     }
 
-    deleteAccount.mutate(accountId, {
-      onSuccess: () => {
-        setShowDeleteConfirm(false);
-        onClose();
-      },
-    });
+    setDeleteAuthError(null);
+    setShowDeleteAuthDialog(false);
+    setShowDeleteFinalConfirm(true);
+  }
+
+  async function executeDeleteAccount() {
+    if (!selectedDeleteMode) {
+      toast.error("Select a deletion mode first.");
+      return;
+    }
+
+    try {
+      const result = await deleteAccount.mutateAsync({
+        id: accountId,
+        mode: selectedDeleteMode,
+        reason: "Deleted via billing account sheet",
+      });
+
+      const receiptPaths = Array.from(
+        new Set(
+          (result.receipt_paths_to_delete || []).filter(
+            (path) => typeof path === "string" && path.trim().length > 0
+          )
+        )
+      );
+
+      if (receiptPaths.length > 0) {
+        const cleanupResults = await Promise.allSettled(
+          receiptPaths.map((path) => deleteReceiptFile(path))
+        );
+        const failedCleanup = cleanupResults.filter(
+          (entry) => entry.status === "rejected"
+        ).length;
+
+        if (failedCleanup > 0) {
+          toast.error(
+            `Billing deleted, but ${failedCleanup} receipt file(s) could not be removed from storage.`
+          );
+        }
+      }
+
+      toast.success(
+        "Billing deleted successfully. Linked records and financial state were updated."
+      );
+      resetDeleteFlow();
+      onClose();
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete billing record."
+      );
+    }
   }
 
   async function handleDownloadStatementPDF(statement: BillingStatement) {
@@ -1086,12 +1213,16 @@ export default function BillingAccountSheetContent({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={openDeleteDialog}
-                disabled={deleteAccount.isPending}
+                disabled={deleteAccount.isPending || isLoadingDeleteImpact}
                 className="gap-2 text-red-600 focus:text-red-600"
                 data-tour="billing-detail-more-actions-delete"
               >
                 <Trash2 size={14} />
-                {deleteAccount.isPending ? "Deleting..." : "Delete Account"}
+                {isLoadingDeleteImpact
+                  ? "Analyzing Impact..."
+                  : deleteAccount.isPending
+                    ? "Deleting..."
+                    : "Delete Account"}
               </DropdownMenuItem>
             </DropdownMenuContent>
             </DropdownMenu>
@@ -2581,12 +2712,91 @@ export default function BillingAccountSheetContent({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Billing Deletion - Impact Analysis */}
       <AlertDialog
-        open={showDeleteConfirm}
+        open={showDeleteImpactDialog}
         onOpenChange={(open) => {
           if (!open && deleteAccount.isPending) return;
-          setShowDeleteConfirm(open);
+          setShowDeleteImpactDialog(open);
+          if (!open) {
+            resetDeleteFlow();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Billing Deletion Impact</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This billing record is linked to:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-sm">
+                  <li>
+                    {deleteImpactData?.linked_job_orders.length || 0} Job Order(s)
+                    {deleteImpactData?.linked_job_orders?.length
+                      ? ` (${deleteImpactData.linked_job_orders
+                          .map((row) => row.order_no || `JO-${row.id}`)
+                          .slice(0, 3)
+                          .join(", ")}${deleteImpactData.linked_job_orders.length > 3 ? ", ..." : ""})`
+                      : ""}
+                  </li>
+                  <li>
+                    {deleteImpactData?.linked_rentals.length || 0} Rental(s)
+                    {deleteImpactData?.linked_rentals?.length
+                      ? ` (${deleteImpactData.linked_rentals
+                          .map((row) => row.rental_no || `R-${row.id}`)
+                          .slice(0, 3)
+                          .join(", ")}${deleteImpactData.linked_rentals.length > 3 ? ", ..." : ""})`
+                      : ""}
+                  </li>
+                  <li>
+                    {deleteImpactData?.payment_count || 0} Payment(s)
+                    {` (₱${formatNumberWithCommas(
+                      Number(deleteImpactData?.payment_total || 0)
+                    )} total)`}
+                  </li>
+                  <li>{deleteImpactData?.email_count || 0} Email Log(s)</li>
+                  <li>{deleteImpactData?.receipt_attachment_count || 0} Receipt Attachment(s)</li>
+                </ul>
+                <p className="text-sm">
+                  Choose how to proceed:
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => resetDeleteFlow()}
+              disabled={deleteAccount.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => selectDeleteMode("billing_only")}
+              disabled={deleteAccount.isPending}
+            >
+              Delete Billing Only
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => selectDeleteMode("billing_with_linked")}
+              disabled={deleteAccount.isPending}
+            >
+              Delete Billing + Linked Records
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Billing Deletion - Manager Authorization */}
+      <AlertDialog
+        open={showDeleteAuthDialog}
+        onOpenChange={(open) => {
+          if (!open && deleteAccount.isPending) return;
+          setShowDeleteAuthDialog(open);
           if (!open) {
             setDeleteAuthPassword("");
             setDeleteAuthError(null);
@@ -2595,16 +2805,9 @@ export default function BillingAccountSheetContent({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Billing Account</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3">
-                <p>
-                  This action is permanent. Enter manager re-authentication password to continue.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Account: <span className="font-medium text-foreground">{acct.account_number}</span>
-                </p>
-              </div>
+            <AlertDialogTitle>Manager Authorization Required</AlertDialogTitle>
+            <AlertDialogDescription>
+              Enter manager/admin credentials to proceed.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -2623,6 +2826,7 @@ export default function BillingAccountSheetContent({
                 }
               }}
               placeholder="Enter manager password"
+              disabled={deleteAccount.isPending}
             />
             {deleteAuthError && (
               <p className="text-xs text-red-600">{deleteAuthError}</p>
@@ -2632,17 +2836,75 @@ export default function BillingAccountSheetContent({
           <AlertDialogFooter>
             <Button
               variant="outline"
-              onClick={() => setShowDeleteConfirm(false)}
+              onClick={() => {
+                setShowDeleteAuthDialog(false);
+                setDeleteAuthPassword("");
+                setDeleteAuthError(null);
+              }}
+              disabled={deleteAccount.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmDeleteAuthorization}
+              disabled={deleteAccount.isPending}
+            >
+              Confirm
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Billing Deletion - Final Confirmation */}
+      <AlertDialog
+        open={showDeleteFinalConfirm}
+        onOpenChange={(open) => {
+          if (!open && deleteAccount.isPending) return;
+          setShowDeleteFinalConfirm(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Final Confirmation</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>You are about to delete a billing statement.</p>
+                <p>
+                  Selected action:{" "}
+                  <span className="font-medium text-foreground">
+                    {selectedDeleteMode === "billing_with_linked"
+                      ? "Billing + Linked Records"
+                      : "Billing Only"}
+                  </span>
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-sm">
+                  <li>Affect financial records</li>
+                  <li>Modify or remove linked data</li>
+                  <li>Cannot be undone</li>
+                </ul>
+                <p className="text-xs text-muted-foreground">
+                  Account:{" "}
+                  <span className="font-medium text-foreground">
+                    {acct.account_number}
+                  </span>
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteFinalConfirm(false)}
               disabled={deleteAccount.isPending}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={confirmDeleteAccount}
+              onClick={executeDeleteAccount}
               disabled={deleteAccount.isPending}
             >
-              {deleteAccount.isPending ? "Deleting..." : "Delete Account"}
+              {deleteAccount.isPending ? "Deleting..." : "Delete Billing Record"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

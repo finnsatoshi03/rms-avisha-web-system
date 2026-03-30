@@ -7,6 +7,9 @@ import {
   BillingPayment,
   SourcePaymentResult,
   SourceRecalculationResult,
+  BillingDeletionMode,
+  BillingAccountDeletionImpact,
+  BillingAccountDeletionResult,
   SourceReceiptStats,
   SourceReceiptSummary,
   BillingStatement,
@@ -295,6 +298,127 @@ export async function deleteBillingAccount(id: string): Promise<void> {
   }
 
   throw new Error("Failed to delete billing account: " + error.message);
+}
+
+function toTextArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+}
+
+function toNumberValue(value: unknown): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+export async function getBillingAccountDeletionImpact(
+  accountId: string
+): Promise<BillingAccountDeletionImpact> {
+  const { data, error } = await supabase.rpc(
+    "get_billing_account_deletion_impact",
+    {
+      p_account_id: accountId,
+    }
+  );
+
+  if (error) {
+    throw new Error("Failed to load billing deletion impact: " + error.message);
+  }
+
+  const payload = (Array.isArray(data) ? data[0] : data) as
+    | Record<string, unknown>
+    | null;
+
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Billing deletion impact was not returned.");
+  }
+
+  const linkedJobOrders = Array.isArray(payload.linked_job_orders)
+    ? (payload.linked_job_orders as Array<Record<string, unknown>>).map(
+        (row) => ({
+          id: Number(row.id),
+          order_no:
+            row.order_no == null ? null : String(row.order_no || "").trim(),
+          status: row.status == null ? null : String(row.status || "").trim(),
+        })
+      )
+    : [];
+
+  const linkedRentals = Array.isArray(payload.linked_rentals)
+    ? (payload.linked_rentals as Array<Record<string, unknown>>).map((row) => ({
+        id: Number(row.id),
+        rental_no:
+          row.rental_no == null ? null : String(row.rental_no || "").trim(),
+        status: row.status == null ? null : String(row.status || "").trim(),
+      }))
+    : [];
+
+  return {
+    account_id: String(payload.account_id || accountId),
+    account_number: String(payload.account_number || ""),
+    linked_job_orders: linkedJobOrders.filter((row) => Number.isFinite(row.id)),
+    linked_rentals: linkedRentals.filter((row) => Number.isFinite(row.id)),
+    payment_count: toNumberValue(payload.payment_count),
+    payment_total: toNumberValue(payload.payment_total),
+    payment_receipt_count: toNumberValue(payload.payment_receipt_count),
+    statement_count: toNumberValue(payload.statement_count),
+    statement_sent_count: toNumberValue(payload.statement_sent_count),
+    email_count: toNumberValue(payload.email_count),
+    email_sent_count: toNumberValue(payload.email_sent_count),
+    source_receipt_count: toNumberValue(payload.source_receipt_count),
+    receipt_attachment_count: toNumberValue(payload.receipt_attachment_count),
+  };
+}
+
+export async function deleteBillingAccountWithStrategy(
+  accountId: string,
+  mode: BillingDeletionMode,
+  reason?: string
+): Promise<BillingAccountDeletionResult> {
+  const { data, error } = await supabase.rpc(
+    "delete_billing_account_with_strategy",
+    {
+      p_account_id: accountId,
+      p_mode: mode,
+      p_reason: reason || null,
+    }
+  );
+
+  if (error) {
+    throw new Error("Failed to delete billing account: " + error.message);
+  }
+
+  const payload = (Array.isArray(data) ? data[0] : data) as
+    | Record<string, unknown>
+    | null;
+
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Billing deletion result was not returned.");
+  }
+
+  return {
+    deleted: Boolean(payload.deleted),
+    account_id: String(payload.account_id || accountId),
+    account_number: String(payload.account_number || ""),
+    deletion_mode:
+      payload.deletion_mode === "billing_with_linked"
+        ? "billing_with_linked"
+        : "billing_only",
+    detached_job_orders: toNumberValue(payload.detached_job_orders),
+    detached_rentals: toNumberValue(payload.detached_rentals),
+    deleted_job_orders: toNumberValue(payload.deleted_job_orders),
+    deleted_rentals: toNumberValue(payload.deleted_rentals),
+    allocations_reversed: toNumberValue(payload.allocations_reversed),
+    allocations_deleted: toNumberValue(payload.allocations_deleted),
+    payments_reversed: toNumberValue(payload.payments_reversed),
+    payments_deleted: toNumberValue(payload.payments_deleted),
+    line_items_deleted: toNumberValue(payload.line_items_deleted),
+    statements_deleted: toNumberValue(payload.statements_deleted),
+    email_logs_invalidated: toNumberValue(payload.email_logs_invalidated),
+    receipt_paths_to_delete: toTextArray(payload.receipt_paths_to_delete),
+    audit_id: payload.audit_id ? String(payload.audit_id) : null,
+  };
 }
 
 // ========================
