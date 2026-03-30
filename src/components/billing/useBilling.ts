@@ -9,6 +9,7 @@ import {
   getBillingAccountBalance,
   getBillingAccountAging,
   getBillingLineItems,
+  updateBillingLineItemTransactionDate,
   getBillingPayments,
   recordBillingPayment,
   getBillingStatements,
@@ -203,8 +204,15 @@ export function useRecordBillingPayment() {
 export function useTransferJobOrderToBilling() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ joId, accountId }: { joId: number; accountId: string }) =>
-      transferJobOrderToBilling(joId, accountId),
+    mutationFn: ({
+      joId,
+      accountId,
+      transactionDate,
+    }: {
+      joId: number;
+      accountId: string;
+      transactionDate: string;
+    }) => transferJobOrderToBilling(joId, accountId, transactionDate),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["billing_line_items", variables.accountId] });
       queryClient.invalidateQueries({ queryKey: ["billing_balance", variables.accountId] });
@@ -231,8 +239,15 @@ export function useTransferJobOrderToBilling() {
 export function useTransferRentalToBilling() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ rentalId, accountId }: { rentalId: number; accountId: string }) =>
-      transferRentalToBilling(rentalId, accountId),
+    mutationFn: ({
+      rentalId,
+      accountId,
+      transactionDate,
+    }: {
+      rentalId: number;
+      accountId: string;
+      transactionDate: string;
+    }) => transferRentalToBilling(rentalId, accountId, transactionDate),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["billing_line_items", variables.accountId] });
       queryClient.invalidateQueries({ queryKey: ["billing_balance", variables.accountId] });
@@ -288,6 +303,31 @@ export function useUpdateBillingStatement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing_statements"] });
       toast.success("Statement updated");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+export function useUpdateBillingLineItemTransactionDate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      lineItemId,
+      transactionDate,
+    }: {
+      lineItemId: string;
+      transactionDate: string;
+    }) => updateBillingLineItemTransactionDate(lineItemId, transactionDate),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_statements"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_dashboard_summary"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_aging"] });
+      toast.success("Transaction date updated");
     },
     onError: (error: Error) => {
       toast.error(error.message);

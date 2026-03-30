@@ -82,6 +82,7 @@ import {
   useBillingStatements,
   useApplyAccountInterest,
   useUpdateBillingAccount,
+  useUpdateBillingLineItemTransactionDate,
   useUpdateBillingStatement,
   useBillingInterestLogs,
   useEmailLogs,
@@ -122,10 +123,12 @@ import AttachRentalPanel from "./attach-rental-panel";
 import GenerateStatementPanel from "./generate-statement-panel";
 import BillingAccountFormSheet from "./billing-account-form";
 import BillingStatementPDF, { BillingStatementPDFData } from "./billing-statement-pdf";
+import TransactionDateDialog from "./transaction-date-dialog";
 import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
 import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
 import GuidedTour from "../onboarding/guided-tour";
 import TourReplayButton from "../onboarding/tour-replay-button";
+import { formatDateLabel, normalizeDateOnly } from "../../lib/transaction-date";
 
 // ─── Badge maps ─────────────────────────────────────────────────────────────
 
@@ -310,6 +313,7 @@ export default function BillingAccountSheetContent({
     },
   });
   const updateStatement = useUpdateBillingStatement();
+  const updateLineItemTransactionDate = useUpdateBillingLineItemTransactionDate();
   const sendReminders = useTriggerSendBillingReminders();
   const generateStatements = useTriggerGenerateStatements();
 
@@ -362,6 +366,8 @@ export default function BillingAccountSheetContent({
   );
   const [pendingReceiptPayment, setPendingReceiptPayment] =
     useState<BillingPayment | null>(null);
+  const [editingTransactionDateLineItem, setEditingTransactionDateLineItem] =
+    useState<BillingLineItem | null>(null);
   const [receiptInputKey, setReceiptInputKey] = useState(0);
   const statementAttentionTimerRef = useRef<number | null>(null);
   const statementHighlightTimerRef = useRef<number | null>(null);
@@ -1038,6 +1044,49 @@ export default function BillingAccountSheetContent({
     paymentReceiptInputRef.current?.click();
   }
 
+  function getLineItemSourceDate(lineItem: BillingLineItem | null): string | null {
+    if (!lineItem) return null;
+
+    if (lineItem.source_type === "rental") {
+      return normalizeDateOnly(lineItem.rentals?.created_at) || null;
+    }
+
+    if (lineItem.source_type === "job_order") {
+      return normalizeDateOnly(lineItem.joborders?.created_at) || null;
+    }
+
+    if (lineItem.rental_id != null) {
+      return normalizeDateOnly(lineItem.rentals?.created_at) || null;
+    }
+
+    if (lineItem.job_order_id != null) {
+      return normalizeDateOnly(lineItem.joborders?.created_at) || null;
+    }
+
+    return null;
+  }
+
+  async function handleUpdateTransactionDate(selection: {
+    mode: "current" | "source" | "custom";
+    transactionDate: string;
+  }) {
+    if (!editingTransactionDateLineItem) return;
+
+    const sourceDate = getLineItemSourceDate(editingTransactionDateLineItem);
+    const transactionDate =
+      selection.mode === "source" ? sourceDate : selection.transactionDate;
+
+    if (!transactionDate) {
+      throw new Error("Source date is unavailable for this billing entry.");
+    }
+
+    await updateLineItemTransactionDate.mutateAsync({
+      lineItemId: editingTransactionDateLineItem.id,
+      transactionDate,
+    });
+    setEditingTransactionDateLineItem(null);
+  }
+
   async function handleReplaceReceiptSelection(
     event: React.ChangeEvent<HTMLInputElement>
   ) {
@@ -1126,6 +1175,18 @@ export default function BillingAccountSheetContent({
     acct.billing_contact_email || acct.clients?.email;
   const contactName = acct.billing_contact_name;
   const canManageAccount = isDev || isAdmin || isManager;
+  const editingTransactionDateSourceDate = getLineItemSourceDate(
+    editingTransactionDateLineItem
+  );
+  const editingTransactionDateSourceLabel: "Job Order" | "Rental" =
+    editingTransactionDateLineItem?.source_type === "rental" ||
+    editingTransactionDateLineItem?.rental_id != null
+      ? "Rental"
+      : "Job Order";
+  const editingTransactionDateInitialDate =
+    normalizeDateOnly(editingTransactionDateLineItem?.transaction_date) ||
+    normalizeDateOnly(editingTransactionDateLineItem?.created_at) ||
+    editingTransactionDateSourceDate;
   const statusActionLabel = acct.status === "active" ? "Suspend" : "Activate";
   const statusActionTargetLabel =
     pendingStatus === "suspended" ? "Suspend" : "Activate";
@@ -1707,6 +1768,9 @@ export default function BillingAccountSheetContent({
                   <TableHead className="text-[11px] font-semibold">
                     Branch
                   </TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    Date
+                  </TableHead>
                   <TableHead className="text-[11px] font-semibold text-right">
                     Amount
                   </TableHead>
@@ -1747,6 +1811,23 @@ export default function BillingAccountSheetContent({
                       </TableCell>
                       <TableCell className="text-xs py-1.5">
                         {li.branches?.name ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs py-1.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span>
+                            {formatDateLabel(li.transaction_date || li.created_at)}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-5 w-5 p-0"
+                            onClick={() => setEditingTransactionDateLineItem(li)}
+                            disabled={updateLineItemTransactionDate.isPending}
+                          >
+                            <Pencil size={10} />
+                          </Button>
+                        </div>
                       </TableCell>
                       <TableCell className="text-xs text-right tabular-nums py-1.5">
                         {amt(li.amount)}
@@ -1855,6 +1936,9 @@ export default function BillingAccountSheetContent({
                   <TableHead className="text-[11px] font-semibold">
                     Branch
                   </TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    Date
+                  </TableHead>
                   <TableHead className="text-[11px] font-semibold text-right">
                     Amount
                   </TableHead>
@@ -1895,6 +1979,23 @@ export default function BillingAccountSheetContent({
                       </TableCell>
                       <TableCell className="text-xs py-1.5">
                         {li.branches?.name ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs py-1.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span>
+                            {formatDateLabel(li.transaction_date || li.created_at)}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-5 w-5 p-0"
+                            onClick={() => setEditingTransactionDateLineItem(li)}
+                            disabled={updateLineItemTransactionDate.isPending}
+                          >
+                            <Pencil size={10} />
+                          </Button>
+                        </div>
                       </TableCell>
                       <TableCell className="text-xs text-right tabular-nums py-1.5">
                         {amt(li.amount)}
@@ -3184,6 +3285,26 @@ export default function BillingAccountSheetContent({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <TransactionDateDialog
+        open={Boolean(editingTransactionDateLineItem)}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (updateLineItemTransactionDate.isPending) return;
+            setEditingTransactionDateLineItem(null);
+          }
+        }}
+        sourceLabel={editingTransactionDateSourceLabel}
+        sourceDate={editingTransactionDateSourceDate}
+        title="Edit Transaction Date"
+        description="Choose which date should be used for this billing entry:"
+        confirmLabel="Save"
+        defaultMode="custom"
+        initialCustomDate={editingTransactionDateInitialDate}
+        pending={updateLineItemTransactionDate.isPending}
+        onConfirm={async ({ mode, transactionDate }) => {
+          await handleUpdateTransactionDate({ mode, transactionDate });
+        }}
+      />
       {/* Onboarding Tour */}
       <FeatureAnnouncementModal
         open={showDetailAnnouncement}

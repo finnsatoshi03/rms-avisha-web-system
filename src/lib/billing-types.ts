@@ -46,13 +46,24 @@ export type BillingLineItem = {
   receipt_uploaded_at?: string | null;
   receipt_uploaded_by?: string | null;
   balance_at_time: number | null;
+  transaction_date?: string | null;
   due_date: string | null;
   created_by: string | null;
   created_at: string;
   // Joined
   branches?: { id: number; name: string; prefix: string };
-  joborders?: { id: number; order_no: string; status: string };
-  rentals?: { id: number; rental_no: string; status: string };
+  joborders?: {
+    id: number;
+    order_no: string;
+    status: string;
+    created_at?: string | null;
+  };
+  rentals?: {
+    id: number;
+    rental_no: string;
+    status: string;
+    created_at?: string | null;
+  };
   paid_amount?: number;
 };
 

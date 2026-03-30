@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ReceiptText, ExternalLink, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
@@ -8,6 +8,9 @@ import toast from "react-hot-toast";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Separator } from "../ui/separator";
+import { DatePicker } from "../ui/date-picker";
+import { Label } from "../ui/label";
+import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +32,12 @@ import {
   updateSourceReceipt,
   uploadReceiptFile,
 } from "../../services/apiBilling";
+import {
+  formatDateLabel,
+  normalizeDateOnly,
+  resolveTransactionDateFromMode,
+  TransactionDateMode,
+} from "../../lib/transaction-date";
 
 interface RentalBillingSectionProps {
   rental: RentalData;
@@ -40,6 +49,14 @@ export default function RentalBillingSection({ rental }: RentalBillingSectionPro
   const { isTechnician } = useUser();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const [transactionDateMode, setTransactionDateMode] =
+    useState<TransactionDateMode>("source");
+  const [customTransactionDate, setCustomTransactionDate] = useState<
+    string | null
+  >(null);
+  const [transactionDateError, setTransactionDateError] = useState<
+    string | null
+  >(null);
   const receiptInputRef = useRef<HTMLInputElement | null>(null);
 
   const clientId = rental.client_id;
@@ -51,6 +68,18 @@ export default function RentalBillingSection({ rental }: RentalBillingSectionPro
   const remainingBalance = (rental.grand_total || 0) - (rental.downpayment || 0);
   const isTransferred = rental.transferred_to_billing;
   const hasMissingReceipt = !rental.receipt_url;
+  const sourceTransactionDate = normalizeDateOnly(rental.created_at);
+  const sourceTransactionDateLabel = formatDateLabel(sourceTransactionDate);
+  const currentTransactionDateLabel = formatDateLabel(
+    normalizeDateOnly(new Date())
+  );
+
+  useEffect(() => {
+    if (!confirmOpen) return;
+    setTransactionDateMode("source");
+    setCustomTransactionDate(sourceTransactionDate);
+    setTransactionDateError(null);
+  }, [confirmOpen, sourceTransactionDate]);
 
   // Technicians should not see billing info
   if (isTechnician) return null;
@@ -62,10 +91,23 @@ export default function RentalBillingSection({ rental }: RentalBillingSectionPro
 
   const handleTransfer = async () => {
     if (!billingAccount) return;
+
+    const resolved = resolveTransactionDateFromMode({
+      mode: transactionDateMode,
+      sourceDate: sourceTransactionDate,
+      customDate: customTransactionDate,
+    });
+
+    if (resolved.error || !resolved.transactionDate) {
+      setTransactionDateError(resolved.error || "Transaction date is required.");
+      return;
+    }
+
     try {
       await transferMutation.mutateAsync({
         rentalId: rental.id,
         accountId: billingAccount.id,
+        transactionDate: resolved.transactionDate,
       });
       setConfirmOpen(false);
     } catch {
@@ -262,6 +304,77 @@ export default function RentalBillingSection({ rental }: RentalBillingSectionPro
                 <span>To Account</span>
                 <span className="font-mono">{billingAccount?.account_number}</span>
               </div>
+            </div>
+
+            <div className="space-y-3 rounded-md border p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Select Transaction Date
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Choose which date should be used for this billing entry:
+              </p>
+              <RadioGroup
+                value={transactionDateMode}
+                onValueChange={(value) => {
+                  setTransactionDateMode(value as TransactionDateMode);
+                  setTransactionDateError(null);
+                }}
+                className="space-y-2"
+                disabled={isTransactionBusy}
+              >
+                <div className="flex items-start gap-2">
+                  <RadioGroupItem
+                    id={`rental-transfer-date-current-${rental.id}`}
+                    value="current"
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor={`rental-transfer-date-current-${rental.id}`}>
+                      Use Current Date
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      [ {currentTransactionDateLabel} ]
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <RadioGroupItem
+                    id={`rental-transfer-date-source-${rental.id}`}
+                    value="source"
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor={`rental-transfer-date-source-${rental.id}`}>
+                      Use Rental Date
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      [ {sourceTransactionDateLabel} ]
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <RadioGroupItem
+                    id={`rental-transfer-date-custom-${rental.id}`}
+                    value="custom"
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor={`rental-transfer-date-custom-${rental.id}`}>
+                      Use Custom Date
+                    </Label>
+                    <DatePicker
+                      value={customTransactionDate || undefined}
+                      onChange={(nextDate) => {
+                        setCustomTransactionDate(nextDate);
+                        setTransactionDateError(null);
+                      }}
+                      disabled={isTransactionBusy || transactionDateMode !== "custom"}
+                      placeholder="Pick date"
+                      className="text-xs"
+                    />
+                  </div>
+                </div>
+              </RadioGroup>
+              {transactionDateError && (
+                <p className="text-xs text-red-600">{transactionDateError}</p>
+              )}
             </div>
 
             {billingAccount && billingAccount.credit_limit > 0 && balance !== undefined && (balance + remainingBalance) > billingAccount.credit_limit && (

@@ -21,6 +21,7 @@ import {
   RecordPaymentData,
   LedgerEntry,
 } from "../lib/billing-types";
+import { getTodayDateString, normalizeDateOnly } from "../lib/transaction-date";
 
 export const RECEIPT_BUCKET = "billing-receipts";
 export const MAX_RECEIPT_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -457,19 +458,49 @@ export async function getBillingAccountAging(accountId: string): Promise<Billing
 export async function getBillingLineItems(accountId: string): Promise<BillingLineItem[]> {
   const { data, error } = await supabase
     .from("billing_line_items")
-    .select(`*, branches:branch_id (id, name, prefix), joborders:job_order_id (id, order_no, status), rentals:rental_id (id, rental_no, status)`)
+    .select(`*, branches:branch_id (id, name, prefix), joborders:job_order_id (id, order_no, status, created_at), rentals:rental_id (id, rental_no, status, created_at)`)
     .eq("billing_account_id", accountId)
+    .order("transaction_date", { ascending: true })
     .order("created_at", { ascending: true });
 
   if (error) throw new Error("Failed to fetch line items: " + error.message);
 
-  return (data || []).map((li: any) => ({
-    ...li,
-    amount: Number(li.amount || 0),
-    total_paid: Number(li.total_paid || 0),
-    remaining_balance: Number(li.remaining_balance || 0),
-    paid_amount: Number(li.total_paid || 0),
-  }));
+  return (data || []).map((li: any) => {
+    const normalizedTransactionDate =
+      normalizeDateOnly(li.transaction_date) || normalizeDateOnly(li.created_at);
+
+    return {
+      ...li,
+      transaction_date: normalizedTransactionDate,
+      amount: Number(li.amount || 0),
+      total_paid: Number(li.total_paid || 0),
+      remaining_balance: Number(li.remaining_balance || 0),
+      paid_amount: Number(li.total_paid || 0),
+    };
+  });
+}
+
+export async function updateBillingLineItemTransactionDate(
+  lineItemId: string,
+  transactionDate: string
+): Promise<void> {
+  const normalizedDate = normalizeDateOnly(transactionDate);
+  if (!normalizedDate) {
+    throw new Error("Transaction date is required.");
+  }
+
+  if (normalizedDate > getTodayDateString()) {
+    throw new Error("Transaction date cannot be in the future.");
+  }
+
+  const { error } = await supabase
+    .from("billing_line_items")
+    .update({ transaction_date: normalizedDate })
+    .eq("id", lineItemId);
+
+  if (error) {
+    throw new Error("Failed to update transaction date: " + error.message);
+  }
 }
 
 // ========================
@@ -478,14 +509,20 @@ export async function getBillingLineItems(accountId: string): Promise<BillingLin
 
 export async function transferJobOrderToBilling(
   joId: number,
-  accountId: string
+  accountId: string,
+  transactionDate: string
 ): Promise<any> {
   const { data: userData } = await supabase.auth.getUser();
+  const normalizedTransactionDate = normalizeDateOnly(transactionDate);
+  if (!normalizedTransactionDate) {
+    throw new Error("Transaction date is required.");
+  }
 
   const { data, error } = await supabase.rpc("transfer_job_order_to_billing", {
     p_jo_id: joId,
     p_account_id: accountId,
     p_transferred_by: userData.user?.id,
+    p_transaction_date: normalizedTransactionDate,
   });
 
   if (error) throw new Error("Failed to transfer job order: " + error.message);
@@ -848,7 +885,7 @@ export async function getBillingLedger(accountId: string): Promise<LedgerEntry[]
   lineItems.forEach((li) => {
     entries.push({
       id: li.id,
-      date: li.created_at,
+      date: li.transaction_date || li.created_at,
       type: li.type,
       description: li.description,
       debit: li.amount > 0 ? li.amount : 0,
@@ -871,7 +908,7 @@ export async function getBillingLedger(accountId: string): Promise<LedgerEntry[]
 
     entries.push({
       id: p.id,
-      date: p.created_at,
+      date: p.payment_date || p.created_at,
       type: "payment",
       description: `Payment - ${p.payment_method || "Unknown"}${p.reference_number ? ` (${p.reference_number})` : ""}`,
       debit: 0,
@@ -881,8 +918,16 @@ export async function getBillingLedger(accountId: string): Promise<LedgerEntry[]
     });
   });
 
-  // Sort by date
-  entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const toSortTimestamp = (value: string) => {
+    if (!value) return 0;
+    if (value.length === 10) {
+      return new Date(`${value}T00:00:00`).getTime();
+    }
+    return new Date(value).getTime();
+  };
+
+  // Sort by date (business date for charges, payment date for payments)
+  entries.sort((a, b) => toSortTimestamp(a.date) - toSortTimestamp(b.date));
 
   // Calculate running balance
   let runningBalance = 0;
@@ -981,14 +1026,20 @@ export async function triggerGenerateBillingStatements(): Promise<any> {
 
 export async function transferRentalToBilling(
   rentalId: number,
-  accountId: string
+  accountId: string,
+  transactionDate: string
 ): Promise<any> {
   const { data: userData } = await supabase.auth.getUser();
+  const normalizedTransactionDate = normalizeDateOnly(transactionDate);
+  if (!normalizedTransactionDate) {
+    throw new Error("Transaction date is required.");
+  }
 
   const { data, error } = await supabase.rpc("transfer_rental_to_billing", {
     p_rental_id: rentalId,
     p_account_id: accountId,
     p_transferred_by: userData.user?.id,
+    p_transaction_date: normalizedTransactionDate,
   });
 
   if (error) throw new Error("Failed to transfer rental: " + error.message);
@@ -1003,7 +1054,7 @@ export async function getEligibleRentals(clientId: number): Promise<any[]> {
   const { data, error } = await supabase
     .from("rentals")
     .select(`
-      id, rental_no, status, grand_total, downpayment, branch_id, rate_amount,
+      id, rental_no, status, grand_total, downpayment, branch_id, rate_amount, created_at,
       consumables_total, discount, rental_type,
       branches:branch_id (id, name, prefix),
       rental_assets:rental_asset_id (id, unit_name, model)
@@ -1039,7 +1090,7 @@ export async function getEligibleJobOrders(clientId: number): Promise<any[]> {
   const { data, error } = await supabase
     .from("joborders")
     .select(`
-      id, order_no, status, grand_total, downpayment, branch_id, labor_description,
+      id, order_no, status, grand_total, downpayment, branch_id, labor_description, created_at,
       payment_details,
       branches:branch_id (id, name, prefix)
     `)

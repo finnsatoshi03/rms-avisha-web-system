@@ -21,6 +21,8 @@ import {
 } from "./useBilling";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import toast from "react-hot-toast";
+import TransactionDateDialog from "./transaction-date-dialog";
+import { normalizeDateOnly, TransactionDateMode } from "../../lib/transaction-date";
 
 interface AttachJobOrderDialogProps {
   open: boolean;
@@ -35,6 +37,7 @@ interface EligibleJobOrder {
   status: string;
   grand_total: number;
   downpayment: number;
+  created_at: string;
   branch_id: number;
   labor_description: string;
   branches: { name: string };
@@ -50,6 +53,8 @@ export default function AttachJobOrderDialog({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [transferring, setTransferring] = useState(false);
   const [transferProgress, setTransferProgress] = useState({ current: 0, total: 0 });
+  const [transactionDateDialogOpen, setTransactionDateDialogOpen] =
+    useState(false);
 
   const { data: jobOrders, isLoading: josLoading } = useEligibleJobOrders(clientId);
   const { data: account } = useBillingAccount(accountId);
@@ -84,6 +89,14 @@ export default function AttachJobOrderDialog({
         .reduce((sum, jo) => sum + remainingBalance(jo), 0),
     [eligibleJOs, selectedIds, remainingBalance]
   );
+  const selectedJobOrders = useMemo(
+    () => eligibleJOs.filter((jo) => selectedIds.has(jo.id)),
+    [eligibleJOs, selectedIds]
+  );
+  const previewSourceDate = useMemo(
+    () => normalizeDateOnly(selectedJobOrders[0]?.created_at) || null,
+    [selectedJobOrders]
+  );
 
   const creditLimit = (account as { credit_limit?: number })?.credit_limit ?? 0;
   const currentBalance = (balance as { total_balance?: number })?.total_balance ?? 0;
@@ -108,12 +121,16 @@ export default function AttachJobOrderDialog({
       setSearch("");
       setSelectedIds(new Set());
       setTransferProgress({ current: 0, total: 0 });
+      setTransactionDateDialogOpen(false);
     }
     onOpenChange(value);
   }
 
-  async function handleTransfer() {
-    const selected = eligibleJOs.filter((jo) => selectedIds.has(jo.id));
+  async function handleTransferWithDate(selection: {
+    mode: TransactionDateMode;
+    transactionDate: string;
+  }) {
+    const selected = selectedJobOrders;
     if (selected.length === 0) return;
 
     setTransferring(true);
@@ -124,13 +141,30 @@ export default function AttachJobOrderDialog({
     for (let i = 0; i < selected.length; i++) {
       setTransferProgress({ current: i + 1, total: selected.length });
       try {
+        const sourceDate = normalizeDateOnly(selected[i].created_at);
+        const transactionDate =
+          selection.mode === "source" ? sourceDate : selection.transactionDate;
+
+        if (!transactionDate) {
+          throw new Error(
+            `Source date is unavailable for ${selected[i].order_no || `JO #${selected[i].id}`}.`
+          );
+        }
+
         await transferMutation.mutateAsync({
           joId: selected[i].id,
           accountId,
+          transactionDate,
         });
         successCount++;
-      } catch {
+      } catch (error) {
         // Error toast is handled by the mutation hook
+        if (
+          error instanceof Error &&
+          error.message.toLowerCase().includes("source date is unavailable")
+        ) {
+          toast.error(error.message);
+        }
       }
     }
 
@@ -141,7 +175,10 @@ export default function AttachJobOrderDialog({
         `Successfully transferred ${successCount} job order${successCount > 1 ? "s" : ""} to billing`
       );
       handleClose(false);
+      return;
     }
+
+    throw new Error("No job orders were transferred.");
   }
 
   function getStatusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
@@ -317,7 +354,7 @@ export default function AttachJobOrderDialog({
             Cancel
           </Button>
           <Button
-            onClick={handleTransfer}
+            onClick={() => setTransactionDateDialogOpen(true)}
             disabled={selectedIds.size === 0 || transferring}
           >
             {transferring
@@ -326,6 +363,19 @@ export default function AttachJobOrderDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <TransactionDateDialog
+        open={transactionDateDialogOpen}
+        onOpenChange={setTransactionDateDialogOpen}
+        sourceLabel="Job Order"
+        sourceDate={previewSourceDate}
+        itemCount={selectedJobOrders.length}
+        defaultMode="source"
+        pending={transferring}
+        onConfirm={async ({ mode, transactionDate }) => {
+          await handleTransferWithDate({ mode, transactionDate });
+        }}
+      />
     </Dialog>
   );
 }

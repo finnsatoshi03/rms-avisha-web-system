@@ -12,6 +12,8 @@ import {
 } from "./useBilling";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import toast from "react-hot-toast";
+import TransactionDateDialog from "./transaction-date-dialog";
+import { normalizeDateOnly, TransactionDateMode } from "../../lib/transaction-date";
 
 interface AttachJobOrderPanelProps {
   accountId: string;
@@ -25,6 +27,7 @@ interface EligibleJobOrder {
   status: string;
   grand_total: number;
   downpayment: number;
+  created_at: string;
   branch_id: number;
   labor_description: string;
   branches: { name: string };
@@ -42,6 +45,8 @@ export default function AttachJobOrderPanel({
     current: 0,
     total: 0,
   });
+  const [transactionDateDialogOpen, setTransactionDateDialogOpen] =
+    useState(false);
 
   const { data: jobOrders, isLoading: josLoading } =
     useEligibleJobOrders(clientId);
@@ -77,6 +82,14 @@ export default function AttachJobOrderPanel({
         .reduce((sum, jo) => sum + remainingBalance(jo), 0),
     [eligibleJOs, selectedIds, remainingBalance]
   );
+  const selectedJobOrders = useMemo(
+    () => eligibleJOs.filter((jo) => selectedIds.has(jo.id)),
+    [eligibleJOs, selectedIds]
+  );
+  const previewSourceDate = useMemo(
+    () => normalizeDateOnly(selectedJobOrders[0]?.created_at) || null,
+    [selectedJobOrders]
+  );
 
   const creditLimit =
     (account as { credit_limit?: number })?.credit_limit ?? 0;
@@ -94,8 +107,11 @@ export default function AttachJobOrderPanel({
     });
   }
 
-  async function handleTransfer() {
-    const selected = eligibleJOs.filter((jo) => selectedIds.has(jo.id));
+  async function handleTransferWithDate(selection: {
+    mode: TransactionDateMode;
+    transactionDate: string;
+  }) {
+    const selected = selectedJobOrders;
     if (selected.length === 0) return;
 
     setTransferring(true);
@@ -106,13 +122,30 @@ export default function AttachJobOrderPanel({
     for (let i = 0; i < selected.length; i++) {
       setTransferProgress({ current: i + 1, total: selected.length });
       try {
+        const sourceDate = normalizeDateOnly(selected[i].created_at);
+        const transactionDate =
+          selection.mode === "source" ? sourceDate : selection.transactionDate;
+
+        if (!transactionDate) {
+          throw new Error(
+            `Source date is unavailable for ${selected[i].order_no || `JO #${selected[i].id}`}.`
+          );
+        }
+
         await transferMutation.mutateAsync({
           joId: selected[i].id,
           accountId,
+          transactionDate,
         });
         successCount++;
-      } catch {
+      } catch (error) {
         // Error toast handled by mutation hook
+        if (
+          error instanceof Error &&
+          error.message.toLowerCase().includes("source date is unavailable")
+        ) {
+          toast.error(error.message);
+        }
       }
     }
 
@@ -123,7 +156,10 @@ export default function AttachJobOrderPanel({
         `Transferred ${successCount} job order${successCount > 1 ? "s" : ""}`
       );
       onClose();
+      return;
     }
+
+    throw new Error("No job orders were transferred.");
   }
 
   function getStatusVariant(
@@ -278,7 +314,7 @@ export default function AttachJobOrderPanel({
       <div className="flex md:flex-row flex-col md:justify-between mt-4">
         <Button
           type="button"
-          onClick={handleTransfer}
+          onClick={() => setTransactionDateDialogOpen(true)}
           disabled={selectedIds.size === 0 || transferring}
         >
           {transferring ? (
@@ -299,6 +335,19 @@ export default function AttachJobOrderPanel({
           Cancel
         </Button>
       </div>
+
+      <TransactionDateDialog
+        open={transactionDateDialogOpen}
+        onOpenChange={setTransactionDateDialogOpen}
+        sourceLabel="Job Order"
+        sourceDate={previewSourceDate}
+        itemCount={selectedJobOrders.length}
+        defaultMode="source"
+        pending={transferring}
+        onConfirm={async ({ mode, transactionDate }) => {
+          await handleTransferWithDate({ mode, transactionDate });
+        }}
+      />
     </div>
   );
 }

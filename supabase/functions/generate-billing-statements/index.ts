@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
         .from("billing_line_items")
         .select("amount")
         .eq("billing_account_id", account.id)
-        .lt("created_at", `${periodStartStr}T00:00:00`);
+        .lt("transaction_date", periodStartStr);
 
       const prevCharges = (prevLineItems || []).reduce(
         (sum: number, li: { amount: number }) => sum + Number(li.amount),
@@ -183,8 +183,8 @@ Deno.serve(async (req) => {
         .select("amount")
         .eq("billing_account_id", account.id)
         .neq("type", "interest")
-        .gte("created_at", `${periodStartStr}T00:00:00`)
-        .lte("created_at", `${periodEndStr}T23:59:59`);
+        .gte("transaction_date", periodStartStr)
+        .lte("transaction_date", periodEndStr);
 
       const newCharges = (periodCharges || []).reduce(
         (sum: number, li: { amount: number }) => sum + Number(li.amount),
@@ -197,8 +197,8 @@ Deno.serve(async (req) => {
         .select("amount")
         .eq("billing_account_id", account.id)
         .eq("type", "interest")
-        .gte("created_at", `${periodStartStr}T00:00:00`)
-        .lte("created_at", `${periodEndStr}T23:59:59`);
+        .gte("transaction_date", periodStartStr)
+        .lte("transaction_date", periodEndStr);
 
       const interestApplied = (periodInterest || []).reduce(
         (sum: number, li: { amount: number }) => sum + Number(li.amount),

@@ -28,6 +28,13 @@ function fmtDate(dateStr: string): string {
   });
 }
 
+function toComparableDate(dateStr: string): Date {
+  if (dateStr.length === 10) {
+    return new Date(`${dateStr}T00:00:00`);
+  }
+  return new Date(dateStr);
+}
+
 // Resolve logo to absolute URL so @react-pdf/renderer can fetch it in browser
 const LOGO_URL = new URL("/RMS-Logo.png", window.location.origin).href;
 
@@ -54,7 +61,8 @@ export default function BillingStatementPDF({
   periodEnd.setHours(23, 59, 59);
 
   const periodLineItems = lineItems.filter((li) => {
-    const d = new Date(li.created_at);
+    const lineItemDate = li.transaction_date || li.created_at;
+    const d = toComparableDate(lineItemDate);
     return d >= periodStart && d <= periodEnd;
   });
 
@@ -244,7 +252,7 @@ export default function BillingStatementPDF({
               {periodLineItems.map((li) => (
                 <View style={styles.tableRow} key={li.id}>
                   <Text style={[styles.tableCol17, { width: "15%", borderRight: "1px solid black", fontSize: 7 }]}>
-                    {fmtDate(li.created_at)}
+                    {fmtDate(li.transaction_date || li.created_at)}
                   </Text>
                   <Text
                     style={[

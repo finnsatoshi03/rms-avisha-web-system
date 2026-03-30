@@ -21,6 +21,8 @@ import {
 } from "./useBilling";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import toast from "react-hot-toast";
+import TransactionDateDialog from "./transaction-date-dialog";
+import { normalizeDateOnly, TransactionDateMode } from "../../lib/transaction-date";
 
 interface AttachRentalDialogProps {
   open: boolean;
@@ -35,6 +37,7 @@ interface EligibleRental {
   status: string;
   grand_total: number;
   downpayment: number;
+  created_at: string;
   branch_id: number;
   rate_amount: number;
   consumables_total: number;
@@ -54,6 +57,8 @@ export default function AttachRentalDialog({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [transferring, setTransferring] = useState(false);
   const [transferProgress, setTransferProgress] = useState({ current: 0, total: 0 });
+  const [transactionDateDialogOpen, setTransactionDateDialogOpen] =
+    useState(false);
 
   const { data: rentals, isLoading: rentalsLoading } = useEligibleRentals(clientId);
   const { data: account } = useBillingAccount(accountId);
@@ -89,6 +94,14 @@ export default function AttachRentalDialog({
         .reduce((sum, r) => sum + remainingBalance(r), 0),
     [eligibleRentals, selectedIds, remainingBalance]
   );
+  const selectedRentals = useMemo(
+    () => eligibleRentals.filter((r) => selectedIds.has(r.id)),
+    [eligibleRentals, selectedIds]
+  );
+  const previewSourceDate = useMemo(
+    () => normalizeDateOnly(selectedRentals[0]?.created_at) || null,
+    [selectedRentals]
+  );
 
   const creditLimit = (account as { credit_limit?: number })?.credit_limit ?? 0;
   const currentBalance = (balance as { total_balance?: number })?.total_balance ?? 0;
@@ -113,12 +126,16 @@ export default function AttachRentalDialog({
       setSearch("");
       setSelectedIds(new Set());
       setTransferProgress({ current: 0, total: 0 });
+      setTransactionDateDialogOpen(false);
     }
     onOpenChange(value);
   }
 
-  async function handleTransfer() {
-    const selected = eligibleRentals.filter((r) => selectedIds.has(r.id));
+  async function handleTransferWithDate(selection: {
+    mode: TransactionDateMode;
+    transactionDate: string;
+  }) {
+    const selected = selectedRentals;
     if (selected.length === 0) return;
 
     setTransferring(true);
@@ -129,13 +146,30 @@ export default function AttachRentalDialog({
     for (let i = 0; i < selected.length; i++) {
       setTransferProgress({ current: i + 1, total: selected.length });
       try {
+        const sourceDate = normalizeDateOnly(selected[i].created_at);
+        const transactionDate =
+          selection.mode === "source" ? sourceDate : selection.transactionDate;
+
+        if (!transactionDate) {
+          throw new Error(
+            `Source date is unavailable for ${selected[i].rental_no || `Rental #${selected[i].id}`}.`
+          );
+        }
+
         await transferMutation.mutateAsync({
           rentalId: selected[i].id,
           accountId,
+          transactionDate,
         });
         successCount++;
-      } catch {
+      } catch (error) {
         // Error toast is handled by the mutation hook
+        if (
+          error instanceof Error &&
+          error.message.toLowerCase().includes("source date is unavailable")
+        ) {
+          toast.error(error.message);
+        }
       }
     }
 
@@ -146,7 +180,10 @@ export default function AttachRentalDialog({
         `Successfully transferred ${successCount} rental${successCount > 1 ? "s" : ""} to billing`
       );
       handleClose(false);
+      return;
     }
+
+    throw new Error("No rentals were transferred.");
   }
 
   function getStatusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
@@ -329,7 +366,7 @@ export default function AttachRentalDialog({
             Cancel
           </Button>
           <Button
-            onClick={handleTransfer}
+            onClick={() => setTransactionDateDialogOpen(true)}
             disabled={selectedIds.size === 0 || transferring}
           >
             {transferring
@@ -338,6 +375,19 @@ export default function AttachRentalDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <TransactionDateDialog
+        open={transactionDateDialogOpen}
+        onOpenChange={setTransactionDateDialogOpen}
+        sourceLabel="Rental"
+        sourceDate={previewSourceDate}
+        itemCount={selectedRentals.length}
+        defaultMode="source"
+        pending={transferring}
+        onConfirm={async ({ mode, transactionDate }) => {
+          await handleTransferWithDate({ mode, transactionDate });
+        }}
+      />
     </Dialog>
   );
 }

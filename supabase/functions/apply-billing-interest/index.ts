@@ -104,6 +104,7 @@ Deno.serve(async (req) => {
         .select("branch_id")
         .eq("billing_account_id", account.id)
         .eq("type", "charge")
+        .order("transaction_date", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -128,6 +129,7 @@ Deno.serve(async (req) => {
           type: "interest",
           description: `Interest - ${new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })} (${account.interest_rate}% on overdue balance of ₱${totalOverdue.toLocaleString("en-PH", { minimumFractionDigits: 2 })})`,
           amount: interestAmount,
+          transaction_date: new Date().toISOString().split("T")[0],
           due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
           created_by: null, // system-generated
         })
