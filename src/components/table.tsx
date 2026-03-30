@@ -18,6 +18,7 @@ import {
 } from "./ui/sheet";
 import { Checkbox } from "./ui/checkbox";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { PaginationControls } from "./table/pagination-controls";
 import { SortableHeader } from "./table/sort-table-header";
 import { Status, StatusPopover } from "./table/status-popover";
@@ -26,8 +27,16 @@ import { ConfirmDialog } from "./table/alert-dialog";
 import { EllipsisDropdown } from "./table/ellipsis-dropdown";
 import JobOrderForm from "./job-order/job-order-form";
 import { ExportDropdown } from "./table/export-dropdown";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 
-import { PenLine, Trash2, X } from "lucide-react";
+import { Loader2, PenLine, Trash2, X } from "lucide-react";
 
 import {
   formatMachineType,
@@ -53,6 +62,7 @@ import {
   getQuotationsByJobOrder,
 } from "../services/apiQuotations";
 import { useUser } from "./auth/useUser";
+import { isManagerReauthPasswordValid } from "./auth/manager-auth";
 
 import toast from "react-hot-toast";
 import { Separator } from "@radix-ui/react-separator";
@@ -93,9 +103,12 @@ export default function Table({
   deleteMode?: "job_order" | "quotation";
 }) {
   const queryClient = useQueryClient();
-  const { isUser } = useUser();
+  const { isUser, isAdmin, isManager } = useUser();
+  const allowManagerLinkedDeletion = false;
+  const canDeleteBillingLinkedRecords =
+    isAdmin || (allowManagerLinkedDeletion && isManager);
   const isQuotationDeleteMode = deleteMode === "quotation";
-  const { isPending: isDeleting, mutate } = useMutation({
+  const { isPending: isDeleting, mutateAsync: archiveMutateAsync } = useMutation({
     mutationFn: async (ids: number[]) => {
       if (isQuotationDeleteMode) {
         await deleteQuotationsByJobOrderIds(ids);
@@ -143,6 +156,14 @@ export default function Table({
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false); // Confirm dialog for deleting orders
   const [confirmStatusDialogOpen, setConfirmStatusDialogOpen] = useState(false);
   const [deleteIds, setDeleteIds] = useState<number[]>([]);
+  const [linkedDeleteWarningOpen, setLinkedDeleteWarningOpen] = useState(false);
+  const [linkedDeleteAuthOpen, setLinkedDeleteAuthOpen] = useState(false);
+  const [linkedDeleteOrders, setLinkedDeleteOrders] = useState<JobOrderData[]>([]);
+  const [linkedDeletePassword, setLinkedDeletePassword] = useState("");
+  const [linkedDeleteAuthError, setLinkedDeleteAuthError] = useState<string | null>(
+    null
+  );
+  const [isLinkedDeleteSubmitting, setIsLinkedDeleteSubmitting] = useState(false);
 
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<JobOrderData | null>(null);
@@ -224,55 +245,104 @@ export default function Table({
     }
   };
 
-  const handleDeleteRow = (id: number) => {
-    setDeleteIds([id]);
+  const resetLinkedDeleteState = () => {
+    setLinkedDeleteWarningOpen(false);
+    setLinkedDeleteAuthOpen(false);
+    setLinkedDeleteOrders([]);
+    setLinkedDeletePassword("");
+    setLinkedDeleteAuthError(null);
+  };
+
+  const finalizeArchiveSuccess = (ids: number[], successMessage: string) => {
+    toast.success(successMessage);
+
+    if (isQuotationDeleteMode) {
+      queryClient.invalidateQueries({ queryKey: ["quotations"] });
+      queryClient.invalidateQueries({ queryKey: ["jobOrderQuotations"] });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["job_order"] });
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["archive"] });
+    setOrders((prevOrders) =>
+      prevOrders.filter((order) => !ids.includes(order.id))
+    );
+    setSelectedRows((prevRows) => prevRows.filter((id) => !ids.includes(id)));
+    setDeleteIds([]);
+    setConfirmDialogOpen(false);
+    resetLinkedDeleteState();
+  };
+
+  const finalizeArchiveError = (error: unknown, fallbackMessage: string) => {
+    toast.error(
+      error instanceof Error && error.message ? error.message : fallbackMessage,
+      { duration: 6000 }
+    );
+    console.error(error);
+  };
+
+  const archiveRecords = async (
+    ids: number[],
+    messages: { success: string }
+  ) => {
+    await archiveMutateAsync(ids);
+    finalizeArchiveSuccess(ids, messages.success);
+  };
+
+  const openDeleteFlow = (ids: number[]) => {
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) return;
+
+    setDeleteIds(uniqueIds);
+
+    if (isQuotationDeleteMode) {
+      setConfirmDialogOpen(true);
+      return;
+    }
+
+    const linkedOrdersToDelete = orders.filter(
+      (order) => uniqueIds.includes(order.id) && isOrderBillingLinked(order)
+    );
+
+    if (linkedOrdersToDelete.length > 0) {
+      setConfirmDialogOpen(false);
+      setLinkedDeleteOrders(linkedOrdersToDelete);
+      setLinkedDeletePassword("");
+      setLinkedDeleteAuthError(null);
+      setLinkedDeleteWarningOpen(true);
+      return;
+    }
+
     setConfirmDialogOpen(true);
+  };
+
+  const handleDeleteRow = (id: number) => {
+    openDeleteFlow([id]);
   };
 
   const handleDeleteSelectedRows = () => {
     if (selectedRows.length === 0) return;
-    setDeleteIds(selectedRows);
-    setConfirmDialogOpen(true);
+    openDeleteFlow(selectedRows);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deleteIds.length === 0) return;
 
-    mutate(deleteIds, {
-      onSuccess: () => {
-        toast.success(
-          isQuotationDeleteMode
-            ? "Quotation(s) archived successfully"
-            : "Job Order(s) archived successfully"
-        );
-        if (isQuotationDeleteMode) {
-          queryClient.invalidateQueries({ queryKey: ["quotations"] });
-          queryClient.invalidateQueries({ queryKey: ["jobOrderQuotations"] });
-        } else {
-          queryClient.invalidateQueries({
-            queryKey: ["job_order"],
-          });
-        }
-        queryClient.invalidateQueries({ queryKey: ["archive"] });
-        setOrders((prevOrders) =>
-          prevOrders.filter((order) => !deleteIds.includes(order.id))
-        );
-        setSelectedRows([]);
-        setDeleteIds([]);
-        setConfirmDialogOpen(false);
-      },
-      onError: (error: Error) => {
-        toast.error(
-          error.message ||
-            (isQuotationDeleteMode
-              ? "An error occurred while archiving the quotation(s)"
-              : "An error occurred while archiving the Job Order(s)"),
-          { duration: 6000 }
-        );
-        console.error(error);
-        setConfirmDialogOpen(false);
-      },
-    });
+    try {
+      await archiveRecords(deleteIds, {
+        success: isQuotationDeleteMode
+          ? "Quotation(s) archived successfully"
+          : "Job Order(s) archived successfully",
+      });
+    } catch (error) {
+      finalizeArchiveError(
+        error,
+        isQuotationDeleteMode
+          ? "An error occurred while archiving the quotation(s)"
+          : "An error occurred while archiving the job order(s)"
+      );
+      setConfirmDialogOpen(false);
+    }
   };
 
   const isRowSelected = (id: number) => selectedRows.includes(id);
@@ -293,6 +363,52 @@ export default function Table({
       transferredToBilling: order.transferred_to_billing,
       paymentDetails: order.payment_details,
     });
+
+  const handleLinkedDeleteAuthorization = async () => {
+    if (deleteIds.length === 0) return;
+
+    if (!canDeleteBillingLinkedRecords) {
+      setLinkedDeleteAuthError(
+        "Only admin/dev accounts can delete billing-linked records."
+      );
+      return;
+    }
+
+    if (!isManagerReauthPasswordValid(linkedDeletePassword)) {
+      setLinkedDeleteAuthError("Incorrect manager password.");
+      return;
+    }
+
+    setIsLinkedDeleteSubmitting(true);
+    setLinkedDeleteAuthError(null);
+
+    try {
+      for (const order of linkedDeleteOrders) {
+        await recalculateLinkedSourceBilling("job_order", order.id, {
+          reason: "Billing-linked job order archived by authorized user",
+        });
+      }
+
+      await archiveRecords(deleteIds, {
+        success: "Record deleted. Payments reverted and Billing updated.",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_payments"] });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to archive billing-linked job order(s).";
+      setLinkedDeleteAuthError(message);
+      finalizeArchiveError(error, message);
+    } finally {
+      setIsLinkedDeleteSubmitting(false);
+    }
+  };
 
   const openBillingImpactGuard = (
     ordersToRecalculate: JobOrderData[],
@@ -1026,6 +1142,134 @@ export default function Table({
         onProceed={handleBillingImpactProceed}
         isPending={billingImpactPending}
       />
+      <AlertDialog
+        open={linkedDeleteWarningOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (isLinkedDeleteSubmitting) return;
+            resetLinkedDeleteState();
+            setDeleteIds([]);
+            return;
+          }
+          setLinkedDeleteWarningOpen(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              This record is linked to a Billing Account
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>Deleting this record will:</p>
+                <ul className="list-disc pl-5 space-y-1 text-sm">
+                  <li>Revert any payments applied to this transaction</li>
+                  <li>Update the billing account balance</li>
+                  <li>Potentially invalidate previously sent email statements</li>
+                </ul>
+                <p className="text-sm font-medium text-foreground">
+                  This action affects financial records and cannot be undone.
+                </p>
+                {linkedDeleteOrders.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {linkedDeleteOrders.length} billing-linked job order(s)
+                    selected.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                resetLinkedDeleteState();
+                setDeleteIds([]);
+              }}
+              disabled={isLinkedDeleteSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setLinkedDeleteWarningOpen(false);
+                setLinkedDeleteAuthOpen(true);
+                setLinkedDeleteAuthError(null);
+              }}
+              disabled={isLinkedDeleteSubmitting}
+            >
+              Continue
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={linkedDeleteAuthOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (isLinkedDeleteSubmitting) return;
+            resetLinkedDeleteState();
+            setDeleteIds([]);
+            return;
+          }
+          setLinkedDeleteAuthOpen(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Manager Authorization Required</AlertDialogTitle>
+            <AlertDialogDescription>
+              Enter manager/admin credentials to proceed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Input
+              type="password"
+              value={linkedDeletePassword}
+              onChange={(event) => {
+                setLinkedDeletePassword(event.target.value);
+                if (linkedDeleteAuthError) {
+                  setLinkedDeleteAuthError(null);
+                }
+              }}
+              placeholder="Enter manager password"
+              disabled={isLinkedDeleteSubmitting}
+            />
+            {linkedDeleteAuthError && (
+              <p className="text-xs text-red-600">{linkedDeleteAuthError}</p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                resetLinkedDeleteState();
+                setDeleteIds([]);
+              }}
+              disabled={isLinkedDeleteSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                void handleLinkedDeleteAuthorization();
+              }}
+              disabled={isLinkedDeleteSubmitting}
+            >
+              {isLinkedDeleteSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Confirming...
+                </>
+              ) : (
+                "Confirm"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <ConfirmDialog
         isOpen={confirmStatusDialogOpen}
         onClose={() => setConfirmStatusDialogOpen(false)}
@@ -1036,7 +1280,9 @@ export default function Table({
       <ConfirmDialog
         isOpen={confirmDialogOpen}
         onClose={() => setConfirmDialogOpen(false)}
-        onConfirm={confirmDelete}
+        onConfirm={() => {
+          void confirmDelete();
+        }}
         message={
           isQuotationDeleteMode
             ? "Archive the selected quotation(s)? This will move them to Archive and keep linked job orders intact."

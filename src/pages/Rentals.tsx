@@ -42,6 +42,7 @@ import { useFeatureOnboarding } from "../components/onboarding/useFeatureOnboard
 import FeatureAnnouncementModal from "../components/onboarding/feature-announcement-modal";
 import GuidedTour from "../components/onboarding/guided-tour";
 import TourReplayButton from "../components/onboarding/tour-replay-button";
+import { isManagerReauthPasswordValid } from "../components/auth/manager-auth";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,7 +54,7 @@ import {
   AlertDialogTitle,
 } from "../components/ui/alert-dialog";
 import BillingImpactConfirmDialog from "../components/billing/billing-impact-confirm-dialog";
-import { isBillingLinkedSource } from "../lib/billing-sync";
+import { getBillingSyncSnapshot, isBillingLinkedSource } from "../lib/billing-sync";
 
 const allStatuses: { label: string; value: RentalStatus }[] = [
   { label: "Created", value: "Created" },
@@ -74,9 +75,9 @@ function getStatusBadgeClass(status: string, isSelected: boolean) {
 function getRentalAmountDue(rental: RentalData | null): number {
   if (!rental) return 0;
 
-  const billingSync = (rental.payment_details as any)?.billing_sync;
-  const mirroredRemaining = Number(billingSync?.remaining_balance);
-  if (Number.isFinite(mirroredRemaining)) {
+  const billingSync = getBillingSyncSnapshot(rental.payment_details);
+  const mirroredRemaining = billingSync?.remaining_balance;
+  if (typeof mirroredRemaining === "number" && Number.isFinite(mirroredRemaining)) {
     return Math.max(mirroredRemaining, 0);
   }
 
@@ -90,9 +91,13 @@ export default function Rentals() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const {
+    isAdmin,
     isManager,
     branchId: currentBranchId,
   } = useUser();
+  const allowManagerLinkedDeletion = false;
+  const canDeleteBillingLinkedRecords =
+    isAdmin || (allowManagerLinkedDeletion && isManager);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -114,6 +119,14 @@ export default function Rentals() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [linkedDeleteWarningOpen, setLinkedDeleteWarningOpen] = useState(false);
+  const [linkedDeleteAuthOpen, setLinkedDeleteAuthOpen] = useState(false);
+  const [linkedDeleteRentals, setLinkedDeleteRentals] = useState<RentalData[]>([]);
+  const [linkedDeletePassword, setLinkedDeletePassword] = useState("");
+  const [linkedDeleteAuthError, setLinkedDeleteAuthError] = useState<string | null>(
+    null
+  );
+  const [isLinkedDeleteSubmitting, setIsLinkedDeleteSubmitting] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printRentalNo, setPrintRentalNo] = useState<string | null>(null);
   const [printRentalId, setPrintRentalId] = useState<number | null>(null);
@@ -244,16 +257,108 @@ export default function Rentals() {
 
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => deleteRentals(ids),
-    onSuccess: () => {
-      toast.success("Rental(s) archived");
-      queryClient.invalidateQueries({ queryKey: ["rentals"] });
-      queryClient.invalidateQueries({ queryKey: ["rental_assets"] });
-      queryClient.invalidateQueries({ queryKey: ["archive"] });
-      setSelectedIds([]);
-      setDeleteDialogOpen(false);
-    },
-    onError: (err: Error) => toast.error(err.message),
   });
+
+  const resetLinkedDeleteState = () => {
+    setLinkedDeleteWarningOpen(false);
+    setLinkedDeleteAuthOpen(false);
+    setLinkedDeleteRentals([]);
+    setLinkedDeletePassword("");
+    setLinkedDeleteAuthError(null);
+  };
+
+  const finalizeDeleteSuccess = (ids: number[], successMessage: string) => {
+    toast.success(successMessage);
+    queryClient.invalidateQueries({ queryKey: ["rentals"] });
+    queryClient.invalidateQueries({ queryKey: ["rental_assets"] });
+    queryClient.invalidateQueries({ queryKey: ["archive"] });
+    setSelectedIds((prevIds) => prevIds.filter((id) => !ids.includes(id)));
+    setDeleteDialogOpen(false);
+    resetLinkedDeleteState();
+  };
+
+  const finalizeDeleteError = (error: unknown, fallbackMessage: string) => {
+    const message =
+      error instanceof Error && error.message ? error.message : fallbackMessage;
+    toast.error(message);
+    console.error(error);
+  };
+
+  const archiveRentalsAction = async (
+    ids: number[],
+    messages: { success: string }
+  ) => {
+    await deleteMutation.mutateAsync(ids);
+    finalizeDeleteSuccess(ids, messages.success);
+  };
+
+  const openDeleteFlow = (ids: number[]) => {
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) return;
+
+    setSelectedIds(uniqueIds);
+
+    const linkedRentalsToDelete = rentals.filter(
+      (rental) => uniqueIds.includes(rental.id) && isRentalBillingLinked(rental)
+    );
+
+    if (linkedRentalsToDelete.length > 0) {
+      setDeleteDialogOpen(false);
+      setLinkedDeleteRentals(linkedRentalsToDelete);
+      setLinkedDeletePassword("");
+      setLinkedDeleteAuthError(null);
+      setLinkedDeleteWarningOpen(true);
+      return;
+    }
+
+    setDeleteDialogOpen(true);
+  };
+
+  const handleLinkedDeleteAuthorization = async () => {
+    if (selectedIds.length === 0) return;
+
+    if (!canDeleteBillingLinkedRecords) {
+      setLinkedDeleteAuthError(
+        "Only admin/dev accounts can delete billing-linked records."
+      );
+      return;
+    }
+
+    if (!isManagerReauthPasswordValid(linkedDeletePassword)) {
+      setLinkedDeleteAuthError("Incorrect manager password.");
+      return;
+    }
+
+    setIsLinkedDeleteSubmitting(true);
+    setLinkedDeleteAuthError(null);
+
+    try {
+      for (const rental of linkedDeleteRentals) {
+        await recalculateLinkedSourceBilling("rental", rental.id, {
+          reason: "Billing-linked rental archived by authorized user",
+        });
+      }
+
+      await archiveRentalsAction(selectedIds, {
+        success: "Record deleted. Payments reverted and Billing updated.",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["billing_line_items"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_balance"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["billing_payments"] });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to archive billing-linked rental(s).";
+      setLinkedDeleteAuthError(message);
+      finalizeDeleteError(error, message);
+    } finally {
+      setIsLinkedDeleteSubmitting(false);
+    }
+  };
 
   const handleStatusFilterClick = (status: string) => {
     setSelectedStatusFilters((prev) =>
@@ -717,8 +822,7 @@ export default function Rentals() {
           onStatusChange={handleStatusChange}
           onEdit={handleEdit}
           onDelete={(ids) => {
-            setSelectedIds(ids);
-            setDeleteDialogOpen(true);
+            openDeleteFlow(ids);
           }}
         />
         )}
@@ -758,6 +862,131 @@ export default function Rentals() {
         onProceed={handleBillingImpactProceed}
         isPending={billingImpactPending}
       />
+
+      <AlertDialog
+        open={linkedDeleteWarningOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (isLinkedDeleteSubmitting) return;
+            resetLinkedDeleteState();
+            setSelectedIds([]);
+            return;
+          }
+          setLinkedDeleteWarningOpen(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              This record is linked to a Billing Account
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>Deleting this record will:</p>
+                <ul className="list-disc pl-5 text-sm space-y-1">
+                  <li>Revert any payments applied to this transaction</li>
+                  <li>Update the billing account balance</li>
+                  <li>Potentially invalidate previously sent email statements</li>
+                </ul>
+                <p className="text-sm font-medium text-foreground">
+                  This action affects financial records and cannot be undone.
+                </p>
+                {linkedDeleteRentals.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {linkedDeleteRentals.length} billing-linked rental(s)
+                    selected.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                resetLinkedDeleteState();
+                setSelectedIds([]);
+              }}
+              disabled={isLinkedDeleteSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setLinkedDeleteWarningOpen(false);
+                setLinkedDeleteAuthOpen(true);
+                setLinkedDeleteAuthError(null);
+              }}
+              disabled={isLinkedDeleteSubmitting}
+            >
+              Continue
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={linkedDeleteAuthOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (isLinkedDeleteSubmitting) return;
+            resetLinkedDeleteState();
+            setSelectedIds([]);
+            return;
+          }
+          setLinkedDeleteAuthOpen(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Manager Authorization Required</AlertDialogTitle>
+            <AlertDialogDescription>
+              Enter manager/admin credentials to proceed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-2">
+            <Input
+              type="password"
+              value={linkedDeletePassword}
+              onChange={(event) => {
+                setLinkedDeletePassword(event.target.value);
+                if (linkedDeleteAuthError) {
+                  setLinkedDeleteAuthError(null);
+                }
+              }}
+              placeholder="Enter manager password"
+              disabled={isLinkedDeleteSubmitting}
+            />
+            {linkedDeleteAuthError && (
+              <p className="text-xs text-red-600">{linkedDeleteAuthError}</p>
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                resetLinkedDeleteState();
+                setSelectedIds([]);
+              }}
+              disabled={isLinkedDeleteSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                void handleLinkedDeleteAuthorization();
+              }}
+              disabled={isLinkedDeleteSubmitting}
+            >
+              {isLinkedDeleteSubmitting ? "Confirming..." : "Confirm"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Onboarding */}
       <FeatureAnnouncementModal
@@ -811,8 +1040,15 @@ export default function Rentals() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteMutation.mutate(selectedIds)}
+              onClick={() => {
+                void archiveRentalsAction(selectedIds, {
+                  success: "Rental(s) archived",
+                }).catch((error) =>
+                  finalizeDeleteError(error, "Failed to archive rental(s).")
+                );
+              }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
             >
               {deleteMutation.isPending ? "Archiving..." : "Archive"}
             </AlertDialogAction>
