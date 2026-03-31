@@ -124,6 +124,9 @@ import GenerateStatementPanel from "./generate-statement-panel";
 import BillingAccountFormSheet from "./billing-account-form";
 import BillingStatementPDF, { BillingStatementPDFData } from "./billing-statement-pdf";
 import TransactionDateDialog from "./transaction-date-dialog";
+import DocumentEmailComposer, {
+  EmailComposePayload,
+} from "../email/document-email-composer";
 import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
 import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
 import GuidedTour from "../onboarding/guided-tour";
@@ -351,6 +354,11 @@ export default function BillingAccountSheetContent({
   const [emailLogsOpen, setEmailLogsOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<"all" | "job_order" | "rental">("all");
   const [sendingStatementId, setSendingStatementId] = useState<string | null>(null);
+  const [statementEmailDialogOpen, setStatementEmailDialogOpen] = useState(false);
+  const [statementToEmail, setStatementToEmail] = useState<BillingStatement | null>(null);
+  const [statementEmailError, setStatementEmailError] = useState<string | null>(
+    null
+  );
   const [downloadingStatementId, setDownloadingStatementId] = useState<string | null>(null);
   const [highlightStatementAction, setHighlightStatementAction] =
     useState<StatementActionType | null>(null);
@@ -548,6 +556,18 @@ export default function BillingAccountSheetContent({
           return right - left;
         })[0]
       : null;
+  const statementSentEntityIds = useMemo(
+    () =>
+      new Set(
+        statementEmailLogs
+          .filter((log) => log.status === "sent" && Boolean(log.entity_id))
+          .map((log) => String(log.entity_id))
+      ),
+    [statementEmailLogs]
+  );
+  const selectedStatementHasSentBefore = statementToEmail
+    ? statementSentEntityIds.has(statementToEmail.id)
+    : false;
 
   // Use mock data for tour if payments are empty
   const rawPayments = (payments ?? []) as BillingPayment[];
@@ -939,18 +959,77 @@ export default function BillingAccountSheetContent({
     });
   }
 
-  async function handleSendStatement(statement: BillingStatement) {
+  function buildStatementEmailDraft(statement: BillingStatement) {
+    const periodStr = `${format(new Date(statement.period_start), "MMM d, yyyy")} - ${format(new Date(statement.period_end), "MMM d, yyyy")}`;
+    const clientName =
+      acct?.billing_contact_name || acct?.clients?.name || "Valued Client";
+    const dueDateLabel = statement.due_date
+      ? format(new Date(statement.due_date), "MMM d, yyyy")
+      : "N/A";
+    const accountNumber = acct?.account_number || "N/A";
+    const subject = `Statement of Account - ${accountNumber} - ${periodStr}`;
+    const message = [
+      `Hello ${clientName},`,
+      "",
+      "Please find your statement of account below:",
+      "",
+      "Statement Details:",
+      `Reference: ${statement.statement_number}`,
+      `Period: ${periodStr}`,
+      `Due Date: ${dueDateLabel}`,
+      `Total Due: ${amt(statement.current_balance)}`,
+      "",
+      "Attached is your full statement document.",
+      "",
+      "Thank you,",
+      "RMS Avisha",
+    ].join("\n");
+
+    return {
+      clientName,
+      periodStr,
+      dueDateLabel,
+      subject,
+      message,
+    };
+  }
+
+  function openStatementSendDialog(statement: BillingStatement) {
     const email = acct?.billing_contact_email || acct?.clients?.email;
+
+    if (!canManageAccount) {
+      toast.error("Only admin/dev/manager accounts can send billing statements.");
+      return;
+    }
 
     if (!email) {
       toast.error("No email address configured for this account or client");
       return;
     }
 
-    if (sendingStatementId || !acct) return;
-    setSendingStatementId(statement.id);
+    setStatementToEmail(statement);
+    setStatementEmailError(null);
+    setStatementEmailDialogOpen(true);
+  }
 
-    const periodStr = `${format(new Date(statement.period_start), "MMM d, yyyy")} - ${format(new Date(statement.period_end), "MMM d, yyyy")}`;
+  async function handleSendStatement(payload: EmailComposePayload) {
+    if (sendingStatementId || !acct || !statementToEmail) return;
+
+    const statement = statementToEmail;
+    const hasSentBefore = statementSentEntityIds.has(statement.id);
+    const shouldForceSend =
+      hasSentBefore &&
+      window.confirm("This statement has already been emailed.\n\nSend again?");
+
+    if (hasSentBefore && !shouldForceSend) {
+      return;
+    }
+
+    const emailDraft = buildStatementEmailDraft(statement);
+    setSendingStatementId(statement.id);
+    setStatementEmailError(null);
+
+    const primaryRecipient = payload.to[0] || "";
 
     try {
       // Generate PDF on the client side and convert to base64
@@ -975,40 +1054,56 @@ export default function BillingAccountSheetContent({
         body: {
           statement_id: statement.id,
           billing_account_id: acct.id,
-          to_email: email,
-          client_name: acct.clients?.name || "Valued Client",
+          to: payload.to,
+          cc: payload.cc,
+          bcc: payload.bcc,
+          to_email: primaryRecipient,
+          subject: payload.subject,
+          message: payload.message,
+          force_send: shouldForceSend,
+          client_name: emailDraft.clientName,
           account_number: acct.account_number,
           statement_number: statement.statement_number,
-          period: periodStr,
+          period: emailDraft.periodStr,
           previous_balance: statement.previous_balance,
           new_charges: statement.new_charges,
           interest_applied: statement.interest_applied,
           payments_received: statement.payments_received,
           balance_due: statement.current_balance,
-          due_date: statement.due_date
-            ? format(new Date(statement.due_date), "MMM d, yyyy")
-            : "N/A",
+          due_date: emailDraft.dueDateLabel,
           pdf_base64: base64,
-          pdf_filename: `${statement.statement_number}.pdf`,
+          pdf_filename: `Billing-${statement.statement_number}.pdf`,
         },
       });
 
       queryClient.invalidateQueries({ queryKey: ["email_logs", accountId] });
 
       if (error) {
-        toast.error("Failed to send statement: " + error.message);
+        const failureMessage = "Failed to send statement: " + error.message;
+        setStatementEmailError(failureMessage);
+        toast.error(failureMessage);
       } else if (data && typeof data === "object" && "success" in data && !(data as { success: boolean }).success) {
         const errorMessage =
           (data as { error?: string }).error ||
           "Email send failed. Check email logs for details.";
+        setStatementEmailError(errorMessage);
         toast.error(errorMessage);
       } else {
         const successMessage =
-          (data as { message?: string })?.message || `Statement sent to ${email}`;
+          (data as { message?: string })?.message ||
+          `Statement sent to ${primaryRecipient}`;
         toast.success(successMessage);
         queryClient.invalidateQueries({ queryKey: ["billing_statements", accountId] });
+        setStatementEmailDialogOpen(false);
+        setStatementToEmail(null);
+        setStatementEmailError(null);
       }
     } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to generate PDF for email";
+      setStatementEmailError(errorMessage);
       toast.error("Failed to generate PDF for email");
       console.error(err);
     } finally {
@@ -1175,6 +1270,9 @@ export default function BillingAccountSheetContent({
     acct.billing_contact_email || acct.clients?.email;
   const contactName = acct.billing_contact_name;
   const canManageAccount = isDev || isAdmin || isManager;
+  const selectedStatementEmailDraft = statementToEmail
+    ? buildStatementEmailDraft(statementToEmail)
+    : null;
   const editingTransactionDateSourceDate = getLineItemSourceDate(
     editingTransactionDateLineItem
   );
@@ -2382,7 +2480,7 @@ export default function BillingAccountSheetContent({
                             </TooltipContent>
                           </Tooltip>
                         )}
-                        {s.status === "finalized" && (
+                        {canManageAccount && s.status === "finalized" && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
@@ -2396,7 +2494,7 @@ export default function BillingAccountSheetContent({
                                 data-statement-send-cta="true"
                                 onClick={() => {
                                   clearStatementAttention();
-                                  handleSendStatement(s);
+                                  openStatementSendDialog(s);
                                 }}
                                 disabled={sendingStatementId === s.id}
                               >
@@ -2408,7 +2506,7 @@ export default function BillingAccountSheetContent({
                             </TooltipContent>
                           </Tooltip>
                         )}
-                        {s.status === "sent" && (
+                        {canManageAccount && s.status === "sent" && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
@@ -2422,7 +2520,7 @@ export default function BillingAccountSheetContent({
                                 data-statement-send-cta="true"
                                 onClick={() => {
                                   clearStatementAttention();
-                                  handleSendStatement(s);
+                                  openStatementSendDialog(s);
                                 }}
                                 disabled={sendingStatementId === s.id}
                               >
@@ -3099,6 +3197,49 @@ export default function BillingAccountSheetContent({
               {applyInterest.isPending ? "Applying..." : interestAlreadyApplied ? "Already Applied" : "Apply Interest"}
             </AlertDialogAction>
           </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={statementEmailDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && Boolean(sendingStatementId)) return;
+          setStatementEmailDialogOpen(open);
+          if (!open) {
+            setStatementToEmail(null);
+            setStatementEmailError(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send Statement</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-left">
+              Review recipients and message, then send the statement with PDF attachment.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <DocumentEmailComposer
+            open={statementEmailDialogOpen}
+            initialValues={{
+              to: recipientEmail || "",
+              subject:
+                selectedStatementEmailDraft?.subject ||
+                "Statement of Account",
+              message:
+                selectedStatementEmailDraft?.message ||
+                "Please find attached your statement.",
+            }}
+            isSending={Boolean(sendingStatementId)}
+            error={statementEmailError}
+            hasSentBefore={selectedStatementHasSentBefore}
+            onCancel={() => {
+              if (sendingStatementId) return;
+              setStatementEmailDialogOpen(false);
+              setStatementToEmail(null);
+              setStatementEmailError(null);
+            }}
+            onSubmit={handleSendStatement}
+          />
         </AlertDialogContent>
       </AlertDialog>
 

@@ -7,6 +7,12 @@ function formatPeso(amount: number): string {
   return `&#8369;${amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
 }
 
+function normalizeBodyText(value: string): string {
+  return value
+    .trim()
+    .replace(/\r?\n/g, "<br/>");
+}
+
 type TableRow = {
   label: string;
   value: string;
@@ -126,6 +132,7 @@ export function buildStatementEmail(params: {
   paymentsReceived: number;
   totalDue: number;
   dueDate: string;
+  customMessage?: string;
 }): string {
   const rows: TableRow[] = [
     { label: "Account Number", value: params.accountNumber, highlight: "bold" },
@@ -156,12 +163,48 @@ export function buildStatementEmail(params: {
   return buildEmailHtml({
     title: "Statement of Account",
     clientName: params.clientName,
-    bodyText: `Please find below your statement of account for the period <strong>${params.period}</strong>.`,
+    bodyText:
+      params.customMessage && params.customMessage.trim().length > 0
+        ? normalizeBodyText(params.customMessage)
+        : `Please find below your statement of account for the period <strong>${params.period}</strong>.`,
     rows,
     totalRow: {
       label: "Total Amount Due",
       value: formatPeso(params.totalDue),
     },
     footerNote: "Please settle your outstanding balance on or before the due date to avoid additional interest charges.",
+  });
+}
+
+export function buildQuotationEmail(params: {
+  clientName: string;
+  quoteNumber: string;
+  quotationDate: string;
+  totalAmount: number;
+  branchName?: string | null;
+  customMessage?: string;
+}): string {
+  const rows: TableRow[] = [
+    { label: "Reference", value: params.quoteNumber, highlight: "bold" },
+    { label: "Date", value: params.quotationDate },
+  ];
+
+  if (params.branchName && params.branchName.trim().length > 0) {
+    rows.push({ label: "Branch", value: params.branchName.trim() });
+  }
+
+  return buildEmailHtml({
+    title: "Quotation",
+    clientName: params.clientName,
+    bodyText:
+      params.customMessage && params.customMessage.trim().length > 0
+        ? normalizeBodyText(params.customMessage)
+        : "Please find your quotation details below.",
+    rows,
+    totalRow: {
+      label: "Total Quotation Amount",
+      value: formatPeso(params.totalAmount),
+    },
+    footerNote: "Attached is the complete quotation document for your reference.",
   });
 }

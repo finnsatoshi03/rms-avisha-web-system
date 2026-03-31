@@ -280,17 +280,25 @@ export type BillingInterestLog = {
 };
 
 export type EmailLogStatus = "pending" | "sent" | "failed";
-export type EmailLogType = "billing_reminder" | "statement" | "notification";
+export type EmailLogType =
+  | "billing_reminder"
+  | "statement"
+  | "notification"
+  | "quotation";
 export type EmailLogEntityType =
   | "billing_statement"
   | "billing_account"
-  | "notification";
+  | "notification"
+  | "quotation";
 
 export type EmailLog = {
   id: string;
   billing_account_id: string | null;
   recipient: string;
   recipient_email?: string | null;
+  recipient_to?: string[] | null;
+  recipient_cc?: string[] | null;
+  recipient_bcc?: string[] | null;
   subject: string;
   type: EmailLogType;
   entity_type?: EmailLogEntityType | null;

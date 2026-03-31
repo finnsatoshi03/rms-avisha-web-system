@@ -8,6 +8,54 @@ type UserEmailShape = {
   migrated_email?: string | null;
 };
 
+export type QuotationEmailLog = {
+  id: string;
+  recipient: string;
+  recipient_email: string | null;
+  recipient_to?: string[] | null;
+  recipient_cc?: string[] | null;
+  recipient_bcc?: string[] | null;
+  subject: string;
+  type: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  status: "pending" | "sent" | "failed" | string;
+  sent_at: string | null;
+  error_message: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type SendQuotationEmailPayload = {
+  quotation_id: number;
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  message: string;
+  pdf_base64?: string;
+  pdf_filename?: string;
+  force_send?: boolean;
+  client_name?: string;
+  quote_no?: string;
+  job_order_no?: string;
+  quotation_date?: string;
+  total_quote?: number;
+  branch_name?: string;
+};
+
+export type SendQuotationEmailResponse = {
+  success: boolean;
+  status?: "sent" | "failed";
+  message?: string;
+  error?: string;
+  already_sent_before?: boolean;
+  sent_count?: number;
+  entity_type?: string;
+  entity_id?: string;
+  log_id?: string | null;
+};
+
 function normalizeUserEmail<T>(user: T): T {
   if (!user || typeof user !== "object") {
     return user;
@@ -677,4 +725,52 @@ export async function getJobOrderForQuotation(jobOrderId: number) {
     users: normalizeUserEmail(data.users),
     order_received_user: normalizeUserEmail(orderReceivedUser),
   };
+}
+
+export async function getQuotationEmailLogs(
+  quotationId: number
+): Promise<QuotationEmailLog[]> {
+  const { data, error } = await supabase
+    .from("email_logs")
+    .select("*")
+    .eq("entity_type", "quotation")
+    .eq("entity_id", String(quotationId))
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching quotation email logs:", error);
+    throw new Error("Failed to fetch quotation email logs");
+  }
+
+  return (data as QuotationEmailLog[]) || [];
+}
+
+export async function sendQuotationEmail(
+  payload: SendQuotationEmailPayload
+): Promise<SendQuotationEmailResponse> {
+  const { data, error } = await supabase.functions.invoke(
+    "send-quotation-email",
+    {
+      body: payload,
+    }
+  );
+
+  if (error) {
+    const errorWithContext = error as Error & {
+      context?: Response;
+    };
+    if (errorWithContext.context) {
+      try {
+        const parsed = await errorWithContext.context.json();
+        if (parsed && typeof parsed === "object") {
+          return parsed as SendQuotationEmailResponse;
+        }
+      } catch {
+        // Fall through to standard error handling.
+      }
+    }
+    throw new Error(`Failed to send quotation email: ${error.message}`);
+  }
+
+  return (data as SendQuotationEmailResponse) ?? { success: false };
 }

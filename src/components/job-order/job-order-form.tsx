@@ -6,6 +6,7 @@ import { pdf } from "@react-pdf/renderer";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { saveAs } from "file-saver";
 import toast from "react-hot-toast";
+import { format } from "date-fns";
 import {
   Check,
   ChevronRight,
@@ -15,6 +16,7 @@ import {
   Info,
   Link2,
   Loader2,
+  Mail,
   Plus,
   Trash,
   X,
@@ -79,7 +81,11 @@ import {
   uploadReceiptFile,
 } from "../../services/apiBilling";
 import { getMaterialStocks } from "../../services/apiMaterials";
-import { getQuotationsByJobOrder } from "../../services/apiQuotations";
+import {
+  getQuotationEmailLogs,
+  getQuotationsByJobOrder,
+  sendQuotationEmail,
+} from "../../services/apiQuotations";
 import { getBranches } from "../../services/apiBranches";
 import { useUser } from "../auth/useUser";
 import { useBranchValidation } from "../../hooks/useBranchValidation";
@@ -117,6 +123,7 @@ import {
 import { computeTransactionTotal } from "../../lib/transaction-totals";
 import BillingImpactConfirmDialog from "../billing/billing-impact-confirm-dialog";
 import ReceiptMissingConfirmDialog from "../billing/receipt-missing-confirm-dialog";
+import { EmailComposePayload } from "../email/document-email-composer";
 
 const rateOptions = [
   { label: "Walk-in Service", value: 1500 },
@@ -129,6 +136,23 @@ const rateOptions = [
 ];
 
 const QUOTATION_PRINT_DELAY_MS = 300;
+const QUOTATION_EMAIL_SUBJECT_DEFAULT = "Quotation from RMS Avisha";
+
+const normalizeFileNamePart = (value: string) =>
+  value
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "_");
+
+const blobToBase64 = async (blob: Blob): Promise<string> => {
+  const buffer = await blob.arrayBuffer();
+  return btoa(
+    new Uint8Array(buffer).reduce(
+      (acc, byte) => acc + String.fromCharCode(byte),
+      ""
+    )
+  );
+};
 
 interface MaterialStockItem {
   id: number;
@@ -381,6 +405,17 @@ export default function JobOrderForm({
     useState(false);
   const [quotationPrintDialogOpen, setQuotationPrintDialogOpen] =
     useState(false);
+  const [quotationActionDialogInitialAction, setQuotationActionDialogInitialAction] =
+    useState<"print" | "download" | "email">("print");
+  const [closeParentOnQuotationActionDialogClose, setCloseParentOnQuotationActionDialogClose] =
+    useState(false);
+  const [latestQuotationId, setLatestQuotationId] = useState<number | null>(
+    null
+  );
+  const [isSendingQuotationEmail, setIsSendingQuotationEmail] = useState(false);
+  const [quotationEmailError, setQuotationEmailError] = useState<string | null>(
+    null
+  );
   const [quotationDeleteDialogOpen, setQuotationDeleteDialogOpen] =
     useState(false);
   const [quotationToDelete, setQuotationToDelete] = useState<number | null>(
@@ -447,6 +482,7 @@ export default function JobOrderForm({
   } = useUser();
   const currentTechnicianId = user?.id;
   const canSelectBranch = isAdmin || currentUserBranchId === null;
+  const canSendQuotationEmail = isAdmin || isManager;
 
   // Create
   const { mutate: createJobOrder, isPending: isCreating } = useMutation({
@@ -542,6 +578,23 @@ export default function JobOrderForm({
     queryFn: () => getQuotationsByJobOrder(editId!),
     enabled: Boolean(editId), // Only run if we have a job order ID
   });
+  const currentQuotationId =
+    latestQuotationId ??
+    (existingQuotations && existingQuotations.length > 0
+      ? Number(existingQuotations[0].id) || null
+      : null);
+
+  const { data: quotationEmailLogs = [] } = useQuery({
+    queryKey: ["quotation_email_logs", currentQuotationId],
+    queryFn: () => getQuotationEmailLogs(currentQuotationId!),
+    enabled: canSendQuotationEmail && Boolean(currentQuotationId),
+    staleTime: 30_000,
+  });
+
+  const hasPreviouslySentQuotation = useMemo(
+    () => quotationEmailLogs.some((log) => log.status === "sent"),
+    [quotationEmailLogs]
+  );
 
   const isPending = isCreating || isEditing || materialStocksLoading;
   const onWarranty = editSession && Boolean(editValues.warranty);
@@ -556,6 +609,7 @@ export default function JobOrderForm({
     if (existingQuotations && existingQuotations.length > 0) {
       // Use the first quotation if multiple exist
       const quotation = existingQuotations[0];
+      setLatestQuotationId(Number(quotation.id) || null);
       setQuotationData({
         job_order_id: editId!,
         quote_no: quotation.quote_no,
@@ -573,6 +627,11 @@ export default function JobOrderForm({
         total_quote: quotation.total_quote || 0,
         quotation_items: quotation.quotation_items || [],
       });
+      return;
+    }
+
+    if (editSession) {
+      setLatestQuotationId(null);
     }
   }, [existingQuotations, editId]);
 
@@ -970,6 +1029,48 @@ export default function JobOrderForm({
     window.addEventListener("focus", afterPrint, { once: true });
   };
 
+  const buildQuotationPDFBlob = async (quotationData: CreateQuotationData) => {
+    const endDate = new Date();
+    endDate.setMonth(endDate.getMonth() + 1);
+
+    const quoteNo = quotationData?.quote_no || "";
+    const jobOrderNo = quotationData?.job_order_no || "";
+    const clientName = form.getValues("name") || "client";
+    const quotationPDFData = {
+      ...quotationData,
+      quote_no: quoteNo,
+      end_date: quotationData?.end_date || endDate.toISOString().split("T")[0],
+      clientData: {
+        name: form.getValues("name") || "",
+        contact_number: form.getValues("contact_number") || "",
+        email: form.getValues("email") || "",
+        brand_model: form.getValues("brand_model") || "",
+        serial_number: form.getValues("serial_number") || "",
+        machine_type: form.getValues("machine_type") || "",
+        problem_statement: form.getValues("problem_statement") || "",
+      },
+      branch_id: watchedBranchId ?? currentUserBranchId ?? 0,
+      branch: resolveBranchForPdf(watchedBranchId ?? currentUserBranchId),
+      job_order_no: jobOrderNo,
+      date: new Date().toISOString().split("T")[0],
+    };
+
+    const doc = <QuotationPDF data={quotationPDFData} type="both" />;
+    const asBlob = await pdf(doc).toBlob();
+
+    const normalizedQuoteNo = normalizeFileNamePart(quoteNo || "quotation");
+    const normalizedClientName = normalizeFileNamePart(clientName);
+    const filename = `Quotation_${normalizedQuoteNo}_${normalizedClientName}.pdf`;
+
+    return {
+      asBlob,
+      filename,
+      quoteNo,
+      jobOrderNo,
+      clientName,
+    };
+  };
+
   const generateQuotationPDF = async (quotationData: CreateQuotationData) => {
     setIsPrinting(true);
     console.log("[PrintFlow] Quotation print started", {
@@ -978,32 +1079,7 @@ export default function JobOrderForm({
     });
 
     try {
-      const endDate = new Date();
-      endDate.setMonth(endDate.getMonth() + 1); // Default 1 month validity
-
-      const quotationPDFData = {
-        ...quotationData,
-        quote_no: quotationData?.quote_no || "", // Use actual quote_no, no fallback
-        end_date:
-          quotationData?.end_date || endDate.toISOString().split("T")[0],
-        clientData: {
-          name: form.getValues("name") || "",
-          contact_number: form.getValues("contact_number") || "",
-          email: form.getValues("email") || "",
-          brand_model: form.getValues("brand_model") || "",
-          serial_number: form.getValues("serial_number") || "",
-          machine_type: form.getValues("machine_type") || "",
-          problem_statement: form.getValues("problem_statement") || "",
-        },
-        branch_id: watchedBranchId ?? currentUserBranchId ?? 0,
-        branch: resolveBranchForPdf(watchedBranchId ?? currentUserBranchId),
-        job_order_no: quotationData?.job_order_no || "", // Use actual job order number
-        date: new Date().toISOString().split("T")[0],
-      };
-
-      const doc = <QuotationPDF data={quotationPDFData} type="both" />;
-      const asBlob = await pdf(doc).toBlob();
-
+      const { asBlob } = await buildQuotationPDFBlob(quotationData);
       const src = URL.createObjectURL(asBlob);
       const iframe = document.createElement("iframe");
       iframe.style.display = "none";
@@ -1034,6 +1110,120 @@ export default function JobOrderForm({
     } catch (error) {
       console.error("Error generating quotation PDF:", error);
       setIsPrinting(false);
+      toast.error("Failed to print quotation PDF.");
+    }
+  };
+
+  const downloadQuotationPDF = async (quotationData: CreateQuotationData) => {
+    setIsPrinting(true);
+    try {
+      const { asBlob, filename } = await buildQuotationPDFBlob(quotationData);
+      saveAs(asBlob, filename);
+      setQuotationPrintDialogOpen(false);
+      toast.success("Quotation PDF downloaded.");
+    } catch (error) {
+      console.error("Error downloading quotation PDF:", error);
+      toast.error("Failed to download quotation PDF.");
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const handleSendQuotationByEmail = async ({
+    to,
+    cc,
+    bcc,
+    subject,
+    message,
+  }: EmailComposePayload) => {
+    if (!canSendQuotationEmail) {
+      toast.error("Only admin and manager accounts can send quotation emails.");
+      return;
+    }
+
+    if (!quotationData || !currentQuotationId) {
+      toast.error("Quotation data is incomplete. Save quotation first.");
+      return;
+    }
+
+    const shouldForceSend =
+      hasPreviouslySentQuotation &&
+      window.confirm(
+        "This quotation has already been emailed.\n\nSend again?"
+      );
+
+    if (hasPreviouslySentQuotation && !shouldForceSend) {
+      return;
+    }
+
+    setIsSendingQuotationEmail(true);
+    setQuotationEmailError(null);
+
+    try {
+      const { asBlob, quoteNo, jobOrderNo, clientName } =
+        await buildQuotationPDFBlob(quotationData);
+      const pdfBase64 = await blobToBase64(asBlob);
+      const emailPayload = {
+        quotation_id: currentQuotationId,
+        to,
+        cc,
+        bcc,
+        subject,
+        message,
+        pdf_base64: pdfBase64,
+        pdf_filename: `Quotation-${normalizeFileNamePart(quoteNo || String(currentQuotationId))}.pdf`,
+        force_send: shouldForceSend,
+        client_name: clientName,
+        quote_no: quoteNo,
+        job_order_no: jobOrderNo,
+        quotation_date: new Date().toISOString().split("T")[0],
+        total_quote: Number(quotationData?.total_quote ?? 0),
+        branch_name:
+          resolveBranchForPdf(watchedBranchId ?? currentUserBranchId)?.name ||
+          undefined,
+      };
+      let result = await sendQuotationEmail(emailPayload);
+
+      if (!result.success && result.already_sent_before && !shouldForceSend) {
+        const confirmResend = window.confirm(
+          "This quotation has already been emailed.\n\nSend again?"
+        );
+
+        if (!confirmResend) {
+          return;
+        }
+
+        result = await sendQuotationEmail({
+          ...emailPayload,
+          force_send: true,
+        });
+      }
+
+      if (!result.success) {
+        const failureMessage =
+          result.error || "Failed to send quotation email.";
+        setQuotationEmailError(failureMessage);
+        toast.error("Failed to send email.");
+        return;
+      }
+
+      queryClient.invalidateQueries({
+        queryKey: ["quotation_email_logs", currentQuotationId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["email_logs"] });
+      setQuotationEmailError(null);
+      setQuotationPrintDialogOpen(false);
+      toast.success("Quotation sent successfully");
+    } catch (error) {
+      console.error("Error sending quotation email:", error);
+      const failureMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to send quotation email.";
+      setQuotationEmailError(failureMessage);
+      toast.error("Failed to send email.");
+    } finally {
+      setIsSendingQuotationEmail(false);
     }
   };
 
@@ -1341,6 +1531,10 @@ export default function JobOrderForm({
           };
           toast.success("Quotation created successfully!");
           setQuotationData(finalUpdatedQuotationData);
+          setLatestQuotationId(Number(response.id) || null);
+          setQuotationActionDialogInitialAction("print");
+          setCloseParentOnQuotationActionDialogClose(true);
+          setQuotationEmailError(null);
           setQuotationPrintDialogOpen(true);
         } catch (error) {
           console.error("Error saving quotation:", error);
@@ -1399,6 +1593,7 @@ export default function JobOrderForm({
                 is_active: true,
               };
               setQuotationData(updatedQuotationData);
+              setLatestQuotationId(Number(createdQuotation.id) || null);
               toast.success("Quotation created successfully!");
               // Set the updated quotation data for printing
               setQuotationData(updatedQuotationData);
@@ -1553,6 +1748,23 @@ export default function JobOrderForm({
     setQuotationDeleteDialogOpen(true);
   };
 
+  const openQuotationEmailDialog = () => {
+    if (!quotationData) {
+      toast.error("No quotation available to send.");
+      return;
+    }
+
+    if (!canSendQuotationEmail) {
+      toast.error("Only admin and manager accounts can send quotation emails.");
+      return;
+    }
+
+    setQuotationEmailError(null);
+    setQuotationActionDialogInitialAction("email");
+    setCloseParentOnQuotationActionDialogClose(false);
+    setQuotationPrintDialogOpen(true);
+  };
+
   const confirmDeleteQuotation = async () => {
     if (!quotationToDelete) return;
 
@@ -1563,12 +1775,15 @@ export default function JobOrderForm({
       // Reset quotation state
       setQuotationData(null);
       setIsCreatingQuotation(false);
+      setLatestQuotationId(null);
+      setQuotationEmailError(null);
 
       // Invalidate queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ["quotations", editId] });
       queryClient.invalidateQueries({
         queryKey: ["jobOrderQuotations", editId],
       });
+      queryClient.invalidateQueries({ queryKey: ["quotation_email_logs"] });
       queryClient.invalidateQueries({ queryKey: ["archive"] });
 
       toast.success("Quotation removed successfully!");
@@ -1740,6 +1955,29 @@ export default function JobOrderForm({
     editSession,
     editValues.include_quotation_items,
   ]);
+  const quotationEmailRecipient = (form.getValues("email") || "").trim();
+  const quotationEmailClientName = (form.getValues("name") || "Client").trim();
+  const quotationReference = quotationData?.quote_no?.trim() || "N/A";
+  const quotationEmailDate = format(new Date(), "MMM d, yyyy");
+  const quotationTotalAmount = Number(quotationData?.total_quote ?? 0);
+  const quotationBranchName =
+    resolveBranchForPdf(watchedBranchId ?? currentUserBranchId)?.name || "";
+  const quotationEmailDefaultMessage = [
+    `Hello ${quotationEmailClientName || "Client"},`,
+    "",
+    "Please find your quotation below:",
+    "",
+    "Quotation Details:",
+    `Reference: ${quotationReference}`,
+    `Date: ${quotationEmailDate}`,
+    `Total: ₱${formatNumberWithCommas(quotationTotalAmount)}`,
+    ...(quotationBranchName ? [`Branch: ${quotationBranchName}`] : []),
+    "",
+    "Attached is the full quotation document.",
+    "",
+    "Thank you,",
+    "RMS Avisha",
+  ].join("\n");
 
   return (
     <>
@@ -2549,6 +2787,34 @@ export default function JobOrderForm({
                           {formatReadableDate(existingQuotations[0].end_date)}
                         </span>
                       </div>
+                      {canSendQuotationEmail &&
+                        quotationData &&
+                        currentQuotationId && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={openQuotationEmailDialog}
+                              disabled={isSendingQuotationEmail || isPending}
+                              className="text-xs h-7"
+                            >
+                              {isSendingQuotationEmail ? (
+                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              ) : (
+                                <Mail className="mr-1 h-3 w-3" />
+                              )}
+                              {hasPreviouslySentQuotation
+                                ? "Send Again"
+                                : "Send Email"}
+                            </Button>
+                            {hasPreviouslySentQuotation && (
+                              <span className="text-[11px] text-amber-700">
+                                This quotation has already been emailed.
+                              </span>
+                            )}
+                          </div>
+                        )}
                     </div>
                   )}
 
@@ -3177,8 +3443,13 @@ export default function JobOrderForm({
         onClose={() => {
           console.log("[PrintFlow] Quotation print prompt dismissed");
           setQuotationPrintDialogOpen(false);
+          setQuotationActionDialogInitialAction("print");
+          setQuotationEmailError(null);
           setPostPrintReceiptSourceId(null);
-          if (onClose) onClose();
+          if (closeParentOnQuotationActionDialogClose && onClose) {
+            onClose();
+          }
+          setCloseParentOnQuotationActionDialogClose(false);
         }}
         onPrint={() => {
           console.log("[PrintFlow] Quotation print prompt confirmed");
@@ -3186,7 +3457,23 @@ export default function JobOrderForm({
             generateQuotationPDF(quotationData);
           }
         }}
+        onDownload={() => {
+          if (quotationData) {
+            downloadQuotationPDF(quotationData);
+          }
+        }}
+        onSendEmail={handleSendQuotationByEmail}
         loading={isPrinting}
+        isSendingEmail={isSendingQuotationEmail}
+        canSendEmail={canSendQuotationEmail}
+        defaultRecipient={quotationEmailRecipient}
+        defaultCc=""
+        defaultBcc=""
+        defaultSubject={QUOTATION_EMAIL_SUBJECT_DEFAULT}
+        defaultMessage={quotationEmailDefaultMessage}
+        initialAction={quotationActionDialogInitialAction}
+        hasSentBefore={hasPreviouslySentQuotation}
+        emailError={quotationEmailError}
       />
       <ReceiptMissingConfirmDialog
         open={postPrintReceiptPromptOpen}
