@@ -37,6 +37,7 @@ import { Button } from "../ui/button";
 import DiscountDialog from "../job-order/discount-option-dialog";
 import { useDownpayment } from "../job-order/useDownpayment";
 import { formatNumberWithCommas } from "../../lib/helpers";
+import { computeTransactionTotal } from "../../lib/transaction-totals";
 import { X } from "lucide-react";
 import { format } from "date-fns";
 import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
@@ -194,14 +195,22 @@ export default function RentalForm({
     (sum, c) => sum + (c.quantity || 0) * (c.unit_price || 0),
     0
   );
-  const subTotal = rateAmount + consumablesTotal;
-  const grandTotal = subTotal - (selectedDiscount ?? 0);
+  const totalsBeforeDownpayment = computeTransactionTotal({
+    subTotal: rateAmount + consumablesTotal,
+    discount: selectedDiscount ?? 0,
+    downpayment: 0,
+  });
+  const subTotal = totalsBeforeDownpayment.subTotal;
+  const grandTotal = totalsBeforeDownpayment.totalBeforeDownpayment;
 
   const { downpaymentValue, downpaymentError, handleDownpaymentChange } =
     useDownpayment(grandTotal);
 
-  const adjustedGrandTotal =
-    grandTotal - (downpaymentValue ?? 0);
+  const adjustedGrandTotal = computeTransactionTotal({
+    subTotal,
+    discount: selectedDiscount ?? 0,
+    downpayment: downpaymentValue ?? 0,
+  }).totalAmount;
 
   return (
     <Form {...form}>

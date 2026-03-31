@@ -14,13 +14,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../ui/alert-dialog";
-import { JobOrderData } from "../../lib/types";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import ReceiptAttachmentField from "../billing/receipt-attachment-field";
 import ReceiptMissingConfirmDialog from "../billing/receipt-missing-confirm-dialog";
 import { useTransactionHandler } from "../../hooks/useTransactionHandler";
+import { amountsMatch } from "../../lib/transaction-totals";
 
 const paymentMethods = [
   { label: "Cash", value: "cash" },
@@ -38,7 +38,7 @@ interface PaymentDialogProps {
     payments: Record<string, number>,
     receiptFile?: File | null
   ) => Promise<void>;
-  order: JobOrderData;
+  totalAmount: number;
   isBillingLinked?: boolean;
 }
 
@@ -46,7 +46,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   open,
   onClose,
   onSubmit,
-  order,
+  totalAmount,
   isBillingLinked = false,
 }) => {
   const [payments, setPayments] = useState<Record<string, number>>({});
@@ -65,11 +65,6 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   const [isSubmitDisabled, setIsSubmitDisabled] = useState<boolean>(true);
   const transaction = useTransactionHandler();
 
-  const payableTotal = Math.max(
-    Number(order.grand_total || 0) - Number(order.downpayment || 0),
-    0
-  );
-
   const isProcessing = transaction.isLoading;
   const disableInteraction = isProcessing;
 
@@ -81,11 +76,13 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
     setTotalEntered(total);
 
     if (splitPayments) {
-      setIsSubmitDisabled(selectedMethods.length === 0 || total !== payableTotal);
+      setIsSubmitDisabled(
+        selectedMethods.length === 0 || !amountsMatch(total, totalAmount)
+      );
     } else {
       setIsSubmitDisabled(!splitPayments);
     }
-  }, [payments, selectedMethods, splitPayments, payableTotal]);
+  }, [payments, selectedMethods, splitPayments, totalAmount]);
 
   useEffect(() => {
     if (!open && !isProcessing) {
@@ -145,12 +142,12 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   const resolvePaymentsToSubmit = () => {
     if (!splitPayments) {
       if (!confirmMethod) return null;
-      return { [confirmMethod]: payableTotal };
+      return { [confirmMethod]: totalAmount };
     }
 
-    if (totalEntered !== payableTotal) {
+    if (!amountsMatch(totalEntered, totalAmount)) {
       alert(
-        `Total entered (${totalEntered}) does not match the order total (${payableTotal}).`
+        `Total entered (${totalEntered}) does not match the order total (${totalAmount}).`
       );
       return null;
     }
@@ -247,7 +244,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
             </DialogDescription>
             <DialogTitle className="text-3xl font-bold md:text-5xl">
               <span className="opacity-60">₱</span>
-              {formatNumberWithCommas(payableTotal)}
+              {formatNumberWithCommas(totalAmount)}
             </DialogTitle>
           </DialogHeader>
 
@@ -390,7 +387,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
               <AlertDialogDescription>
                 Are you sure you want to process full payment with{" "}
                 {confirmMethod.toUpperCase()} for ₱
-                {formatNumberWithCommas(payableTotal)}?
+                {formatNumberWithCommas(totalAmount)}?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <Button

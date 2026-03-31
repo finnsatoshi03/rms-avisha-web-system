@@ -82,6 +82,7 @@ import {
   getPaymentStatusLabel,
   isBillingLinkedSource,
 } from "../../lib/billing-sync";
+import { computeTransactionTotal } from "../../lib/transaction-totals";
 
 interface RentalDetailSheetProps {
   open: boolean;
@@ -119,6 +120,7 @@ export default function RentalDetailSheet({
   const queryClient = useQueryClient();
   const [inspectionOpen, setInspectionOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentDialogTotal, setPaymentDialogTotal] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
   const [billingImpactDialogOpen, setBillingImpactDialogOpen] = useState(false);
   const [billingImpactPending, setBillingImpactPending] = useState(false);
@@ -160,6 +162,7 @@ export default function RentalDetailSheet({
       form.reset(getDefaultValues(rental));
       setSelectedClient(rental.clients || null);
       setIsEditMode(false);
+      setPaymentDialogTotal(0);
       setSelectedDiscount(rental.discount || null);
       setDownpaymentInputVisible(Boolean(rental.downpayment && rental.downpayment > 0));
       // Compute months from start/end dates
@@ -178,6 +181,7 @@ export default function RentalDetailSheet({
   const watchedRentalType = form.watch("rental_type");
   const watchedStartDate = form.watch("start_date");
   const watchedEndDate = form.watch("end_date");
+  const watchedRateAmount = form.watch("rate_amount");
 
   // Auto-calculate for monthly when editing
   useEffect(() => {
@@ -214,17 +218,43 @@ export default function RentalDetailSheet({
     );
   }, [selectedBranchId, technicians]);
 
-  const rentalSubTotal = rental
-    ? Number(rental.rate_amount) + Number(rental.consumables_total)
-    : 0;
-  const rentalGrandTotal = rentalSubTotal - (selectedDiscount ?? 0);
-
-  const { downpaymentValue, downpaymentError, handleDownpaymentChange } =
-    useDownpayment(rentalGrandTotal, rental?.downpayment || undefined);
-
-  const adjustedGrandTotal = rentalGrandTotal - (downpaymentValue ?? 0);
-
   const rentalRecord = rental;
+  const rentalConsumablesTotal = useMemo(
+    () =>
+      (rentalRecord?.rental_consumables || []).reduce(
+        (sum, c) => sum + Number(c.total_amount || 0),
+        0
+      ),
+    [rentalRecord?.rental_consumables]
+  );
+  const rentalTotalsBeforeDownpayment = useMemo(
+    () =>
+      computeTransactionTotal({
+        subTotal:
+          Number(watchedRateAmount || rentalRecord?.rate_amount || 0) +
+          rentalConsumablesTotal,
+        discount: selectedDiscount ?? 0,
+        downpayment: 0,
+      }),
+    [watchedRateAmount, rentalRecord?.rate_amount, rentalConsumablesTotal, selectedDiscount]
+  );
+  const { downpaymentValue, downpaymentError, handleDownpaymentChange } =
+    useDownpayment(
+      rentalTotalsBeforeDownpayment.totalBeforeDownpayment,
+      rentalRecord?.downpayment || undefined
+    );
+  const rentalTotals = useMemo(
+    () =>
+      computeTransactionTotal({
+        subTotal: rentalTotalsBeforeDownpayment.subTotal,
+        discount: selectedDiscount ?? 0,
+        downpayment: downpaymentValue ?? 0,
+      }),
+    [rentalTotalsBeforeDownpayment.subTotal, selectedDiscount, downpaymentValue]
+  );
+  const rentalSubTotal = rentalTotals.subTotal;
+  const adjustedGrandTotal = rentalTotals.totalAmount;
+
   const rentalId = rentalRecord?.id ?? 0;
   const transitions = rentalRecord ? statusTransitions[rentalRecord.status] || [] : [];
   const inspection = rentalRecord?.rental_inspections as any;
@@ -344,17 +374,7 @@ export default function RentalDetailSheet({
     }
   };
 
-  const amountDue = (() => {
-    const mirroredRemaining = Number(billingSync?.remaining_balance);
-    if (Number.isFinite(mirroredRemaining)) {
-      return Math.max(mirroredRemaining, 0);
-    }
-
-    return Math.max(
-      Number(rental.grand_total || 0) - Number(rental.downpayment || 0),
-      0
-    );
-  })();
+  const livePaymentTotal = adjustedGrandTotal;
 
   const openBillingImpactGuard = (action: () => Promise<void>) => {
     if (!isBillingLinked) {
@@ -404,12 +424,15 @@ export default function RentalDetailSheet({
     }
 
     if (status === "Completed") {
-      if (amountDue <= 0) {
+      if (livePaymentTotal <= 0) {
         await statusMutation.mutateAsync({ ids: [rentalData.id], status: "Completed" });
         onOpenChange(false);
         return;
       }
 
+      setPaymentDialogTotal(livePaymentTotal);
+      console.log("Form Total:", livePaymentTotal);
+      console.log("Dialog Total:", livePaymentTotal);
       setPaymentOpen(true);
       return;
     }
@@ -435,13 +458,16 @@ export default function RentalDetailSheet({
     payments: Record<string, number>,
     receiptFile?: File | null
   ) {
+    const expectedTotal = paymentDialogTotal || livePaymentTotal;
     const totalPayment = Object.values(payments).reduce(
       (sum, amount) => sum + amount,
       0
     );
-    if (Math.abs(totalPayment - amountDue) > 0.01) {
+    console.log("Form Total:", expectedTotal);
+    console.log("Dialog Total:", expectedTotal);
+    if (Math.abs(totalPayment - expectedTotal) > 0.01) {
       throw new Error(
-        `The total payment amount (${totalPayment}) does not match the rental total (${amountDue}).`
+        `The total payment amount (${totalPayment}) does not match the rental total (${expectedTotal}).`
       );
     }
 
@@ -1087,16 +1113,18 @@ export default function RentalDetailSheet({
               <div className="flex justify-between">
                 <p className="opacity-60">Rate</p>
                 <p>
-                  {Number(rental.rate_amount) > 0
-                    ? `₱${formatNumberWithCommas(Number(rental.rate_amount))}`
+                  {Number(watchedRateAmount || rental.rate_amount || 0) > 0
+                    ? `₱${formatNumberWithCommas(
+                        Number(watchedRateAmount || rental.rate_amount || 0)
+                      )}`
                     : "---"}
                 </p>
               </div>
               <div className="flex justify-between">
                 <p className="opacity-60">Consumables</p>
                 <p>
-                  {Number(rental.consumables_total) > 0
-                    ? `₱${formatNumberWithCommas(Number(rental.consumables_total))}`
+                  {rentalConsumablesTotal > 0
+                    ? `₱${formatNumberWithCommas(rentalConsumablesTotal)}`
                     : "---"}
                 </p>
               </div>
@@ -1286,9 +1314,12 @@ export default function RentalDetailSheet({
 
       <RentalPaymentDialog
         open={paymentOpen}
-        onClose={() => setPaymentOpen(false)}
+        onClose={() => {
+          setPaymentOpen(false);
+          setPaymentDialogTotal(0);
+        }}
         onSubmit={handlePaymentSubmit}
-        grandTotal={amountDue}
+        totalAmount={paymentDialogTotal}
         rentalNo={rental.rental_no}
         isBillingLinked={isBillingLinked}
       />

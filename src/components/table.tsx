@@ -70,6 +70,7 @@ import { TableCellWithHover } from "./job-order/cell-hover";
 import { PaymentDialog } from "./table/payment-dialog";
 import BillingImpactConfirmDialog from "./billing/billing-impact-confirm-dialog";
 import { isBillingLinkedSource } from "../lib/billing-sync";
+import { computeTransactionTotal } from "../lib/transaction-totals";
 
 export default function Table({
   data,
@@ -167,6 +168,7 @@ export default function Table({
 
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<JobOrderData | null>(null);
+  const [selectedOrderTotal, setSelectedOrderTotal] = useState(0);
   const [billingImpactDialogOpen, setBillingImpactDialogOpen] = useState(false);
   const [billingImpactPending, setBillingImpactPending] = useState(false);
   const [billingImpactOrders, setBillingImpactOrders] = useState<JobOrderData[]>(
@@ -364,6 +366,28 @@ export default function Table({
       paymentDetails: order.payment_details,
     });
 
+  const getOrderPaymentTotal = (order: JobOrderData) => {
+    const fallbackSubTotal =
+      Number(order.sub_total || 0) > 0
+        ? Number(order.sub_total || 0)
+        : Number(order.labor_total || 0) + Number(order.material_total || 0);
+
+    return computeTransactionTotal({
+      subTotal: fallbackSubTotal,
+      discount: Number(order.discount || 0),
+      downpayment: Number(order.downpayment || 0),
+    }).totalAmount;
+  };
+
+  const openPaymentDialogForOrder = (orderToPay: JobOrderData) => {
+    const totalAmount = getOrderPaymentTotal(orderToPay);
+    console.log("Form Total:", totalAmount);
+    console.log("Dialog Total:", totalAmount);
+    setSelectedOrder(orderToPay);
+    setSelectedOrderTotal(totalAmount);
+    setShowPaymentDialog(true);
+  };
+
   const handleLinkedDeleteAuthorization = async () => {
     if (deleteIds.length === 0) return;
 
@@ -492,8 +516,7 @@ export default function Table({
         setOpenPopover(null);
         return;
       }
-      setShowPaymentDialog(true);
-      setSelectedOrder(orderToUpdate);
+      openPaymentDialogForOrder(orderToUpdate);
       return;
     }
 
@@ -561,12 +584,11 @@ export default function Table({
       (acc, amount) => acc + amount,
       0
     );
-    const amountDue = Math.max(
-      Number(selectedOrder.grand_total || 0) - Number(selectedOrder.downpayment || 0),
-      0
-    );
+    const amountDue = selectedOrderTotal || getOrderPaymentTotal(selectedOrder);
+    console.log("Form Total:", amountDue);
+    console.log("Dialog Total:", amountDue);
 
-    // Payment must match the current amount due (grand total less downpayment).
+    // Payment must match the computed source-of-truth total.
     if (Math.abs(totalPayment - amountDue) > 0.01) {
       alert(
         `The total payment amount (${totalPayment}) does not match the order total (${amountDue})`
@@ -662,8 +684,7 @@ export default function Table({
             // setEditSheetOpen(true);
             return;
           }
-          setShowPaymentDialog(true);
-          setSelectedOrder(orderToUpdate);
+          openPaymentDialogForOrder(orderToUpdate);
         }
       } else {
         toast.error(
@@ -750,6 +771,29 @@ export default function Table({
   };
 
   const currentOrder = orders.find((order) => order.id === currentEditId);
+
+  const handleOrderSaved = (savedOrder: Partial<JobOrderData> & { id: number }) => {
+    setOrders((prevOrders) =>
+      prevOrders.map((order) =>
+        order.id === savedOrder.id
+          ? ({ ...order, ...savedOrder } as JobOrderData)
+          : order
+      )
+    );
+
+    setSelectedOrder((prevSelected) => {
+      if (!prevSelected || prevSelected.id !== savedOrder.id) {
+        return prevSelected;
+      }
+
+      const mergedSelected = {
+        ...prevSelected,
+        ...savedOrder,
+      } as JobOrderData;
+      setSelectedOrderTotal(getOrderPaymentTotal(mergedSelected));
+      return mergedSelected;
+    });
+  };
 
   return (
     <>
@@ -1120,12 +1164,16 @@ export default function Table({
       )}
       <PaymentDialog
         open={showPaymentDialog}
-        onClose={() => setShowPaymentDialog(false)}
+        onClose={() => {
+          setShowPaymentDialog(false);
+          setSelectedOrder(null);
+          setSelectedOrderTotal(0);
+        }}
         onSubmit={handlePaymentSubmit}
+        totalAmount={selectedOrderTotal}
         isBillingLinked={
           selectedOrder ? isOrderBillingLinked(selectedOrder) : false
         }
-        order={selectedOrder ?? ({} as JobOrderData)}
       />
       <BillingImpactConfirmDialog
         open={billingImpactDialogOpen}
@@ -1300,6 +1348,7 @@ export default function Table({
               jobOrderToEdit={currentOrder ? currentOrder : undefined}
               technicians={technicians}
               onClose={() => setEditSheetOpen(false)}
+              onSaved={handleOrderSaved}
             />
           </SheetHeader>
           <SheetDescription></SheetDescription>

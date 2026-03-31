@@ -841,7 +841,7 @@ export default function Rentals() {
           setRentalToComplete(null);
         }}
         onSubmit={handleBulkPaymentSubmit}
-        grandTotal={getRentalAmountDue(rentalToComplete)}
+        totalAmount={getRentalAmountDue(rentalToComplete)}
         rentalNo={rentalToComplete?.rental_no || ""}
         isBillingLinked={
           rentalToComplete ? isRentalBillingLinked(rentalToComplete) : false

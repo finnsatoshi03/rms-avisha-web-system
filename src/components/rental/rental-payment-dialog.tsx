@@ -20,6 +20,7 @@ import { Input } from "../ui/input";
 import ReceiptAttachmentField from "../billing/receipt-attachment-field";
 import ReceiptMissingConfirmDialog from "../billing/receipt-missing-confirm-dialog";
 import { useTransactionHandler } from "../../hooks/useTransactionHandler";
+import { amountsMatch } from "../../lib/transaction-totals";
 
 const paymentMethods = [
   { label: "Cash", value: "cash" },
@@ -37,7 +38,7 @@ interface RentalPaymentDialogProps {
     payments: Record<string, number>,
     receiptFile?: File | null
   ) => Promise<void>;
-  grandTotal: number;
+  totalAmount: number;
   rentalNo: string;
   isBillingLinked?: boolean;
 }
@@ -46,7 +47,7 @@ export default function RentalPaymentDialog({
   open,
   onClose,
   onSubmit,
-  grandTotal,
+  totalAmount,
   rentalNo,
   isBillingLinked = false,
 }: RentalPaymentDialogProps) {
@@ -77,11 +78,13 @@ export default function RentalPaymentDialog({
     setTotalEntered(total);
 
     if (splitPayments) {
-      setIsSubmitDisabled(selectedMethods.length === 0 || total !== grandTotal);
+      setIsSubmitDisabled(
+        selectedMethods.length === 0 || !amountsMatch(total, totalAmount)
+      );
     } else {
       setIsSubmitDisabled(!splitPayments);
     }
-  }, [payments, selectedMethods, splitPayments, grandTotal]);
+  }, [payments, selectedMethods, splitPayments, totalAmount]);
 
   useEffect(() => {
     if (!open && !isProcessing) {
@@ -141,12 +144,12 @@ export default function RentalPaymentDialog({
   const resolvePaymentsToSubmit = () => {
     if (!splitPayments) {
       if (!confirmMethod) return null;
-      return { [confirmMethod]: grandTotal };
+      return { [confirmMethod]: totalAmount };
     }
 
-    if (totalEntered !== grandTotal) {
+    if (!amountsMatch(totalEntered, totalAmount)) {
       alert(
-        `Total entered (${totalEntered}) does not match the rental total (${grandTotal}).`
+        `Total entered (${totalEntered}) does not match the rental total (${totalAmount}).`
       );
       return null;
     }
@@ -243,7 +246,7 @@ export default function RentalPaymentDialog({
             </DialogDescription>
             <DialogTitle className="text-3xl font-bold md:text-5xl">
               <span className="opacity-60">₱</span>
-              {formatNumberWithCommas(grandTotal)}
+              {formatNumberWithCommas(totalAmount)}
             </DialogTitle>
           </DialogHeader>
 
@@ -378,7 +381,7 @@ export default function RentalPaymentDialog({
               <AlertDialogDescription>
                 Are you sure you want to process full payment with{" "}
                 {confirmMethod.toUpperCase()} for ₱
-                {formatNumberWithCommas(grandTotal)}?
+                {formatNumberWithCommas(totalAmount)}?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <Button

@@ -114,6 +114,7 @@ import {
   getPaymentStatusLabel,
   isBillingLinkedSource,
 } from "../../lib/billing-sync";
+import { computeTransactionTotal } from "../../lib/transaction-totals";
 import BillingImpactConfirmDialog from "../billing/billing-impact-confirm-dialog";
 import ReceiptMissingConfirmDialog from "../billing/receipt-missing-confirm-dialog";
 
@@ -272,11 +273,13 @@ export default function JobOrderForm({
   readonly = false,
   technicians = [] as User[],
   onClose,
+  onSaved,
 }: {
   jobOrderToEdit?: JobOrderData;
   readonly?: boolean;
   technicians?: User[];
   onClose?: () => void;
+  onSaved?: (savedOrder: Partial<JobOrderData> & { id: number }) => void;
 }) {
   // State to track if we're in edit mode (overrides readonly when true)
   const [isEditMode, setIsEditMode] = useState(false);
@@ -632,12 +635,21 @@ export default function JobOrderForm({
   );
   const laborTotal =
     Number(form.watch("rate") || 0) + Number(form.watch("amount") || 0);
-  const grandTotal = totalMaterialsPrice + laborTotal;
+  const totalsBeforeDownpayment = computeTransactionTotal({
+    subTotal: totalMaterialsPrice + laborTotal,
+    discount: selectedDiscount ?? 0,
+    downpayment: 0,
+  });
+  const grandTotal = totalsBeforeDownpayment.subTotal;
+  const totalBeforeDownpayment = totalsBeforeDownpayment.totalBeforeDownpayment;
   const { downpaymentValue, downpaymentError, handleDownpaymentChange } =
-    useDownpayment(grandTotal, editValues.downpayment || undefined);
-
-  const adjustedGrandTotal =
-    grandTotal - (selectedDiscount ?? 0) - (downpaymentValue ?? 0);
+    useDownpayment(totalBeforeDownpayment, editValues.downpayment || undefined);
+  const totals = computeTransactionTotal({
+    subTotal: grandTotal,
+    discount: selectedDiscount ?? 0,
+    downpayment: downpaymentValue ?? 0,
+  });
+  const adjustedGrandTotal = totals.totalAmount;
   const billingSync = getBillingSyncSnapshot(jobOrderToEdit.payment_details);
   const isBillingLinked = editSession
     ? isBillingLinkedSource({
@@ -1268,6 +1280,17 @@ export default function JobOrderForm({
           {
             onSuccess: () => {
               queryClient.invalidateQueries({ queryKey: ["job_order"] });
+              if (editId) {
+                onSaved?.({
+                  id: Number(editId),
+                  sub_total: payload.sub_total,
+                  discount: payload.discount ?? 0,
+                  downpayment: payload.downpayment ?? 0,
+                  grand_total: payload.grand_total,
+                  labor_total: payload.labor_total,
+                  material_total: payload.material_total,
+                });
+              }
               toast.success("Job order successfully edited!");
               if (options?.closeAfterSuccess !== false && onClose) {
                 onClose();
