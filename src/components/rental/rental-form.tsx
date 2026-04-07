@@ -9,6 +9,7 @@ import { Client } from "../../lib/types";
 import { useQuery } from "@tanstack/react-query";
 import { getBranches } from "../../services/apiBranches";
 import { getTechnicians } from "../../services/apiTechnicians";
+import { useClientChildren } from "../clients/useClients";
 import ClientAutoSuggest from "../job-order/client-auto-suggest";
 import RentalAssetSelect from "./rental-asset-select";
 import RentalConsumablesSection from "./rental-consumables-section";
@@ -43,6 +44,7 @@ import { format } from "date-fns";
 import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
 import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
 import GuidedTour from "../onboarding/guided-tour";
+import { getClientDisplayName } from "../../lib/client-hierarchy";
 
 interface RentalFormProps {
   onSuccess?: (rentalData?: { rental_no: string; rental_id: number }) => void;
@@ -56,6 +58,7 @@ export default function RentalForm({
   const { user, branchId, isAdmin } = useUser();
   const createMutation = useCreateRental();
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedSubClientId, setSelectedSubClientId] = useState<string>("none");
   const [selectedAsset, setSelectedAsset] = useState<{
     daily_rate: number;
     monthly_rate: number;
@@ -65,6 +68,17 @@ export default function RentalForm({
   const [selectedDiscount, setSelectedDiscount] = useState<number | null>(null);
   const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(false);
   const canSelectBranch = isAdmin;
+  const { children: childClients } = useClientChildren(
+    selectedClient && selectedClient.parent_client_id == null
+      ? selectedClient.id
+      : null
+  );
+  const selectedSubClient =
+    selectedSubClientId !== "none"
+      ? childClients.find((child) => String(child.id) === selectedSubClientId) ||
+        null
+      : null;
+  const effectiveClient = selectedSubClient || selectedClient;
 
   const {
     showAnnouncement,
@@ -156,6 +170,7 @@ export default function RentalForm({
 
   function handleClientSelect(client: Client) {
     setSelectedClient(client);
+    setSelectedSubClientId("none");
     form.setValue("client_id", client.id as number);
     form.setValue("name", client.name || "");
     form.setValue("contact_number", client.contact_number || "");
@@ -164,11 +179,20 @@ export default function RentalForm({
 
   function handleClientCreate(client: Client) {
     setSelectedClient(client);
+    setSelectedSubClientId("none");
     form.setValue("client_id", client.id as number);
     form.setValue("name", client.name || "");
     form.setValue("contact_number", client.contact_number || "");
     form.setValue("email", client.email || "");
   }
+
+  useEffect(() => {
+    if (!selectedSubClient) return;
+    form.setValue("client_id", selectedSubClient.id as number);
+    form.setValue("name", selectedSubClient.name || "");
+    form.setValue("contact_number", selectedSubClient.contact_number || "");
+    form.setValue("email", selectedSubClient.email || "");
+  }, [selectedSubClient, form]);
 
   function onSubmit(values: RentalFormValues) {
     createMutation.mutate(
@@ -179,7 +203,7 @@ export default function RentalForm({
           downpayment: downpaymentValue ?? 0,
           created_by: user?.id,
         },
-        clientId: values.client_id || null,
+        clientId: effectiveClient?.id || values.client_id || null,
       },
       {
         onSuccess: (result) => {
@@ -228,6 +252,44 @@ export default function RentalForm({
                   onClientCreate={handleClientCreate}
                   initialName={form.watch("name")}
                 />
+                {selectedClient &&
+                  selectedClient.parent_client_id == null &&
+                  childClients.length > 0 && (
+                    <div className="mt-2 p-2 border rounded-lg bg-muted/20">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Department / Branch (optional)
+                      </p>
+                      <Select
+                        value={selectedSubClientId}
+                        onValueChange={(value) => {
+                          setSelectedSubClientId(value);
+                          if (value === "none" && selectedClient) {
+                            form.setValue("client_id", selectedClient.id as number);
+                            form.setValue("name", selectedClient.name || "");
+                            form.setValue(
+                              "contact_number",
+                              selectedClient.contact_number || ""
+                            );
+                            form.setValue("email", selectedClient.email || "");
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="Parent-level (all departments)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            Parent-level (all departments)
+                          </SelectItem>
+                          {childClients.map((child) => (
+                            <SelectItem key={child.id} value={String(child.id)}>
+                              {getClientDisplayName(child)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
               </FormControl>
               <FormMessage />
             </FormItem>

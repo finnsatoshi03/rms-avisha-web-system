@@ -25,7 +25,14 @@ CREATE TABLE public.clients (
   name character varying,
   contact_number character varying,
   email character varying,
-  CONSTRAINT clients_pkey PRIMARY KEY (id)
+  type text NOT NULL DEFAULT 'individual'::text CHECK (type = ANY (ARRAY['individual'::text, 'company'::text])),
+  address text,
+  notes text,
+  is_active boolean NOT NULL DEFAULT true,
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  parent_client_id bigint,
+  CONSTRAINT clients_pkey PRIMARY KEY (id),
+  CONSTRAINT clients_parent_client_id_fkey FOREIGN KEY (parent_client_id) REFERENCES public.clients(id)
 );
 CREATE TABLE public.expenses (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,

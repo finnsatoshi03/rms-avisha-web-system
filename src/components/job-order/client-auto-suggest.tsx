@@ -5,6 +5,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Client } from "../../lib/types";
 import { searchClients, createClient, ClientSearchResult } from "../../services/apiClients";
 import { cn } from "../../lib/utils";
+import {
+  getClientDisplayName,
+  getParentClientName,
+  normalizeClientText,
+  stripParentPrefix,
+} from "../../lib/client-hierarchy";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Button } from "../ui/button";
 import {
@@ -31,6 +37,11 @@ interface ClientAutoSuggestProps {
   disabled?: boolean;
   initialName?: string;
 }
+
+type DepartmentSuggestion = {
+  parent: ClientSearchResult;
+  departmentName: string;
+};
 
 const MATCH_BADGES: Record<string, { label: string; className: string } | null> = {
   exact: null,
@@ -95,6 +106,8 @@ export default function ClientAutoSuggest({
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [confirmedCreate, setConfirmedCreate] = useState(false);
+  const [createAsDepartment, setCreateAsDepartment] = useState(false);
+  const [departmentSuggestion, setDepartmentSuggestion] = useState<DepartmentSuggestion | null>(null);
   const dupDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearch = useCallback(async (term: string) => {
@@ -170,8 +183,43 @@ export default function ClientAutoSuggest({
         setPotentialDuplicates(allResults);
         setShowDuplicateWarning(allResults.length > 0);
         setConfirmedCreate(false);
+
+        const normalizedInput = normalizeClientText(newClientName);
+        const parentCandidates = allResults
+          .filter((candidate) => candidate.parent_client_id == null)
+          .sort((a, b) => (b.name?.length || 0) - (a.name?.length || 0));
+
+        const matchedParent = parentCandidates.find((candidate) => {
+          const normalizedParent = normalizeClientText(candidate.name);
+          return (
+            normalizedParent.length >= 4 &&
+            normalizedInput.startsWith(normalizedParent) &&
+            normalizedInput !== normalizedParent
+          );
+        });
+
+        if (matchedParent) {
+          const departmentName =
+            stripParentPrefix(newClientName, matchedParent.name || "") ||
+            "";
+          if (departmentName.trim()) {
+            setDepartmentSuggestion({
+              parent: matchedParent,
+              departmentName: departmentName.trim(),
+            });
+            setCreateAsDepartment(false);
+          } else {
+            setDepartmentSuggestion(null);
+            setCreateAsDepartment(false);
+          }
+        } else {
+          setDepartmentSuggestion(null);
+          setCreateAsDepartment(false);
+        }
       } catch {
         setPotentialDuplicates([]);
+        setDepartmentSuggestion(null);
+        setCreateAsDepartment(false);
       } finally {
         setIsCheckingDuplicates(false);
       }
@@ -196,22 +244,42 @@ export default function ClientAutoSuggest({
   const handleCreateClient = async () => {
     if (!newClientName.trim()) return;
 
-    if (potentialDuplicates.length > 0 && !confirmedCreate) {
+    if (potentialDuplicates.length > 0 && !confirmedCreate && !createAsDepartment) {
       setShowDuplicateWarning(true);
       return;
     }
 
     setIsCreating(true);
     try {
+      const rawClientName = createAsDepartment && departmentSuggestion
+        ? departmentSuggestion.departmentName
+        : newClientName.trim();
+
+      const formattedName = rawClientName
+        .split(" ")
+        .filter((segment) => segment.length > 0)
+        .map((word) => {
+          // Preserve short all-uppercase acronyms like ITCD/HR/ATM.
+          if (word.length <= 6 && /^[A-Z0-9]+$/.test(word)) {
+            return word;
+          }
+          return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        })
+        .join(" ");
+
       const client = await createClient({
-        name: newClientName
-          .split(" ")
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(" "),
+        name: formattedName,
         contact_number: newClientPhone,
         email: newClientEmail,
-        type: newClientType,
+        type:
+          createAsDepartment && departmentSuggestion
+            ? "company"
+            : newClientType,
         address: newClientAddress || null,
+        parent_client_id:
+          createAsDepartment && departmentSuggestion
+            ? departmentSuggestion.parent.id
+            : null,
       });
 
       queryClient.invalidateQueries({ queryKey: ["clients"] });
@@ -232,10 +300,12 @@ export default function ClientAutoSuggest({
     setNewClientPhone("+63 ");
     setNewClientEmail("");
     setNewClientAddress("");
-    setNewClientType("individual");
-    setPotentialDuplicates([]);
-    setShowDuplicateWarning(false);
-    setConfirmedCreate(false);
+      setNewClientType("individual");
+      setPotentialDuplicates([]);
+      setShowDuplicateWarning(false);
+      setConfirmedCreate(false);
+      setCreateAsDepartment(false);
+      setDepartmentSuggestion(null);
   };
 
   const openCreateForm = () => {
@@ -282,6 +352,9 @@ export default function ClientAutoSuggest({
               </div>
             </div>
             <div className="text-xs text-muted-foreground flex gap-3">
+              {client.parent_client_id != null && (
+                <span>{getParentClientName(client)}</span>
+              )}
               {client.contact_number && <span>{client.contact_number}</span>}
               {client.email && <span>{client.email}</span>}
             </div>
@@ -308,7 +381,7 @@ export default function ClientAutoSuggest({
               !selectedClient && "text-muted-foreground"
             )}
           >
-            {selectedClient ? selectedClient.name : "Select Client"}
+            {selectedClient ? getClientDisplayName(selectedClient) : "Select Client"}
           </span>
           <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 opacity-50" />
         </Button>
@@ -395,7 +468,7 @@ export default function ClientAutoSuggest({
                       className="w-full text-left rounded-md border bg-white px-2 py-1.5 text-xs hover:bg-gray-50 transition-colors"
                       onClick={() => handleSelect(dup)}
                     >
-                      <span className="font-medium">{dup.name}</span>
+                      <span className="font-medium">{getClientDisplayName(dup)}</span>
                       {dup.contact_number && (
                         <span className="text-muted-foreground ml-2">{dup.contact_number}</span>
                       )}
@@ -407,17 +480,53 @@ export default function ClientAutoSuggest({
                     </button>
                   ))}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full text-xs h-7 text-amber-700 hover:text-amber-900"
-                  onClick={() => {
-                    setConfirmedCreate(true);
-                    setShowDuplicateWarning(false);
-                  }}
-                >
-                  None of these — create new client anyway
-                </Button>
+                {departmentSuggestion ? (
+                  <div className="space-y-1">
+                    <div className="rounded-md border bg-white px-2 py-2 text-xs">
+                      Existing parent detected:{" "}
+                      <span className="font-semibold">{departmentSuggestion.parent.name}</span>
+                      <br />
+                      Suggested department:{" "}
+                      <span className="font-semibold">{departmentSuggestion.departmentName}</span>
+                    </div>
+                    <Button
+                      variant={createAsDepartment ? "default" : "outline"}
+                      size="sm"
+                      className="w-full text-xs h-7"
+                      onClick={() => {
+                        setCreateAsDepartment(true);
+                        setConfirmedCreate(true);
+                        setShowDuplicateWarning(false);
+                      }}
+                    >
+                      Add as Department
+                    </Button>
+                    <Button
+                      variant={!createAsDepartment ? "default" : "outline"}
+                      size="sm"
+                      className="w-full text-xs h-7"
+                      onClick={() => {
+                        setCreateAsDepartment(false);
+                        setConfirmedCreate(true);
+                        setShowDuplicateWarning(false);
+                      }}
+                    >
+                      Create New Client
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs h-7 text-amber-700 hover:text-amber-900"
+                    onClick={() => {
+                      setConfirmedCreate(true);
+                      setShowDuplicateWarning(false);
+                    }}
+                  >
+                    None of these — create new client anyway
+                  </Button>
+                )}
               </div>
             )}
 
@@ -493,7 +602,11 @@ export default function ClientAutoSuggest({
                 disabled={!newClientName.trim() || isCreating || isCheckingDuplicates}
               >
                 {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                {potentialDuplicates.length > 0 && !confirmedCreate ? "Check & Create" : "Create"}
+                {createAsDepartment
+                  ? "Add Department"
+                  : potentialDuplicates.length > 0 && !confirmedCreate
+                    ? "Check & Create"
+                    : "Create"}
               </Button>
             </div>
           </div>

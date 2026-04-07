@@ -37,6 +37,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { getBranches } from "../../services/apiBranches";
 import { getTechnicians } from "../../services/apiTechnicians";
+import { useClientChildren } from "../clients/useClients";
 import {
   Sheet,
   SheetContent,
@@ -83,6 +84,7 @@ import {
   isBillingLinkedSource,
 } from "../../lib/billing-sync";
 import { computeTransactionTotal } from "../../lib/transaction-totals";
+import { getClientDisplayName } from "../../lib/client-hierarchy";
 
 interface RentalDetailSheetProps {
   open: boolean;
@@ -135,10 +137,22 @@ export default function RentalDetailSheet({
   const updateMutation = useUpdateRental();
   const { user, branchId, isAdmin, isTechnician } = useUser();
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedSubClientId, setSelectedSubClientId] = useState<string>("none");
   const [rentalMonths, setRentalMonths] = useState(1);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [selectedDiscount, setSelectedDiscount] = useState<number | null>(null);
   const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(false);
+  const { children: childClients } = useClientChildren(
+    selectedClient && selectedClient.parent_client_id == null
+      ? selectedClient.id
+      : null
+  );
+  const selectedSubClient =
+    selectedSubClientId !== "none"
+      ? childClients.find((child) => String(child.id) === selectedSubClientId) ||
+        null
+      : null;
+  const effectiveClient = selectedSubClient || selectedClient;
 
 
   const { data: branches } = useQuery({
@@ -161,6 +175,7 @@ export default function RentalDetailSheet({
     if (rental) {
       form.reset(getDefaultValues(rental));
       setSelectedClient(rental.clients || null);
+      setSelectedSubClientId("none");
       setIsEditMode(false);
       setPaymentDialogTotal(0);
       setSelectedDiscount(rental.discount || null);
@@ -507,11 +522,20 @@ export default function RentalDetailSheet({
 
   function handleClientSelect(client: Client) {
     setSelectedClient(client);
+    setSelectedSubClientId("none");
     form.setValue("client_id", client.id as number);
     form.setValue("name", client.name || "");
     form.setValue("contact_number", client.contact_number || "");
     form.setValue("email", client.email || "");
   }
+
+  useEffect(() => {
+    if (!selectedSubClient) return;
+    form.setValue("client_id", selectedSubClient.id as number);
+    form.setValue("name", selectedSubClient.name || "");
+    form.setValue("contact_number", selectedSubClient.contact_number || "");
+    form.setValue("email", selectedSubClient.email || "");
+  }, [selectedSubClient, form]);
 
   const hasHighImpactRentalChanges = (values: RentalFormValues) => {
     const hasNumberChange = (current: number, next: number) =>
@@ -535,7 +559,7 @@ export default function RentalDetailSheet({
   function onSubmit(values: RentalFormValues) {
     const updatePayload = {
       rental_asset_id: values.rental_asset_id,
-      client_id: values.client_id || undefined,
+      client_id: effectiveClient?.id || values.client_id || undefined,
       name: values.name,
       contact_number: values.contact_number,
       email: values.email,
@@ -746,7 +770,7 @@ export default function RentalDetailSheet({
               {/* Client Name */}
               {isFormReadonly ? (
                 <div className="text-3xl font-bold mb-2">
-                  {rental.clients?.name || "—"}
+                  {getClientDisplayName(rental.clients)}
                 </div>
               ) : (
                 <FormField
@@ -761,6 +785,50 @@ export default function RentalDetailSheet({
                           onClientCreate={handleClientSelect}
                           initialName={form.watch("name")}
                         />
+                        {selectedClient &&
+                          selectedClient.parent_client_id == null &&
+                          childClients.length > 0 && (
+                            <div className="mt-2 p-2 border rounded-lg bg-muted/20">
+                              <p className="text-xs text-muted-foreground mb-1">
+                                Department / Branch (optional)
+                              </p>
+                              <Select
+                                value={selectedSubClientId}
+                                onValueChange={(value) => {
+                                  setSelectedSubClientId(value);
+                                  if (value === "none" && selectedClient) {
+                                    form.setValue(
+                                      "client_id",
+                                      selectedClient.id as number
+                                    );
+                                    form.setValue("name", selectedClient.name || "");
+                                    form.setValue(
+                                      "contact_number",
+                                      selectedClient.contact_number || ""
+                                    );
+                                    form.setValue("email", selectedClient.email || "");
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-8 text-sm">
+                                  <SelectValue placeholder="Parent-level (all departments)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">
+                                    Parent-level (all departments)
+                                  </SelectItem>
+                                  {childClients.map((child) => (
+                                    <SelectItem
+                                      key={child.id}
+                                      value={String(child.id)}
+                                    >
+                                      {getClientDisplayName(child)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
                       </FormControl>
                       <FormMessage />
                     </FormItem>

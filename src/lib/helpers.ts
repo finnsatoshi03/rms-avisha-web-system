@@ -2,6 +2,7 @@
 import { format, startOfMonth, startOfWeek } from "date-fns";
 import { Expenses, JobOrderData } from "./types";
 import { DateRange } from "react-day-picker";
+import { getClientRollupKey } from "./client-hierarchy";
 
 export function getStatusClass(status: string) {
   switch (status.toLowerCase()) {
@@ -134,8 +135,9 @@ export function calculateMetrics(
 
   const totalProfit = totalNetIncludingDownpayments - totalExpenses;
 
-  const numberOfClients = new Set(orders.map((order) => order.clients.name))
-    .size;
+  const numberOfClients = new Set(
+    orders.map((order) => getClientRollupKey(order.clients))
+  ).size;
   const numberOfSales = completedOrders.length;
   const averageOrderValue = numberOfSales
     ? totalNetIncludingDownpayments / numberOfSales
@@ -367,7 +369,7 @@ export function calculateMetrics(
 
     // Calculate unique clients per month
     const monthlyClients = new Set(
-      monthlyCompletedOrders.map((order) => order.clients.name)
+      monthlyCompletedOrders.map((order) => getClientRollupKey(order.clients))
     ).size;
 
     const monthlyAverageOrderValue = monthlySales

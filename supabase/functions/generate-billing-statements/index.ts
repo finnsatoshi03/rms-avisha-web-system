@@ -18,6 +18,24 @@ const json = (status: number, body: unknown) =>
     },
   });
 
+const getClientDisplayName = (
+  client:
+    | {
+        name?: string | null;
+        parent_client_id?: number | null;
+        parent_client?: { name?: string | null } | null;
+      }
+    | null
+    | undefined
+) => {
+  if (!client?.name) return "Valued Client";
+  if (client.parent_client_id == null) return client.name;
+
+  const parentName = client.parent_client?.name?.trim();
+  if (!parentName) return client.name;
+  return `${parentName} — ${client.name}`;
+};
+
 async function parseEmailProviderError(response: Response): Promise<string> {
   try {
     const payload = await response.json();
@@ -58,7 +76,7 @@ Deno.serve(async (req) => {
       .select(`
         id, account_number, interest_rate, billing_cutoff_day,
         billing_contact_name, billing_contact_email,
-        clients:client_id (name, email)
+        clients:client_id (name, email, parent_client_id, parent_client:parent_client_id(name))
       `)
       .eq("status", "active");
 
@@ -280,14 +298,26 @@ Deno.serve(async (req) => {
       let emailStatusMessage: string | undefined;
       const recipientEmail =
         account.billing_contact_email ||
-        (account.clients as unknown as { name: string; email: string | null })
-          ?.email;
+        (
+          account.clients as unknown as {
+            name: string;
+            email: string | null;
+            parent_client_id?: number | null;
+            parent_client?: { name: string | null } | null;
+          }
+        )?.email;
       const normalizedRecipient = recipientEmail?.trim().toLowerCase() ?? null;
 
       const clientName =
         account.billing_contact_name ||
-        (account.clients as unknown as { name: string; email: string | null })
-          ?.name ||
+        getClientDisplayName(
+          account.clients as unknown as {
+            name: string;
+            email: string | null;
+            parent_client_id?: number | null;
+            parent_client?: { name: string | null } | null;
+          }
+        ) ||
         "Valued Client";
 
       const periodLabel = `${periodStart.toLocaleDateString("en-US", {

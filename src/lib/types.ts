@@ -148,6 +148,12 @@ export type Client = {
   address: string | null;
   notes: string | null;
   is_active: boolean;
+  parent_client_id?: number | null;
+  parent_name?: string | null;
+  display_name?: string | null;
+  is_parent?: boolean;
+  parent_client?: Pick<Client, "id" | "name"> | null;
+  child_clients?: Pick<Client, "id" | "name">[] | null;
   created_at: string;
   updated_at: string;
   joborders?: Record<string, JobOrderData> | JobOrderData[];

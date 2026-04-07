@@ -22,6 +22,7 @@ import {
   LedgerEntry,
 } from "../lib/billing-types";
 import { getTodayDateString, normalizeDateOnly } from "../lib/transaction-date";
+import { getScopedClientIds } from "./apiClients";
 
 export const RECEIPT_BUCKET = "billing-receipts";
 export const MAX_RECEIPT_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -226,7 +227,7 @@ function getPaymentMethodAndNotes(payments: Record<string, number>): {
 export async function getBillingAccounts(): Promise<BillingAccount[]> {
   const { data, error } = await supabase
     .from("billing_accounts")
-    .select(`*, clients:client_id (*)`)
+    .select(`*, clients:client_id (*, parent_client:parent_client_id(id, name))`)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error("Failed to fetch billing accounts: " + error.message);
@@ -236,7 +237,7 @@ export async function getBillingAccounts(): Promise<BillingAccount[]> {
 export async function getBillingAccount(id: string): Promise<BillingAccount> {
   const { data, error } = await supabase
     .from("billing_accounts")
-    .select(`*, clients:client_id (*)`)
+    .select(`*, clients:client_id (*, parent_client:parent_client_id(id, name))`)
     .eq("id", id)
     .single();
 
@@ -245,14 +246,38 @@ export async function getBillingAccount(id: string): Promise<BillingAccount> {
 }
 
 export async function getBillingAccountByClientId(clientId: number): Promise<BillingAccount | null> {
+  const selectClause = `*, clients:client_id (*, parent_client:parent_client_id(id, name))`;
+
   const { data, error } = await supabase
     .from("billing_accounts")
-    .select(`*, clients:client_id (*)`)
+    .select(selectClause)
     .eq("client_id", clientId)
     .maybeSingle();
 
   if (error) throw new Error("Failed to fetch billing account: " + error.message);
-  return data;
+  if (data) return data;
+
+  const { data: clientRow, error: clientError } = await supabase
+    .from("clients")
+    .select("parent_client_id")
+    .eq("id", clientId)
+    .single();
+
+  if (clientError || clientRow?.parent_client_id == null) {
+    return null;
+  }
+
+  const { data: parentAccount, error: parentAccountError } = await supabase
+    .from("billing_accounts")
+    .select(selectClause)
+    .eq("client_id", clientRow.parent_client_id)
+    .maybeSingle();
+
+  if (parentAccountError) {
+    throw new Error("Failed to fetch parent billing account: " + parentAccountError.message);
+  }
+
+  return parentAccount;
 }
 
 export async function createBillingAccount(accountData: CreateBillingAccountData): Promise<BillingAccount> {
@@ -265,7 +290,7 @@ export async function createBillingAccount(accountData: CreateBillingAccountData
       account_number: "", // trigger will auto-generate
       created_by: userData.user?.id,
     })
-    .select(`*, clients:client_id (*)`)
+    .select(`*, clients:client_id (*, parent_client:parent_client_id(id, name))`)
     .single();
 
   if (error) throw new Error("Failed to create billing account: " + error.message);
@@ -280,7 +305,7 @@ export async function updateBillingAccount(
     .from("billing_accounts")
     .update(updates)
     .eq("id", id)
-    .select(`*, clients:client_id (*)`)
+    .select(`*, clients:client_id (*, parent_client:parent_client_id(id, name))`)
     .single();
 
   if (error) throw new Error("Failed to update billing account: " + error.message);
@@ -1051,6 +1076,8 @@ export async function transferRentalToBilling(
 // ========================
 
 export async function getEligibleRentals(clientId: number): Promise<any[]> {
+  const scopeClientIds = await getScopedClientIds(clientId);
+
   const { data, error } = await supabase
     .from("rentals")
     .select(`
@@ -1059,7 +1086,7 @@ export async function getEligibleRentals(clientId: number): Promise<any[]> {
       branches:branch_id (id, name, prefix),
       rental_assets:rental_asset_id (id, unit_name, model)
     `)
-    .eq("client_id", clientId)
+    .in("client_id", scopeClientIds)
     .eq("transferred_to_billing", false)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -1087,6 +1114,8 @@ export async function getEligibleRentals(clientId: number): Promise<any[]> {
 // ========================
 
 export async function getEligibleJobOrders(clientId: number): Promise<any[]> {
+  const scopeClientIds = await getScopedClientIds(clientId);
+
   const { data, error } = await supabase
     .from("joborders")
     .select(`
@@ -1094,7 +1123,7 @@ export async function getEligibleJobOrders(clientId: number): Promise<any[]> {
       payment_details,
       branches:branch_id (id, name, prefix)
     `)
-    .eq("client_id", clientId)
+    .in("client_id", scopeClientIds)
     .eq("transferred_to_billing", false)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });

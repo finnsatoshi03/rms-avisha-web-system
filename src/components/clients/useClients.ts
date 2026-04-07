@@ -1,5 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { getClient, getClients, searchClients, ClientSearchResult } from "../../services/apiClients";
+import {
+  getClient,
+  getClientChildren,
+  getClients,
+  searchClients,
+  ClientSearchResult,
+} from "../../services/apiClients";
 
 export function useClients() {
   const {
@@ -49,6 +55,24 @@ export function useSearchClients(searchTerm: string) {
 
   return {
     results: results || [],
+    error,
+    isLoading,
+  };
+}
+
+export function useClientChildren(parentClientId?: number | null) {
+  const {
+    data: children,
+    error,
+    isLoading,
+  } = useQuery({
+    queryKey: ["client-children", parentClientId],
+    queryFn: () => getClientChildren(parentClientId!),
+    enabled: typeof parentClientId === "number" && parentClientId > 0,
+  });
+
+  return {
+    children: children || [],
     error,
     isLoading,
   };

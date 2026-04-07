@@ -3,6 +3,7 @@ import { CreateRentalConsumable } from "../lib/types";
 import { supabase } from "./supabase";
 import { upsertClient } from "./apiJobOrders";
 import { buildSoftDeleteUpdate } from "./softDelete";
+import { expandClientIdsWithChildren } from "./apiClients";
 
 // =============================================
 // QUERY: Filtered rentals with pagination
@@ -35,7 +36,7 @@ export async function getRentalsFiltered({
   let query = supabase.from("rentals").select(
     `
       *,
-      clients:client_id (*),
+      clients:client_id (*, parent_client:parent_client_id (id, name)),
       branches:branch_id (*),
       rental_assets:rental_asset_id (*),
       users:technician_id (*),
@@ -110,7 +111,8 @@ export async function getRentalsFiltered({
     let orConditions = rentalConditions;
 
     if (!clientError && matchingClients && matchingClients.length > 0) {
-      const clientIds = matchingClients.map((c) => c.id);
+      const baseClientIds = matchingClients.map((c) => c.id);
+      const clientIds = await expandClientIdsWithChildren(baseClientIds);
       orConditions += `,client_id.in.(${clientIds.join(",")})`;
     }
 
@@ -146,7 +148,7 @@ export async function getRental(id: number) {
     .select(
       `
       *,
-      clients:client_id (*),
+      clients:client_id (*, parent_client:parent_client_id (id, name)),
       branches:branch_id (*),
       rental_assets:rental_asset_id (*),
       users:technician_id (*),

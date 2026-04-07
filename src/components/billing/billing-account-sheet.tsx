@@ -103,6 +103,7 @@ import {
 import { useUser } from "../auth/useUser";
 import { isManagerReauthPasswordValid } from "../auth/manager-auth";
 import { formatNumberWithCommas } from "../../lib/helpers";
+import { getClientDisplayName } from "../../lib/client-hierarchy";
 import {
   BillingAccount,
   BillingAccountStatus,
@@ -923,7 +924,7 @@ export default function BillingAccountSheetContent({
     const pdfData: BillingStatementPDFData = {
       statement,
       accountNumber: acct.account_number,
-      clientName: acct.clients?.name ?? "Unknown Client",
+      clientName: getClientDisplayName(acct.clients, "") || "Unknown Client",
       clientContact: acct.billing_contact_phone || acct.clients?.contact_number || null,
       clientEmail: acct.billing_contact_email || acct.clients?.email || null,
       interestRate: acct.interest_rate,
@@ -962,7 +963,9 @@ export default function BillingAccountSheetContent({
   function buildStatementEmailDraft(statement: BillingStatement) {
     const periodStr = `${format(new Date(statement.period_start), "MMM d, yyyy")} - ${format(new Date(statement.period_end), "MMM d, yyyy")}`;
     const clientName =
-      acct?.billing_contact_name || acct?.clients?.name || "Valued Client";
+      acct?.billing_contact_name ||
+      getClientDisplayName(acct?.clients, "") ||
+      "Valued Client";
     const dueDateLabel = statement.due_date
       ? format(new Date(statement.due_date), "MMM d, yyyy")
       : "N/A";
@@ -1036,7 +1039,7 @@ export default function BillingAccountSheetContent({
       const pdfData: BillingStatementPDFData = {
         statement,
         accountNumber: acct.account_number,
-        clientName: acct.clients?.name ?? "Unknown Client",
+        clientName: getClientDisplayName(acct.clients, "") || "Unknown Client",
         clientContact: acct.billing_contact_phone || acct.clients?.contact_number || null,
         clientEmail: acct.billing_contact_email || acct.clients?.email || null,
         interestRate: acct.interest_rate,
@@ -1308,7 +1311,7 @@ export default function BillingAccountSheetContent({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold tracking-tight leading-tight">
-            {acct.clients?.name ?? "Unknown Client"}
+            {getClientDisplayName(acct.clients)}
           </h2>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
             {acct.clients?.type && (

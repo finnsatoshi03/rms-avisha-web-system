@@ -43,6 +43,7 @@ import {
   formatNumberWithCommas,
   renderWarrantyInfo,
 } from "../lib/helpers";
+import { getParentClientName } from "../lib/client-hierarchy";
 import { CreateJobOrderData, JobOrderData, User } from "../lib/types";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -377,6 +378,14 @@ export default function Table({
       discount: Number(order.discount || 0),
       downpayment: Number(order.downpayment || 0),
     }).totalAmount;
+  };
+
+  const getOrderClientCompanyName = (
+    client: JobOrderData["clients"] | null | undefined
+  ) => {
+    const parentName = getParentClientName(client);
+    const ownName = client?.name?.trim() || "";
+    return parentName || ownName || "Client";
   };
 
   const openPaymentDialogForOrder = (orderToPay: JobOrderData) => {
@@ -874,6 +883,9 @@ export default function Table({
                       const technicianName = technician
                         ? technician.fullname
                         : "---";
+                      const exportClientName = getOrderClientCompanyName(
+                        currentOrder.clients
+                      );
 
                       const jobOrderData: CreateJobOrderData = {
                         order_no: currentOrder.order_no || "",
@@ -901,7 +913,7 @@ export default function Table({
                             quantity: material.quantity ?? 0,
                             unitPrice: material.unit_price ?? 0,
                           })) || [],
-                        name: currentOrder.clients?.name || "",
+                        name: exportClientName,
                         order_received: orderReceivedTechnicianName,
                         technician_id: technicianName,
                         problem_statement: currentOrder.problem_statement || "",
@@ -913,7 +925,7 @@ export default function Table({
                       };
 
                       const fileName = `JobOrder_${currentOrder.order_no}_${
-                        currentOrder.clients?.name || "Client"
+                        exportClientName
                       }.pdf`;
 
                       return (
@@ -1052,6 +1064,9 @@ export default function Table({
                     order.created_at,
                     order.status
                   );
+                  const orderClientName = getOrderClientCompanyName(
+                    order.clients
+                  );
 
                   return (
                     <TableRow
@@ -1070,8 +1085,8 @@ export default function Table({
                       <TableCell>{order.order_no}</TableCell>
                       <TableCell className="font-bold text-black">
                         {order.is_copy
-                          ? `(Copy) ${order.clients.name}`
-                          : order.clients.name}
+                          ? `(Copy) ${orderClientName}`
+                          : orderClientName}
                       </TableCell>
                       {visibleColumns.includes("created_at") && (
                         <TableCell>

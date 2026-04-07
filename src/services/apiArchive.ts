@@ -5,6 +5,7 @@ import {
   buildSoftDeleteUpdate,
   RESTORE_SOFT_DELETE_UPDATE,
 } from "./softDelete";
+import { expandClientIdsWithChildren } from "./apiClients";
 
 export type ArchiveRecordType = "joborders" | "rentals" | "quotations";
 
@@ -125,7 +126,7 @@ export async function getArchivedJobOrdersFiltered({
       billing_account_id,
       deleted_at,
       deleted_by,
-      clients:client_id (id, name),
+      clients:client_id (id, name, parent_client_id, parent_client:parent_client_id (id, name)),
       branches:branch_id (id, name, prefix)
     `,
       { count: "exact" }
@@ -152,7 +153,9 @@ export async function getArchivedJobOrdersFiltered({
         `name.ilike.%${term}%,email.ilike.%${term}%,contact_number.ilike.%${term}%`
       );
 
-    const clientIds = (matchingClients ?? []).map((client) => client.id);
+    const clientIds = await expandClientIdsWithChildren(
+      (matchingClients ?? []).map((client) => client.id)
+    );
 
     let orConditions = [
       `order_no.ilike.%${term}%`,
@@ -208,7 +211,7 @@ export async function getArchivedRentalsFiltered({
       billing_account_id,
       deleted_at,
       deleted_by,
-      clients:client_id (id, name),
+      clients:client_id (id, name, parent_client_id, parent_client:parent_client_id (id, name)),
       branches:branch_id (id, name, prefix),
       rental_assets:rental_asset_id (id, unit_name, model)
     `,
@@ -236,7 +239,9 @@ export async function getArchivedRentalsFiltered({
         `name.ilike.%${term}%,email.ilike.%${term}%,contact_number.ilike.%${term}%`
       );
 
-    const clientIds = (matchingClients ?? []).map((client) => client.id);
+    const clientIds = await expandClientIdsWithChildren(
+      (matchingClients ?? []).map((client) => client.id)
+    );
 
     let orConditions = [
       `rental_no.ilike.%${term}%`,
@@ -296,7 +301,7 @@ export async function getArchivedQuotationsFiltered({
         order_no,
         branch_id,
         client_id,
-        clients:client_id (id, name),
+        clients:client_id (id, name, parent_client_id, parent_client:parent_client_id (id, name)),
         branches:branch_id (id, name, prefix)
       )
     `,
@@ -339,7 +344,9 @@ export async function getArchivedQuotationsFiltered({
         `name.ilike.%${term}%,email.ilike.%${term}%,contact_number.ilike.%${term}%`
       );
 
-    const matchingClientIds = (matchingClients ?? []).map((client) => client.id);
+    const matchingClientIds = await expandClientIdsWithChildren(
+      (matchingClients ?? []).map((client) => client.id)
+    );
 
     let matchingJobOrderIds: number[] = [];
     if (matchingClientIds.length > 0) {

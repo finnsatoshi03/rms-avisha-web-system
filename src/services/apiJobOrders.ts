@@ -4,6 +4,7 @@ import { CreateJobOrderData, MaterialItem } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
 import { supabase } from "./supabase";
 import { buildSoftDeleteUpdate } from "./softDelete";
+import { expandClientIdsWithChildren } from "./apiClients";
 
 function normalizeJobOrderUsers<T extends { users?: unknown; order_received_user?: unknown }>(
   joborders: T[] | null | undefined
@@ -20,7 +21,7 @@ function normalizeJobOrderUsers<T extends { users?: unknown; order_received_user
 export async function getJobOrders() {
   const { data: joborders, error } = await supabase.from("joborders").select(`
       *,
-      clients:client_id (*),
+      clients:client_id (*, parent_client:parent_client_id (id, name)),
       branches:branch_id (*),
       materials (
         id,
@@ -72,7 +73,7 @@ export async function getJobOrdersFiltered({
   let query = supabase.from("joborders").select(
     `
       *,
-      clients:client_id (*),
+      clients:client_id (*, parent_client:parent_client_id (id, name)),
       branches:branch_id (*),
       materials (
         id,
@@ -170,7 +171,8 @@ export async function getJobOrdersFiltered({
     if (clientError) {
       console.error("Error searching clients:", clientError);
     } else if (matchingClients && matchingClients.length > 0) {
-      const clientIds = matchingClients.map((client) => client.id);
+      const baseClientIds = matchingClients.map((client) => client.id);
+      const clientIds = await expandClientIdsWithChildren(baseClientIds);
       orConditions += `,client_id.in.(${clientIds.join(",")})`;
     }
 

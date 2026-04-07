@@ -12,11 +12,25 @@ type UserEmailShape = {
   migrated_email?: string | null;
 };
 
+function normalizeClientSearchKey(value: string | null | undefined): string {
+  return (value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function isParentAliasRow(client: ClientSearchResult): boolean {
+  if (client.parent_client_id == null) return false;
+
+  const ownKey = normalizeClientSearchKey(client.name);
+  const parentKey = normalizeClientSearchKey(client.parent_name || "");
+
+  if (!ownKey) return true;
+  return Boolean(parentKey) && ownKey === parentKey;
+}
+
 export async function getClientsWithJobOrders() {
   try {
     const { data: clients, error: clientError } = await supabase
       .from("clients")
-      .select("*")
+      .select("*, parent_client:parent_client_id(id, name)")
       .eq("is_active", true);
 
     if (clientError) {
@@ -76,7 +90,7 @@ export async function getClientsWithJobOrders() {
 export async function getClients() {
   const { data: clients, error } = await supabase
     .from("clients")
-    .select("*")
+    .select("*, parent_client:parent_client_id(id, name)")
     .eq("is_active", true);
 
   if (error) {
@@ -88,10 +102,11 @@ export async function getClients() {
 }
 
 export async function getClient(id: string) {
+  const clientId = Number(id);
   const { data: client, error } = await supabase
     .from("clients")
-    .select("*")
-    .eq("id", id)
+    .select("*, parent_client:parent_client_id(id, name)")
+    .eq("id", clientId)
     .single();
 
   if (error) {
@@ -99,7 +114,17 @@ export async function getClient(id: string) {
     throw new Error("Error fetching client");
   }
 
-  return client;
+  const { data: childClients } = await supabase
+    .from("clients")
+    .select("id, name")
+    .eq("parent_client_id", clientId)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  return {
+    ...client,
+    child_clients: childClients || [],
+  };
 }
 
 export async function searchClients(searchTerm: string): Promise<ClientSearchResult[]> {
@@ -115,7 +140,11 @@ export async function searchClients(searchTerm: string): Promise<ClientSearchRes
     throw new Error("Error searching clients");
   }
 
-  return (data || []) as ClientSearchResult[];
+  const rows = ((data || []) as ClientSearchResult[]).filter(
+    (row) => !isParentAliasRow(row)
+  );
+
+  return rows;
 }
 
 export async function createClient(
@@ -131,9 +160,10 @@ export async function createClient(
         type: data.type || "individual",
         address: data.address || null,
         notes: data.notes || null,
+        parent_client_id: data.parent_client_id ?? null,
       },
     ])
-    .select()
+    .select("*, parent_client:parent_client_id(id, name)")
     .single();
 
   if (error) {
@@ -152,7 +182,7 @@ export async function updateClient(
     .from("clients")
     .update(data)
     .eq("id", id)
-    .select()
+    .select("*, parent_client:parent_client_id(id, name)")
     .single();
 
   if (error) {
@@ -161,4 +191,90 @@ export async function updateClient(
   }
 
   return updatedClient;
+}
+
+export async function getClientChildren(parentClientId: number): Promise<Client[]> {
+  const { data, error } = await supabase
+    .from("clients")
+    .select("*, parent_client:parent_client_id(id, name)")
+    .eq("parent_client_id", parentClientId)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  if (error) {
+    console.error(error);
+    throw new Error("Error fetching child clients");
+  }
+
+  return data || [];
+}
+
+export async function getScopedClientIds(clientId: number): Promise<number[]> {
+  const { data: client, error } = await supabase
+    .from("clients")
+    .select("id, parent_client_id")
+    .eq("id", clientId)
+    .single();
+
+  if (error) {
+    console.error(error);
+    return [clientId];
+  }
+
+  // Child-level scope: only itself.
+  if (client.parent_client_id != null) {
+    return [client.id];
+  }
+
+  // Parent-level scope: parent + all children.
+  const { data: children, error: childError } = await supabase
+    .from("clients")
+    .select("id")
+    .eq("parent_client_id", client.id);
+
+  if (childError) {
+    console.error(childError);
+    return [client.id];
+  }
+
+  return [client.id, ...(children || []).map((row) => row.id)];
+}
+
+export async function expandClientIdsWithChildren(
+  clientIds: number[]
+): Promise<number[]> {
+  const uniqueClientIds = Array.from(new Set(clientIds)).filter((id) =>
+    Number.isFinite(id)
+  );
+  if (uniqueClientIds.length === 0) return [];
+
+  const { data: parentRows, error: parentError } = await supabase
+    .from("clients")
+    .select("id")
+    .in("id", uniqueClientIds)
+    .is("parent_client_id", null);
+
+  if (parentError) {
+    console.error(parentError);
+    return uniqueClientIds;
+  }
+
+  const parentIds = (parentRows || []).map((row) => row.id);
+  if (parentIds.length === 0) {
+    return uniqueClientIds;
+  }
+
+  const { data: children, error: childError } = await supabase
+    .from("clients")
+    .select("id")
+    .in("parent_client_id", parentIds);
+
+  if (childError) {
+    console.error(childError);
+    return uniqueClientIds;
+  }
+
+  return Array.from(
+    new Set([...uniqueClientIds, ...(children || []).map((row) => row.id)])
+  );
 }

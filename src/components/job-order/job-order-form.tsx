@@ -115,6 +115,8 @@ import {
   CommandItem,
 } from "../ui/command";
 import { cn } from "../../lib/utils";
+import { useClientChildren } from "../clients/useClients";
+import { getClientDisplayName } from "../../lib/client-hierarchy";
 import {
   getBillingSyncSnapshot,
   getPaymentStatusLabel,
@@ -369,6 +371,18 @@ export default function JobOrderForm({
   const [selectedClient, setSelectedClient] = useState<Client | null>(
     editSession && clients ? (clients as Client) : null
   );
+  const [selectedSubClientId, setSelectedSubClientId] = useState<string>("none");
+  const { children: childClients } = useClientChildren(
+    selectedClient && selectedClient.parent_client_id == null
+      ? selectedClient.id
+      : null
+  );
+  const selectedSubClient =
+    selectedSubClientId !== "none"
+      ? childClients.find((child) => String(child.id) === selectedSubClientId) ||
+        null
+      : null;
+  const effectiveSelectedClient = selectedSubClient || selectedClient;
   const [selectedMachineType, setSelectedMachineType] = useState(
     editSession ? editValuesWithClient?.machine_type : ""
   );
@@ -555,6 +569,17 @@ export default function JobOrderForm({
         warranty_months: 1,
       },
   });
+
+  useEffect(() => {
+    if (!selectedSubClient) return;
+    form.setValue("name", selectedSubClient.name || "");
+    form.setValue("client_id", selectedSubClient.id);
+    form.setValue("contact_number", selectedSubClient.contact_number || "+63 ");
+    setContactNumber(selectedSubClient.contact_number || "+63 ");
+    form.setValue("email", selectedSubClient.email || "");
+    form.clearErrors("name");
+    form.clearErrors("contact_number");
+  }, [selectedSubClient, form]);
 
   const watchedBranchId = form.watch("branch_id");
 
@@ -1421,7 +1446,7 @@ export default function JobOrderForm({
     // Update the materials field with the filtered materials
     const submittedValues: CreateJobOrderData = {
       ...values,
-      client_id: selectedClient?.id || values.client_id || null,
+      client_id: effectiveSelectedClient?.id || values.client_id || null,
       materials: filteredMaterials,
       order_received:
         values.order_received?.trim() === "" ? null : values.order_received,
@@ -2137,7 +2162,7 @@ export default function JobOrderForm({
           </div>
           {isFormReadonly ? (
             <div className="text-3xl font-bold mb-2">
-              {selectedClient?.name || form.getValues("name") || "—"}
+              {getClientDisplayName(selectedClient, "") || form.getValues("name") || "—"}
               {selectedClient?.type === "company" && (
                 <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full align-middle">
                   company
@@ -2155,6 +2180,7 @@ export default function JobOrderForm({
                       selectedClient={selectedClient}
                       onClientSelect={(client) => {
                         setSelectedClient(client);
+                        setSelectedSubClientId("none");
                         form.setValue("name", client.name);
                         form.setValue("client_id", client.id);
                         form.setValue("contact_number", client.contact_number || "+63 ");
@@ -2165,6 +2191,7 @@ export default function JobOrderForm({
                       }}
                       onClientCreate={(client) => {
                         setSelectedClient(client);
+                        setSelectedSubClientId("none");
                         form.setValue("name", client.name);
                         form.setValue("client_id", client.id);
                         form.setValue("contact_number", client.contact_number || "+63 ");
@@ -2177,6 +2204,47 @@ export default function JobOrderForm({
                       initialName={form.getValues("name")}
                     />
                   </FormControl>
+                  {selectedClient &&
+                    selectedClient.parent_client_id == null &&
+                    childClients.length > 0 && (
+                      <div className="mt-2 p-2 border rounded-lg bg-muted/20">
+                        <p className="text-xs text-muted-foreground mb-1">
+                          Department / Branch (optional)
+                        </p>
+                        <Select
+                          value={selectedSubClientId}
+                          onValueChange={(value) => {
+                            setSelectedSubClientId(value);
+                            if (value === "none" && selectedClient) {
+                              form.setValue("name", selectedClient.name || "");
+                              form.setValue("client_id", selectedClient.id);
+                              form.setValue(
+                                "contact_number",
+                                selectedClient.contact_number || "+63 "
+                              );
+                              setContactNumber(
+                                selectedClient.contact_number || "+63 "
+                              );
+                              form.setValue("email", selectedClient.email || "");
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Parent-level (all departments)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">
+                              Parent-level (all departments)
+                            </SelectItem>
+                            {childClients.map((child) => (
+                              <SelectItem key={child.id} value={String(child.id)}>
+                                {child.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   <FormMessage />
                 </FormItem>
               )}

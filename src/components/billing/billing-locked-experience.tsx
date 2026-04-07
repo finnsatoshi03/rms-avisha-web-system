@@ -86,6 +86,7 @@ import {
   DEMO_EMAIL_LOGS,
 } from "./billing-demo-data";
 import { formatNumberWithCommas } from "../../lib/helpers";
+import { getClientDisplayName } from "../../lib/client-hierarchy";
 
 const STORAGE_KEY = "rms_billing_demo_completed";
 
@@ -910,7 +911,7 @@ function MockBillingAccountsList({
                   {account.account_number}
                 </TableCell>
                 <TableCell className="font-medium text-sm">
-                  {account.clients?.name || "—"}
+                  {getClientDisplayName(account.clients)}
                 </TableCell>
                 <TableCell>
                   {account.clients?.type ? (

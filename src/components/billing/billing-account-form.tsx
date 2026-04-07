@@ -10,6 +10,9 @@ import {
   useBillingAccount,
 } from "./useBilling";
 import ClientAutoSuggest from "../job-order/client-auto-suggest";
+import { useClientChildren } from "../clients/useClients";
+import { getClient } from "../../services/apiClients";
+import { getClientDisplayName } from "../../lib/client-hierarchy";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -22,6 +25,7 @@ import {
   SelectContent,
   SelectItem,
 } from "../ui/select";
+import { Label } from "../ui/label";
 import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
 import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
 import GuidedTour from "../onboarding/guided-tour";
@@ -46,6 +50,7 @@ export default function BillingAccountFormSheet({
   const { data: existingAccount } = useBillingAccount(accountId);
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedSubClientId, setSelectedSubClientId] = useState<string>("none");
   const [creditLimit, setCreditLimit] = useState<string>("0");
   const [billingCutoffDay, setBillingCutoffDay] = useState<string>("1");
   const [interestRate, setInterestRate] = useState<string>("0.00");
@@ -54,8 +59,17 @@ export default function BillingAccountFormSheet({
   const [billingContactPhone, setBillingContactPhone] = useState("");
   const [notes, setNotes] = useState("");
 
+  const isParentSelection = selectedClient?.parent_client_id == null;
+  const selectedParentId = isParentSelection ? selectedClient?.id : null;
+  const { children: childClients } = useClientChildren(selectedParentId);
+  const selectedSubClient =
+    selectedSubClientId !== "none"
+      ? childClients.find((child) => String(child.id) === selectedSubClientId) || null
+      : null;
+  const effectiveBillingClient = selectedSubClient || selectedClient;
+
   const { data: existingClientAccount } = useBillingAccountByClient(
-    !isEditMode ? selectedClient?.id : undefined
+    !isEditMode ? effectiveBillingClient?.id : undefined
   );
 
   const createMutation = useCreateBillingAccount();
@@ -91,33 +105,59 @@ export default function BillingAccountFormSheet({
       setBillingContactPhone(existingAccount.billing_contact_phone ?? "");
       setNotes(existingAccount.notes ?? "");
       if (existingAccount.clients) {
-        setSelectedClient(existingAccount.clients);
+        if (
+          existingAccount.clients.parent_client_id != null &&
+          existingAccount.clients.parent_client
+        ) {
+          setSelectedClient(existingAccount.clients.parent_client as Client);
+          setSelectedSubClientId(String(existingAccount.clients.id));
+        } else {
+          setSelectedClient(existingAccount.clients);
+          setSelectedSubClientId("none");
+        }
       }
     }
   }, [isEditMode, existingAccount]);
 
   const clientHasExistingAccount =
-    !isEditMode && existingClientAccount && selectedClient;
+    !isEditMode && existingClientAccount && effectiveBillingClient;
 
   const parseInterestRate = (value: string): number => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
-  const handleClientPick = (client: Client) => {
+  useEffect(() => {
+    if (isEditMode || !effectiveBillingClient) return;
+    setBillingContactEmail(effectiveBillingClient.email || "");
+    setBillingContactPhone(effectiveBillingClient.contact_number || "");
+  }, [effectiveBillingClient, isEditMode]);
+
+  const handleClientPick = async (client: Client) => {
+    if (client.parent_client_id != null) {
+      try {
+        const parent = await getClient(String(client.parent_client_id));
+        setSelectedClient(parent);
+        setSelectedSubClientId(String(client.id));
+      } catch {
+        setSelectedClient(client);
+        setSelectedSubClientId("none");
+      }
+      return;
+    }
+
     setSelectedClient(client);
-    setBillingContactEmail(client.email || "");
-    setBillingContactPhone(client.contact_number || "");
+    setSelectedSubClientId("none");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!isEditMode) {
-      if (!selectedClient) return;
+      if (!effectiveBillingClient) return;
 
       const data: CreateBillingAccountData = {
-        client_id: selectedClient.id,
+        client_id: effectiveBillingClient.id,
         credit_limit: Number(creditLimit) || 0,
         interest_rate: parseInterestRate(interestRate),
         billing_cutoff_day: Number(billingCutoffDay),
@@ -195,7 +235,7 @@ export default function BillingAccountFormSheet({
       {/* ── Client name ─ same large bold as JO form ─────────────── */}
       {isEditMode ? (
         <div className="text-3xl font-bold mb-2">
-          {existingAccount?.clients?.name ?? "Unknown client"}
+          {getClientDisplayName(existingAccount?.clients) ?? "Unknown client"}
           {existingAccount?.clients?.type === "company" && (
             <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full align-middle">
               company
@@ -209,6 +249,29 @@ export default function BillingAccountFormSheet({
             onClientSelect={handleClientPick}
             onClientCreate={handleClientPick}
           />
+          {selectedClient && selectedClient.parent_client_id == null && childClients.length > 0 && (
+            <div className="mt-2 p-2 border rounded-lg bg-muted/20">
+              <Label className="text-xs">Department / Branch (optional)</Label>
+              <Select
+                value={selectedSubClientId}
+                onValueChange={setSelectedSubClientId}
+              >
+                <SelectTrigger className="mt-1 h-8 text-sm">
+                  <SelectValue placeholder="Parent-level (all departments)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    Parent-level (all departments)
+                  </SelectItem>
+                  {childClients.map((child) => (
+                    <SelectItem key={child.id} value={String(child.id)}>
+                      {child.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       )}
 
@@ -344,7 +407,7 @@ export default function BillingAccountFormSheet({
           type="submit"
           disabled={
             isSubmitting ||
-            (!isEditMode && !selectedClient) ||
+            (!isEditMode && !effectiveBillingClient) ||
             !!clientHasExistingAccount ||
             !billingContactEmail.trim() ||
             !billingContactPhone.trim()

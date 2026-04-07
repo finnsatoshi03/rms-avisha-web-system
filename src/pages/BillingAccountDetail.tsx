@@ -57,6 +57,7 @@ import {
 } from "../components/billing/useBilling";
 import { useUser } from "../components/auth/useUser";
 import { formatNumberWithCommas } from "../lib/helpers";
+import { getClientDisplayName } from "../lib/client-hierarchy";
 import {
   BillingAccount,
   LedgerEntry,
@@ -291,7 +292,7 @@ export default function BillingAccountDetail() {
 
         {/* Client name - large bold like JO sheet */}
         <h1 className="text-3xl font-bold tracking-tight pl-9">
-          {acct.clients?.name ?? "Unknown Client"}
+          {getClientDisplayName(acct.clients)}
         </h1>
       </div>
 

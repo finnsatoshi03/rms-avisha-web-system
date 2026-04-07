@@ -44,6 +44,7 @@ import {
 } from "../lib/billing-types";
 import { Client } from "../lib/types";
 import { formatNumberWithCommas } from "../lib/helpers";
+import { getClientDisplayName } from "../lib/client-hierarchy";
 import BillingAccountFormSheet from "../components/billing/billing-account-form";
 import BillingAccountSheetContent from "../components/billing/billing-account-sheet";
 import BillingStatementPDF, {
@@ -170,7 +171,7 @@ export default function BillingAccounts() {
 
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase();
-        const clientName = account.clients?.name?.toLowerCase() || "";
+        const clientName = getClientDisplayName(account.clients, "").toLowerCase();
         const accountNumber = account.account_number?.toLowerCase() || "";
         const contactPhone =
           account.billing_contact_phone?.toLowerCase() ||
@@ -299,7 +300,7 @@ export default function BillingAccounts() {
     const pdfData: BillingStatementPDFData = {
       statement,
       accountNumber: mockPdfAccount.account_number,
-      clientName: mockPdfAccount.clients?.name ?? "Mock Client",
+      clientName: getClientDisplayName(mockPdfAccount.clients, "") || "Mock Client",
       clientContact:
         mockPdfAccount.billing_contact_phone ??
         mockPdfAccount.clients?.contact_number ??
@@ -468,7 +469,7 @@ export default function BillingAccounts() {
                     {account.account_number}
                   </TableCell>
                   <TableCell className="font-medium text-sm">
-                    {account.clients?.name || "—"}
+                    {getClientDisplayName(account.clients)}
                   </TableCell>
                   <TableCell>
                     {account.clients?.type ? (
