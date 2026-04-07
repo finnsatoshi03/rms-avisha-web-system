@@ -83,7 +83,10 @@ import {
   getPaymentStatusLabel,
   isBillingLinkedSource,
 } from "../../lib/billing-sync";
-import { computeTransactionTotal } from "../../lib/transaction-totals";
+import {
+  computeStoredAmountDue,
+  computeTransactionTotal,
+} from "../../lib/transaction-totals";
 import { getClientDisplayName } from "../../lib/client-hierarchy";
 
 interface RentalDetailSheetProps {
@@ -389,7 +392,28 @@ export default function RentalDetailSheet({
     }
   };
 
-  const livePaymentTotal = adjustedGrandTotal;
+  const livePaymentTotal = useMemo(() => {
+    const mirroredRemaining = billingSync?.remaining_balance;
+    if (typeof mirroredRemaining === "number" && Number.isFinite(mirroredRemaining)) {
+      return Math.max(mirroredRemaining, 0);
+    }
+
+    return computeStoredAmountDue({
+      grandTotal: Number(rentalData.grand_total || 0),
+      subTotal:
+        Number(rentalData.rate_amount || 0) +
+        Number(rentalData.consumables_total || 0),
+      discount: Number(rentalData.discount || 0),
+      downpayment: Number(rentalData.downpayment || 0),
+    });
+  }, [
+    billingSync?.remaining_balance,
+    rentalData.grand_total,
+    rentalData.rate_amount,
+    rentalData.consumables_total,
+    rentalData.discount,
+    rentalData.downpayment,
+  ]);
 
   const openBillingImpactGuard = (action: () => Promise<void>) => {
     if (!isBillingLinked) {

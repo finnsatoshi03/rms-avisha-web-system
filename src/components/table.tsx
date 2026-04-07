@@ -70,8 +70,8 @@ import { Separator } from "@radix-ui/react-separator";
 import { TableCellWithHover } from "./job-order/cell-hover";
 import { PaymentDialog } from "./table/payment-dialog";
 import BillingImpactConfirmDialog from "./billing/billing-impact-confirm-dialog";
-import { isBillingLinkedSource } from "../lib/billing-sync";
-import { computeTransactionTotal } from "../lib/transaction-totals";
+import { getBillingSyncSnapshot, isBillingLinkedSource } from "../lib/billing-sync";
+import { computeStoredAmountDue } from "../lib/transaction-totals";
 
 export default function Table({
   data,
@@ -368,16 +368,23 @@ export default function Table({
     });
 
   const getOrderPaymentTotal = (order: JobOrderData) => {
+    const billingSync = getBillingSyncSnapshot(order.payment_details);
+    const mirroredRemaining = billingSync?.remaining_balance;
+    if (typeof mirroredRemaining === "number" && Number.isFinite(mirroredRemaining)) {
+      return Math.max(mirroredRemaining, 0);
+    }
+
     const fallbackSubTotal =
       Number(order.sub_total || 0) > 0
         ? Number(order.sub_total || 0)
         : Number(order.labor_total || 0) + Number(order.material_total || 0);
 
-    return computeTransactionTotal({
+    return computeStoredAmountDue({
+      grandTotal: Number(order.grand_total || 0),
       subTotal: fallbackSubTotal,
       discount: Number(order.discount || 0),
       downpayment: Number(order.downpayment || 0),
-    }).totalAmount;
+    });
   };
 
   const getOrderClientCompanyName = (

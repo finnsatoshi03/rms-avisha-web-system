@@ -32,6 +32,13 @@ export type TransactionTotalBreakdown = {
   totalAmount: number;
 };
 
+export type StoredAmountDueInput = {
+  grandTotal?: NumericInput;
+  subTotal: NumericInput;
+  discount?: NumericInput;
+  downpayment?: NumericInput;
+};
+
 export function computeTransactionTotal({
   subTotal,
   discount = 0,
@@ -57,4 +64,34 @@ export function computeTransactionTotal({
     totalBeforeDownpayment,
     totalAmount,
   };
+}
+
+export function computeStoredAmountDue({
+  grandTotal = 0,
+  subTotal,
+  discount = 0,
+  downpayment = 0,
+}: StoredAmountDueInput): number {
+  const normalizedGrandTotal = toCurrencyNumber(grandTotal);
+  const normalizedDownpayment = toCurrencyNumber(downpayment);
+  const totals = computeTransactionTotal({
+    subTotal,
+    discount,
+    downpayment,
+  });
+
+  if (normalizedGrandTotal <= 0) {
+    return totals.totalAmount;
+  }
+
+  // Backward compatibility:
+  // legacy rows may have grand_total stored before downpayment deduction.
+  if (
+    normalizedDownpayment > 0 &&
+    amountsMatch(normalizedGrandTotal, totals.totalBeforeDownpayment)
+  ) {
+    return Math.max(roundCurrency(normalizedGrandTotal - normalizedDownpayment), 0);
+  }
+
+  return roundCurrency(normalizedGrandTotal);
 }
