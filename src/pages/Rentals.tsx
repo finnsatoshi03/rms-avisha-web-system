@@ -54,7 +54,11 @@ import {
   AlertDialogTitle,
 } from "../components/ui/alert-dialog";
 import BillingImpactConfirmDialog from "../components/billing/billing-impact-confirm-dialog";
-import { getBillingSyncSnapshot, isBillingLinkedSource } from "../lib/billing-sync";
+import {
+  getBillingSyncSnapshot,
+  getDirectPaymentRemainingBalance,
+  isBillingLinkedSource,
+} from "../lib/billing-sync";
 import { computeStoredAmountDue } from "../lib/transaction-totals";
 
 const allStatuses: { label: string; value: RentalStatus }[] = [
@@ -82,12 +86,14 @@ function getRentalAmountDue(rental: RentalData | null): number {
     return Math.max(mirroredRemaining, 0);
   }
 
-  return computeStoredAmountDue({
+  const totalAmountDue = computeStoredAmountDue({
     grandTotal: Number(rental.grand_total || 0),
     subTotal: Number(rental.rate_amount || 0) + Number(rental.consumables_total || 0),
     discount: Number(rental.discount || 0),
     downpayment: Number(rental.downpayment || 0),
   });
+
+  return getDirectPaymentRemainingBalance(totalAmountDue, rental.payment_details);
 }
 
 export default function Rentals() {

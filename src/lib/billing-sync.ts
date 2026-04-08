@@ -103,3 +103,38 @@ export function getPaymentStatusLabel(
       return "Pending";
   }
 }
+
+function roundCurrency(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+export function getDirectPaymentDetailsTotal(paymentDetails: unknown): number {
+  if (
+    !paymentDetails ||
+    typeof paymentDetails !== "object" ||
+    Array.isArray(paymentDetails)
+  ) {
+    return 0;
+  }
+
+  const entries = Object.entries(paymentDetails as Record<string, unknown>);
+  const total = entries.reduce((sum, [key, value]) => {
+    if (key === "billing_sync") return sum;
+    const numeric = toNumber(value);
+    if (numeric === null || numeric <= 0) return sum;
+    return sum + numeric;
+  }, 0);
+
+  return Math.max(roundCurrency(total), 0);
+}
+
+export function getDirectPaymentRemainingBalance(
+  totalAmount: number,
+  paymentDetails: unknown
+): number {
+  const normalizedTotal = Number.isFinite(totalAmount)
+    ? Math.max(roundCurrency(totalAmount), 0)
+    : 0;
+  const paidTotal = getDirectPaymentDetailsTotal(paymentDetails);
+  return Math.max(roundCurrency(normalizedTotal - paidTotal), 0);
+}

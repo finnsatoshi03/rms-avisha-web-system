@@ -80,6 +80,7 @@ import toast from "react-hot-toast";
 import BillingImpactConfirmDialog from "../billing/billing-impact-confirm-dialog";
 import {
   getBillingSyncSnapshot,
+  getDirectPaymentRemainingBalance,
   getPaymentStatusLabel,
   isBillingLinkedSource,
 } from "../../lib/billing-sync";
@@ -313,9 +314,7 @@ export default function RentalDetailSheet({
         (rentalRecord.status === "Completed" && !effectiveReceiptUrl)
       : rentalRecord.status === "Completed" && !effectiveReceiptUrl;
   const canManageSourceReceipt = Boolean(rentalRecord) && !isTechnician;
-
-  if (!rentalRecord) return null;
-  const rentalData = rentalRecord;
+  const rentalData = rentalRecord as RentalData;
 
   const handleOpenReceipt = async () => {
     if (!effectiveReceiptUrl || openingReceipt) return;
@@ -398,21 +397,31 @@ export default function RentalDetailSheet({
       return Math.max(mirroredRemaining, 0);
     }
 
-    return computeStoredAmountDue({
-      grandTotal: Number(rentalData.grand_total || 0),
+    if (!rentalRecord) {
+      return 0;
+    }
+
+    const totalAmountDue = computeStoredAmountDue({
+      grandTotal: Number(rentalRecord.grand_total || 0),
       subTotal:
-        Number(rentalData.rate_amount || 0) +
-        Number(rentalData.consumables_total || 0),
-      discount: Number(rentalData.discount || 0),
-      downpayment: Number(rentalData.downpayment || 0),
+        Number(rentalRecord.rate_amount || 0) +
+        Number(rentalRecord.consumables_total || 0),
+      discount: Number(rentalRecord.discount || 0),
+      downpayment: Number(rentalRecord.downpayment || 0),
     });
+
+    return getDirectPaymentRemainingBalance(
+      totalAmountDue,
+      rentalRecord.payment_details
+    );
   }, [
     billingSync?.remaining_balance,
-    rentalData.grand_total,
-    rentalData.rate_amount,
-    rentalData.consumables_total,
-    rentalData.discount,
-    rentalData.downpayment,
+    rentalRecord?.grand_total,
+    rentalRecord?.rate_amount,
+    rentalRecord?.consumables_total,
+    rentalRecord?.discount,
+    rentalRecord?.downpayment,
+    rentalRecord?.payment_details,
   ]);
 
   const openBillingImpactGuard = (action: () => Promise<void>) => {
@@ -562,6 +571,8 @@ export default function RentalDetailSheet({
   }, [selectedSubClient, form]);
 
   const hasHighImpactRentalChanges = (values: RentalFormValues) => {
+    if (!rentalRecord) return false;
+
     const hasNumberChange = (current: number, next: number) =>
       Math.abs(Number(current || 0) - Number(next || 0)) > 0.009;
 
@@ -600,6 +611,7 @@ export default function RentalDetailSheet({
     };
 
     const performUpdate = async () => {
+      if (!rentalRecord) return;
       await updateMutation.mutateAsync({
         rentalId: rentalData.id,
         data: updatePayload,
@@ -614,6 +626,8 @@ export default function RentalDetailSheet({
 
     void performUpdate();
   }
+
+  if (!rentalRecord) return null;
 
   return (
     <>
@@ -809,51 +823,48 @@ export default function RentalDetailSheet({
                           onClientCreate={handleClientSelect}
                           initialName={form.watch("name")}
                         />
-                        {selectedClient &&
-                          selectedClient.parent_client_id == null &&
-                          childClients.length > 0 && (
-                            <div className="mt-2 p-2 border rounded-lg bg-muted/20">
-                              <p className="text-xs text-muted-foreground mb-1">
-                                Department / Branch (optional)
-                              </p>
-                              <Select
-                                value={selectedSubClientId}
-                                onValueChange={(value) => {
-                                  setSelectedSubClientId(value);
-                                  if (value === "none" && selectedClient) {
-                                    form.setValue(
-                                      "client_id",
-                                      selectedClient.id as number
-                                    );
-                                    form.setValue("name", selectedClient.name || "");
-                                    form.setValue(
-                                      "contact_number",
-                                      selectedClient.contact_number || ""
-                                    );
-                                    form.setValue("email", selectedClient.email || "");
-                                  }
-                                }}
-                              >
-                                <SelectTrigger className="h-8 text-sm">
-                                  <SelectValue placeholder="Parent-level (all departments)" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">
-                                    Parent-level (all departments)
-                                  </SelectItem>
-                                  {childClients.map((child) => (
-                                    <SelectItem
-                                      key={child.id}
-                                      value={String(child.id)}
-                                    >
-                                      {getClientDisplayName(child)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
                       </FormControl>
+                      {selectedClient &&
+                        selectedClient.parent_client_id == null &&
+                        childClients.length > 0 && (
+                          <div className="mt-2 p-2 border rounded-lg bg-muted/20">
+                            <p className="text-xs text-muted-foreground mb-1">
+                              Department / Branch (optional)
+                            </p>
+                            <Select
+                              value={selectedSubClientId}
+                              onValueChange={(value) => {
+                                setSelectedSubClientId(value);
+                                if (value === "none" && selectedClient) {
+                                  form.setValue(
+                                    "client_id",
+                                    selectedClient.id as number
+                                  );
+                                  form.setValue("name", selectedClient.name || "");
+                                  form.setValue(
+                                    "contact_number",
+                                    selectedClient.contact_number || ""
+                                  );
+                                  form.setValue("email", selectedClient.email || "");
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue placeholder="Parent-level (all departments)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">
+                                  Parent-level (all departments)
+                                </SelectItem>
+                                {childClients.map((child) => (
+                                  <SelectItem key={child.id} value={String(child.id)}>
+                                    {getClientDisplayName(child)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       <FormMessage />
                     </FormItem>
                   )}

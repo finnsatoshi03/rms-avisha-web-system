@@ -252,45 +252,45 @@ export default function RentalForm({
                   onClientCreate={handleClientCreate}
                   initialName={form.watch("name")}
                 />
-                {selectedClient &&
-                  selectedClient.parent_client_id == null &&
-                  childClients.length > 0 && (
-                    <div className="mt-2 p-2 border rounded-lg bg-muted/20">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Department / Branch (optional)
-                      </p>
-                      <Select
-                        value={selectedSubClientId}
-                        onValueChange={(value) => {
-                          setSelectedSubClientId(value);
-                          if (value === "none" && selectedClient) {
-                            form.setValue("client_id", selectedClient.id as number);
-                            form.setValue("name", selectedClient.name || "");
-                            form.setValue(
-                              "contact_number",
-                              selectedClient.contact_number || ""
-                            );
-                            form.setValue("email", selectedClient.email || "");
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue placeholder="Parent-level (all departments)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">
-                            Parent-level (all departments)
-                          </SelectItem>
-                          {childClients.map((child) => (
-                            <SelectItem key={child.id} value={String(child.id)}>
-                              {getClientDisplayName(child)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
               </FormControl>
+              {selectedClient &&
+                selectedClient.parent_client_id == null &&
+                childClients.length > 0 && (
+                  <div className="mt-2 p-2 border rounded-lg bg-muted/20">
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Department / Branch (optional)
+                    </p>
+                    <Select
+                      value={selectedSubClientId}
+                      onValueChange={(value) => {
+                        setSelectedSubClientId(value);
+                        if (value === "none" && selectedClient) {
+                          form.setValue("client_id", selectedClient.id as number);
+                          form.setValue("name", selectedClient.name || "");
+                          form.setValue(
+                            "contact_number",
+                            selectedClient.contact_number || ""
+                          );
+                          form.setValue("email", selectedClient.email || "");
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Parent-level (all departments)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">
+                          Parent-level (all departments)
+                        </SelectItem>
+                        {childClients.map((child) => (
+                          <SelectItem key={child.id} value={String(child.id)}>
+                            {getClientDisplayName(child)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               <FormMessage />
             </FormItem>
           )}

@@ -70,7 +70,11 @@ import { Separator } from "@radix-ui/react-separator";
 import { TableCellWithHover } from "./job-order/cell-hover";
 import { PaymentDialog } from "./table/payment-dialog";
 import BillingImpactConfirmDialog from "./billing/billing-impact-confirm-dialog";
-import { getBillingSyncSnapshot, isBillingLinkedSource } from "../lib/billing-sync";
+import {
+  getBillingSyncSnapshot,
+  getDirectPaymentRemainingBalance,
+  isBillingLinkedSource,
+} from "../lib/billing-sync";
 import { computeStoredAmountDue } from "../lib/transaction-totals";
 
 export default function Table({
@@ -379,12 +383,37 @@ export default function Table({
         ? Number(order.sub_total || 0)
         : Number(order.labor_total || 0) + Number(order.material_total || 0);
 
-    return computeStoredAmountDue({
+    const totalAmountDue = computeStoredAmountDue({
       grandTotal: Number(order.grand_total || 0),
       subTotal: fallbackSubTotal,
       discount: Number(order.discount || 0),
       downpayment: Number(order.downpayment || 0),
     });
+
+    return getDirectPaymentRemainingBalance(totalAmountDue, order.payment_details);
+  };
+
+  const markAlreadyPaidOrderCompleted = (
+    order: JobOrderData,
+    options?: { clearSelectedRows?: boolean }
+  ) => {
+    updateStatusMutate(
+      { ids: [order.id], status: "Completed" },
+      {
+        onSuccess: () => {
+          updateStatus(order.order_no, "Completed");
+          if (options?.clearSelectedRows) {
+            setSelectedRows([]);
+          }
+          toast.success("Job Order completed (already fully paid)");
+          queryClient.invalidateQueries({ queryKey: ["job_order"] });
+        },
+        onError: (error) => {
+          toast.error("An error occurred while updating the Job Order status");
+          console.error(error);
+        },
+      }
+    );
   };
 
   const getOrderClientCompanyName = (
@@ -532,6 +561,14 @@ export default function Table({
         setOpenPopover(null);
         return;
       }
+
+      const amountDue = getOrderPaymentTotal(orderToUpdate);
+      if (amountDue <= 0) {
+        markAlreadyPaidOrderCompleted(orderToUpdate);
+        setOpenPopover(null);
+        return;
+      }
+
       openPaymentDialogForOrder(orderToUpdate);
       return;
     }
@@ -596,13 +633,26 @@ export default function Table({
       throw new Error("No job order selected for payment.");
     }
 
+    const latestSelectedOrder =
+      orders.find((order) => order.id === selectedOrder.id) || selectedOrder;
     const totalPayment = Object.values(payments).reduce(
       (acc, amount) => acc + amount,
       0
     );
-    const amountDue = selectedOrderTotal || getOrderPaymentTotal(selectedOrder);
+    const amountDue = getOrderPaymentTotal(latestSelectedOrder);
     console.log("Form Total:", amountDue);
     console.log("Dialog Total:", amountDue);
+
+    if (amountDue <= 0) {
+      await updateStatusMutateAsync({
+        ids: [latestSelectedOrder.id],
+        status: "Completed",
+      });
+      toast.success("Job Order completed (already fully paid)");
+      queryClient.invalidateQueries({ queryKey: ["job_order"] });
+      setSelectedRows([]);
+      return;
+    }
 
     // Payment must match the computed source-of-truth total.
     if (Math.abs(totalPayment - amountDue) > 0.01) {
@@ -617,16 +667,16 @@ export default function Table({
       if (receiptFile) {
         uploadedReceiptPath = await uploadReceiptFile({
           sourceType: "job_order",
-          sourceId: selectedOrder.id,
+          sourceId: latestSelectedOrder.id,
           file: receiptFile,
         });
       }
 
-      await applySourcePayment("job_order", selectedOrder.id, payments, {
+      await applySourcePayment("job_order", latestSelectedOrder.id, payments, {
         receiptUrl: uploadedReceiptPath,
       });
       await updateStatusMutateAsync({
-        ids: [selectedOrder.id],
+        ids: [latestSelectedOrder.id],
         status: "Completed",
       });
 
@@ -700,6 +750,15 @@ export default function Table({
             // setEditSheetOpen(true);
             return;
           }
+
+          const amountDue = getOrderPaymentTotal(orderToUpdate);
+          if (amountDue <= 0) {
+            markAlreadyPaidOrderCompleted(orderToUpdate, {
+              clearSelectedRows: true,
+            });
+            return;
+          }
+
           openPaymentDialogForOrder(orderToUpdate);
         }
       } else {

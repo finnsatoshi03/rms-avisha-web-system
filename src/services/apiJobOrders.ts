@@ -638,10 +638,14 @@ export async function duplicateJobOrder(id: number) {
 }
 
 export async function updateJobOrderStatus(ids: number[], status: string) {
-  // Fetch warranty_months from the database for each job order
+  const nextStatusNormalized = status.toLowerCase();
+  const isNextTerminalPaidStatus =
+    nextStatusNormalized === "completed" || nextStatusNormalized === "pull out";
+
+  // Fetch current status and billing linkage so we can handle rollback behavior safely.
   const { data: jobOrders, error: fetchError } = await supabase
     .from("joborders")
-    .select("id, warranty_months")
+    .select("id, warranty_months, status, transferred_to_billing, rate")
     .in("id", ids)
     .is("deleted_at", null);
 
@@ -651,28 +655,28 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
   }
 
   const warranty =
-    status.toLowerCase() === "completed"
+    nextStatusNormalized === "completed"
       ? new Date(new Date().setDate(new Date().getDate() + 30)) // Default 1 month if no warranty_months
       : null;
 
   const completedAt =
-    status.toLowerCase() === "completed" || status.toLowerCase() === "pull out"
-      ? new Date()
-      : null;
+    isNextTerminalPaidStatus ? new Date() : null;
 
-  if (status.toLowerCase() === "pull out") {
-    const { data: pullOutJobOrders, error: pullOutFetchError } = await supabase
-      .from("joborders")
-      .select("id, rate")
-      .in("id", ids)
-      .is("deleted_at", null);
+  const shouldResetCounterPayment = (jobOrder: {
+    status?: string | null;
+    transferred_to_billing?: boolean | null;
+  }) => {
+    if (jobOrder.transferred_to_billing) return false;
 
-    if (pullOutFetchError) {
-      console.error("Error fetching job orders:", pullOutFetchError);
-      throw new Error("Could not fetch job orders");
-    }
+    const previousStatus = (jobOrder.status || "").toLowerCase();
+    const wasTerminalPaidStatus =
+      previousStatus === "completed" || previousStatus === "pull out";
 
-    for (const jobOrder of pullOutJobOrders) {
+    return wasTerminalPaidStatus && !isNextTerminalPaidStatus;
+  };
+
+  if (nextStatusNormalized === "pull out") {
+    for (const jobOrder of jobOrders) {
       let newRate = jobOrder.rate;
       if (jobOrder.rate === 1500 || jobOrder.rate === "1500") {
         newRate = 250;
@@ -680,16 +684,25 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
         newRate = 500;
       }
 
+      const payload: Record<string, unknown> = {
+        status,
+        warranty,
+        completed_at: completedAt,
+        rate: Number(newRate),
+        grand_total: Number(newRate),
+        net_sales: Number(newRate),
+      };
+
+      if (shouldResetCounterPayment(jobOrder)) {
+        payload.payment_details = null;
+        payload.receipt_url = null;
+        payload.receipt_uploaded_at = null;
+        payload.receipt_uploaded_by = null;
+      }
+
       const { error: updateError } = await supabase
         .from("joborders")
-        .update({
-          status,
-          warranty,
-          completed_at: completedAt,
-          rate: Number(newRate),
-          grand_total: Number(newRate),
-          net_sales: Number(newRate),
-        })
+        .update(payload)
         .eq("id", jobOrder.id)
         .is("deleted_at", null);
 
@@ -702,7 +715,7 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
     // Update each job order individually to use their specific warranty_months
     for (const jobOrder of jobOrders) {
       const warrantyDate =
-        status.toLowerCase() === "completed" &&
+        nextStatusNormalized === "completed" &&
         jobOrder.warranty_months &&
         jobOrder.warranty_months > 0
           ? new Date(
@@ -712,13 +725,22 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
             )
           : null;
 
+      const payload: Record<string, unknown> = {
+        status,
+        warranty: warrantyDate,
+        completed_at: completedAt,
+      };
+
+      if (shouldResetCounterPayment(jobOrder)) {
+        payload.payment_details = null;
+        payload.receipt_url = null;
+        payload.receipt_uploaded_at = null;
+        payload.receipt_uploaded_by = null;
+      }
+
       const { error } = await supabase
         .from("joborders")
-        .update({
-          status,
-          warranty: warrantyDate,
-          completed_at: completedAt,
-        })
+        .update(payload)
         .eq("id", jobOrder.id)
         .is("deleted_at", null);
 
