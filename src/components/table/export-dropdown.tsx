@@ -14,6 +14,7 @@ import { saveAs } from "file-saver";
 import JobOrderPDF from "../job-order/job-order-pdf";
 import QuotationPDF from "../job-order/quotation-pdf";
 import { CreateJobOrderData, CreateQuotationData } from "../../lib/types";
+import { withComputedQuotationTotals } from "../../lib/quotation-totals";
 
 interface ExportDropdownProps {
   jobOrderData: CreateJobOrderData;
@@ -77,15 +78,23 @@ export const ExportDropdown = ({
       const endDate = new Date();
       endDate.setMonth(endDate.getMonth() + 1);
 
-      // Recalculate total_quote to ensure accuracy
-      // Formula: subtotal + labor_rate + (service_fee - labor_rate) - discount
-      // service_fee contains labor_rate + amount, so we extract amount by: service_fee - labor_rate
-      const subtotal = quotation.subtotal || 0;
-      const discount = quotation.discount || 0;
-      const laborRate = quotation.labor_rate || 0;
-      const serviceFee = quotation.service_fee || 0;
-      const amount = serviceFee - laborRate; // Extract the amount portion
-      const recalculatedTotal = subtotal + laborRate + amount - discount;
+      const laborRate = Number(quotation.labor_rate || 0);
+      const serviceFee = Number(quotation.service_fee || 0);
+      const resolvedAmount = Math.max(serviceFee - laborRate, 0);
+      const sourceDiscount = Number(
+        jobOrderData.discount ?? quotation.discount ?? 0
+      );
+      const sourceDownpayment = Number(jobOrderData.downpayment ?? 0);
+      const normalizedTotals = withComputedQuotationTotals({
+        subtotal: quotation.subtotal || 0,
+        discount: sourceDiscount,
+        downpayment: sourceDownpayment,
+        labor_rate: laborRate,
+        amount: resolvedAmount,
+        service_fee: serviceFee,
+        total_quote: quotation.total_quote || 0,
+        quotation_items: quotation.quotation_items || [],
+      });
 
       const quotationPDFData: CreateQuotationData & {
         clientData: {
@@ -108,11 +117,13 @@ export const ExportDropdown = ({
         company: quotation.company || "",
         address: quotation.address || "",
         note: quotation.note || "",
-        subtotal: subtotal,
-        discount: discount,
-        labor_rate: laborRate,
-        service_fee: serviceFee,
-        total_quote: recalculatedTotal,
+        subtotal: normalizedTotals.subtotal,
+        discount: normalizedTotals.discount,
+        downpayment: normalizedTotals.downpayment,
+        labor_rate: normalizedTotals.labor_rate,
+        amount: normalizedTotals.amount,
+        service_fee: normalizedTotals.service_fee,
+        total_quote: normalizedTotals.total_quote,
         quotation_items: quotation.quotation_items || [],
         clientData: {
           name: jobOrderData.name || "",

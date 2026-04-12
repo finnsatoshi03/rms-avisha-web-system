@@ -123,6 +123,7 @@ import {
   isBillingLinkedSource,
 } from "../../lib/billing-sync";
 import { computeTransactionTotal } from "../../lib/transaction-totals";
+import { withComputedQuotationTotals } from "../../lib/quotation-totals";
 import BillingImpactConfirmDialog from "../billing/billing-impact-confirm-dialog";
 import ReceiptMissingConfirmDialog from "../billing/receipt-missing-confirm-dialog";
 import { EmailComposePayload } from "../email/document-email-composer";
@@ -398,7 +399,7 @@ export default function JobOrderForm({
 
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [selectedDiscount, setSelectedDiscount] = useState<number | null>(
-    editValues.discount
+    editValues.discount ?? null
   );
   const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(
     Boolean(editValues.downpayment && editValues.downpayment > 0)
@@ -620,6 +621,34 @@ export default function JobOrderForm({
     () => quotationEmailLogs.some((log) => log.status === "sent"),
     [quotationEmailLogs]
   );
+  const displayedExistingQuotationTotal = useMemo(() => {
+    const quotation = existingQuotations?.[0];
+    if (!quotation) return 0;
+
+    const laborRate = Number(quotation.labor_rate || 0);
+    const serviceFee = Number(quotation.service_fee || 0);
+    const resolvedAmount = Math.max(serviceFee - laborRate, 0);
+    const sourceDiscount = Number(
+      selectedDiscount ?? editValues.discount ?? quotation.discount ?? 0
+    );
+    const sourceDownpayment = Number(editValues.downpayment ?? 0);
+
+    return withComputedQuotationTotals({
+      subtotal: quotation.subtotal || 0,
+      discount: sourceDiscount,
+      downpayment: sourceDownpayment,
+      labor_rate: laborRate,
+      amount: resolvedAmount,
+      service_fee: serviceFee,
+      total_quote: quotation.total_quote || 0,
+      quotation_items: quotation.quotation_items || [],
+    }).total_quote;
+  }, [
+    existingQuotations,
+    selectedDiscount,
+    editValues.discount,
+    editValues.downpayment,
+  ]);
 
   const isPending = isCreating || isEditing || materialStocksLoading;
   const onWarranty = editSession && Boolean(editValues.warranty);
@@ -634,6 +663,24 @@ export default function JobOrderForm({
     if (existingQuotations && existingQuotations.length > 0) {
       // Use the first quotation if multiple exist
       const quotation = existingQuotations[0];
+      const laborRate = Number(quotation.labor_rate || 0);
+      const serviceFee = Number(quotation.service_fee || 0);
+      const resolvedAmount = Math.max(serviceFee - laborRate, 0);
+      const sourceDiscount = Number(
+        selectedDiscount ?? editValues.discount ?? quotation.discount ?? 0
+      );
+      const sourceDownpayment = Number(editValues.downpayment ?? 0);
+      const normalizedTotals = withComputedQuotationTotals({
+        subtotal: quotation.subtotal || 0,
+        discount: sourceDiscount,
+        downpayment: sourceDownpayment,
+        labor_rate: laborRate,
+        amount: resolvedAmount,
+        service_fee: serviceFee,
+        total_quote: quotation.total_quote || 0,
+        quotation_items: quotation.quotation_items || [],
+      });
+
       setLatestQuotationId(Number(quotation.id) || null);
       setQuotationData({
         job_order_id: editId!,
@@ -642,14 +689,13 @@ export default function JobOrderForm({
         company: quotation.company || "",
         address: quotation.address || "",
         note: quotation.note || "",
-        subtotal: quotation.subtotal || 0,
-        discount: quotation.discount || 0,
-        labor_rate: quotation.labor_rate || 0,
-        amount: quotation.service_fee
-          ? quotation.service_fee - (quotation.labor_rate || 0)
-          : 0,
-        service_fee: quotation.service_fee || 0,
-        total_quote: quotation.total_quote || 0,
+        subtotal: normalizedTotals.subtotal,
+        discount: normalizedTotals.discount,
+        downpayment: normalizedTotals.downpayment,
+        labor_rate: normalizedTotals.labor_rate,
+        amount: normalizedTotals.amount,
+        service_fee: normalizedTotals.service_fee,
+        total_quote: normalizedTotals.total_quote,
         quotation_items: quotation.quotation_items || [],
       });
       return;
@@ -658,7 +704,14 @@ export default function JobOrderForm({
     if (editSession) {
       setLatestQuotationId(null);
     }
-  }, [existingQuotations, editId]);
+  }, [
+    existingQuotations,
+    editId,
+    selectedDiscount,
+    editValues.discount,
+    editValues.downpayment,
+    editSession,
+  ]);
 
   // Watch for material changes and sync to quotation dialog
   useEffect(() => {
@@ -726,8 +779,12 @@ export default function JobOrderForm({
   });
   const grandTotal = totalsBeforeDownpayment.subTotal;
   const totalBeforeDownpayment = totalsBeforeDownpayment.totalBeforeDownpayment;
-  const { downpaymentValue, downpaymentError, handleDownpaymentChange } =
-    useDownpayment(totalBeforeDownpayment, editValues.downpayment || undefined);
+  const {
+    downpaymentValue,
+    downpaymentError,
+    handleDownpaymentChange,
+    setDownpaymentValueStrict,
+  } = useDownpayment(totalBeforeDownpayment, editValues.downpayment || undefined);
   const totals = computeTransactionTotal({
     subTotal: grandTotal,
     discount: selectedDiscount ?? 0,
@@ -920,7 +977,7 @@ export default function JobOrderForm({
     setDiscountDialogOpen(false);
   };
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "materials",
   });
@@ -1057,12 +1114,36 @@ export default function JobOrderForm({
   const buildQuotationPDFBlob = async (quotationData: CreateQuotationData) => {
     const endDate = new Date();
     endDate.setMonth(endDate.getMonth() + 1);
+    const sourceDiscount = Number(
+      quotationData.discount ?? selectedDiscount ?? 0
+    );
+    const sourceDownpayment = Number(
+      quotationData.downpayment ?? downpaymentValue ?? 0
+    );
+
+    const normalizedTotals = withComputedQuotationTotals({
+      subtotal: quotationData.subtotal,
+      discount: sourceDiscount,
+      downpayment: sourceDownpayment,
+      labor_rate: quotationData.labor_rate,
+      amount: quotationData.amount,
+      service_fee: quotationData.service_fee,
+      total_quote: quotationData.total_quote,
+      quotation_items: quotationData.quotation_items || [],
+    });
 
     const quoteNo = quotationData?.quote_no || "";
     const jobOrderNo = quotationData?.job_order_no || "";
     const clientName = form.getValues("name") || "client";
     const quotationPDFData = {
       ...quotationData,
+      subtotal: normalizedTotals.subtotal,
+      discount: normalizedTotals.discount,
+      downpayment: normalizedTotals.downpayment,
+      labor_rate: normalizedTotals.labor_rate,
+      amount: normalizedTotals.amount,
+      service_fee: normalizedTotals.service_fee,
+      total_quote: normalizedTotals.total_quote,
       quote_no: quoteNo,
       end_date: quotationData?.end_date || endDate.toISOString().split("T")[0],
       clientData: {
@@ -1093,6 +1174,8 @@ export default function JobOrderForm({
       quoteNo,
       jobOrderNo,
       clientName,
+      totalQuote: normalizedTotals.total_quote,
+      downpayment: normalizedTotals.downpayment,
     };
   };
 
@@ -1185,7 +1268,14 @@ export default function JobOrderForm({
     setQuotationEmailError(null);
 
     try {
-      const { asBlob, quoteNo, jobOrderNo, clientName } =
+      const {
+        asBlob,
+        quoteNo,
+        jobOrderNo,
+        clientName,
+        totalQuote,
+        downpayment: quotationDownpayment,
+      } =
         await buildQuotationPDFBlob(quotationData);
       const pdfBase64 = await blobToBase64(asBlob);
       const emailPayload = {
@@ -1202,7 +1292,8 @@ export default function JobOrderForm({
         quote_no: quoteNo,
         job_order_no: jobOrderNo,
         quotation_date: new Date().toISOString().split("T")[0],
-        total_quote: Number(quotationData?.total_quote ?? 0),
+        total_quote: Number(totalQuote ?? 0),
+        downpayment: Number(quotationDownpayment ?? 0),
         branch_name:
           resolveBranchForPdf(watchedBranchId ?? currentUserBranchId)?.name ||
           undefined,
@@ -1262,8 +1353,32 @@ export default function JobOrderForm({
       quoteNo: quotationData?.quote_no,
     });
 
+    const sourceDiscount = Number(
+      quotationData.discount ?? selectedDiscount ?? 0
+    );
+    const sourceDownpayment = Number(
+      quotationData.downpayment ?? downpaymentValue ?? 0
+    );
+    const normalizedTotals = withComputedQuotationTotals({
+      subtotal: quotationData.subtotal,
+      discount: sourceDiscount,
+      downpayment: sourceDownpayment,
+      labor_rate: quotationData.labor_rate,
+      amount: quotationData.amount,
+      service_fee: quotationData.service_fee,
+      total_quote: quotationData.total_quote,
+      quotation_items: quotationData.quotation_items || [],
+    });
+
     const quotationPDFData = {
       ...quotationData,
+      subtotal: normalizedTotals.subtotal,
+      discount: normalizedTotals.discount,
+      downpayment: normalizedTotals.downpayment,
+      labor_rate: normalizedTotals.labor_rate,
+      amount: normalizedTotals.amount,
+      service_fee: normalizedTotals.service_fee,
+      total_quote: normalizedTotals.total_quote,
       job_order_no: quotationData.job_order_no || "",
       quote_no: quotationData.quote_no || "",
       branch: resolveBranchForPdf(jobOrderData.branch_id),
@@ -1529,8 +1644,32 @@ export default function JobOrderForm({
         if (!quotationData || !isCreatingQuotation) return;
 
         try {
+          const sourceDiscount = Number(
+            selectedDiscount ?? quotationData.discount ?? 0
+          );
+          const sourceDownpayment = Number(
+            downpaymentValue ?? quotationData.downpayment ?? 0
+          );
+          const normalizedTotals = withComputedQuotationTotals({
+            subtotal: quotationData.subtotal,
+            discount: sourceDiscount,
+            downpayment: sourceDownpayment,
+            labor_rate: quotationData.labor_rate,
+            amount: quotationData.amount,
+            service_fee: quotationData.service_fee,
+            total_quote: quotationData.total_quote,
+            quotation_items: quotationData.quotation_items || [],
+          });
+
           const finalQuotationData = {
             ...quotationData,
+            subtotal: normalizedTotals.subtotal,
+            discount: normalizedTotals.discount,
+            downpayment: normalizedTotals.downpayment,
+            labor_rate: normalizedTotals.labor_rate,
+            amount: normalizedTotals.amount,
+            service_fee: normalizedTotals.service_fee,
+            total_quote: normalizedTotals.total_quote,
             status: "approved" as const,
             is_final: true,
             is_active: true,
@@ -1550,7 +1689,7 @@ export default function JobOrderForm({
           );
           const response = await addQuotationToJobOrder(editId, finalQuotationData);
           const finalUpdatedQuotationData = {
-            ...quotationData,
+            ...finalQuotationData,
             quote_no: response.quote_no,
             job_order_no: response.job_order_no,
           };
@@ -1597,8 +1736,31 @@ export default function JobOrderForm({
               const { createQuotation } = await import(
                 "../../services/apiQuotations"
               );
+              const sourceDiscount = Number(
+                selectedDiscount ?? quotationData.discount ?? 0
+              );
+              const sourceDownpayment = Number(
+                downpaymentValue ?? quotationData.downpayment ?? 0
+              );
+              const normalizedTotals = withComputedQuotationTotals({
+                subtotal: quotationData.subtotal,
+                discount: sourceDiscount,
+                downpayment: sourceDownpayment,
+                labor_rate: quotationData.labor_rate,
+                amount: quotationData.amount,
+                service_fee: quotationData.service_fee,
+                total_quote: quotationData.total_quote,
+                quotation_items: quotationData.quotation_items || [],
+              });
               const quotationToCreate = {
                 ...quotationData,
+                subtotal: normalizedTotals.subtotal,
+                discount: normalizedTotals.discount,
+                downpayment: normalizedTotals.downpayment,
+                labor_rate: normalizedTotals.labor_rate,
+                amount: normalizedTotals.amount,
+                service_fee: normalizedTotals.service_fee,
+                total_quote: normalizedTotals.total_quote,
                 job_order_id: response.jobOrder,
                 status: "approved" as const,
                 is_final: true,
@@ -1609,7 +1771,7 @@ export default function JobOrderForm({
               const createdQuotation = await createQuotation(quotationToCreate);
               // Update quotation data with the returned data (including generated quote_no)
               const updatedQuotationData = {
-                ...quotationData,
+                ...quotationToCreate,
                 quote_no: createdQuotation.quote_no,
                 job_order_id: createdQuotation.job_order_id,
                 job_order_no: createdQuotation.job_order_no,
@@ -1707,6 +1869,26 @@ export default function JobOrderForm({
     // If there's an existing quotation, load its data
     if (existingQuotations && existingQuotations.length > 0) {
       const quotation = existingQuotations[0];
+      const laborRate = Number(quotation.labor_rate || 0);
+      const serviceFee = Number(quotation.service_fee || 0);
+      const resolvedAmount = Math.max(serviceFee - laborRate, 0);
+      const sourceDiscount = Number(
+        selectedDiscount ?? editValues.discount ?? quotation.discount ?? 0
+      );
+      const sourceDownpayment = Number(
+        downpaymentValue ?? editValues.downpayment ?? 0
+      );
+      const normalizedTotals = withComputedQuotationTotals({
+        subtotal: quotation.subtotal || 0,
+        discount: sourceDiscount,
+        downpayment: sourceDownpayment,
+        labor_rate: laborRate,
+        amount: resolvedAmount,
+        service_fee: serviceFee,
+        total_quote: quotation.total_quote || 0,
+        quotation_items: quotation.quotation_items || [],
+      });
+
       setQuotationData({
         job_order_id: editId!,
         quote_no: quotation.quote_no,
@@ -1714,14 +1896,13 @@ export default function JobOrderForm({
         company: quotation.company || "",
         address: quotation.address || "",
         note: quotation.note || "",
-        subtotal: quotation.subtotal || 0,
-        discount: quotation.discount || 0,
-        labor_rate: quotation.labor_rate || 0,
-        amount: quotation.service_fee
-          ? quotation.service_fee - (quotation.labor_rate || 0)
-          : 0,
-        service_fee: quotation.service_fee || 0,
-        total_quote: quotation.total_quote || 0,
+        subtotal: normalizedTotals.subtotal,
+        discount: normalizedTotals.discount,
+        downpayment: normalizedTotals.downpayment,
+        labor_rate: normalizedTotals.labor_rate,
+        amount: normalizedTotals.amount,
+        service_fee: normalizedTotals.service_fee,
+        total_quote: normalizedTotals.total_quote,
         quotation_items: quotation.quotation_items || [],
       });
       setIsCreatingQuotation(true);
@@ -1730,14 +1911,38 @@ export default function JobOrderForm({
   };
 
   const handleSaveQuotation = (quotation: CreateQuotationData) => {
+    const sourceDiscount = Number(quotation.discount ?? selectedDiscount ?? 0);
+    const sourceDownpayment = Number(
+      quotation.downpayment ?? downpaymentValue ?? 0
+    );
+    const normalizedTotals = withComputedQuotationTotals({
+      subtotal: quotation.subtotal,
+      discount: sourceDiscount,
+      downpayment: sourceDownpayment,
+      labor_rate: quotation.labor_rate,
+      amount: quotation.amount,
+      service_fee: quotation.service_fee,
+      total_quote: quotation.total_quote,
+      quotation_items: quotation.quotation_items || [],
+    });
+
     // Always set quotations as final
     const finalQuotation = {
       ...quotation,
+      subtotal: normalizedTotals.subtotal,
+      discount: normalizedTotals.discount,
+      downpayment: normalizedTotals.downpayment,
+      labor_rate: normalizedTotals.labor_rate,
+      amount: normalizedTotals.amount,
+      service_fee: normalizedTotals.service_fee,
+      total_quote: normalizedTotals.total_quote,
       status: "approved" as const,
       is_final: true,
       is_active: true,
     };
 
+    setSelectedDiscount(normalizedTotals.discount);
+    setDownpaymentValueStrict(normalizedTotals.downpayment);
     setQuotationData(finalQuotation);
     setIsCreatingQuotation(true);
     setQuotationDialogOpen(false);
@@ -1850,11 +2055,24 @@ export default function JobOrderForm({
   ) => {
     console.log("Job order form received materials update:", updatedMaterials);
 
+    const normalizedMaterials = (updatedMaterials || []).map((material) => ({
+      material: material.material || "",
+      quantity: Number(material.quantity || 0),
+      unitPrice: Number(material.unitPrice || 0),
+      material_id: String(material.material_id || ""),
+      used: false,
+    }));
+
+    replace(normalizedMaterials);
+
     // Update the job order form materials with the new material data
-    form.setValue("materials", updatedMaterials);
+    form.setValue("materials", normalizedMaterials, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
 
     // Update reactive materials state
-    setReactiveMaterials(updatedMaterials);
+    setReactiveMaterials(normalizedMaterials);
 
     // Trigger form validation and re-render
     form.trigger("materials");
@@ -1980,11 +2198,70 @@ export default function JobOrderForm({
     editSession,
     editValues.include_quotation_items,
   ]);
+
+  useEffect(() => {
+    if (!quotationData) return;
+
+    const sourceDiscount = Number(selectedDiscount ?? quotationData.discount ?? 0);
+    const sourceDownpayment = Number(
+      downpaymentValue ?? quotationData.downpayment ?? 0
+    );
+
+    const normalizedTotals = withComputedQuotationTotals({
+      subtotal: quotationData.subtotal,
+      discount: sourceDiscount,
+      downpayment: sourceDownpayment,
+      labor_rate: quotationData.labor_rate,
+      amount: quotationData.amount,
+      service_fee: quotationData.service_fee,
+      total_quote: quotationData.total_quote,
+      quotation_items: quotationData.quotation_items || [],
+    });
+
+    const nextQuotationData: CreateQuotationData = {
+      ...quotationData,
+      subtotal: normalizedTotals.subtotal,
+      discount: normalizedTotals.discount,
+      downpayment: normalizedTotals.downpayment,
+      labor_rate: normalizedTotals.labor_rate,
+      amount: normalizedTotals.amount,
+      service_fee: normalizedTotals.service_fee,
+      total_quote: normalizedTotals.total_quote,
+    };
+
+    if (
+      Number(quotationData.discount ?? 0) === nextQuotationData.discount &&
+      Number(quotationData.downpayment ?? 0) ===
+        Number(nextQuotationData.downpayment ?? 0) &&
+      Number(quotationData.subtotal ?? 0) === nextQuotationData.subtotal &&
+      Number(quotationData.total_quote ?? 0) === nextQuotationData.total_quote
+    ) {
+      return;
+    }
+
+    setQuotationData(nextQuotationData);
+  }, [selectedDiscount, downpaymentValue, quotationData]);
+
+  const normalizedQuotationTotals = useMemo(() => {
+    if (!quotationData) return null;
+
+    return withComputedQuotationTotals({
+      subtotal: quotationData.subtotal,
+      discount: quotationData.discount ?? selectedDiscount ?? 0,
+      downpayment: quotationData.downpayment ?? downpaymentValue ?? 0,
+      labor_rate: quotationData.labor_rate,
+      amount: quotationData.amount,
+      service_fee: quotationData.service_fee,
+      total_quote: quotationData.total_quote,
+      quotation_items: quotationData.quotation_items || [],
+    });
+  }, [quotationData, selectedDiscount, downpaymentValue]);
+
   const quotationEmailRecipient = (form.getValues("email") || "").trim();
   const quotationEmailClientName = (form.getValues("name") || "Client").trim();
   const quotationReference = quotationData?.quote_no?.trim() || "N/A";
   const quotationEmailDate = format(new Date(), "MMM d, yyyy");
-  const quotationTotalAmount = Number(quotationData?.total_quote ?? 0);
+  const quotationTotalAmount = Number(normalizedQuotationTotals?.total_quote ?? 0);
   const quotationBranchName =
     resolveBranchForPdf(watchedBranchId ?? currentUserBranchId)?.name || "";
   const quotationEmailDefaultMessage = [
@@ -2830,7 +3107,7 @@ export default function JobOrderForm({
                           <span className="text-sm font-medium">
                             ₱
                             {formatNumberWithCommas(
-                              existingQuotations[0].total_quote
+                              displayedExistingQuotationTotal
                             )}
                           </span>
                           {!isFormReadonly && (
@@ -3492,6 +3769,14 @@ export default function JobOrderForm({
         jobOrderWarrantyMonths={form.getValues("warranty_months") ?? 1}
         onWarrantyMonthsChange={(months) => {
           form.setValue("warranty_months", months);
+        }}
+        jobOrderDiscount={selectedDiscount ?? 0}
+        onDiscountChange={(discount) => {
+          setSelectedDiscount(discount);
+        }}
+        jobOrderDownpayment={downpaymentValue ?? 0}
+        onDownpaymentChange={(downpayment) => {
+          setDownpaymentValueStrict(downpayment);
         }}
       />
 

@@ -12,6 +12,7 @@ import {
   getBranchPdfHeaderLinesWithFallback,
   isSupportLine,
 } from "../../lib/branch-pdf-header";
+import { withComputedQuotationTotals } from "../../lib/quotation-totals";
 import font1 from "/fonts/Montserrat-Bold.ttf";
 import font2 from "/fonts/Montserrat-Black.ttf";
 
@@ -137,6 +138,16 @@ function FirstPageContent() {
 
 function SecondPageContent({ data }: { data: QuotationPDFProps["data"] }) {
   const branchHeaderLines = getBranchHeaderLines(data);
+  const normalizedTotals = withComputedQuotationTotals({
+    subtotal: data.subtotal,
+    discount: data.discount,
+    downpayment: data.downpayment,
+    labor_rate: data.labor_rate,
+    amount: data.amount,
+    service_fee: data.service_fee,
+    total_quote: data.total_quote,
+    quotation_items: data.quotation_items || [],
+  });
 
   // Calculate validity months from end_date
   const startDate = new Date(data.date);
@@ -263,30 +274,60 @@ function SecondPageContent({ data }: { data: QuotationPDFProps["data"] }) {
             {data.note ? `NOTE: ${data.note}` : ""}
           </Text>
           <Text style={styles.costTableCellSmall}></Text>
-          <Text style={styles.costTableSubtotalLabel}>SUBTOTAL</Text>
+          <Text style={styles.costTableSubtotalLabel}>MATERIALS</Text>
           <Text style={styles.costTableCellMedium}>
-            {formatCurrency(data.subtotal)}
+            {formatCurrency(normalizedTotals.material_total)}
           </Text>
         </View>
 
         <View style={styles.costTableRow}>
           <Text style={styles.costTableDescriptionCell}></Text>
           <Text style={styles.costTableCellSmall}></Text>
-          <Text style={styles.costTableSubtotalLabel}>SERVICE FEE</Text>
+          <Text style={styles.costTableSubtotalLabel}>LABOR</Text>
           <Text style={styles.costTableCellMedium}>
-            {formatCurrency(data.service_fee)}
+            {formatCurrency(normalizedTotals.labor_total)}
           </Text>
         </View>
 
-        {data.discount > 0 && (
+        <View style={styles.costTableRow}>
+          <Text style={styles.costTableDescriptionCell}></Text>
+          <Text style={styles.costTableCellSmall}></Text>
+          <Text style={styles.costTableSubtotalLabel}>SUBTOTAL</Text>
+          <Text style={styles.costTableCellMedium}>
+            {formatCurrency(normalizedTotals.subtotal)}
+          </Text>
+        </View>
+
+        {normalizedTotals.discount > 0 && (
           <View style={styles.costTableRow}>
             <Text style={styles.costTableDescriptionCell}></Text>
             <Text style={styles.costTableCellSmall}></Text>
             <Text style={styles.costTableSubtotalLabel}>DISCOUNT</Text>
             <Text style={styles.costTableCellMedium}>
-              -{formatCurrency(data.discount)}
+              -{formatCurrency(normalizedTotals.discount)}
             </Text>
           </View>
+        )}
+
+        {normalizedTotals.downpayment > 0 && (
+          <>
+            <View style={styles.costTableRow}>
+              <Text style={styles.costTableDescriptionCell}></Text>
+              <Text style={styles.costTableCellSmall}></Text>
+              <Text style={styles.costTableSubtotalLabel}>TOTAL BEFORE DP</Text>
+              <Text style={styles.costTableCellMedium}>
+                {formatCurrency(normalizedTotals.total_before_downpayment)}
+              </Text>
+            </View>
+            <View style={styles.costTableRow}>
+              <Text style={styles.costTableDescriptionCell}></Text>
+              <Text style={styles.costTableCellSmall}></Text>
+              <Text style={styles.costTableSubtotalLabel}>DOWNPAYMENT</Text>
+              <Text style={styles.costTableCellMedium}>
+                -{formatCurrency(normalizedTotals.downpayment)}
+              </Text>
+            </View>
+          </>
         )}
 
         <View style={styles.costTableRow}>
@@ -294,7 +335,7 @@ function SecondPageContent({ data }: { data: QuotationPDFProps["data"] }) {
           <Text style={styles.costTableCellSmall}></Text>
           <Text style={styles.costTableTotalLabel}>TOTAL QUOTE</Text>
           <Text style={styles.costTableTotalValue}>
-            ₱{formatCurrency(data.total_quote)}
+            ₱{formatCurrency(normalizedTotals.grand_total)}
           </Text>
         </View>
       </View>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -48,6 +48,7 @@ import {
 import { formatNumberWithCommas } from "../../lib/helpers";
 import { cn } from "../../lib/utils";
 import { supabase } from "../../services/supabase";
+import { computeQuotationTotal } from "../../lib/quotation-totals";
 
 const quotationItemSchema = z
   .object({
@@ -174,6 +175,10 @@ interface QuotationDialogProps {
   onRateModeChange?: (isManual: boolean) => void;
   jobOrderWarrantyMonths?: number;
   onWarrantyMonthsChange?: (months: number) => void;
+  jobOrderDiscount?: number;
+  onDiscountChange?: (discount: number) => void;
+  jobOrderDownpayment?: number;
+  onDownpaymentChange?: (downpayment: number) => void;
 }
 
 const validityOptions = [
@@ -330,12 +335,25 @@ export default function QuotationDialog({
   onRateModeChange,
   jobOrderWarrantyMonths = 1,
   onWarrantyMonthsChange,
+  jobOrderDiscount = 0,
+  onDiscountChange,
+  jobOrderDownpayment = 0,
+  onDownpaymentChange,
 }: QuotationDialogProps) {
-  const [subtotal, setSubtotal] = useState(0);
-  const [discount, setDiscount] = useState(0);
-  const [laborRate, setLaborRate] = useState(0);
-  const [amount, setAmount] = useState(0);
-  const [totalQuote, setTotalQuote] = useState(0);
+  const [discount, setDiscount] = useState(
+    Number(initialData?.discount ?? jobOrderDiscount ?? 0)
+  );
+  const [downpayment, setDownpayment] = useState(
+    Number(jobOrderDownpayment || 0)
+  );
+  const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(
+    Number(jobOrderDownpayment || 0) > 0
+  );
+  const [downpaymentError, setDownpaymentError] = useState<string | null>(null);
+  const [laborRate, setLaborRate] = useState(
+    initialData?.labor_rate || jobOrderRate || 0
+  );
+  const [amount, setAmount] = useState(initialData?.amount || jobOrderAmount || 0);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [isManualRate, setIsManualRate] = useState(isManualRateMode);
   const [validityMonths, setValidityMonths] = useState(
@@ -357,6 +375,17 @@ export default function QuotationDialog({
 
   // Ref to prevent infinite sync loops
   const isSyncingRef = useRef(false);
+
+  const updateDiscountValue = useCallback(
+    (nextDiscount: number) => {
+      const normalizedDiscount = Math.max(Number(nextDiscount || 0), 0);
+      setDiscount(normalizedDiscount);
+      if (onDiscountChange) {
+        onDiscountChange(normalizedDiscount);
+      }
+    },
+    [onDiscountChange]
+  );
 
   // Branch validation - use the selected branch from job order form
   const { branchId, hasValidBranch, warningMessage } =
@@ -382,38 +411,41 @@ export default function QuotationDialog({
     }
   }, [clientData]);
 
+  const buildInitialQuotationItems = useCallback(
+    (itemsFromInitialData?: QuotationItem[]) => {
+      if (itemsFromInitialData && itemsFromInitialData.length > 0) {
+        return itemsFromInitialData.map((item) => ({
+          ...item,
+          is_manual: item.is_manual ?? false,
+        }));
+      }
+
+      // Otherwise, create from job order materials (inventory-based only)
+      const items: QuotationItem[] = [];
+
+      // Add materials from job order that have material_id (inventory items)
+      jobOrderMaterials.forEach((material) => {
+        if (material.material && material.quantity > 0 && material.material_id) {
+          items.push({
+            description: material.material,
+            qty: material.quantity,
+            unit_price: material.unitPrice,
+            amount: material.quantity * material.unitPrice,
+            material_id: material.material_id,
+            is_manual: false,
+          });
+        }
+      });
+
+      return items;
+    },
+    [jobOrderMaterials]
+  );
+
   // Create initial quotation items from existing data or job order materials
   const createInitialQuotationItems = () => {
-    // If we have existing quotation items (editing mode), use them
-    if (
-      initialData?.quotation_items &&
-      initialData.quotation_items.length > 0
-    ) {
-      return initialData.quotation_items.map((item) => ({
-        ...item,
-        is_manual: item.is_manual ?? false, // Ensure is_manual is defined
-      }));
-    }
-
-    // Otherwise, create from job order materials (inventory-based only)
-    const items: QuotationItem[] = [];
-
-    // Add materials from job order that have material_id (inventory items)
-    jobOrderMaterials.forEach((material) => {
-      if (material.material && material.quantity > 0 && material.material_id) {
-        items.push({
-          description: material.material,
-          qty: material.quantity,
-          unit_price: material.unitPrice,
-          amount: material.quantity * material.unitPrice,
-          material_id: material.material_id,
-          is_manual: false, // Items from job order are inventory-based
-        });
-      }
-    });
-
-    // Return empty array if no items - quotation items are now optional
-    return items;
+    const fromInitialData = initialData?.quotation_items as QuotationItem[] | undefined;
+    return buildInitialQuotationItems(fromInitialData);
   };
 
   const form = useForm<QuotationFormData>({
@@ -425,20 +457,150 @@ export default function QuotationDialog({
       labor_rate: initialData?.labor_rate || jobOrderRate || 0,
       amount: initialData?.amount || jobOrderAmount || 0,
       note: initialData?.note || "",
-      quotation_items:
-        initialData?.quotation_items || createInitialQuotationItems(),
+      quotation_items: createInitialQuotationItems(),
       auto_generate_quote_no:
         !initialData?.quote_no || initialData?.quote_no === "", // Auto-generate if no existing quote_no
       manual_quote_no: initialData?.quote_no || "",
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "quotation_items",
   });
 
-  const watchedItems = form.watch("quotation_items");
+  const watchedItems = form.watch("quotation_items") || [];
+
+  const quotationTotals = useMemo(
+    () =>
+      computeQuotationTotal({
+        labor_rate: laborRate,
+        labor_amount: amount,
+        quotation_items: watchedItems,
+        discount,
+        downpayment,
+      }),
+    [laborRate, amount, watchedItems, discount, downpayment]
+  );
+
+  const materialTotal = quotationTotals.material_total;
+  const subtotal = quotationTotals.subtotal;
+  const totalQuote = quotationTotals.grand_total;
+
+  const setDownpaymentStrict = (nextDownpayment: number) => {
+    const normalizedDownpayment = Math.max(Number(nextDownpayment || 0), 0);
+    const maxDownpayment = Math.max(
+      Number(quotationTotals.total_before_downpayment || 0),
+      0
+    );
+
+    if (normalizedDownpayment > maxDownpayment) {
+      setDownpaymentError("Downpayment cannot exceed the total amount.");
+      return false;
+    }
+
+    setDownpaymentError(null);
+    setDownpayment(normalizedDownpayment);
+    if (onDownpaymentChange) {
+      onDownpaymentChange(normalizedDownpayment);
+    }
+    return true;
+  };
+
+  const handleAddDownpayment = () => {
+    setDownpaymentInputVisible(true);
+  };
+
+  useEffect(() => {
+    console.log("Labor:", quotationTotals.labor_total);
+    console.log("Materials:", quotationTotals.material_total);
+    console.log("Final:", quotationTotals.grand_total);
+  }, [
+    quotationTotals.labor_total,
+    quotationTotals.material_total,
+    quotationTotals.grand_total,
+  ]);
+
+  const wasOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      const initialDiscount = Number(
+        jobOrderDiscount ?? initialData?.discount ?? 0
+      );
+      const initialDownpayment = Number(jobOrderDownpayment || 0);
+      const initialLaborRate = Number(
+        initialData?.labor_rate || jobOrderRate || 0
+      );
+      const initialAmount = Number(initialData?.amount || jobOrderAmount || 0);
+      const initialValidityMonths = Number(jobOrderWarrantyMonths ?? 1);
+      const initialItems = buildInitialQuotationItems(
+        initialData?.quotation_items as QuotationItem[] | undefined
+      );
+
+      setDiscount(initialDiscount);
+      setDownpayment(initialDownpayment);
+      setDownpaymentInputVisible(initialDownpayment > 0);
+      setDownpaymentError(null);
+      setLaborRate(initialLaborRate);
+      setAmount(initialAmount);
+      setValidityMonths(initialValidityMonths);
+
+      form.reset({
+        company: initialData?.company || "",
+        address: initialData?.address || "",
+        validity_months: initialValidityMonths,
+        labor_rate: initialLaborRate,
+        amount: initialAmount,
+        note: initialData?.note || "",
+        quotation_items: initialItems,
+        auto_generate_quote_no:
+          !initialData?.quote_no || initialData?.quote_no === "",
+        manual_quote_no: initialData?.quote_no || "",
+      });
+    }
+
+    wasOpenRef.current = open;
+  }, [
+    open,
+    initialData?.company,
+    initialData?.address,
+    initialData?.quote_no,
+    initialData?.note,
+    initialData?.discount,
+    initialData?.labor_rate,
+    initialData?.amount,
+    initialData?.quotation_items,
+    jobOrderDiscount,
+    jobOrderDownpayment,
+    buildInitialQuotationItems,
+    jobOrderWarrantyMonths,
+    jobOrderRate,
+    jobOrderAmount,
+    form,
+  ]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const normalizedDiscount = Number(jobOrderDiscount || 0);
+    if (normalizedDiscount !== discount) {
+      setDiscount(normalizedDiscount);
+    }
+  }, [open, jobOrderDiscount, discount]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const normalizedDownpayment = Number(jobOrderDownpayment || 0);
+    if (normalizedDownpayment !== downpayment) {
+      setDownpayment(normalizedDownpayment);
+      setDownpaymentError(null);
+    }
+    if (normalizedDownpayment > 0) {
+      setDownpaymentInputVisible(true);
+    }
+  }, [open, jobOrderDownpayment, downpayment]);
 
   // Sync labor rate and amount with job order
   useEffect(() => {
@@ -476,6 +638,8 @@ export default function QuotationDialog({
 
   // Bidirectional sync with conflict prevention
   useEffect(() => {
+    if (!open) return;
+
     console.log(
       "Quotation dialog received jobOrderMaterials:",
       jobOrderMaterials
@@ -486,17 +650,8 @@ export default function QuotationDialog({
       console.log("Skipping sync - already syncing");
       return; // Prevent infinite loops
     }
-    if (!jobOrderMaterials || jobOrderMaterials.length === 0) {
-      console.log("Skipping sync - no materials");
-      return;
-    }
-
-    // Skip sync if we're editing an existing quotation with items
-    if (
-      initialData?.quotation_items &&
-      initialData.quotation_items.length > 0
-    ) {
-      console.log("Skipping sync - editing existing quotation with items");
+    if (!jobOrderMaterials) {
+      console.log("Skipping sync - no material payload");
       return;
     }
 
@@ -511,16 +666,16 @@ export default function QuotationDialog({
       const manualItems = currentItems.filter((item) => item.is_manual);
 
       // Convert job order materials to quotation items (inventory only)
-      const inventoryItems: QuotationItem[] = jobOrderMaterials.map(
-        (material) => ({
+      const inventoryItems: QuotationItem[] = jobOrderMaterials
+        .filter((material) => material.material_id)
+        .map((material) => ({
           description: material.material,
           qty: material.quantity,
           unit_price: material.unitPrice,
           amount: material.quantity * material.unitPrice,
           material_id: material.material_id,
           is_manual: false, // Items from job order are inventory-based
-        })
-      );
+        }));
 
       // Combine manual items with updated inventory items
       const updatedItems = [...manualItems, ...inventoryItems];
@@ -533,15 +688,8 @@ export default function QuotationDialog({
       isSyncingRef.current = true;
 
       // Update quotation items with combined items (manual + inventory)
+      replace(updatedItems);
       form.setValue("quotation_items", updatedItems);
-
-      // Recalculate totals
-      const newSubtotal = updatedItems.reduce(
-        (total, item) => total + (item.amount || 0),
-        0
-      );
-      setSubtotal(newSubtotal);
-      setTotalQuote(newSubtotal - discount + laborRate);
 
       console.log("Quotation dialog updated with preserved manual items");
 
@@ -554,41 +702,27 @@ export default function QuotationDialog({
 
     return () => clearTimeout(timeoutId);
   }, [
+    open,
     jobOrderMaterials,
     form,
-    discount,
+    replace,
     initialData?.quotation_items,
-    laborRate,
-    amount,
   ]);
 
-  // Calculate totals when items change
   useEffect(() => {
-    const newSubtotal = (watchedItems || []).reduce(
-      (total, item) => total + (item.amount || 0),
+    if (!open) return;
+
+    const maxDownpayment = Math.max(
+      Number(quotationTotals.total_before_downpayment || 0),
       0
     );
-    setSubtotal(newSubtotal);
-    setTotalQuote(newSubtotal + laborRate + amount - discount);
-  }, [watchedItems, discount, laborRate, amount]);
-
-  // Update total when discount, labor rate, or amount changes
-  useEffect(() => {
-    setTotalQuote(subtotal + laborRate + amount - discount);
-  }, [discount, subtotal, laborRate, amount]);
-
-  // Watch for changes in individual item fields and recalculate
-  const watchedItemsValues = form.watch("quotation_items");
-  useEffect(() => {
-    if (watchedItemsValues) {
-      const newSubtotal = watchedItemsValues.reduce(
-        (total, item) => total + (item.amount || 0),
-        0
-      );
-      setSubtotal(newSubtotal);
-      setTotalQuote(newSubtotal + laborRate + amount - discount);
+    if (downpayment <= maxDownpayment) {
+      setDownpaymentError(null);
+      return;
     }
-  }, [watchedItemsValues, discount, laborRate, amount]);
+
+    setDownpaymentStrict(maxDownpayment);
+  }, [open, downpayment, quotationTotals.total_before_downpayment]);
 
   const handleItemChange = (
     index: number,
@@ -618,14 +752,6 @@ export default function QuotationDialog({
     if (field === "qty" || field === "unit_price") {
       form.setValue(`quotation_items.${index}.amount`, items[index].amount);
     }
-
-    // Trigger immediate recalculation
-    const newSubtotal = items.reduce(
-      (total, item) => total + (item.amount || 0),
-      0
-    );
-    setSubtotal(newSubtotal);
-    setTotalQuote(newSubtotal + laborRate + amount - discount);
 
     // Sync materials back to job order form
     handleMaterialsChange(items);
@@ -680,14 +806,8 @@ export default function QuotationDialog({
       const newAmount = currentQty * selectedMaterial.price;
       form.setValue(`quotation_items.${index}.amount`, newAmount);
 
-      // Trigger recalculation
+      // Sync with latest quotation item values
       const items = form.getValues("quotation_items") || [];
-      const newSubtotal = items.reduce(
-        (total, item) => total + (item.amount || 0),
-        0
-      );
-      setSubtotal(newSubtotal);
-      setTotalQuote(newSubtotal + laborRate + amount - discount);
 
       // Sync materials back to job order form
       handleMaterialsChange(items);
@@ -710,22 +830,37 @@ export default function QuotationDialog({
       form.setValue(`quotation_items.${index}.amount`, 0);
     }
 
-    // Trigger recalculation
     const items = form.getValues("quotation_items") || [];
-    const newSubtotal = items.reduce(
-      (total, item) => total + (item.amount || 0),
-      0
-    );
-    setSubtotal(newSubtotal);
-    setTotalQuote(newSubtotal + laborRate + amount - discount);
 
     // Sync materials back to job order form
     handleMaterialsChange(items);
   };
 
   const handleSelectDiscount = (discount: number) => {
-    setDiscount(discount);
+    updateDiscountValue(discount);
     setDiscountDialogOpen(false);
+  };
+
+  const handleDownpaymentInputChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const rawValue = event.target.value.trim();
+    if (rawValue === "") {
+      setDownpaymentError(null);
+      setDownpayment(0);
+      if (onDownpaymentChange) {
+        onDownpaymentChange(0);
+      }
+      return;
+    }
+
+    const parsedValue = Number(rawValue);
+    if (!Number.isFinite(parsedValue)) {
+      setDownpaymentError("Enter a valid downpayment amount.");
+      return;
+    }
+
+    setDownpaymentStrict(parsedValue);
   };
 
   const getValidityEndDate = (months: number) => {
@@ -793,9 +928,25 @@ export default function QuotationDialog({
   // Manual sync will happen only when user explicitly saves the quotation
 
   const onSubmit = (data: QuotationFormData) => {
+    if (downpaymentError) {
+      return;
+    }
+
     // Calculate end date based on validity months
     const endDate = new Date();
     endDate.setMonth(endDate.getMonth() + data.validity_months);
+
+    const computedTotals = computeQuotationTotal({
+      labor_rate: data.labor_rate,
+      labor_amount: data.amount,
+      quotation_items: data.quotation_items || [],
+      discount,
+      downpayment,
+    });
+
+    console.log("Labor:", computedTotals.labor_total);
+    console.log("Materials:", computedTotals.material_total);
+    console.log("Final:", computedTotals.grand_total);
 
     const quotationData: CreateQuotationData = {
       quote_no: data.auto_generate_quote_no ? "" : data.manual_quote_no || "", // Empty string for auto-generation, manual value otherwise
@@ -804,11 +955,13 @@ export default function QuotationDialog({
       company: data.company || "",
       address: data.address || "",
       note: data.note || "",
-      subtotal,
-      discount,
-      labor_rate: data.labor_rate,
-      service_fee: data.labor_rate + data.amount,
-      total_quote: totalQuote,
+      subtotal: computedTotals.subtotal,
+      discount: computedTotals.discount,
+      downpayment: computedTotals.downpayment,
+      labor_rate: computedTotals.labor_rate,
+      amount: computedTotals.labor_amount,
+      service_fee: computedTotals.service_fee,
+      total_quote: computedTotals.grand_total,
       quotation_items: data.quotation_items || [],
       auto_generate_quote_no: data.auto_generate_quote_no,
       manual_quote_no: data.manual_quote_no,
@@ -819,9 +972,7 @@ export default function QuotationDialog({
     const inventoryItems = (data.quotation_items || []).filter(
       (item) => !item.is_manual && item.material_id && item.material_id !== ""
     );
-    if (inventoryItems.length > 0) {
-      handleMaterialsChange(inventoryItems);
-    }
+    handleMaterialsChange(inventoryItems);
 
     onSave(quotationData);
     onOpenChange(false); // Close the dialog after saving
@@ -1568,10 +1719,10 @@ export default function QuotationDialog({
                 </Button>
 
                 <div className="col-start-4">
-                  <h3 className="text-sm font-bold">Subtotal</h3>
+                  <h3 className="text-sm font-bold">Materials Total</h3>
                   <div className="flex items-center gap-1">
                     <p className="text-sm font-bold">₱</p>
-                    <p className="text-sm">{subtotal.toFixed(2)}</p>
+                    <p className="text-sm">{materialTotal.toFixed(2)}</p>
                   </div>
                 </div>
               </div>
@@ -1584,16 +1735,16 @@ export default function QuotationDialog({
               </h2>
               <div className="py-3 mb-3 border-dashed border-y-2 border-gray-300">
                 <div className="flex justify-between">
+                  <p className="opacity-60">Materials</p>
+                  <p>₱{formatNumberWithCommas(materialTotal)}</p>
+                </div>
+                <div className="flex justify-between">
+                  <p className="opacity-60">Labor</p>
+                  <p>₱{formatNumberWithCommas(quotationTotals.labor_total)}</p>
+                </div>
+                <div className="flex justify-between">
                   <p className="opacity-60">Subtotal</p>
                   <p>₱{formatNumberWithCommas(subtotal)}</p>
-                </div>
-                <div className="flex justify-between">
-                  <p className="opacity-60">Labor Rate</p>
-                  <p>₱{formatNumberWithCommas(laborRate)}</p>
-                </div>
-                <div className="flex justify-between">
-                  <p className="opacity-60">Amount</p>
-                  <p>₱{formatNumberWithCommas(amount)}</p>
                 </div>
                 <div className="flex justify-between gap-8">
                   <p className="opacity-60">Discount</p>
@@ -1603,7 +1754,7 @@ export default function QuotationDialog({
                         className="h-fit w-fit p-[1px] rounded-full"
                         size={"icon"}
                         variant={"destructive"}
-                        onClick={() => setDiscount(0)}
+                        onClick={() => updateDiscountValue(0)}
                       >
                         <X size={10} />
                       </Button>
@@ -1626,14 +1777,47 @@ export default function QuotationDialog({
                         e.preventDefault();
                         setDiscountDialogOpen(true);
                       }}
+                      disabled={!subtotal}
                     >
                       Select a discount
                     </Button>
                   )}
                 </div>
+                <div className="flex justify-between items-start gap-4">
+                  <p className="opacity-60 gap-1">Downpayment</p>
+                  {downpayment > 0 || downpaymentInputVisible ? (
+                    <div className="flex-col items-end justify-end w-[115px]">
+                      <input
+                        type="number"
+                        value={downpayment > 0 ? downpayment : ""}
+                        onChange={handleDownpaymentInputChange}
+                        className="w-full text-right placeholder:right bg-transparent focus:outline-none"
+                        placeholder="Enter amount"
+                        min="0"
+                      />
+                      {downpaymentError ? (
+                        <p className="text-red-500 text-xs mt-1 text-right">
+                          {downpaymentError}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <Button
+                      className="h-fit w-fit p-0"
+                      variant={"link"}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleAddDownpayment();
+                      }}
+                      disabled={!quotationTotals.total_before_downpayment}
+                    >
+                      Add downpayment
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="flex justify-between gap-4">
-                <p className="font-black">Total Quote</p>
+                <p className="font-black">Total</p>
                 <div>
                   <p>₱{formatNumberWithCommas(totalQuote)}</p>
                 </div>
@@ -1649,7 +1833,9 @@ export default function QuotationDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit">Save Quotation</Button>
+              <Button type="submit" disabled={Boolean(downpaymentError)}>
+                Save Quotation
+              </Button>
             </div>
           </form>
         </Form>

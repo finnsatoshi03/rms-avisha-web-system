@@ -20,17 +20,33 @@ type SendQuotationPayload = {
   job_order_no?: string;
   quotation_date?: string;
   total_quote?: number;
+  downpayment?: number;
   branch_name?: string;
 };
 
 type QuotationLookupRow = {
   id: number;
   quote_no: string | null;
+  subtotal: number | null;
+  discount: number | null;
+  labor_rate: number | null;
+  service_fee: number | null;
   total_quote: number | null;
   date_created: string | null;
   job_order_id: number | null;
+  quotation_items?: Array<{
+    amount?: number | null;
+    total_amount?: number | null;
+    qty?: number | null;
+    quantity?: number | null;
+    unit_price?: number | null;
+    unitPrice?: number | null;
+    is_manual?: boolean | null;
+  }> | null;
   joborders?: {
     order_no?: string | null;
+    discount?: number | null;
+    downpayment?: number | null;
     branches?: {
       name?: string | null;
     } | null;
@@ -179,6 +195,71 @@ async function parseEmailProviderError(response: Response): Promise<string> {
   }
 }
 
+function toCurrencyNumber(value: number | string | null | undefined): number {
+  const numericValue = Number(value ?? 0);
+  if (!Number.isFinite(numericValue)) return 0;
+  return Math.max(numericValue, 0);
+}
+
+function resolveItemAmount(item: {
+  amount?: number | null;
+  total_amount?: number | null;
+  qty?: number | null;
+  quantity?: number | null;
+  unit_price?: number | null;
+  unitPrice?: number | null;
+}): number {
+  if (item.amount !== undefined && item.amount !== null) {
+    return toCurrencyNumber(item.amount);
+  }
+
+  if (item.total_amount !== undefined && item.total_amount !== null) {
+    return toCurrencyNumber(item.total_amount);
+  }
+
+  const qty = toCurrencyNumber(item.qty ?? item.quantity);
+  const unitPrice = toCurrencyNumber(item.unit_price ?? item.unitPrice);
+  return qty * unitPrice;
+}
+
+function computeQuotationGrandTotal(input: {
+  subtotal: number | null;
+  discount: number | null;
+  downpayment: number | null;
+  labor_rate: number | null;
+  service_fee: number | null;
+  total_quote: number | null;
+  quotation_items?: QuotationLookupRow["quotation_items"];
+}): number {
+  const discount = toCurrencyNumber(input.discount);
+  const downpayment = toCurrencyNumber(input.downpayment);
+  const laborRate = toCurrencyNumber(input.labor_rate);
+  const serviceFee = toCurrencyNumber(input.service_fee);
+  const laborTotal = Math.max(serviceFee, laborRate);
+
+  const items = input.quotation_items ?? [];
+  let materialTotal = items.reduce((sum, item) => sum + resolveItemAmount(item), 0);
+
+  if (items.length === 0) {
+    const rawSubtotal = toCurrencyNumber(input.subtotal);
+    const assumedLegacyMaterial = rawSubtotal;
+    const assumedCombinedMaterial = Math.max(rawSubtotal - laborTotal, 0);
+    const storedTotal = toCurrencyNumber(input.total_quote);
+
+    const legacyGrandTotal = Math.max(assumedLegacyMaterial + laborTotal - discount, 0);
+    const combinedGrandTotal = Math.max(rawSubtotal - discount, 0);
+    const legacyDelta = Math.abs(storedTotal - legacyGrandTotal);
+    const combinedDelta = Math.abs(storedTotal - combinedGrandTotal);
+
+    materialTotal =
+      combinedDelta < legacyDelta ? assumedCombinedMaterial : assumedLegacyMaterial;
+  }
+
+  const subtotal = laborTotal + materialTotal;
+  const totalBeforeDownpayment = Math.max(subtotal - discount, 0);
+  return Math.max(totalBeforeDownpayment - downpayment, 0);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -257,11 +338,25 @@ Deno.serve(async (req) => {
         `
         id,
         quote_no,
+        subtotal,
+        discount,
+        labor_rate,
+        service_fee,
         total_quote,
         date_created,
         job_order_id,
+        quotation_items (
+          amount,
+          total_amount,
+          qty,
+          quantity,
+          unit_price,
+          is_manual
+        ),
         joborders:job_order_id (
           order_no,
+          discount,
+          downpayment,
           branches:branch_id (
             name
           ),
@@ -311,9 +406,20 @@ Deno.serve(async (req) => {
     const quotationDate = formatDateLabel(
       payload.quotation_date || quotation.date_created
     );
-    const quotationTotal = Number(
-      payload.total_quote ?? quotation.total_quote ?? 0
-    );
+    const resolvedDiscount =
+      quotation.joborders?.discount ?? quotation.discount ?? 0;
+    const resolvedDownpayment =
+      payload.downpayment ?? quotation.joborders?.downpayment ?? 0;
+    const computedQuotationTotal = computeQuotationGrandTotal({
+      subtotal: quotation.subtotal,
+      discount: resolvedDiscount,
+      downpayment: resolvedDownpayment,
+      labor_rate: quotation.labor_rate,
+      service_fee: quotation.service_fee,
+      total_quote: quotation.total_quote,
+      quotation_items: quotation.quotation_items,
+    });
+    const quotationTotal = Number(computedQuotationTotal);
     const branchName =
       payload.branch_name?.trim() ||
       quotation.joborders?.branches?.name?.trim() ||
@@ -352,7 +458,12 @@ Deno.serve(async (req) => {
             quote_no: quoteNo,
             job_order_no: jobOrderNo,
             quotation_date: quotationDate,
+            computed_total_quote: computedQuotationTotal,
+            stored_total_quote: quotation.total_quote,
+            payload_total_quote: payload.total_quote,
             total_quote: quotationTotal,
+            discount: resolvedDiscount,
+            downpayment: resolvedDownpayment,
             ...(metadata ?? {}),
           },
         })

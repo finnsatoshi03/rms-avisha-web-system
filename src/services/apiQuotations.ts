@@ -2,6 +2,7 @@ import { supabase } from "./supabase";
 import { CreateQuotationData } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
 import { buildSoftDeleteUpdate } from "./softDelete";
+import { withComputedQuotationTotals } from "../lib/quotation-totals";
 
 type UserEmailShape = {
   email?: string | null;
@@ -41,6 +42,7 @@ export type SendQuotationEmailPayload = {
   job_order_no?: string;
   quotation_date?: string;
   total_quote?: number;
+  downpayment?: number;
   branch_name?: string;
 };
 
@@ -77,17 +79,77 @@ function normalizeJobOrderUsers<
   }));
 }
 
+type QuotationFinancialRow = {
+  subtotal?: number | null;
+  discount?: number | null;
+  downpayment?: number | null;
+  labor_rate?: number | null;
+  amount?: number | null;
+  service_fee?: number | null;
+  total_quote?: number | null;
+  quotation_items?: unknown[] | null;
+};
+
+function normalizeQuotationFinancials<T extends QuotationFinancialRow>(quotation: T): T {
+  const laborRate = Number(quotation.labor_rate || 0);
+  const serviceFee = Number(quotation.service_fee || 0);
+  const resolvedAmount =
+    quotation.amount !== undefined && quotation.amount !== null
+      ? Number(quotation.amount || 0)
+      : Math.max(serviceFee - laborRate, 0);
+
+  const totals = withComputedQuotationTotals({
+    subtotal: quotation.subtotal || 0,
+    discount: quotation.discount || 0,
+    downpayment: quotation.downpayment || 0,
+    labor_rate: laborRate,
+    amount: resolvedAmount,
+    service_fee: serviceFee,
+    total_quote: quotation.total_quote || 0,
+    quotation_items: (quotation.quotation_items ?? []) as never[],
+  });
+
+  return {
+    ...quotation,
+    subtotal: totals.subtotal,
+    discount: totals.discount,
+    downpayment: totals.downpayment,
+    labor_rate: totals.labor_rate,
+    amount: totals.amount,
+    service_fee: totals.service_fee,
+    total_quote: totals.total_quote,
+  };
+}
+
 export async function createQuotation(quotationData: CreateQuotationData) {
   const {
     quotation_items,
     auto_generate_quote_no,
     manual_quote_no,
+    downpayment,
     ...quotation
   } = quotationData;
 
   // Handle quote number logic
   const finalQuotation: Record<string, unknown> = { ...quotation };
   delete finalQuotation.branch;
+
+  const normalizedTotals = withComputedQuotationTotals({
+    subtotal: quotation.subtotal,
+    discount: quotation.discount,
+    downpayment,
+    labor_rate: quotation.labor_rate,
+    amount: quotation.amount,
+    service_fee: quotation.service_fee,
+    total_quote: quotation.total_quote,
+    quotation_items: quotation_items || [],
+  });
+
+  finalQuotation.subtotal = normalizedTotals.subtotal;
+  finalQuotation.discount = normalizedTotals.discount;
+  finalQuotation.labor_rate = normalizedTotals.labor_rate;
+  finalQuotation.service_fee = normalizedTotals.service_fee;
+  finalQuotation.total_quote = normalizedTotals.total_quote;
 
   if (
     !auto_generate_quote_no &&
@@ -143,8 +205,13 @@ export async function createQuotation(quotationData: CreateQuotationData) {
   }
 
   // Add job_order_no to the response
-  return {
+  const normalizedQuotationResult = normalizeQuotationFinancials({
     ...quotationResult,
+    quotation_items: quotation_items || [],
+  });
+
+  return {
+    ...normalizedQuotationResult,
     job_order_no: quotationResult.joborders?.order_no || null,
   };
 }
@@ -170,7 +237,7 @@ export async function getQuotationsByJobOrder(jobOrderId: number) {
   // Add job_order_no to each quotation in the response
   return (
     data?.map((quotation) => ({
-      ...quotation,
+      ...normalizeQuotationFinancials(quotation),
       job_order_no: quotation.joborders?.order_no || null,
     })) || []
   );
@@ -194,7 +261,7 @@ export async function getQuotationById(quotationId: number) {
     throw new Error("Failed to fetch quotation");
   }
 
-  return data;
+  return normalizeQuotationFinancials(data);
 }
 
 export async function updateQuotation(
@@ -205,12 +272,41 @@ export async function updateQuotation(
     quotation_items,
     auto_generate_quote_no,
     manual_quote_no,
+    downpayment,
     ...quotation
   } = quotationData;
 
   // Handle quote number logic
   const finalQuotation: Record<string, unknown> = { ...quotation };
   delete finalQuotation.branch;
+
+  const hasPricingInput =
+    quotation.subtotal !== undefined ||
+    quotation.discount !== undefined ||
+    downpayment !== undefined ||
+    quotation.labor_rate !== undefined ||
+    quotation.amount !== undefined ||
+    quotation.service_fee !== undefined ||
+    quotation_items !== undefined;
+
+  if (hasPricingInput) {
+    const normalizedTotals = withComputedQuotationTotals({
+      subtotal: quotation.subtotal,
+      discount: quotation.discount,
+      downpayment,
+      labor_rate: quotation.labor_rate,
+      amount: quotation.amount,
+      service_fee: quotation.service_fee,
+      total_quote: quotation.total_quote,
+      quotation_items: quotation_items || [],
+    });
+
+    finalQuotation.subtotal = normalizedTotals.subtotal;
+    finalQuotation.discount = normalizedTotals.discount;
+    finalQuotation.labor_rate = normalizedTotals.labor_rate;
+    finalQuotation.service_fee = normalizedTotals.service_fee;
+    finalQuotation.total_quote = normalizedTotals.total_quote;
+  }
 
   if (
     !auto_generate_quote_no &&
@@ -268,8 +364,13 @@ export async function updateQuotation(
   }
 
   // Add job_order_no to the response
-  return {
+  const normalizedQuotationResult = normalizeQuotationFinancials({
     ...quotationResult,
+    quotation_items: quotation_items || [],
+  });
+
+  return {
+    ...normalizedQuotationResult,
     job_order_no: quotationResult.joborders?.order_no || null,
   };
 }
@@ -475,6 +576,8 @@ export async function getQuotationJobOrders({
         note,
         subtotal,
         discount,
+        labor_rate,
+        service_fee,
         total_quote,
         status,
         is_active,
@@ -587,8 +690,15 @@ export async function getQuotationJobOrders({
     throw new Error("Quotation job orders could not be fetched");
   }
 
+  const normalizedRows = (data ?? []).map((jobOrder) => ({
+    ...jobOrder,
+    quotations: ((jobOrder.quotations ?? []) as QuotationFinancialRow[]).map(
+      (quotation) => normalizeQuotationFinancials(quotation)
+    ),
+  }));
+
   return {
-    data: normalizeJobOrderUsers(data),
+    data: normalizeJobOrderUsers(normalizedRows),
     meta: {
       totalCount: count,
     },
@@ -627,7 +737,7 @@ export async function getJobOrderQuotations(jobOrderId: number) {
     throw new Error("Failed to fetch job order quotations");
   }
 
-  return data;
+  return (data ?? []).map((quotation) => normalizeQuotationFinancials(quotation));
 }
 
 // Update quotation status

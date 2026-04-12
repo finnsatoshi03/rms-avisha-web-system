@@ -518,6 +518,7 @@ export type QuotationData = {
   note: string;
   subtotal: number;
   discount: number;
+  downpayment?: number;
   labor_rate: number;
   service_fee: number;
   total_quote: number;
@@ -540,6 +541,7 @@ export type CreateQuotationData = {
   note: string;
   subtotal: number;
   discount: number;
+  downpayment?: number;
   labor_rate: number;
   amount?: number; // Optional - used in quotation dialog, calculated as service_fee in database
   service_fee: number; // Calculated as labor_rate + amount
