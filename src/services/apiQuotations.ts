@@ -51,6 +51,12 @@ export type SendQuotationEmailResponse = {
   status?: "sent" | "failed";
   message?: string;
   error?: string;
+  reason_code?: string;
+  details?: string | null;
+  caller_id?: string;
+  role?: string;
+  allowed_roles?: string[];
+  migrated_to?: string;
   already_sent_before?: boolean;
   sent_count?: number;
   entity_type?: string;

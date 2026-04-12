@@ -294,23 +294,59 @@ Deno.serve(async (req) => {
     } = await callerClient.auth.getUser();
 
     if (callerAuthError || !caller) {
-      return json(401, { error: "Unauthorized." });
+      return json(401, {
+        success: false,
+        error: "Unauthorized. Missing or invalid authenticated session.",
+        reason_code: "caller_auth_invalid",
+        details: callerAuthError?.message ?? null,
+      });
     }
 
     const { data: callerProfile, error: callerProfileError } = await supabaseAdmin
       .from("users")
       .select("id, role, deleted, migrated_to")
       .eq("id", caller.id)
-      .single();
+      .maybeSingle();
 
-    if (
-      callerProfileError ||
-      !callerProfile ||
-      callerProfile.deleted ||
-      callerProfile.migrated_to
-    ) {
+    if (callerProfileError) {
       return json(403, {
-        error: "Caller account is not allowed to send quotation email.",
+        success: false,
+        error:
+          "Caller profile lookup failed in public.users. Please contact your administrator.",
+        reason_code: "caller_profile_lookup_failed",
+        caller_id: caller.id,
+        details: callerProfileError.message,
+      });
+    }
+
+    if (!callerProfile) {
+      return json(403, {
+        success: false,
+        error:
+          "Caller account is missing in public.users. Your account must be provisioned before sending quotation emails.",
+        reason_code: "caller_profile_missing",
+        caller_id: caller.id,
+      });
+    }
+
+    if (callerProfile.deleted) {
+      return json(403, {
+        success: false,
+        error:
+          "Caller account is marked as deleted in public.users. Please ask an administrator to restore your account.",
+        reason_code: "caller_profile_deleted",
+        caller_id: caller.id,
+      });
+    }
+
+    if (callerProfile.migrated_to) {
+      return json(403, {
+        success: false,
+        error:
+          "Caller account has been migrated and is no longer allowed to send quotation emails. Sign in using the migrated account.",
+        reason_code: "caller_profile_migrated",
+        caller_id: caller.id,
+        migrated_to: callerProfile.migrated_to,
       });
     }
 
@@ -321,7 +357,12 @@ Deno.serve(async (req) => {
       callerRole !== "manager"
     ) {
       return json(403, {
-        error: "Only admin and manager accounts can send quotation emails.",
+        success: false,
+        error: `Role '${callerRole}' is not allowed to send quotation emails. Allowed roles: dev, admin, manager.`,
+        reason_code: "caller_role_not_allowed",
+        caller_id: caller.id,
+        role: callerRole,
+        allowed_roles: ["dev", "admin", "manager"],
       });
     }
 

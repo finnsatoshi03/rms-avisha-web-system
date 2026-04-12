@@ -1316,8 +1316,13 @@ export default function JobOrderForm({
       }
 
       if (!result.success) {
-        const failureMessage =
-          result.error || "Failed to send quotation email.";
+        const failureMessage = [
+          result.error || "Failed to send quotation email.",
+          result.reason_code ? `(code: ${result.reason_code})` : null,
+          result.details || null,
+        ]
+          .filter(Boolean)
+          .join(" ");
         setQuotationEmailError(failureMessage);
         toast.error("Failed to send email.");
         return;
