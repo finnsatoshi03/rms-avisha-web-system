@@ -256,6 +256,7 @@ const InventoryCombobox: React.FC<InventoryComboboxProps> = ({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          type="button"
           variant="outline"
           role="combobox"
           aria-expanded={open}
@@ -662,8 +663,11 @@ export default function QuotationDialog({
       // Get current quotation items to preserve manual items
       const currentItems = form.getValues("quotation_items") || [];
 
-      // Separate manual items from inventory items
+      // Preserve manual items and in-progress inventory rows (no material_id yet)
       const manualItems = currentItems.filter((item) => item.is_manual);
+      const draftInventoryItems = currentItems.filter(
+        (item) => !item.is_manual && !item.material_id
+      );
 
       // Convert job order materials to quotation items (inventory only)
       const inventoryItems: QuotationItem[] = jobOrderMaterials
@@ -677,10 +681,11 @@ export default function QuotationDialog({
           is_manual: false, // Items from job order are inventory-based
         }));
 
-      // Combine manual items with updated inventory items
-      const updatedItems = [...manualItems, ...inventoryItems];
+      // Combine preserved draft rows with updated inventory items from JO
+      const updatedItems = [...manualItems, ...draftInventoryItems, ...inventoryItems];
 
       console.log("Preserving manual items:", manualItems);
+      console.log("Preserving draft inventory items:", draftInventoryItems);
       console.log("Adding inventory items:", inventoryItems);
       console.log("Combined quotation items:", updatedItems);
 
@@ -766,11 +771,6 @@ export default function QuotationDialog({
       material_id: "",
       is_manual: false,
     });
-    // Sync materials after adding
-    setTimeout(() => {
-      const currentItems = form.getValues("quotation_items");
-      handleMaterialsChange(currentItems || []);
-    }, 0);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -903,7 +903,7 @@ export default function QuotationDialog({
     );
 
     // Convert quotation items to job order material format
-    const jobOrderMaterials = inventoryItems.map((item) => ({
+    const nextJobOrderMaterials = inventoryItems.map((item) => ({
       material: item.description,
       quantity: item.qty,
       unitPrice: item.unit_price,
@@ -912,13 +912,28 @@ export default function QuotationDialog({
 
     console.log(
       "Converted to job order format (inventory only):",
-      jobOrderMaterials
+      nextJobOrderMaterials
     );
+
+    const currentJobOrderMaterials = (jobOrderMaterials || []).map((item) => ({
+      material: item.material,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      material_id: item.material_id,
+    }));
+
+    const materialsChanged =
+      JSON.stringify(currentJobOrderMaterials) !==
+      JSON.stringify(nextJobOrderMaterials);
+
+    if (!materialsChanged) {
+      return;
+    }
 
     // Sync materials back to job order form
     if (onMaterialsChange) {
-      console.log("Calling onMaterialsChange with:", jobOrderMaterials);
-      onMaterialsChange(jobOrderMaterials);
+      console.log("Calling onMaterialsChange with:", nextJobOrderMaterials);
+      onMaterialsChange(nextJobOrderMaterials);
     } else {
       console.log("onMaterialsChange is not available");
     }
@@ -1751,6 +1766,7 @@ export default function QuotationDialog({
                   {discount > 0 ? (
                     <div className="flex items-center gap-1">
                       <Button
+                        type="button"
                         className="h-fit w-fit p-[1px] rounded-full"
                         size={"icon"}
                         variant={"destructive"}
@@ -1759,6 +1775,7 @@ export default function QuotationDialog({
                         <X size={10} />
                       </Button>
                       <Button
+                        type="button"
                         className="h-fit w-fit p-0"
                         variant={"link"}
                         onClick={(e) => {
@@ -1771,6 +1788,7 @@ export default function QuotationDialog({
                     </div>
                   ) : (
                     <Button
+                      type="button"
                       className="h-fit w-fit p-0"
                       variant={"link"}
                       onClick={(e) => {
@@ -1803,6 +1821,7 @@ export default function QuotationDialog({
                     </div>
                   ) : (
                     <Button
+                      type="button"
                       className="h-fit w-fit p-0"
                       variant={"link"}
                       onClick={(e) => {

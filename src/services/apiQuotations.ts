@@ -74,14 +74,11 @@ function normalizeUserEmail<T>(user: T): T {
 
 function normalizeJobOrderUsers<
   T extends { users?: unknown; order_received_user?: unknown },
->(
-  joborders: T[] | null | undefined
-) {
+>(joborders: T[] | null | undefined) {
   return (joborders ?? []).map((joborder) => ({
     ...joborder,
     users: normalizeUserEmail(joborder.users),
-    order_received_user:
-      normalizeUserEmail(joborder.order_received_user),
+    order_received_user: normalizeUserEmail(joborder.order_received_user),
   }));
 }
 
@@ -96,7 +93,9 @@ type QuotationFinancialRow = {
   quotation_items?: unknown[] | null;
 };
 
-function normalizeQuotationFinancials<T extends QuotationFinancialRow>(quotation: T): T {
+function normalizeQuotationFinancials<T extends QuotationFinancialRow>(
+  quotation: T,
+): T {
   const laborRate = Number(quotation.labor_rate || 0);
   const serviceFee = Number(quotation.service_fee || 0);
   const resolvedAmount =
@@ -177,7 +176,7 @@ export async function createQuotation(quotationData: CreateQuotationData) {
       `
       *,
       joborders:job_order_id (order_no)
-    `
+    `,
     )
     .single();
 
@@ -230,7 +229,7 @@ export async function getQuotationsByJobOrder(jobOrderId: number) {
       *,
       quotation_items (*),
       joborders:job_order_id (order_no)
-    `
+    `,
     )
     .eq("job_order_id", jobOrderId)
     .is("deleted_at", null);
@@ -256,7 +255,7 @@ export async function getQuotationById(quotationId: number) {
       `
       *,
       quotation_items (*)
-    `
+    `,
     )
     .eq("id", quotationId)
     .is("deleted_at", null)
@@ -272,7 +271,7 @@ export async function getQuotationById(quotationId: number) {
 
 export async function updateQuotation(
   quotationId: number,
-  quotationData: Partial<CreateQuotationData>
+  quotationData: Partial<CreateQuotationData>,
 ) {
   const {
     quotation_items,
@@ -334,7 +333,7 @@ export async function updateQuotation(
       `
       *,
       joborders:job_order_id (order_no)
-    `
+    `,
     )
     .single();
 
@@ -392,7 +391,10 @@ export async function deleteQuotation(quotationId: number) {
     .maybeSingle();
 
   if (quotationLookupError) {
-    console.error("Error finding quotation before delete:", quotationLookupError);
+    console.error(
+      "Error finding quotation before delete:",
+      quotationLookupError,
+    );
     throw new Error("Failed to validate quotation before deletion");
   }
 
@@ -422,14 +424,16 @@ export async function deleteQuotation(quotationId: number) {
   if (jobOrderCheckError) {
     console.error(
       "Error verifying linked job order after quotation delete:",
-      jobOrderCheckError
+      jobOrderCheckError,
     );
-    throw new Error("Quotation deleted, but post-delete integrity check failed");
+    throw new Error(
+      "Quotation deleted, but post-delete integrity check failed",
+    );
   }
 
   if (!jobOrderRow) {
     throw new Error(
-      "Integrity check failed: linked Job Order is missing after quotation deletion."
+      "Integrity check failed: linked Job Order is missing after quotation deletion.",
     );
   }
 }
@@ -452,8 +456,8 @@ export async function getQuotedJobOrderIds(jobOrderIds: number[]) {
     new Set(
       (data ?? [])
         .map((row) => row.job_order_id)
-        .filter((id): id is number => typeof id === "number")
-    )
+        .filter((id): id is number => typeof id === "number"),
+    ),
   );
 }
 
@@ -472,7 +476,10 @@ export async function deleteQuotationsByJobOrderIds(jobOrderIds: number[]) {
     .is("deleted_at", null);
 
   if (quotationsError) {
-    console.error("Error loading quotations before batch delete:", quotationsError);
+    console.error(
+      "Error loading quotations before batch delete:",
+      quotationsError,
+    );
     throw new Error("Failed to load quotations for deletion");
   }
 
@@ -503,25 +510,27 @@ export async function deleteQuotationsByJobOrderIds(jobOrderIds: number[]) {
   if (jobOrderCheckError) {
     console.error(
       "Error verifying linked job orders after batch quotation delete:",
-      jobOrderCheckError
+      jobOrderCheckError,
     );
-    throw new Error("Quotations deleted, but post-delete integrity check failed");
+    throw new Error(
+      "Quotations deleted, but post-delete integrity check failed",
+    );
   }
 
   const existingJobOrderIds = new Set(
-    (remainingJobOrders ?? []).map((row) => row.id)
+    (remainingJobOrders ?? []).map((row) => row.id),
   );
   const missingJobOrders = quotedJobOrderIds.filter(
-    (jobOrderId) => !existingJobOrderIds.has(jobOrderId)
+    (jobOrderId) => !existingJobOrderIds.has(jobOrderId),
   );
 
   if (missingJobOrders.length > 0) {
     console.error(
       "Integrity check failed after deleting quotations. Missing job orders:",
-      missingJobOrders
+      missingJobOrders,
     );
     throw new Error(
-      "Integrity check failed: one or more linked Job Orders are missing after quotation deletion."
+      "Integrity check failed: one or more linked Job Orders are missing after quotation deletion.",
     );
   }
 
@@ -556,8 +565,10 @@ export async function getQuotationJobOrders({
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
-  let query = supabase.from("joborders").select(
-    `
+  let query = supabase
+    .from("joborders")
+    .select(
+      `
       *,
       clients:client_id (*),
       branches:branch_id (*),
@@ -591,8 +602,8 @@ export async function getQuotationJobOrders({
         quotation_items (*)
       )
     `,
-    { count: "exact" }
-  )
+      { count: "exact" },
+    )
     .is("deleted_at", null)
     .is("quotations.deleted_at", null);
 
@@ -642,7 +653,7 @@ export async function getQuotationJobOrders({
       .or(
         `name.ilike.%${term}%,` +
           `email.ilike.%${term}%,` +
-          `contact_number.ilike.%${term}%`
+          `contact_number.ilike.%${term}%`,
       );
 
     if (clientError) {
@@ -655,7 +666,7 @@ export async function getQuotationJobOrders({
       .eq("deleted", false)
       .is("migrated_to", null)
       .or(
-        `fullname.ilike.%${term}%,email.ilike.%${term}%,migrated_email.ilike.%${term}%`
+        `fullname.ilike.%${term}%,email.ilike.%${term}%,migrated_email.ilike.%${term}%`,
       );
 
     if (techError) {
@@ -699,7 +710,7 @@ export async function getQuotationJobOrders({
   const normalizedRows = (data ?? []).map((jobOrder) => ({
     ...jobOrder,
     quotations: ((jobOrder.quotations ?? []) as QuotationFinancialRow[]).map(
-      (quotation) => normalizeQuotationFinancials(quotation)
+      (quotation) => normalizeQuotationFinancials(quotation),
     ),
   }));
 
@@ -714,7 +725,7 @@ export async function getQuotationJobOrders({
 // Add quotation to existing job order
 export async function addQuotationToJobOrder(
   jobOrderId: number,
-  quotationData: Omit<CreateQuotationData, "job_order_id">
+  quotationData: Omit<CreateQuotationData, "job_order_id">,
 ) {
   const quotation = {
     ...quotationData,
@@ -732,7 +743,7 @@ export async function getJobOrderQuotations(jobOrderId: number) {
       `
       *,
       quotation_items (*)
-    `
+    `,
     )
     .eq("job_order_id", jobOrderId)
     .is("deleted_at", null)
@@ -743,13 +754,15 @@ export async function getJobOrderQuotations(jobOrderId: number) {
     throw new Error("Failed to fetch job order quotations");
   }
 
-  return (data ?? []).map((quotation) => normalizeQuotationFinancials(quotation));
+  return (data ?? []).map((quotation) =>
+    normalizeQuotationFinancials(quotation),
+  );
 }
 
 // Update quotation status
 export async function updateQuotationStatus(
   quotationId: number,
-  status: "draft" | "for_approval" | "approved" | "rejected" | "expired"
+  status: "draft" | "for_approval" | "approved" | "rejected" | "expired",
 ) {
   const { data, error } = await supabase
     .from("quotations")
@@ -770,7 +783,7 @@ export async function updateQuotationStatus(
 // Set quotation as final (only one final quotation per job order)
 export async function setQuotationAsFinal(
   quotationId: number,
-  jobOrderId: number
+  jobOrderId: number,
 ) {
   // First, set all other quotations for this job order as not final
   await supabase
@@ -817,7 +830,7 @@ export async function getJobOrderForQuotation(jobOrderId: number) {
         used
       ),
       users:technician_id (*)
-    `
+    `,
     )
     .eq("id", jobOrderId)
     .is("deleted_at", null)
@@ -832,9 +845,8 @@ export async function getJobOrderForQuotation(jobOrderId: number) {
     return data;
   }
 
-  const orderReceivedUser = (
-    data as { order_received_user?: unknown }
-  ).order_received_user;
+  const orderReceivedUser = (data as { order_received_user?: unknown })
+    .order_received_user;
 
   return {
     ...data,
@@ -844,7 +856,7 @@ export async function getJobOrderForQuotation(jobOrderId: number) {
 }
 
 export async function getQuotationEmailLogs(
-  quotationId: number
+  quotationId: number,
 ): Promise<QuotationEmailLog[]> {
   const { data, error } = await supabase
     .from("email_logs")
@@ -862,13 +874,13 @@ export async function getQuotationEmailLogs(
 }
 
 export async function sendQuotationEmail(
-  payload: SendQuotationEmailPayload
+  payload: SendQuotationEmailPayload,
 ): Promise<SendQuotationEmailResponse> {
   const { data, error } = await supabase.functions.invoke(
     "send-quotation-email",
     {
       body: payload,
-    }
+    },
   );
 
   if (error) {
