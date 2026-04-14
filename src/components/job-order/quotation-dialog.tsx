@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -472,17 +472,13 @@ export default function QuotationDialog({
 
   const watchedItems = form.watch("quotation_items") || [];
 
-  const quotationTotals = useMemo(
-    () =>
-      computeQuotationTotal({
-        labor_rate: laborRate,
-        labor_amount: amount,
-        quotation_items: watchedItems,
-        discount,
-        downpayment,
-      }),
-    [laborRate, amount, watchedItems, discount, downpayment]
-  );
+  const quotationTotals = computeQuotationTotal({
+    labor_rate: laborRate,
+    labor_amount: amount,
+    quotation_items: watchedItems,
+    discount,
+    downpayment,
+  });
 
   const materialTotal = quotationTotals.material_total;
   const subtotal = quotationTotals.subtotal;
@@ -734,7 +730,8 @@ export default function QuotationDialog({
     field: keyof QuotationItem,
     value: string | number
   ) => {
-    const items = [...(watchedItems || [])];
+    const items = [...(form.getValues("quotation_items") || [])];
+    if (!items[index]) return;
     items[index] = { ...items[index], [field]: value };
 
     // Auto-calculate amount when qty or unit_price changes
@@ -914,21 +911,6 @@ export default function QuotationDialog({
       "Converted to job order format (inventory only):",
       nextJobOrderMaterials
     );
-
-    const currentJobOrderMaterials = (jobOrderMaterials || []).map((item) => ({
-      material: item.material,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      material_id: item.material_id,
-    }));
-
-    const materialsChanged =
-      JSON.stringify(currentJobOrderMaterials) !==
-      JSON.stringify(nextJobOrderMaterials);
-
-    if (!materialsChanged) {
-      return;
-    }
 
     // Sync materials back to job order form
     if (onMaterialsChange) {

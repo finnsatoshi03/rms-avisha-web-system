@@ -132,6 +132,7 @@ export async function createQuotation(quotationData: CreateQuotationData) {
     auto_generate_quote_no,
     manual_quote_no,
     downpayment,
+    amount: laborAmount,
     ...quotation
   } = quotationData;
 
@@ -144,7 +145,7 @@ export async function createQuotation(quotationData: CreateQuotationData) {
     discount: quotation.discount,
     downpayment,
     labor_rate: quotation.labor_rate,
-    amount: quotation.amount,
+    amount: laborAmount,
     service_fee: quotation.service_fee,
     total_quote: quotation.total_quote,
     quotation_items: quotation_items || [],
@@ -278,6 +279,7 @@ export async function updateQuotation(
     auto_generate_quote_no,
     manual_quote_no,
     downpayment,
+    amount: laborAmount,
     ...quotation
   } = quotationData;
 
@@ -290,7 +292,7 @@ export async function updateQuotation(
     quotation.discount !== undefined ||
     downpayment !== undefined ||
     quotation.labor_rate !== undefined ||
-    quotation.amount !== undefined ||
+    laborAmount !== undefined ||
     quotation.service_fee !== undefined ||
     quotation_items !== undefined;
 
@@ -300,7 +302,7 @@ export async function updateQuotation(
       discount: quotation.discount,
       downpayment,
       labor_rate: quotation.labor_rate,
-      amount: quotation.amount,
+      amount: laborAmount,
       service_fee: quotation.service_fee,
       total_quote: quotation.total_quote,
       quotation_items: quotation_items || [],

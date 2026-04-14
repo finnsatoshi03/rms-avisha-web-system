@@ -437,7 +437,7 @@ export default function JobOrderForm({
     null
   );
   const [includeManualItemsInTotal, setIncludeManualItemsInTotal] = useState(
-    editSession ? Boolean(editValues.include_quotation_items) : false
+    editSession ? editValues.include_quotation_items !== false : true
   );
   const [billingImpactDialogOpen, setBillingImpactDialogOpen] = useState(false);
   const [billingImpactPending, setBillingImpactPending] = useState(false);
