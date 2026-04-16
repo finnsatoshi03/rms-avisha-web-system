@@ -16,6 +16,8 @@ export function getStatusClass(status: string) {
       return "status-repairing";
     case "waiting parts":
       return "status-waiting-parts";
+    case "on hold":
+      return "status-on-hold";
     case "ready for pickup":
     case "ready to pickup":
       return "status-ready-for-pickup";
@@ -694,6 +696,7 @@ export const countJobOrdersByStatus = (jobOrders: JobOrderData[]) => {
     "For Approval": 0,
     Repairing: 0,
     "Waiting Parts": 0,
+    "On hold": 0,
     "Ready for Pickup": 0,
     "Ready to Pickup": 0,
     Completed: 0,

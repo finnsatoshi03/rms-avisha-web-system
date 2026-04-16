@@ -153,6 +153,10 @@ td:last-of-type {
   background-color: #8000803f;
   color: #490149;
 }
+.status-on-hold {
+  background-color: #64748b3f;
+  color: #334155;
+}
 .status-pull-out {
   background-color: #ff57223f;
   color: #b23c17;

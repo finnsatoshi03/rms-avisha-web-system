@@ -51,17 +51,18 @@ const viewColumns = [
 
 // Add this after the viewColumns definition
 const allStatuses = [
-  { label: "Pending", value: "Pending" },
   { label: "Quotation", value: "Quotation" },
+  { label: "Pending", value: "Pending" },
   { label: "For Approval", value: "For Approval" },
   { label: "Repairing", value: "Repairing" },
   { label: "Waiting Parts", value: "Waiting Parts" },
+  { label: "On hold", value: "On hold" },
   { label: "Ready for Pickup", value: "Ready for Pickup" },
-  { label: "Completed", value: "Completed" },
-  { label: "Canceled", value: "Canceled" },
-  { label: "Pull Out", value: "Pull Out" },
   { label: "For Collection", value: "For Collection" },
   { label: "For Billing", value: "For Billing" },
+  { label: "Completed", value: "Completed" },
+  { label: "Pull Out", value: "Pull Out" },
+  { label: "Canceled", value: "Canceled" },
 ];
 
 // Define the query response type
@@ -165,11 +166,11 @@ export default function JobOrders() {
 
   // Add this after the existing useEffect hooks
   const visibleStatusFilters = useMemo(() => {
-    return allStatuses.slice(0, 5);
+    return allStatuses.slice(0, 6);
   }, []);
 
   const hiddenStatusFilters = useMemo(() => {
-    return allStatuses.slice(5);
+    return allStatuses.slice(6);
   }, []);
 
   const handleStatusFilterClick = (status: string) => {
@@ -203,15 +204,18 @@ export default function JobOrders() {
   const applySorts = (newSorts: Sort[]) => setSorts(newSorts);
 
   const statusPriority: Record<string, number> = {
-    completed: 1,
-    "for approval": 2,
-    "ready for pickup": 3,
+    quotation: 1,
+    pending: 2,
+    "for approval": 3,
     repairing: 4,
     "waiting parts": 5,
-    pending: 6,
-    canceled: 7,
+    "on hold": 6,
+    "ready for pickup": 7,
     "for collection": 8,
     "for billing": 9,
+    completed: 10,
+    "pull out": 11,
+    canceled: 12,
   };
 
   // Modified sortData function to properly handle nested fields like users.fullname

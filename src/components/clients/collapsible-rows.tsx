@@ -90,6 +90,8 @@ export default function CollapsibleRows({
                           ? "text-orange-500"
                           : order.status === "Waiting Parts"
                           ? "text-purple-500"
+                          : order.status === "On hold"
+                          ? "text-slate-600"
                           : order.status.toLowerCase() === "ready for pickup"
                           ? "text-purple-600"
                           : order.status === "Completed"

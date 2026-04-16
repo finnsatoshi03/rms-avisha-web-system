@@ -39,19 +39,52 @@ export type Status = {
   icon: LucideIcon;
 };
 
+export type StatusGroup = {
+  label: string;
+  items: Status[];
+};
+
 // ── Job Order statuses ──
-export const statuses: Status[] = [
-  { value: "pending", label: "Pending", icon: CircleDashed },
-  { value: "for approval", label: "For Approval", icon: CircleDashed },
-  { value: "repairing", label: "Repairing", icon: CircleDotDashed },
-  { value: "waiting parts", label: "Waiting Parts", icon: CircleDotDashed },
-  { value: "ready for pickup", label: "Ready for Pickup", icon: ArrowUpCircle },
-  { value: "completed", label: "Completed", icon: CheckCircle2 },
-  { value: "canceled", label: "Canceled", icon: XCircle },
-  { value: "pull out", label: "Pull Out", icon: ArrowDownCircle },
-  { value: "for collection", label: "For Collection", icon: Wallet },
-  { value: "for billing", label: "For Billing", icon: Receipt },
+export const jobOrderStatusGroups: StatusGroup[] = [
+  {
+    label: "Intake",
+    items: [
+      { value: "pending", label: "Pending", icon: CircleDashed },
+      { value: "for approval", label: "For Approval", icon: CircleDashed },
+    ],
+  },
+  {
+    label: "In Progress",
+    items: [
+      { value: "repairing", label: "Repairing", icon: CircleDotDashed },
+      { value: "waiting parts", label: "Waiting Parts", icon: CircleDotDashed },
+      { value: "on hold", label: "On hold", icon: CircleDashed },
+    ],
+  },
+  {
+    label: "Ready & Billing",
+    items: [
+      {
+        value: "ready for pickup",
+        label: "Ready for Pickup",
+        icon: ArrowUpCircle,
+      },
+      { value: "for collection", label: "For Collection", icon: Wallet },
+      { value: "for billing", label: "For Billing", icon: Receipt },
+    ],
+  },
+  {
+    label: "Closed",
+    items: [
+      { value: "completed", label: "Completed", icon: CheckCircle2 },
+      { value: "pull out", label: "Pull Out", icon: ArrowDownCircle },
+      { value: "canceled", label: "Canceled", icon: XCircle },
+    ],
+  },
 ];
+export const statuses: Status[] = jobOrderStatusGroups.flatMap(
+  (group) => group.items
+);
 
 // ── Rental statuses ──
 export const rentalStatuses: Status[] = [
@@ -102,31 +135,39 @@ export const StatusPopover = ({
         <CommandInput placeholder="Change status..." />
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
-          <CommandGroup>
-            {statuses.map((status) => (
-              <span key={status.value} onClick={(e) => e.stopPropagation()}>
-                <CommandItem
-                  value={status.value}
-                  onSelect={() => handleStatusChange(order.order_no, status)}
-                  className={
-                    status.value === order.status.toLowerCase()
-                      ? "opacity-100 font-semibold"
-                      : "opacity-70"
-                  }
-                >
-                  <status.icon
-                    className={cn(
-                      "mr-2 h-4 w-4",
+          {jobOrderStatusGroups.map((group, index) => (
+            <CommandGroup
+              key={group.label}
+              heading={group.label}
+              className={cn(
+                index > 0 && "mt-1 border-t border-border pt-2"
+              )}
+            >
+              {group.items.map((status) => (
+                <span key={status.value} onClick={(e) => e.stopPropagation()}>
+                  <CommandItem
+                    value={status.value}
+                    onSelect={() => handleStatusChange(order.order_no, status)}
+                    className={
                       status.value === order.status.toLowerCase()
-                        ? "opacity-100 text-primaryRed"
-                        : "opacity-40"
-                    )}
-                  />
-                  <span>{status.label}</span>
-                </CommandItem>
-              </span>
-            ))}
-          </CommandGroup>
+                        ? "opacity-100 font-semibold"
+                        : "opacity-70"
+                    }
+                  >
+                    <status.icon
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        status.value === order.status.toLowerCase()
+                          ? "opacity-100 text-primaryRed"
+                          : "opacity-40"
+                      )}
+                    />
+                    <span>{status.label}</span>
+                  </CommandItem>
+                </span>
+              ))}
+            </CommandGroup>
+          ))}
         </CommandList>
       </Command>
     </PopoverContent>

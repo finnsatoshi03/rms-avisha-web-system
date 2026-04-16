@@ -47,6 +47,12 @@ export const getStatusIconAndClass = (status: string) => {
           <PackageCheck size={14} fill="#490149" className="text-background" />
         ),
       };
+    case "On hold":
+      return {
+        icon: (
+          <ClockIcon size={14} fill="#334155" className="text-background" />
+        ),
+      };
     case "Ready for Pickup":
       return {
         icon: (
