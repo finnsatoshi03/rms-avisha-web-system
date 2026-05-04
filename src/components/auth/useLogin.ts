@@ -13,7 +13,7 @@ export function useLogin() {
     mutationFn: ({ email, password }: { email: string; password: string }) =>
       loginApi({ email, password }),
     onSuccess: (result) => {
-      clearActiveBranchSelection();
+      void clearActiveBranchSelection(result.user.id);
       queryClient.setQueryData(["user"], result.user);
       navigate("/dashboard/job-order", { replace: true });
 

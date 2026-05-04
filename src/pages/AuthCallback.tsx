@@ -75,7 +75,11 @@ export default function AuthCallback() {
           return;
         }
 
-        clearActiveBranchSelection();
+        try {
+          await clearActiveBranchSelection(user.id);
+        } catch (clearError) {
+          console.error(clearError);
+        }
 
         if (requiresPasswordSetupFlow) {
           navigate("/auth/reset-password", { replace: true });

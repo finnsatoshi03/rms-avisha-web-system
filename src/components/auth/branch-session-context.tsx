@@ -13,11 +13,15 @@ import {
   persistActiveBranchSelection,
   readStoredActiveBranchSelection,
 } from "../../lib/branchSession";
+import {
+  clearActiveBranchSelectionRemote,
+  persistActiveBranchSelection as persistActiveBranchSelectionRemote,
+} from "../../services/apiBranchSession";
 
 type BranchSessionContextValue = {
   activeBranchSelection: ActiveBranchSelection | null;
-  setActiveBranchSelection: (userId: string, branchId: number) => void;
-  clearActiveBranchSelection: () => void;
+  setActiveBranchSelection: (userId: string, branchId: number) => Promise<void>;
+  clearActiveBranchSelection: (userId?: string | null) => Promise<void>;
 };
 
 const BranchSessionContext = createContext<BranchSessionContextValue | undefined>(
@@ -35,8 +39,10 @@ export function BranchSessionProvider({
     );
 
   const setActiveBranchSelection = useCallback(
-    (userId: string, branchId: number) => {
+    async (userId: string, branchId: number) => {
       if (!userId || !isValidBranchId(branchId)) return;
+
+      await persistActiveBranchSelectionRemote(userId, branchId);
 
       const nextSelection: ActiveBranchSelection = {
         userId,
@@ -49,7 +55,15 @@ export function BranchSessionProvider({
     []
   );
 
-  const clearActiveBranchSelection = useCallback(() => {
+  const clearActiveBranchSelection = useCallback(async (userId?: string | null) => {
+    if (userId) {
+      try {
+        await clearActiveBranchSelectionRemote(userId);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
     setActiveBranchSelectionState(null);
     clearStoredActiveBranchSelection();
   }, []);

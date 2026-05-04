@@ -16,6 +16,7 @@ import { useBranchSession } from "../components/auth/branch-session-context";
 import SharedManagerBranchGateway from "../components/auth/shared-manager-branch-gateway";
 import SharedManagerBranchSwitcher from "../components/auth/shared-manager-branch-switcher";
 import AccountMigrationNotice from "../components/auth/account-migration-notice";
+import toast from "react-hot-toast";
 
 // Breadcrumb configuration
 const breadcrumbConfig: Record<string, string> = {
@@ -168,7 +169,13 @@ export default function AppLayout() {
     return (
       <SharedManagerBranchGateway
         onSelectBranch={(branchId) => {
-          setActiveBranchSelection(user.id, branchId);
+          void setActiveBranchSelection(user.id, branchId).catch((error) => {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Failed to save active branch selection.";
+            toast.error(message);
+          });
         }}
       />
     );

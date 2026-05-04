@@ -638,21 +638,10 @@ export async function updateBillingPaymentReceipt(
   paymentId: string,
   receiptUrl: string | null
 ): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const updates = receiptUrl
-    ? {
-        receipt_url: sanitizeReceiptPath(receiptUrl),
-        receipt_uploaded_by: userData.user?.id || null,
-      }
-    : {
-        receipt_url: null,
-        receipt_uploaded_by: null,
-      };
-
-  const { error } = await supabase
-    .from("billing_payments")
-    .update(updates)
-    .eq("id", paymentId);
+  const { error } = await supabase.rpc("set_billing_payment_receipt", {
+    p_payment_id: paymentId,
+    p_receipt_url: receiptUrl ? sanitizeReceiptPath(receiptUrl) : null,
+  });
 
   if (error) {
     throw new Error("Failed to update billing receipt: " + error.message);
@@ -664,21 +653,12 @@ export async function updateSourceReceipt(
   sourceId: number,
   receiptUrl: string | null
 ): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
-  const tableName = sourceType === "job_order" ? "joborders" : "rentals";
-  const updates = receiptUrl
-    ? {
-        receipt_url: sanitizeReceiptPath(receiptUrl),
-        receipt_uploaded_at: new Date().toISOString(),
-        receipt_uploaded_by: userData.user?.id || null,
-      }
-    : {
-        receipt_url: null,
-        receipt_uploaded_at: null,
-        receipt_uploaded_by: null,
-      };
+  const { error } = await supabase.rpc("set_source_receipt", {
+    p_source_type: sourceType,
+    p_source_id: sourceId,
+    p_receipt_url: receiptUrl ? sanitizeReceiptPath(receiptUrl) : null,
+  });
 
-  const { error } = await supabase.from(tableName).update(updates).eq("id", sourceId);
   if (error) {
     throw new Error("Failed to update source receipt: " + error.message);
   }

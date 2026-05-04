@@ -40,7 +40,10 @@ export default function SharedManagerBranchSwitcher() {
     enabled: isSharedManager,
   });
 
-  const selectableBranches = branches && branches.length > 0 ? branches : [];
+  const selectableBranches = useMemo(
+    () => (branches && branches.length > 0 ? branches : []),
+    [branches]
+  );
 
   const activeBranchLabel = useMemo(
     () => getBranchLabel(activeBranchId ?? null, selectableBranches),
@@ -54,11 +57,19 @@ export default function SharedManagerBranchSwitcher() {
   const handleSwitchBranch = async (nextBranchId: number) => {
     if (activeBranchId === nextBranchId) return;
 
-    setActiveBranchSelection(user.id, nextBranchId);
-    await queryClient.invalidateQueries({ refetchType: "active" });
+    try {
+      await setActiveBranchSelection(user.id, nextBranchId);
+      await queryClient.invalidateQueries({ refetchType: "active" });
 
-    const label = getBranchLabel(nextBranchId, selectableBranches);
-    toast.success(`Switched to ${label} Branch.`);
+      const label = getBranchLabel(nextBranchId, selectableBranches);
+      toast.success(`Switched to ${label} Branch.`);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to switch active branch.";
+      toast.error(message);
+    }
   };
 
   return (

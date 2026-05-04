@@ -11,7 +11,7 @@ export function useLogout() {
   const { mutate: logout, isPending: isLoading } = useMutation({
     mutationFn: logoutApi,
     onSuccess: () => {
-      clearActiveBranchSelection();
+      void clearActiveBranchSelection();
       queryClient.removeQueries();
       navigate("/login", { replace: true });
     },
