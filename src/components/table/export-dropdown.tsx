@@ -14,7 +14,10 @@ import { saveAs } from "file-saver";
 import JobOrderPDF from "../job-order/job-order-pdf";
 import QuotationPDF from "../job-order/quotation-pdf";
 import { CreateJobOrderData, CreateQuotationData } from "../../lib/types";
-import { withComputedQuotationTotals } from "../../lib/quotation-totals";
+import {
+  resolveQuotationDownpayment,
+  withComputedQuotationTotals,
+} from "../../lib/quotation-totals";
 
 interface ExportDropdownProps {
   jobOrderData: CreateJobOrderData;
@@ -29,6 +32,7 @@ interface ExportDropdownProps {
     note: string;
     subtotal: number;
     discount: number;
+    downpayment?: number | null;
     labor_rate: number;
     service_fee: number;
     total_quote: number;
@@ -84,7 +88,12 @@ export const ExportDropdown = ({
       const sourceDiscount = Number(
         jobOrderData.discount ?? quotation.discount ?? 0
       );
-      const sourceDownpayment = Number(jobOrderData.downpayment ?? 0);
+      const sourceDownpayment = Number(
+        resolveQuotationDownpayment(
+          quotation.downpayment,
+          jobOrderData.downpayment
+        ) ?? 0
+      );
       const normalizedTotals = withComputedQuotationTotals({
         subtotal: quotation.subtotal || 0,
         discount: sourceDiscount,

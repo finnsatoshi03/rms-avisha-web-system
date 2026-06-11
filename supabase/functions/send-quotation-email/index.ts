@@ -29,6 +29,7 @@ type QuotationLookupRow = {
   quote_no: string | null;
   subtotal: number | null;
   discount: number | null;
+  downpayment: number | null;
   labor_rate: number | null;
   service_fee: number | null;
   total_quote: number | null;
@@ -381,6 +382,7 @@ Deno.serve(async (req) => {
         quote_no,
         subtotal,
         discount,
+        downpayment,
         labor_rate,
         service_fee,
         total_quote,
@@ -448,9 +450,12 @@ Deno.serve(async (req) => {
       payload.quotation_date || quotation.date_created
     );
     const resolvedDiscount =
-      quotation.joborders?.discount ?? quotation.discount ?? 0;
+      quotation.discount ?? quotation.joborders?.discount ?? 0;
     const resolvedDownpayment =
-      payload.downpayment ?? quotation.joborders?.downpayment ?? 0;
+      payload.downpayment ??
+      quotation.downpayment ??
+      quotation.joborders?.downpayment ??
+      0;
     const computedQuotationTotal = computeQuotationGrandTotal({
       subtotal: quotation.subtotal,
       discount: resolvedDiscount,

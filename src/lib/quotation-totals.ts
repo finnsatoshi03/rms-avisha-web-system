@@ -59,6 +59,24 @@ function toCurrencyNumber(value: NumericInput): number {
   return Math.max(numericValue, 0);
 }
 
+export function resolveQuotationDownpayment(
+  quotationDownpayment: NumericInput,
+  legacyJobOrderDownpayment?: NumericInput
+): number | undefined {
+  if (quotationDownpayment !== undefined && quotationDownpayment !== null) {
+    return roundCurrency(toCurrencyNumber(quotationDownpayment));
+  }
+
+  if (
+    legacyJobOrderDownpayment !== undefined &&
+    legacyJobOrderDownpayment !== null
+  ) {
+    return roundCurrency(toCurrencyNumber(legacyJobOrderDownpayment));
+  }
+
+  return undefined;
+}
+
 function resolveItemAmount(item: QuotationAmountItem): number {
   if (item.amount !== undefined && item.amount !== null) {
     return toCurrencyNumber(item.amount);
@@ -85,7 +103,7 @@ export function computeQuotationTotal(
   const quotationItems = input.quotation_items ?? [];
   const inventoryItems =
     input.materials ??
-    quotationItems.filter((item) => !Boolean(item?.is_manual));
+    quotationItems.filter((item) => !item?.is_manual);
   const manualItems =
     input.manual_items ??
     quotationItems.filter((item) => Boolean(item?.is_manual));

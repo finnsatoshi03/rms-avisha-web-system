@@ -142,6 +142,7 @@ CREATE TABLE public.quotations (
   note text,
   subtotal numeric DEFAULT 0,
   discount numeric DEFAULT 0,
+  downpayment numeric NOT NULL DEFAULT 0,
   total_quote numeric DEFAULT 0,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),

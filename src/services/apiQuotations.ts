@@ -2,7 +2,10 @@ import { supabase } from "./supabase";
 import { CreateQuotationData } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
 import { buildSoftDeleteUpdate } from "./softDelete";
-import { withComputedQuotationTotals } from "../lib/quotation-totals";
+import {
+  resolveQuotationDownpayment,
+  withComputedQuotationTotals,
+} from "../lib/quotation-totals";
 
 type UserEmailShape = {
   email?: string | null;
@@ -91,6 +94,9 @@ type QuotationFinancialRow = {
   service_fee?: number | null;
   total_quote?: number | null;
   quotation_items?: unknown[] | null;
+  joborders?: {
+    downpayment?: number | null;
+  } | null;
 };
 
 function normalizeQuotationFinancials<T extends QuotationFinancialRow>(
@@ -106,7 +112,10 @@ function normalizeQuotationFinancials<T extends QuotationFinancialRow>(
   const totals = withComputedQuotationTotals({
     subtotal: quotation.subtotal || 0,
     discount: quotation.discount || 0,
-    downpayment: quotation.downpayment || 0,
+    downpayment: resolveQuotationDownpayment(
+      quotation.downpayment,
+      quotation.joborders?.downpayment,
+    ),
     labor_rate: laborRate,
     amount: resolvedAmount,
     service_fee: serviceFee,
@@ -153,6 +162,7 @@ export async function createQuotation(quotationData: CreateQuotationData) {
 
   finalQuotation.subtotal = normalizedTotals.subtotal;
   finalQuotation.discount = normalizedTotals.discount;
+  finalQuotation.downpayment = normalizedTotals.downpayment;
   finalQuotation.labor_rate = normalizedTotals.labor_rate;
   finalQuotation.service_fee = normalizedTotals.service_fee;
   finalQuotation.total_quote = normalizedTotals.total_quote;
@@ -176,7 +186,7 @@ export async function createQuotation(quotationData: CreateQuotationData) {
     .select(
       `
       *,
-      joborders:job_order_id (order_no)
+      joborders:job_order_id (order_no, downpayment)
     `,
     )
     .single();
@@ -229,7 +239,7 @@ export async function getQuotationsByJobOrder(jobOrderId: number) {
       `
       *,
       quotation_items (*),
-      joborders:job_order_id (order_no)
+      joborders:job_order_id (order_no, downpayment)
     `,
     )
     .eq("job_order_id", jobOrderId)
@@ -255,7 +265,8 @@ export async function getQuotationById(quotationId: number) {
     .select(
       `
       *,
-      quotation_items (*)
+      quotation_items (*),
+      joborders:job_order_id (order_no, downpayment)
     `,
     )
     .eq("id", quotationId)
@@ -310,6 +321,7 @@ export async function updateQuotation(
 
     finalQuotation.subtotal = normalizedTotals.subtotal;
     finalQuotation.discount = normalizedTotals.discount;
+    finalQuotation.downpayment = normalizedTotals.downpayment;
     finalQuotation.labor_rate = normalizedTotals.labor_rate;
     finalQuotation.service_fee = normalizedTotals.service_fee;
     finalQuotation.total_quote = normalizedTotals.total_quote;
@@ -334,7 +346,7 @@ export async function updateQuotation(
     .select(
       `
       *,
-      joborders:job_order_id (order_no)
+      joborders:job_order_id (order_no, downpayment)
     `,
     )
     .single();
@@ -595,6 +607,7 @@ export async function getQuotationJobOrders({
         note,
         subtotal,
         discount,
+        downpayment,
         labor_rate,
         service_fee,
         total_quote,
@@ -744,7 +757,8 @@ export async function getJobOrderQuotations(jobOrderId: number) {
     .select(
       `
       *,
-      quotation_items (*)
+      quotation_items (*),
+      joborders:job_order_id (order_no, downpayment)
     `,
     )
     .eq("job_order_id", jobOrderId)

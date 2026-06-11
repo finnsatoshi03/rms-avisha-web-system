@@ -123,7 +123,10 @@ import {
   isBillingLinkedSource,
 } from "../../lib/billing-sync";
 import { computeTransactionTotal } from "../../lib/transaction-totals";
-import { withComputedQuotationTotals } from "../../lib/quotation-totals";
+import {
+  resolveQuotationDownpayment,
+  withComputedQuotationTotals,
+} from "../../lib/quotation-totals";
 import BillingImpactConfirmDialog from "../billing/billing-impact-confirm-dialog";
 import ReceiptMissingConfirmDialog from "../billing/receipt-missing-confirm-dialog";
 import { EmailComposePayload } from "../email/document-email-composer";
@@ -427,6 +430,7 @@ export default function JobOrderForm({
   const [latestQuotationId, setLatestQuotationId] = useState<number | null>(
     null
   );
+  const hydratedQuotationDownpaymentIdRef = useRef<number | null>(null);
   const [isSendingQuotationEmail, setIsSendingQuotationEmail] = useState(false);
   const [quotationEmailError, setQuotationEmailError] = useState<string | null>(
     null
@@ -631,7 +635,12 @@ export default function JobOrderForm({
     const sourceDiscount = Number(
       selectedDiscount ?? editValues.discount ?? quotation.discount ?? 0
     );
-    const sourceDownpayment = Number(editValues.downpayment ?? 0);
+    const sourceDownpayment = Number(
+      resolveQuotationDownpayment(
+        quotation.downpayment,
+        editValues.downpayment
+      ) ?? 0
+    );
 
     return withComputedQuotationTotals({
       subtotal: quotation.subtotal || 0,
@@ -669,7 +678,12 @@ export default function JobOrderForm({
       const sourceDiscount = Number(
         selectedDiscount ?? editValues.discount ?? quotation.discount ?? 0
       );
-      const sourceDownpayment = Number(editValues.downpayment ?? 0);
+      const sourceDownpayment = Number(
+        resolveQuotationDownpayment(
+          quotation.downpayment,
+          editValues.downpayment
+        ) ?? 0
+      );
       const normalizedTotals = withComputedQuotationTotals({
         subtotal: quotation.subtotal || 0,
         discount: sourceDiscount,
@@ -785,6 +799,30 @@ export default function JobOrderForm({
     handleDownpaymentChange,
     setDownpaymentValueStrict,
   } = useDownpayment(totalBeforeDownpayment, editValues.downpayment || undefined);
+  useEffect(() => {
+    const quotation = existingQuotations?.[0];
+    const quotationId = Number(quotation?.id || 0);
+    if (!quotation || !quotationId) {
+      hydratedQuotationDownpaymentIdRef.current = null;
+      return;
+    }
+
+    if (hydratedQuotationDownpaymentIdRef.current === quotationId) return;
+
+    const quotationDownpayment =
+      resolveQuotationDownpayment(
+        quotation.downpayment,
+        editValues.downpayment
+      ) ?? 0;
+    if (setDownpaymentValueStrict(quotationDownpayment)) {
+      hydratedQuotationDownpaymentIdRef.current = quotationId;
+      setDownpaymentInputVisible(quotationDownpayment > 0);
+    }
+  }, [
+    existingQuotations,
+    editValues.downpayment,
+    setDownpaymentValueStrict,
+  ]);
   const totals = computeTransactionTotal({
     subTotal: grandTotal,
     discount: selectedDiscount ?? 0,
@@ -1881,7 +1919,10 @@ export default function JobOrderForm({
         selectedDiscount ?? editValues.discount ?? quotation.discount ?? 0
       );
       const sourceDownpayment = Number(
-        downpaymentValue ?? editValues.downpayment ?? 0
+        resolveQuotationDownpayment(
+          quotation.downpayment,
+          downpaymentValue ?? editValues.downpayment,
+        ) ?? 0
       );
       const normalizedTotals = withComputedQuotationTotals({
         subtotal: quotation.subtotal || 0,
@@ -2209,7 +2250,7 @@ export default function JobOrderForm({
 
     const sourceDiscount = Number(selectedDiscount ?? quotationData.discount ?? 0);
     const sourceDownpayment = Number(
-      downpaymentValue ?? quotationData.downpayment ?? 0
+      quotationData.downpayment ?? downpaymentValue ?? 0
     );
 
     const normalizedTotals = withComputedQuotationTotals({

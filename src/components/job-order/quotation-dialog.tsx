@@ -48,7 +48,10 @@ import {
 import { formatNumberWithCommas } from "../../lib/helpers";
 import { cn } from "../../lib/utils";
 import { supabase } from "../../services/supabase";
-import { computeQuotationTotal } from "../../lib/quotation-totals";
+import {
+  computeQuotationTotal,
+  resolveQuotationDownpayment,
+} from "../../lib/quotation-totals";
 
 const quotationItemSchema = z
   .object({
@@ -345,10 +348,20 @@ export default function QuotationDialog({
     Number(initialData?.discount ?? jobOrderDiscount ?? 0)
   );
   const [downpayment, setDownpayment] = useState(
-    Number(jobOrderDownpayment || 0)
+    Number(
+      resolveQuotationDownpayment(
+        initialData?.downpayment,
+        jobOrderDownpayment
+      ) ?? 0
+    )
   );
   const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(
-    Number(jobOrderDownpayment || 0) > 0
+    Number(
+      resolveQuotationDownpayment(
+        initialData?.downpayment,
+        jobOrderDownpayment
+      ) ?? 0
+    ) > 0
   );
   const [downpaymentError, setDownpaymentError] = useState<string | null>(null);
   const [laborRate, setLaborRate] = useState(
@@ -525,7 +538,12 @@ export default function QuotationDialog({
       const initialDiscount = Number(
         jobOrderDiscount ?? initialData?.discount ?? 0
       );
-      const initialDownpayment = Number(jobOrderDownpayment || 0);
+      const initialDownpayment = Number(
+        resolveQuotationDownpayment(
+          initialData?.downpayment,
+          jobOrderDownpayment
+        ) ?? 0
+      );
       const initialLaborRate = Number(
         initialData?.labor_rate || jobOrderRate || 0
       );
@@ -565,6 +583,7 @@ export default function QuotationDialog({
     initialData?.quote_no,
     initialData?.note,
     initialData?.discount,
+    initialData?.downpayment,
     initialData?.labor_rate,
     initialData?.amount,
     initialData?.quotation_items,
@@ -587,7 +606,7 @@ export default function QuotationDialog({
   }, [open, jobOrderDiscount, discount]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || initialData?.downpayment !== undefined) return;
 
     const normalizedDownpayment = Number(jobOrderDownpayment || 0);
     if (normalizedDownpayment !== downpayment) {
@@ -597,7 +616,7 @@ export default function QuotationDialog({
     if (normalizedDownpayment > 0) {
       setDownpaymentInputVisible(true);
     }
-  }, [open, jobOrderDownpayment, downpayment]);
+  }, [open, initialData?.downpayment, jobOrderDownpayment, downpayment]);
 
   // Sync labor rate and amount with job order
   useEffect(() => {
