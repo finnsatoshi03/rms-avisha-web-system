@@ -19,10 +19,13 @@ function normalizeJobOrderUsers<T extends { users?: unknown; order_received_user
 }
 
 export async function getJobOrders() {
+  // Dashboard-only query: nested selects are limited to the fields the
+  // dashboard components actually read (clients.name, users.fullname/email,
+  // branches.location) — full nested records tripled the payload.
   const { data: joborders, error } = await supabase.from("joborders").select(`
       *,
-      clients:client_id (*, parent_client:parent_client_id (id, name)),
-      branches:branch_id (*),
+      clients:client_id (id, name),
+      branches:branch_id (id, location),
       materials (
         id,
         material_description,
@@ -33,7 +36,7 @@ export async function getJobOrders() {
         material_id,
         used
         ),
-        users:technician_id (*)
+        users:technician_id (id, fullname, email, migrated_email)
     `)
     .is("deleted_at", null);
 
@@ -134,19 +137,10 @@ export async function getJobOrdersFiltered({
     const term = searchTerm.trim().toLowerCase();
     console.log("Using search term:", term);
 
-    const jobOrderConditions = [
-      `brand_model.ilike.%${term}%`,
-      `serial_number.ilike.%${term}%`,
-      `machine_type.ilike.%${term}%`,
-      `problem_statement.ilike.%${term}%`,
-      `additional_comments.ilike.%${term}%`,
-      `labor_description.ilike.%${term}%`,
-      `accessories.ilike.%${term}%`,
-      `order_no.ilike.%${term}%`,
-      `status.ilike.%${term}%`,
-      `warranty.ilike.%${term}%`,
-      `technical_report.ilike.%${term}%`,
-    ].join(",");
+    // search_text is a generated column concatenating the 11 searchable
+    // fields, backed by a trigram GIN index (idx_joborders_search_trgm) —
+    // one indexable condition instead of 11 un-indexable ilike ORs.
+    const jobOrderConditions = `search_text.ilike.%${term}%`;
 
     const { data: matchingClients, error: clientError } = await supabase
       .from("clients")
@@ -344,164 +338,26 @@ async function upsertMaterials(
   materials: CreateJobOrderData["materials"],
   jobOrderId: number
 ) {
-  // Step 1: Fetch current materials for the job order
-  const { data: existingMaterials, error: fetchExistingError } = await supabase
-    .from("materials")
-    .select("material_id, quantity")
-    .eq("job_order_id", jobOrderId);
+  // Single atomic RPC: deletes removed materials (restoring stock), applies
+  // stock deltas with a not-enough-stock guard, and updates/inserts rows in
+  // one transaction — replacing ~3 round trips per material and eliminating
+  // the read-modify-write race on material_stocks.
+  const payload = (materials ?? []).map((material) => ({
+    material_id: material.material_id ?? null,
+    material: material.material ?? null,
+    quantity: material.quantity ?? null,
+    unit_price: material.unitPrice ?? null,
+    used: material.used ?? null,
+  }));
 
-  if (fetchExistingError) {
-    console.log(fetchExistingError);
-    throw new Error("Could not fetch existing materials");
-  }
+  const { error } = await supabase.rpc("sync_job_order_materials", {
+    p_job_order_id: jobOrderId,
+    p_materials: payload,
+  });
 
-  // Step 2: Create a map of existing materials for easy lookup
-  const existingMaterialsMap = (existingMaterials || []).reduce(
-    (acc, material) => {
-      acc[material.material_id] = material.quantity;
-      return acc;
-    },
-    {} as { [key: number]: number }
-  );
-
-  // Step 3: Determine materials to delete
-  const updatedMaterialIds = new Set(materials?.map((m) => m.material_id));
-  const materialsToDelete = (existingMaterials || []).filter(
-    (material) => !updatedMaterialIds.has(material.material_id)
-  );
-
-  // Step 4: Delete materials that are no longer associated with the job order
-  for (const material of materialsToDelete) {
-    // Restore stock levels before deleting the material
-    const { data: materialStock, error: fetchStockError } = await supabase
-      .from("material_stocks")
-      .select("stocks")
-      .eq("id", material.material_id)
-      .single();
-
-    if (fetchStockError || !materialStock) {
-      console.log(fetchStockError);
-      throw new Error(
-        `Could not fetch stock for material ID ${material.material_id}`
-      );
-    }
-
-    // Update stock to add back the quantity of the deleted material
-    const updatedStock = materialStock.stocks + material.quantity;
-
-    const { error: updateStockError } = await supabase
-      .from("material_stocks")
-      .update({ stocks: updatedStock })
-      .eq("id", material.material_id);
-
-    if (updateStockError) {
-      console.log(updateStockError);
-      throw new Error(
-        `Stock for material ID ${material.material_id} could not be updated`
-      );
-    }
-
-    // Delete the material from the materials table
-    const { error: deleteMaterialError } = await supabase
-      .from("materials")
-      .delete()
-      .eq("job_order_id", jobOrderId)
-      .eq("material_id", material.material_id);
-
-    if (deleteMaterialError) {
-      console.log(deleteMaterialError);
-      throw new Error(
-        `Material with ID ${material.material_id} could not be deleted`
-      );
-    }
-  }
-
-  // Step 5: Update stock levels and upsert remaining materials
-  for (const material of materials!) {
-    let existingQuantity = existingMaterialsMap[material.material_id!] || 0;
-    const newQuantity = material.quantity ?? 0;
-    const quantityChange = newQuantity - existingQuantity;
-
-    if (quantityChange !== 0) {
-      // Fetch the current stock level for the material
-      const { data: materialStock, error: fetchStockError } = await supabase
-        .from("material_stocks")
-        .select("stocks")
-        .eq("id", material.material_id)
-        .single();
-
-      if (fetchStockError || !materialStock) {
-        console.log(fetchStockError);
-        throw new Error(
-          `Could not fetch stock for material ID ${material.material_id}`
-        );
-      }
-
-      // Calculate the new stock level
-      const updatedStock = materialStock.stocks - quantityChange;
-      if (updatedStock < 0) {
-        throw new Error(
-          `Not enough stock for material ID ${material.material_id}`
-        );
-      }
-
-      // Update the stock level
-      const { error: updateStockError } = await supabase
-        .from("material_stocks")
-        .update({ stocks: updatedStock })
-        .eq("id", material.material_id);
-
-      if (updateStockError) {
-        console.log(updateStockError);
-        throw new Error(
-          `Stock for material ID ${material.material_id} could not be updated`
-        );
-      }
-    }
-
-    // Update existing material or insert new material
-    existingQuantity = existingMaterialsMap[material.material_id!];
-    if (existingQuantity !== undefined) {
-      // Update existing material
-      const { error: updateError } = await supabase
-        .from("materials")
-        .update({
-          quantity: material.quantity,
-          total_amount: (material.quantity ?? 0) * (material.unitPrice ?? 0),
-          used: material.used,
-          material_description: material.material,
-          unit_price: material.unitPrice,
-        })
-        .eq("job_order_id", jobOrderId)
-        .eq("material_id", material.material_id);
-
-      if (updateError) {
-        console.log(updateError);
-        throw new Error(
-          `Material with ID ${material.material_id} could not be updated`
-        );
-      }
-    } else {
-      // Insert new material
-      const { error: insertError } = await supabase.from("materials").insert([
-        {
-          job_order_id: jobOrderId,
-          material_id: material.material_id,
-          material_description: material.material,
-          quantity: material.quantity,
-          unit_price: material.unitPrice,
-          total_amount: (material.quantity ?? 0) * (material.unitPrice ?? 0),
-          used: material.used,
-        },
-      ]);
-
-      if (insertError) {
-        console.log(insertError);
-        throw new Error(
-          `Material with ID ${material.material_id} could not be inserted`
-        );
-      }
-    }
+  if (error) {
+    console.log(error);
+    throw new Error(error.message || "Materials could not be saved");
   }
 
   return materials; // return the updated materials data
@@ -559,11 +415,26 @@ export async function createEditJobOrder(
 
 export async function duplicateJobOrder(id: number) {
   try {
-    // Fetch the existing job order details using getJobOrders
-    const jobOrders = await getJobOrders();
-    const jobOrderData = jobOrders.find((jobOrder) => jobOrder.id === id);
+    const { data: jobOrderData, error: fetchError } = await supabase
+      .from("joborders")
+      .select(
+        `
+        *,
+        clients:client_id (id),
+        materials (
+          material_description,
+          quantity,
+          unit_price,
+          total_amount
+        )
+      `
+      )
+      .eq("id", id)
+      .is("deleted_at", null)
+      .single();
 
-    if (!jobOrderData) {
+    if (fetchError || !jobOrderData) {
+      console.log(fetchError);
       throw new Error("Job Order not found for duplication");
     }
 
@@ -675,8 +546,15 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
     return wasTerminalPaidStatus && !isNextTerminalPaidStatus;
   };
 
-  if (nextStatusNormalized === "pull out") {
-    for (const jobOrder of jobOrders) {
+  // Each job order needs its own payload (rate/warranty rules differ per row),
+  // but the updates are independent, so run them in parallel.
+  const buildPayload = (jobOrder: (typeof jobOrders)[number]) => {
+    const payload: Record<string, unknown> = {
+      status,
+      completed_at: completedAt,
+    };
+
+    if (nextStatusNormalized === "pull out") {
       let newRate = jobOrder.rate;
       if (jobOrder.rate === 1500 || jobOrder.rate === "1500") {
         newRate = 250;
@@ -684,37 +562,12 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
         newRate = 500;
       }
 
-      const payload: Record<string, unknown> = {
-        status,
-        warranty,
-        completed_at: completedAt,
-        rate: Number(newRate),
-        grand_total: Number(newRate),
-        net_sales: Number(newRate),
-      };
-
-      if (shouldResetCounterPayment(jobOrder)) {
-        payload.payment_details = null;
-        payload.receipt_url = null;
-        payload.receipt_uploaded_at = null;
-        payload.receipt_uploaded_by = null;
-      }
-
-      const { error: updateError } = await supabase
-        .from("joborders")
-        .update(payload)
-        .eq("id", jobOrder.id)
-        .is("deleted_at", null);
-
-      if (updateError) {
-        console.error(`Error updating job order ${jobOrder.id}:`, updateError);
-        throw new Error(`Job Order ${jobOrder.id} could not be updated`);
-      }
-    }
-  } else {
-    // Update each job order individually to use their specific warranty_months
-    for (const jobOrder of jobOrders) {
-      const warrantyDate =
+      payload.warranty = warranty;
+      payload.rate = Number(newRate);
+      payload.grand_total = Number(newRate);
+      payload.net_sales = Number(newRate);
+    } else {
+      payload.warranty =
         nextStatusNormalized === "completed" &&
         jobOrder.warranty_months &&
         jobOrder.warranty_months > 0
@@ -724,23 +577,23 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
               )
             )
           : null;
+    }
 
-      const payload: Record<string, unknown> = {
-        status,
-        warranty: warrantyDate,
-        completed_at: completedAt,
-      };
+    if (shouldResetCounterPayment(jobOrder)) {
+      payload.payment_details = null;
+      payload.receipt_url = null;
+      payload.receipt_uploaded_at = null;
+      payload.receipt_uploaded_by = null;
+    }
 
-      if (shouldResetCounterPayment(jobOrder)) {
-        payload.payment_details = null;
-        payload.receipt_url = null;
-        payload.receipt_uploaded_at = null;
-        payload.receipt_uploaded_by = null;
-      }
+    return payload;
+  };
 
+  await Promise.all(
+    jobOrders.map(async (jobOrder) => {
       const { error } = await supabase
         .from("joborders")
-        .update(payload)
+        .update(buildPayload(jobOrder))
         .eq("id", jobOrder.id)
         .is("deleted_at", null);
 
@@ -748,8 +601,8 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
         console.error(`Error updating job order ${jobOrder.id}:`, error);
         throw new Error(`Job Order ${jobOrder.id} could not be updated`);
       }
-    }
-  }
+    })
+  );
 }
 
 export async function updateJobOrderPayment(

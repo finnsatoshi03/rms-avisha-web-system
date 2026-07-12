@@ -7,6 +7,11 @@ export function useUser() {
   const { isLoading, data: user } = useQuery({
     queryKey: ["user"],
     queryFn: getCurrentUser,
+    // getCurrentUser makes 4-6 sequential network calls and this hook is
+    // mounted by ~40 components. Login/logout/profile updates already seed or
+    // clear this cache explicitly, so it's safe to keep it fresh for long.
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const role = user?.role;

@@ -25,7 +25,6 @@ import {
   Ban,
   Trash2,
 } from "lucide-react";
-import { pdf } from "@react-pdf/renderer";
 
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -123,7 +122,7 @@ import AttachJobOrderPanel from "./attach-job-order-panel";
 import AttachRentalPanel from "./attach-rental-panel";
 import GenerateStatementPanel from "./generate-statement-panel";
 import BillingAccountFormSheet from "./billing-account-form";
-import BillingStatementPDF, { BillingStatementPDFData } from "./billing-statement-pdf";
+import type { BillingStatementPDFData } from "./billing-statement-pdf";
 import TransactionDateDialog from "./transaction-date-dialog";
 import DocumentEmailComposer, {
   EmailComposePayload,
@@ -933,6 +932,10 @@ export default function BillingAccountSheetContent({
     };
 
     try {
+      const [{ pdf }, { default: BillingStatementPDF }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("./billing-statement-pdf"),
+      ]);
       const blob = await pdf(<BillingStatementPDF data={pdfData} />).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -1047,6 +1050,10 @@ export default function BillingAccountSheetContent({
         payments: effectivePayments ?? [],
       };
 
+      const [{ pdf }, { default: BillingStatementPDF }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("./billing-statement-pdf"),
+      ]);
       const blob = await pdf(<BillingStatementPDF data={pdfData} />).toBlob();
       const buffer = await blob.arrayBuffer();
       const base64 = btoa(

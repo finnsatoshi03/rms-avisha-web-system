@@ -31,9 +31,7 @@ import {
 } from "../services/apiBilling";
 import { useRentalStatusUpdate } from "../components/rental/useRentalStatusUpdate";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
-import RentalPDF from "../components/rental/rental-pdf";
 import PrintOptionsDialog from "../components/job-order/print-option-dialog";
 import { formatNumberWithCommas, getStatusClass } from "../lib/helpers";
 import debounce from "lodash/debounce";
@@ -529,6 +527,10 @@ export default function Rentals() {
 
   const handleExportPdf = async (rental: RentalData) => {
     try {
+      const [{ pdf }, { default: RentalPDF }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("../components/rental/rental-pdf"),
+      ]);
       const blob = await pdf(<RentalPDF rental={rental} />).toBlob();
       saveAs(blob, `Rental-${rental.rental_no}.pdf`);
       toast.success("PDF exported");
@@ -545,6 +547,10 @@ export default function Rentals() {
       // Find the newly created rental from the query data
       const rental = rentals.find((r) => r.rental_no === printRentalNo);
       if (rental) {
+        const [{ pdf }, { default: RentalPDF }] = await Promise.all([
+          import("@react-pdf/renderer"),
+          import("../components/rental/rental-pdf"),
+        ]);
         const blob = await pdf(<RentalPDF rental={rental} />).toBlob();
         saveAs(blob, `Rental-${rental.rental_no}.pdf`);
         toast.success("PDF exported");

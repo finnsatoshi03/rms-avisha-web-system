@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
-import { pdf } from "@react-pdf/renderer";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { saveAs } from "file-saver";
 import toast from "react-hot-toast";
@@ -47,9 +46,6 @@ import { Separator } from "../ui/separator";
 
 import AccessoriesSection from "./accessories-section";
 import JoBillingSection from "../billing/jo-billing-section";
-import JobOrderPDF from "./job-order-pdf";
-import QuotationPDF from "./quotation-pdf";
-import MergedPDF from "./merged-pdf";
 import ClientAutoSuggest from "./client-auto-suggest";
 import PhoneInput from "../ui/phone-input";
 import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
@@ -1117,6 +1113,10 @@ export default function JobOrderForm({
       branch: resolveBranchForPdf(data.branch_id),
     };
 
+    const [{ pdf }, { default: JobOrderPDF }] = await Promise.all([
+      import("@react-pdf/renderer"),
+      import("./job-order-pdf"),
+    ]);
     const doc = <JobOrderPDF data={pdfData} type={type} />;
     const asBlob = await pdf(doc).toBlob();
 
@@ -1199,6 +1199,10 @@ export default function JobOrderForm({
       date: new Date().toISOString().split("T")[0],
     };
 
+    const [{ pdf }, { default: QuotationPDF }] = await Promise.all([
+      import("@react-pdf/renderer"),
+      import("./quotation-pdf"),
+    ]);
     const doc = <QuotationPDF data={quotationPDFData} type="both" />;
     const asBlob = await pdf(doc).toBlob();
 
@@ -1442,6 +1446,10 @@ export default function JobOrderForm({
       );
       const technicianName = technician ? technician.fullname : "---";
 
+      const [{ pdf }, { default: MergedPDF }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("./merged-pdf"),
+      ]);
       const doc = (
         <MergedPDF
           jobOrderData={{

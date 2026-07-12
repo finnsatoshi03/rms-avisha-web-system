@@ -3,8 +3,6 @@ import { Button } from "../ui/button";
 import { DatePickerWithRange } from "../date-range-picker";
 import { DateRange } from "react-day-picker";
 import { Metrics } from "../../lib/types";
-import AnalyticsDashboardPDF from "./analytics-pdf";
-import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import { toPng } from "html-to-image";
 
@@ -59,6 +57,10 @@ const DateRangePickerWithExport: React.FC<DateRangePickerWithExportProps> = ({
     const revenuePerTechChartImage = await toPng(revenuePerTechChartElement);
     const techPerformanceChartImage = await toPng(techPerformanceChartElement);
 
+    const [{ pdf }, { default: AnalyticsDashboardPDF }] = await Promise.all([
+      import("@react-pdf/renderer"),
+      import("./analytics-pdf"),
+    ]);
     const doc = (
       <AnalyticsDashboardPDF
         dateRange={{ from: dateRange.from, to: dateRange.to }}

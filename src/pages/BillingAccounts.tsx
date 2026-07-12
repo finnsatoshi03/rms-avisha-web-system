@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Search, Plus, ReceiptText, Filter, Download } from "lucide-react";
-import { pdf } from "@react-pdf/renderer";
 import toast from "react-hot-toast";
 
 import HeaderText from "../components/ui/headerText";
@@ -47,9 +46,7 @@ import { formatNumberWithCommas } from "../lib/helpers";
 import { getClientDisplayName } from "../lib/client-hierarchy";
 import BillingAccountFormSheet from "../components/billing/billing-account-form";
 import BillingAccountSheetContent from "../components/billing/billing-account-sheet";
-import BillingStatementPDF, {
-  BillingStatementPDFData,
-} from "../components/billing/billing-statement-pdf";
+import type { BillingStatementPDFData } from "../components/billing/billing-statement-pdf";
 import { useFeatureOnboarding } from "../components/onboarding/useFeatureOnboarding";
 import FeatureAnnouncementModal from "../components/onboarding/feature-announcement-modal";
 import GuidedTour from "../components/onboarding/guided-tour";
@@ -315,6 +312,10 @@ export default function BillingAccounts() {
     };
 
     try {
+      const [{ pdf }, { default: BillingStatementPDF }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("../components/billing/billing-statement-pdf"),
+      ]);
       const blob = await pdf(<BillingStatementPDF data={pdfData} />).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

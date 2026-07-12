@@ -9,10 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
-import JobOrderPDF from "../job-order/job-order-pdf";
-import QuotationPDF from "../job-order/quotation-pdf";
 import { CreateJobOrderData, CreateQuotationData } from "../../lib/types";
 import {
   resolveQuotationDownpayment,
@@ -64,6 +61,10 @@ export const ExportDropdown = ({
     setIsExporting(true);
     setExportingType("jo");
     try {
+      const [{ pdf }, { default: JobOrderPDF }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("../job-order/job-order-pdf"),
+      ]);
       const doc = <JobOrderPDF data={jobOrderData} />;
       const asBlob = await pdf(doc).toBlob();
       saveAs(asBlob, fileName);
@@ -148,6 +149,10 @@ export const ExportDropdown = ({
         date: new Date().toISOString().split("T")[0],
       };
 
+      const [{ pdf }, { default: QuotationPDF }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("../job-order/quotation-pdf"),
+      ]);
       const doc = <QuotationPDF data={quotationPDFData} type="both" />;
       const asBlob = await pdf(doc).toBlob();
       saveAs(

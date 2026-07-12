@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import {
   BrowserRouter,
   // HashRouter,
@@ -11,43 +12,48 @@ import { Toaster } from "react-hot-toast";
 import "./styles/loader.css";
 
 import AppLayout from "./layout/AppLayout";
-import Dashboard from "./pages/Dashboard";
-import TechnicianDashboard from "./pages/TechnicianDashboard";
-import JobOrders from "./pages/JobOrders";
-import Quotations from "./pages/Quotations";
-import Clients from "./pages/Clients";
-// import Settings from "./pages/Settings";
-import Login from "./pages/Login";
-import AuthCallback from "./pages/AuthCallback";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
 import ProtectedRoute from "./components/protected-route";
 import PublicRoute from "./components/public-route";
-import Technicians from "./pages/Technicians";
-import TechnicianDetailPage from "./pages/TechnicianDetailPage";
-import Account from "./pages/Account";
-import Materials from "./pages/Materials";
-import Expenses from "./pages/Expenses";
-import Branches from "./pages/Branches";
-import ManagerReAuth from "./components/auth/manager-reauth";
-import NotFound from "./pages/NotFound";
-import Maintenance from "./pages/Maintenance";
-import BillingAccounts from "./pages/BillingAccounts";
 import BillingGuard from "./components/billing/billing-guard";
-import Rentals from "./pages/Rentals";
-import RentalAssets from "./pages/RentalAssets";
-import DashboardRental from "./pages/DashboardRental";
-import Archive from "./pages/Archive";
 import { BranchSessionProvider } from "./components/auth/branch-session-context";
+import { AuthPageSkeleton } from "./components/ui/page-skeleton";
+
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const TechnicianDashboard = lazy(() => import("./pages/TechnicianDashboard"));
+const JobOrders = lazy(() => import("./pages/JobOrders"));
+const Quotations = lazy(() => import("./pages/Quotations"));
+const Clients = lazy(() => import("./pages/Clients"));
+// const Settings = lazy(() => import("./pages/Settings"));
+const Login = lazy(() => import("./pages/Login"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Technicians = lazy(() => import("./pages/Technicians"));
+const TechnicianDetailPage = lazy(() => import("./pages/TechnicianDetailPage"));
+const Account = lazy(() => import("./pages/Account"));
+const Materials = lazy(() => import("./pages/Materials"));
+const Expenses = lazy(() => import("./pages/Expenses"));
+const Branches = lazy(() => import("./pages/Branches"));
+const ManagerReAuth = lazy(() => import("./components/auth/manager-reauth"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Maintenance = lazy(() => import("./pages/Maintenance"));
+const BillingAccounts = lazy(() => import("./pages/BillingAccounts"));
+const Rentals = lazy(() => import("./pages/Rentals"));
+const RentalAssets = lazy(() => import("./pages/RentalAssets"));
+const DashboardRental = lazy(() => import("./pages/DashboardRental"));
+const Archive = lazy(() => import("./pages/Archive"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 0,
+      // Data stays fresh for 1 minute; window-focus refetch still keeps
+      // multi-terminal counters in sync without refetching on every mount.
+      staleTime: 60 * 1000,
       // refetchOnWindowFocus: false,
     },
   },
 });
+
 
 export default function App() {
   // console.log("App Loads");
@@ -57,7 +63,11 @@ export default function App() {
       <BranchSessionProvider>
         <ReactQueryDevtools initialIsOpen={false} />
         <BrowserRouter>
-          <Routes>
+          {/* Outer boundary only catches public routes (login, reset, 404);
+              protected pages resolve inside AppLayout's own Suspense so the
+              sidebar and header never unmount during navigation. */}
+          <Suspense fallback={<AuthPageSkeleton />}>
+            <Routes>
             <Route
               index
               element={<Navigate replace to="dashboard/job-order" />}
@@ -115,7 +125,8 @@ export default function App() {
             <Route path="auth/callback" element={<AuthCallback />} />
             <Route path="auth/reset-password" element={<ResetPassword />} />
             <Route path="*" element={<NotFound />} />
-          </Routes>
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </BranchSessionProvider>
 

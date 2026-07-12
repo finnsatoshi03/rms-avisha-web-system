@@ -1,7 +1,8 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import AppSidebar from "./Sidebar";
 import { useUser } from "../components/auth/useUser";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import PageSkeleton from "../components/ui/page-skeleton";
 import {
   SidebarInset,
   SidebarProvider,
@@ -243,7 +244,11 @@ export default function AppLayout() {
           <div className="flex flex-1 flex-col gap-4 pt-0">
             <div className="h-[calc(100vh-6rem)]">
               <div className="h-full px-6">
-                <Outlet />
+                {/* Boundary lives inside the layout so the sidebar/header stay
+                    mounted while a lazy page chunk loads. */}
+                <Suspense fallback={<PageSkeleton />}>
+                  <Outlet />
+                </Suspense>
               </div>
             </div>
           </div>
