@@ -36,7 +36,7 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 
-import { Loader2, PenLine, Trash2, X } from "lucide-react";
+import { Inbox, Loader2, PenLine, Trash2, X } from "lucide-react";
 
 import {
   formatMachineType,
@@ -1156,6 +1156,24 @@ export default function Table({
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {orders.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={12} className="h-48 text-center">
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <Inbox className="h-8 w-8 opacity-40" />
+                        <p className="text-sm font-medium">
+                          No job orders found
+                        </p>
+                        <p className="text-xs">
+                          Adjust the search or filters, or create a new job
+                          order with the&nbsp;
+                          <span className="font-semibold">+ button</span> (or
+                          press <kbd className="rounded border bg-muted px-1">n</kbd>).
+                        </p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
                 {orders.map((order: JobOrderData) => {
                   const highlight = shouldHighlightRow(
                     order.created_at,

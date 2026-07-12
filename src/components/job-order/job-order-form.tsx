@@ -660,6 +660,32 @@ export default function JobOrderForm({
   ]);
 
   const isPending = isCreating || isEditing || materialStocksLoading;
+
+  // Focus the first editable field once the sheet's open animation settles.
+  const formElementRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (isFormReadonly) return;
+    const timer = setTimeout(() => {
+      formElementRef.current
+        ?.querySelector<HTMLInputElement>(
+          "input:not([type=hidden]):not([disabled]):not([readonly])"
+        )
+        ?.focus();
+    }, 150);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Failed submit: tell the user how many fields need fixing (react-hook-form
+  // already focuses the first invalid field that has a focusable ref).
+  const handleInvalidSubmit = (errors: Record<string, unknown>) => {
+    const count = Object.keys(errors).length;
+    toast.error(
+      count === 1
+        ? "1 field needs your attention before saving."
+        : `${count} fields need your attention before saving.`
+    );
+  };
   const onWarranty = editSession && Boolean(editValues.warranty);
 
   const [initialFormValues, setInitialFormValues] = useState(form.getValues());
@@ -2358,7 +2384,8 @@ export default function JobOrderForm({
       )}
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit(onSubmit)}
+          ref={formElementRef}
+          onSubmit={form.handleSubmit(onSubmit, handleInvalidSubmit)}
           className={
             isEditMode ? "border-2 border-blue-200 rounded-lg p-4" : ""
           }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { endOfMonth, format, getYear, startOfMonth } from "date-fns";
 import {
   AggregatedData,
@@ -18,27 +18,42 @@ import { Coins, CreditCard, Wallet, UsersRound } from "lucide-react";
 
 import { TabsContent } from "../components/ui/tabs";
 import HeaderText from "../components/ui/headerText";
-import BarChartSection from "../components/dashboard/bar-chart";
 import RecentSalesSection from "../components/dashboard/recent-sales";
 import DateRangePickerWithExport from "../components/dashboard/analytics-header-buttons";
 import DashboardTabs from "../components/dashboard/dashboard-tabs";
-import SalesGrowthChart from "../components/dashboard/sales-growth-chart";
 import RevenuePerTechnicianPieChart from "../components/dashboard/leaderboard";
-import PieChartComponent from "../components/dashboard/revenue-breakdown-chart";
-import SalesByBranch from "../components/dashboard/sales-by-branch-chart";
-import TechnicianPerformanceAnalytics from "../components/dashboard/heatmap-chart";
 import StatusOverview from "../components/dashboard/status-overview";
+
+// Chart-heavy components are lazy so recharts/heatmap land in their own
+// chunk instead of blocking the dashboard's first paint.
+const BarChartSection = lazy(() => import("../components/dashboard/bar-chart"));
+const SalesGrowthChart = lazy(
+  () => import("../components/dashboard/sales-growth-chart")
+);
+const PieChartComponent = lazy(
+  () => import("../components/dashboard/revenue-breakdown-chart")
+);
+const SalesByBranch = lazy(
+  () => import("../components/dashboard/sales-by-branch-chart")
+);
+const TechnicianPerformanceAnalytics = lazy(
+  () => import("../components/dashboard/heatmap-chart")
+);
+const SalesReportLineChart = lazy(
+  () => import("../components/dashboard/sales-report-line-chart")
+);
+const FinancialChart = lazy(
+  () => import("../components/dashboard/financial-chart")
+);
+const ReportCard = lazy(() => import("../components/dashboard/reports-card"));
 import { DateRange } from "react-day-picker";
 import { useQuery } from "@tanstack/react-query";
 import { getJobOrders } from "../services/apiJobOrders";
 import { DashboardSkeleton } from "../components/ui/page-skeleton";
 import { useUser } from "../components/auth/useUser";
 import { useExpenses } from "../components/expenses/useExpenses";
-import ReportCard from "../components/dashboard/reports-card";
 import OverviewCard from "../components/dashboard/overview-card";
 import { DatePickerWithRange } from "../components/date-range-picker";
-import SalesReportLineChart from "../components/dashboard/sales-report-line-chart";
-import FinancialChart from "../components/dashboard/financial-chart";
 import BillingOverviewCard from "../components/dashboard/billing-overview-card";
 
 import { useNavigate } from "react-router-dom";
@@ -559,6 +574,7 @@ export default function Dashboard() {
   if (isLoading || isExpensesLoading) return <DashboardSkeleton />;
 
   return (
+    <Suspense fallback={<DashboardSkeleton />}>
     <div className="h-full">
       <div className="flex sm:flex-row flex-col justify-between">
         <HeaderText>Dashboard</HeaderText>
@@ -674,5 +690,6 @@ export default function Dashboard() {
         <div className="mt-4 w-full pb-8 space-y-4">{salesReport}</div>
       )}
     </div>
+    </Suspense>
   );
 }

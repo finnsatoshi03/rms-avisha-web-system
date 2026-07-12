@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "../services/supabase";
 import {
   CommandDialog,
   CommandInput,
@@ -20,6 +22,8 @@ import {
   DialogDescription,
 } from "./ui/dialog";
 import {
+  Plus,
+  Printer as PrinterIcon,
   Search,
   Archive,
   Building2,
@@ -268,6 +272,34 @@ const NavigationSearch: React.FC = () => {
       .filter((group) => group.items.length > 0);
   }, [search, filteredNavigationItems]);
 
+  // Live record search: find job orders by order no, serial, client details…
+  // (anything covered by the indexed search_text column).
+  const trimmedSearch = search.trim().toLowerCase();
+  const { data: matchedOrders = [] } = useQuery({
+    queryKey: ["nav-search-orders", trimmedSearch],
+    enabled: open && trimmedSearch.length >= 2,
+    staleTime: 30 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("joborders")
+        .select("id, order_no, status, clients:client_id (name)")
+        .is("deleted_at", null)
+        .ilike("search_text", `%${trimmedSearch}%`)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) {
+        console.error("Palette job order search failed:", error);
+        return [];
+      }
+      return data as unknown as Array<{
+        id: number;
+        order_no: string;
+        status: string | null;
+        clients: { name: string | null } | null;
+      }>;
+    },
+  });
+
   const handleSelect = (path: string) => {
     setOpen(false);
     setSearch("");
@@ -381,6 +413,43 @@ const NavigationSearch: React.FC = () => {
         />
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
+          <CommandGroup heading="Actions">
+            <CommandItem
+              value="new job order create add"
+              onSelect={() => handleSelect("/job-orders?new=1")}
+              className="flex items-center gap-2 px-2 py-3"
+            >
+              <Plus className="h-4 w-4" />
+              <span>New Job Order</span>
+            </CommandItem>
+          </CommandGroup>
+          {matchedOrders.length > 0 && (
+            <CommandGroup heading="Job Orders">
+              {matchedOrders.map((order) => (
+                <CommandItem
+                  key={order.id}
+                  value={`${order.order_no} ${order.clients?.name ?? ""} ${search}`}
+                  onSelect={() =>
+                    handleSelect(
+                      `/job-orders?q=${encodeURIComponent(order.order_no)}`
+                    )
+                  }
+                  className="flex items-center gap-2 px-2 py-3"
+                >
+                  <PrinterIcon className="h-4 w-4" />
+                  <span className="font-medium">#{order.order_no}</span>
+                  <span className="truncate text-muted-foreground">
+                    {order.clients?.name}
+                  </span>
+                  {order.status && (
+                    <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[10px]">
+                      {order.status}
+                    </span>
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
           {filteredItems.map((group) => (
             <CommandGroup key={group.group} heading={group.group}>
               {group.items.map((item) => {

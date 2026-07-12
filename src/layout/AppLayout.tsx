@@ -12,11 +12,11 @@ import {
 } from "../components/ui/sidebar";
 import { Separator } from "../components/ui/separator";
 import NavigationSearch from "../components/navigation-search";
-import CommandPalette from "../components/command-palette";
 import InitialPasswordSetup from "../components/auth/initial-password-setup";
 import { DevConsoleProvider } from "../components/dev-console/dev-console-context";
 import DevUsers from "../pages/DevUsers";
 import { useBranchSession } from "../components/auth/branch-session-context";
+import { useJobOrdersRealtime } from "../hooks/useJobOrdersRealtime";
 import SharedManagerBranchGateway from "../components/auth/shared-manager-branch-gateway";
 import SharedManagerBranchSwitcher from "../components/auth/shared-manager-branch-switcher";
 import AccountMigrationNotice from "../components/auth/account-migration-notice";
@@ -100,6 +100,7 @@ export default function AppLayout() {
   const { setActiveBranchSelection } = useBranchSession();
   const location = useLocation();
   const navigate = useNavigate();
+  useJobOrdersRealtime();
   const [isMigrationNoticeDismissed, setIsMigrationNoticeDismissed] =
     useState(false);
 
@@ -215,7 +216,6 @@ export default function AppLayout() {
             onAcknowledge={() => setIsMigrationNoticeDismissed(true)}
           />
         ) : null}
-        <CommandPalette />
         <AppSidebar isUser={isUser} />
         <SidebarInset>
           <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">

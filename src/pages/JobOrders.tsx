@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Plus,
@@ -98,15 +98,48 @@ export default function JobOrders() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Deep link from the command palette: /job-orders?new=1 opens the form.
+  // Deep links from the command palette: ?new=1 opens the form,
+  // ?q=<term> seeds the search box (e.g. jumping to a specific order no).
   useEffect(() => {
-    if (searchParams.get("new") === "1") {
-      setIsSheetOpen(true);
-      const next = new URLSearchParams(searchParams);
-      next.delete("new");
-      setSearchParams(next, { replace: true });
+    const wantsNew = searchParams.get("new") === "1";
+    const query = searchParams.get("q");
+    if (!wantsNew && query === null) return;
+
+    if (wantsNew) setIsSheetOpen(true);
+    if (query !== null) {
+      setSearchTerm(query);
+      setDebouncedSearchTerm(query);
     }
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("new");
+    next.delete("q");
+    setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
+
+  // Keyboard shortcuts: "/" focuses search, "n" opens a new job order.
+  // Ignored while typing in any input/textarea or with modifier keys held.
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const handleShortcuts = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTyping =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable;
+      if (isTyping || event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (event.key === "/") {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      } else if (event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        setIsSheetOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handleShortcuts);
+    return () => window.removeEventListener("keydown", handleShortcuts);
+  }, []);
 
   // Create a debounced function for updating search term
   const debouncedSearch = useCallback(
@@ -411,6 +444,7 @@ export default function JobOrders() {
         <div className="flex items-center gap-3">
           <div className="relative">
             <Input
+              ref={searchInputRef}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="border-gray-400 h-fit py-1 pl-8 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all ease-in-out duration-500 relative focus-within:w-[300px]"
