@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo } from "react";
 import { endOfMonth, format, getYear, startOfMonth } from "date-fns";
 import {
@@ -32,7 +31,7 @@ import StatusOverview from "../components/dashboard/status-overview";
 import { DateRange } from "react-day-picker";
 import { useQuery } from "@tanstack/react-query";
 import { getJobOrders } from "../services/apiJobOrders";
-import Loader from "../components/ui/loader";
+import { DashboardSkeleton } from "../components/ui/page-skeleton";
 import { useUser } from "../components/auth/useUser";
 import { useExpenses } from "../components/expenses/useExpenses";
 import ReportCard from "../components/dashboard/reports-card";
@@ -557,12 +556,7 @@ export default function Dashboard() {
     </>
   );
 
-  if (isLoading || isExpensesLoading)
-    return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Loader />
-      </div>
-    );
+  if (isLoading || isExpensesLoading) return <DashboardSkeleton />;
 
   return (
     <div className="h-full">

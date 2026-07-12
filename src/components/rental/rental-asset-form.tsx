@@ -78,6 +78,8 @@ export default function RentalAssetForm({
 
   const form = useForm<RentalAssetFormValues>({
     resolver: zodResolver(rentalAssetFormSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
     defaultValues: {
       unit_name: editAsset?.unit_name || "",
       model: editAsset?.model || "",

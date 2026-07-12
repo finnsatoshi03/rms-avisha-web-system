@@ -131,6 +131,37 @@ export default function Table({
   } = useMutation({
     mutationFn: ({ ids, status }: { ids: number[]; status: string }) =>
       updateJobOrderStatus(ids, status),
+    // Optimistic update: flip the status in every cached job-order page
+    // immediately; the per-call-site onSuccess invalidations then reconcile
+    // server-computed fields (warranty, rate) in the background.
+    onMutate: async ({ ids, status }) => {
+      await queryClient.cancelQueries({ queryKey: ["job_order"] });
+      const previous = queryClient.getQueriesData<{
+        data: JobOrderData[];
+        meta: { totalCount: number | null };
+      }>({ queryKey: ["job_order"] });
+
+      queryClient.setQueriesData<{
+        data: JobOrderData[];
+        meta: { totalCount: number | null };
+      }>({ queryKey: ["job_order"] }, (old) => {
+        if (!old?.data) return old;
+        return {
+          ...old,
+          data: old.data.map((row) =>
+            ids.includes(row.id) ? { ...row, status } : row
+          ),
+        };
+      });
+
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      for (const [key, snapshot] of context?.previous ?? []) {
+        queryClient.setQueryData(key, snapshot);
+      }
+      toast.error("Status change failed — reverted.");
+    },
   });
 
   const { mutate: duplicateJobOrderMutate, isPending: isDuplicating } =

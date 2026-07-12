@@ -8,7 +8,7 @@ import HeaderText from "../components/ui/headerText";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { Separator } from "../components/ui/separator";
-import Loader from "../components/ui/loader";
+import PageSkeleton from "../components/ui/page-skeleton";
 import MaterialsTable from "../components/materials/table";
 import MaterialForm from "../components/materials/material-form";
 import { useUser } from "../components/auth/useUser";
@@ -188,9 +188,7 @@ export default function Materials() {
 
   if (isStocksLoading || isBranchesLoading) {
     return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Loader />
-      </div>
+      <PageSkeleton />
     );
   }
 

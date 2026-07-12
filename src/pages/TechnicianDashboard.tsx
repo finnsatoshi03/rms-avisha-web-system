@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import TechnicianDashboard from "../components/dashboard/technician-page";
 import { getTechnicians } from "../services/apiTechnicians";
 import { useUser } from "../components/auth/useUser";
-import Loader from "../components/ui/loader";
+import { DashboardSkeleton } from "../components/ui/page-skeleton";
 import HeaderText from "../components/ui/headerText";
 
 export default function TechnicianDashboardPage() {
@@ -22,9 +22,7 @@ export default function TechnicianDashboardPage() {
 
   if (isTechniciansLoading || !matchedTechnicianData) {
     return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Loader />
-      </div>
+      <DashboardSkeleton />
     );
   }
 

@@ -545,6 +545,10 @@ export default function JobOrderForm({
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    // Validate each field on first blur, then re-validate on every keystroke —
+    // errors surface (and clear) while typing instead of only on submit.
+    mode: "onTouched",
+    reValidateMode: "onChange",
     defaultValues: editSession
       ? { ...editValuesWithClient, client_id: clientId || undefined, technical_report: existingTechnicalReport }
       : {
@@ -2598,7 +2602,7 @@ export default function JobOrderForm({
                     } = field;
                     return (
                       <FormItem className="space-y-0">
-                        <FormLabel>Contact No.</FormLabel>
+                        <FormLabel required>Contact No.</FormLabel>
                         <FormControl>
                           <PhoneInput
                             value={contactNumber || fieldValue}
@@ -2834,7 +2838,7 @@ export default function JobOrderForm({
                   name="problem_statement"
                   render={({ field }) => (
                     <FormItem className="space-y-0 w-full my-3">
-                      <FormLabel>Problem Statement</FormLabel>
+                      <FormLabel required>Problem Statement</FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="Describe the issue"
@@ -2934,7 +2938,7 @@ export default function JobOrderForm({
                   render={({ field }) => (
                     <FormItem className="border-b py-2">
                       <div className="space-y-0 flex justify-between items-center w-full">
-                        <FormLabel>Rate</FormLabel>
+                        <FormLabel required>Rate</FormLabel>
                         <div className="flex flex-col items-end gap-2">
                           <div
                             className="group inline-flex items-center gap-2"

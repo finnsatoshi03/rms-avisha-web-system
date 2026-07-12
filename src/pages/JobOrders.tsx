@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Plus,
   Search,
@@ -25,7 +26,7 @@ import {
 import JobOrderForm from "../components/job-order/job-order-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getJobOrdersFiltered } from "../services/apiJobOrders";
-import Loader from "../components/ui/loader";
+import PageSkeleton from "../components/ui/page-skeleton";
 import ErrorBoundary from "../components/error-boundery";
 import { getTechnicians } from "../services/apiTechnicians";
 import { Input } from "../components/ui/input";
@@ -95,6 +96,17 @@ export default function JobOrders() {
   );
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Deep link from the command palette: /job-orders?new=1 opens the form.
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setIsSheetOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete("new");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Create a debounced function for updating search term
   const debouncedSearch = useCallback(
@@ -145,6 +157,50 @@ export default function JobOrders() {
       }),
     placeholderData: (previousData) => previousData,
   });
+
+  // Prefetch the next page in the background so pagination feels instant.
+  useEffect(() => {
+    const totalCount = data?.meta?.totalCount ?? 0;
+    if (!totalCount || currentPage * itemsPerPage >= totalCount) return;
+
+    queryClient.prefetchQuery({
+      queryKey: [
+        "job_order",
+        currentPage + 1,
+        itemsPerPage,
+        debouncedSearchTerm,
+        isManager,
+        currentBranchId,
+        isUser,
+        user?.id,
+        selectedStatusFilters,
+        showWarningsOnly,
+      ],
+      queryFn: () =>
+        getJobOrdersFiltered({
+          page: currentPage + 1,
+          limit: itemsPerPage,
+          searchTerm: debouncedSearchTerm,
+          branchId: getBranchId(),
+          technicianId: isUser ? user?.id : undefined,
+          statusFilters: selectedStatusFilters,
+          showWarningsOnly: showWarningsOnly,
+        }),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    data,
+    currentPage,
+    itemsPerPage,
+    debouncedSearchTerm,
+    isManager,
+    currentBranchId,
+    isUser,
+    user?.id,
+    selectedStatusFilters,
+    showWarningsOnly,
+    queryClient,
+  ]);
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -346,12 +402,7 @@ export default function JobOrders() {
     return selectedStatusFilters.slice(2);
   }, [selectedStatusFilters]);
 
-  if (isLoading)
-    return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Loader />
-      </div>
-    );
+  if (isLoading) return <PageSkeleton />;
 
   return (
     <div className="h-full">

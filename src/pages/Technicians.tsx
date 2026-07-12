@@ -13,7 +13,7 @@ import {
 import { Separator } from "../components/ui/separator";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { deleteTechnician, getTechnicians } from "../services/apiTechnicians";
-import Loader from "../components/ui/loader";
+import PageSkeleton from "../components/ui/page-skeleton";
 import { TechnicianWithJobOrders } from "../lib/types";
 import TechnicianCard from "../components/technicians/technician-card";
 import toast from "react-hot-toast";
@@ -117,9 +117,7 @@ export default function Technicians() {
 
   if (isLoading)
     return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Loader />
-      </div>
+      <PageSkeleton />
     );
 
   return (

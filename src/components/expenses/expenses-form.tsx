@@ -98,6 +98,8 @@ export default function ExpensesForm({
 
   const form = useForm<z.infer<typeof extendedFormSchema>>({
     resolver: zodResolver(extendedFormSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
     defaultValues: editSession
       ? expenseToEdit
       : {

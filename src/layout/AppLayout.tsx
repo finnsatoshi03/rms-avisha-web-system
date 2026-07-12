@@ -2,7 +2,9 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import AppSidebar from "./Sidebar";
 import { useUser } from "../components/auth/useUser";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import PageSkeleton from "../components/ui/page-skeleton";
+import PageSkeleton, {
+  DashboardSkeleton,
+} from "../components/ui/page-skeleton";
 import {
   SidebarInset,
   SidebarProvider,
@@ -10,6 +12,7 @@ import {
 } from "../components/ui/sidebar";
 import { Separator } from "../components/ui/separator";
 import NavigationSearch from "../components/navigation-search";
+import CommandPalette from "../components/command-palette";
 import InitialPasswordSetup from "../components/auth/initial-password-setup";
 import { DevConsoleProvider } from "../components/dev-console/dev-console-context";
 import DevUsers from "../pages/DevUsers";
@@ -212,6 +215,7 @@ export default function AppLayout() {
             onAcknowledge={() => setIsMigrationNoticeDismissed(true)}
           />
         ) : null}
+        <CommandPalette />
         <AppSidebar isUser={isUser} />
         <SidebarInset>
           <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
@@ -245,8 +249,18 @@ export default function AppLayout() {
             <div className="h-[calc(100vh-6rem)]">
               <div className="h-full px-6">
                 {/* Boundary lives inside the layout so the sidebar/header stay
-                    mounted while a lazy page chunk loads. */}
-                <Suspense fallback={<PageSkeleton />}>
+                    mounted while a lazy page chunk loads. Fallback shape
+                    matches the destination page. */}
+                <Suspense
+                  fallback={
+                    location.pathname.startsWith("/dashboard") ||
+                    location.pathname.startsWith("/technician-dashboard") ? (
+                      <DashboardSkeleton />
+                    ) : (
+                      <PageSkeleton />
+                    )
+                  }
+                >
                   <Outlet />
                 </Suspense>
               </div>

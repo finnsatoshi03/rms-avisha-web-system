@@ -74,6 +74,8 @@ export default function MaterialForm({ onClose }: { onClose?: () => void }) {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
     defaultValues: {
       name: "",
       brand: "",

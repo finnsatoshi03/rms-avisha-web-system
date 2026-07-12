@@ -532,7 +532,12 @@ export default function ClientAutoSuggest({
 
             <div className="space-y-2">
               <div>
-                <Label className="text-xs">Name *</Label>
+                <Label className="text-xs">
+                  Name
+                  <span className="ml-1.5 text-[10px] font-normal italic text-destructive/80">
+                    required *
+                  </span>
+                </Label>
                 <Input
                   value={newClientName}
                   onChange={(e) => setNewClientName(e.target.value)}

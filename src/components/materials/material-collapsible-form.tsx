@@ -82,6 +82,8 @@ export default function MaterialCollapsibleForm({
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
     defaultValues: editSession
       ? material
       : {

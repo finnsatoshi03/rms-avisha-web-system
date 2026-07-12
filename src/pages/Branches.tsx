@@ -4,7 +4,7 @@ import { Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 
 import HeaderText from "../components/ui/headerText";
-import Loader from "../components/ui/loader";
+import PageSkeleton from "../components/ui/page-skeleton";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
@@ -645,9 +645,7 @@ export default function Branches() {
 
   if (isBranchesLoading || isCountsLoading || isDependencyLoading) {
     return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Loader />
-      </div>
+      <PageSkeleton />
     );
   }
 

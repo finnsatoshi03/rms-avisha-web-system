@@ -18,7 +18,7 @@ import {
 import JobOrderForm from "../components/job-order/job-order-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getQuotationJobOrders } from "../services/apiQuotations";
-import Loader from "../components/ui/loader";
+import PageSkeleton from "../components/ui/page-skeleton";
 import ErrorBoundary from "../components/error-boundery";
 import { getTechnicians } from "../services/apiTechnicians";
 import { Input } from "../components/ui/input";
@@ -272,9 +272,7 @@ export default function Quotations() {
 
   if (isLoading)
     return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Loader />
-      </div>
+      <PageSkeleton />
     );
 
   return (

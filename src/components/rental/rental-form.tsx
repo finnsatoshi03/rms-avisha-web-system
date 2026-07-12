@@ -107,6 +107,8 @@ export default function RentalForm({
 
   const form = useForm<RentalFormValues>({
     resolver: zodResolver(rentalFormSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
     defaultValues: {
       branch_id: branchId || undefined,
       client_id: null,

@@ -46,6 +46,8 @@ import {
 import Logout from "../components/auth/logout";
 import { cn } from "../lib/utils";
 import { useUser } from "../components/auth/useUser";
+import { Skeleton } from "../components/ui/skeleton";
+import { SidebarSkeleton } from "../components/ui/page-skeleton";
 import { useState } from "react";
 import { SettingsDialog } from "../components/settings/settings-dialog";
 import { useDevConsole } from "../components/dev-console/dev-console-context";
@@ -123,7 +125,7 @@ export default function AppSidebar({
   isUser,
   onClose,
 }: SidebarProps) {
-  const { user, isDev, isAdmin } = useUser();
+  const { user, isDev, isAdmin, isLoading } = useUser();
   const { openConsole } = useDevConsole();
   const [open, setOpen] = useState(false);
   const [isHomeOpen, setIsHomeOpen] = useState(false);
@@ -150,7 +152,9 @@ export default function AppSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        {!isUser ? (
+        {isLoading && !user ? (
+          <SidebarSkeleton />
+        ) : !isUser ? (
           <>
             <SidebarGroup>
               <SidebarGroupLabel>OPERATIONS</SidebarGroupLabel>
@@ -566,6 +570,15 @@ export default function AppSidebar({
 
         <SidebarMenu>
           <SidebarMenuItem>
+            {isLoading && !user ? (
+              <div className="flex items-center gap-2 p-2">
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-3.5 w-24" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+            ) : (
             <Popover open={open} onOpenChange={setOpen}>
               <PopoverTrigger asChild>
                 <SidebarMenuButton
@@ -614,6 +627,7 @@ export default function AppSidebar({
                 </div>
               </PopoverContent>
             </Popover>
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

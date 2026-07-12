@@ -12,7 +12,7 @@ import {
   SheetTrigger,
 } from "../components/ui/sheet";
 import { Input } from "../components/ui/input";
-import Loader from "../components/ui/loader";
+import PageSkeleton from "../components/ui/page-skeleton";
 import ErrorBoundary from "../components/error-boundery";
 import { useUser } from "../components/auth/useUser";
 import { useRentals } from "../components/rental/useRentals";
@@ -812,9 +812,7 @@ export default function Rentals() {
       {/* Table */}
       <ErrorBoundary>
         {isLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <Loader />
-          </div>
+          <PageSkeleton />
         ) : (
         <RentalTable
           data-tour="rentals-table"

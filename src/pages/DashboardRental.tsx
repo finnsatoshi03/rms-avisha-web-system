@@ -6,7 +6,7 @@ import { getRentalAssets } from "../services/apiRentalAssets";
 import { useBillingDashboardSummary } from "../components/billing/useBilling";
 import { RentalAsset, RentalData } from "../lib/types";
 import { StatusBadge, rentalStatuses } from "../components/table/status-popover";
-import Loader from "../components/ui/loader";
+import { DashboardSkeleton } from "../components/ui/page-skeleton";
 import {
   AlertTriangle,
   CheckCircle,
@@ -80,9 +80,7 @@ export default function DashboardRental() {
 
   if (isLoading)
     return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Loader />
-      </div>
+      <DashboardSkeleton />
     );
 
   return (

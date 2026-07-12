@@ -299,7 +299,7 @@ export default function BillingAccountFormSheet({
             />
           </div>
           <div className="space-y-0">
-            <p className="text-sm font-medium leading-none">Contact Email <span className="text-primaryRed">*</span></p>
+            <p className="text-sm font-medium leading-none">Contact Email <span className="ml-1 text-[11px] font-normal italic text-destructive/80">required *</span></p>
             <Input
               placeholder="billing@example.com"
               type="email"
@@ -310,7 +310,7 @@ export default function BillingAccountFormSheet({
             />
           </div>
           <div className="space-y-0">
-            <p className="text-sm font-medium leading-none">Contact Phone <span className="text-primaryRed">*</span></p>
+            <p className="text-sm font-medium leading-none">Contact Phone <span className="ml-1 text-[11px] font-normal italic text-destructive/80">required *</span></p>
             <PhoneInput
               value={billingContactPhone}
               onChange={setBillingContactPhone}

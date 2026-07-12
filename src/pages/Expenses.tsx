@@ -9,7 +9,7 @@ import { Expenses as ExpensesType, Sort } from "../lib/types";
 import { formatNumberWithCommas } from "../lib/helpers";
 
 import HeaderText from "../components/ui/headerText";
-import Loader from "../components/ui/loader";
+import PageSkeleton from "../components/ui/page-skeleton";
 import { DatePickerWithRange } from "../components/date-range-picker";
 import { Input } from "../components/ui/input";
 import SortButton from "../components/sort-button";
@@ -313,9 +313,7 @@ export default function Expenses() {
 
   if (isLoading)
     return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Loader />
-      </div>
+      <PageSkeleton />
     );
 
   return (
