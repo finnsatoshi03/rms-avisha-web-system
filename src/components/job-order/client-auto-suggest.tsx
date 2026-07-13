@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, ChevronsUpDown, Plus, Loader2 } from "lucide-react";
+import { AlertTriangle, Check, ChevronsUpDown, Pencil, Plus, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Client } from "../../lib/types";
@@ -12,6 +12,7 @@ import {
   stripParentPrefix,
 } from "../../lib/client-hierarchy";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import EditClientDialog from "../clients/edit-client-dialog";
 import { Button } from "../ui/button";
 import {
   Command,
@@ -91,6 +92,7 @@ export default function ClientAutoSuggest({
   const [isSearching, setIsSearching] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queryClient = useQueryClient();
 
@@ -365,13 +367,14 @@ export default function ClientAutoSuggest({
   };
 
   return (
+    <div className="flex items-center gap-1 w-full">
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
           role="combobox"
           aria-expanded={open}
-          className="justify-between border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 w-full text-3xl font-bold hover:bg-transparent"
+          className="justify-between border-0 p-0 h-fit focus:ring-0 focus:ring-offset-0 flex-1 min-w-0 text-3xl font-bold hover:bg-transparent"
           disabled={disabled}
           data-tour="client-search-field"
         >
@@ -618,5 +621,27 @@ export default function ClientAutoSuggest({
         )}
       </PopoverContent>
     </Popover>
+      {selectedClient && !disabled && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-foreground"
+          title="Edit client details"
+          onClick={() => setShowEditDialog(true)}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+      )}
+      <EditClientDialog
+        client={selectedClient}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        onUpdated={(updatedClient) => {
+          onClientSelect(updatedClient);
+          setSearchValue(updatedClient.name);
+        }}
+      />
+    </div>
   );
 }

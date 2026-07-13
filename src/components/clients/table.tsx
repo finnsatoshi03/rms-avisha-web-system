@@ -18,8 +18,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../ui/collapsible";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Pencil } from "lucide-react";
 import CollapsibleRows from "./collapsible-rows";
+import EditClientDialog from "./edit-client-dialog";
+import { Button } from "../ui/button";
 
 const getClientStatus = (client: Client): string[] => {
   const jobOrders = client.joborders;
@@ -95,6 +97,7 @@ export default function ClientsTable({
   const [openCollapsibleIndex, setOpenCollapsibleIndex] = useState<
     number | null
   >(null);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
 
   useEffect(() => {
     setOpenCollapsibleIndex(null);
@@ -258,12 +261,27 @@ export default function ClientsTable({
                         <TableCell>{client.email || "None"}</TableCell>
                       )}
                       <TableCell>
-                        <ChevronDown
-                          size={18}
-                          className={`transition-transform duration-300 ${
-                            isOpen ? "-rotate-180" : ""
-                          }`}
-                        />
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            title="Edit client"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingClient(client);
+                            }}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                          <ChevronDown
+                            size={18}
+                            className={`transition-transform duration-300 ${
+                              isOpen ? "-rotate-180" : ""
+                            }`}
+                          />
+                        </div>
                       </TableCell>
                     </TableRow>
                   </CollapsibleTrigger>
@@ -286,6 +304,13 @@ export default function ClientsTable({
         handlePageChange={handlePageChange}
         itemsPerPage={itemsPerPage}
         handleItemsPerPageChange={handleItemsPerPageChange}
+      />
+      <EditClientDialog
+        client={editingClient}
+        open={editingClient !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingClient(null);
+        }}
       />
     </div>
   );

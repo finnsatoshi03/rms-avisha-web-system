@@ -174,6 +174,25 @@ export async function createClient(
   return newClient;
 }
 
+export type ClientImpact = {
+  job_orders: number;
+  rentals: number;
+  billing_accounts: number;
+};
+
+export async function getClientImpact(clientId: number): Promise<ClientImpact> {
+  const { data, error } = await supabase.rpc("get_client_impact", {
+    p_client_id: clientId,
+  });
+
+  if (error) {
+    console.error(error);
+    throw new Error("Error fetching client impact");
+  }
+
+  return data as ClientImpact;
+}
+
 export async function updateClient(
   id: number,
   data: Partial<Client>
