@@ -489,7 +489,7 @@ export default function DeductionsDialog({
               </div>
 
               <div className="space-y-4">
-                <h1 className="text-2xl font-bold leading-tight pr-8">
+                <h1 className="font-display text-2xl font-bold tracking-tight leading-tight pr-8">
                   Financial Flow Analysis
                 </h1>
 

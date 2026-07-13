@@ -67,8 +67,10 @@ export default function FinancialChart({
   // ];
 
   return (
-    <div className="border border-slate-200 py-4 px-5 rounded-xl">
-      <h1 className="font-bold text-xl">Financial Analysis</h1>
+    <div className="surface-card py-4 px-5">
+      <h1 className="font-display font-bold text-xl tracking-tight">
+        Financial Analysis
+      </h1>
       <ChartContainer
         config={chartConfig}
         className="mt-4 h-[260px] sm:h-[300px] w-full aspect-auto min-w-0"
@@ -125,7 +127,7 @@ export default function FinancialChart({
             {normalizedData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={entry.profit < 0 ? "#d64846" : "#5bbe80"} // Red if profit is negative, green otherwise
+                fill={entry.profit < 0 ? "#f12924" : "#10b981"} // Red if profit is negative, green otherwise
               />
             ))}
           </Bar>

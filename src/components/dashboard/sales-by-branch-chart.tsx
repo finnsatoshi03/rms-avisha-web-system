@@ -25,6 +25,13 @@ interface SalesByBranchProps {
   metrics: Metrics;
 }
 
+// One color source for bars, legend dots, and summaries so they always match.
+const getBranchColor = (location: string) => {
+  if (location === "Pasig") return "#f12924";
+  if (location === "Taytay") return "#12b76a";
+  return "#667085";
+};
+
 const SalesByBranch: React.FC<SalesByBranchProps> = ({ data, metrics }) => {
   const aggregatedData = data.reduce((acc: Record<string, number>, order) => {
     const branchLocation = order.branches?.location;
@@ -56,13 +63,13 @@ const SalesByBranch: React.FC<SalesByBranchProps> = ({ data, metrics }) => {
   }));
 
   return (
-    <div className="sales-by-region-chart border border-slate-200 p-5 rounded-xl h-[50vh] flex flex-col justify-between">
+    <div className="sales-by-region-chart surface-card p-5 h-[50vh] flex flex-col">
       <h3 className="text-sm font-bold flex items-center gap-1">
         <MapPinned
           size={18}
           strokeWidth={1.5}
           color="#f12924"
-          className="size-8 p-1.5 bg-slate-50 rounded-lg"
+          className="size-8 p-1.5 bg-brand-soft rounded-lg"
         />
         Sales by Region/Branch
         <TooltipProvider>
@@ -82,7 +89,7 @@ const SalesByBranch: React.FC<SalesByBranchProps> = ({ data, metrics }) => {
       </h3>
       <div className="my-2">
         <p className="text-xs opacity-70">Total Revenue: </p>
-        <h1 className="text-2xl font-bold">
+        <h1 className="font-display text-2xl font-bold tracking-tight">
           ₱{formatNumberWithCommas(metrics.totalRevenue)}
         </h1>
         <div className="text-xs opacity-70 flex items-center flex-wrap gap-1">
@@ -108,11 +115,11 @@ const SalesByBranch: React.FC<SalesByBranchProps> = ({ data, metrics }) => {
         </div>
       </div>
       <Separator className="mt-4 mb-2" />
-      <ResponsiveContainer height="20%">
+      <ResponsiveContainer height="99%" className="flex-1 min-h-0">
         <BarChart
           layout="vertical"
           data={chartData}
-          margin={{ left: -10, right: 10 }}
+          margin={{ left: -10, right: 10, top: 8, bottom: 8 }}
         >
           <Tooltip content={<CustomToolTip />} />
           <YAxis
@@ -134,36 +141,32 @@ const SalesByBranch: React.FC<SalesByBranchProps> = ({ data, metrics }) => {
             {chartData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={
-                  entry.location === "Pasig"
-                    ? "#f12924"
-                    : entry.location === "Taytay"
-                    ? "#24F265"
-                    : "#2d9c3f"
-                }
+                fill={getBranchColor(entry.location)}
               />
             ))}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-      <div className="mt-4 flex justify-between">
+      <div className="mt-4 flex flex-wrap justify-between gap-x-4 gap-y-2">
         {chartData.map((branch) => (
           <div key={branch.location}>
             <div className="text-xs flex items-center gap-1">
               <span
-                className={`inline-block w-2 h-2 rounded-full ${
-                  branch.location === "Pasig" ? "bg-primaryRed" : "bg-[#24F265]"
-                }`}
+                className="inline-block w-2 h-2 rounded-full"
+                style={{ backgroundColor: getBranchColor(branch.location) }}
               ></span>
               <p className="opacity-60">{branch.location} Branch</p>
             </div>
-            <p className="text-lg font-bold">
+            <p className="font-display text-lg font-bold tracking-tight">
               ₱{formatNumberWithCommas(branch.sales)}
             </p>
             <p className="text-xs opacity-60">
               Percentage:{" "}
               <span className="font-bold font-mono">
-                {((branch.sales / metrics.totalRevenue) * 100).toFixed(2)}%
+                {metrics.totalRevenue > 0
+                  ? ((branch.sales / metrics.totalRevenue) * 100).toFixed(2)
+                  : "0.00"}
+                %
               </span>
             </p>
           </div>

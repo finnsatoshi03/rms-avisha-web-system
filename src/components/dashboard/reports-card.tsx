@@ -72,11 +72,13 @@ const ReportCard = ({
   };
 
   return (
-    <div className="border border-slate-200 rounded-xl bg-white flex flex-col">
+    <div className="surface-card flex flex-col overflow-hidden">
       <div className="py-4 px-5 space-y-2 flex-grow">
-        <h1 className="text-xs font-bold">{header}</h1>
+        <h1 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {header}
+        </h1>
         <div>
-          <p className="font-bold lg:text-3xl text-xl">
+          <p className="font-display font-bold tracking-tight lg:text-3xl text-xl">
             {prefix}
             {formatNumberWithCommas(Number(value))}
           </p>
@@ -97,15 +99,17 @@ const ReportCard = ({
         </div>
         <ChartContainer config={chartConfig} className="h-[80px] w-full">
           <LineChart
-            data={monthlyMetrics.filter((data: any) => data[nameKey!] !== 0)}
+            data={(monthlyMetrics ?? []).filter(
+              (data: any) => data[nameKey!] !== 0
+            )}
           >
             <Line
               type="monotone"
               strokeWidth={2}
               dataKey={nameKey}
               dot={{ strokeWidth: 0 }}
-              stroke="#282828"
-              fill="#646464"
+              stroke="#f12924"
+              fill="#f12924"
             />
             <ChartTooltip
               cursor={false}
@@ -118,116 +122,122 @@ const ReportCard = ({
         <div className="w-full">
           <Dialog>
             <DialogTrigger asChild>
-              <button className="w-full bg-slate-100 text-black px-4 py-3 font-bold text-xs rounded-b-lg hover:bg-slate-200 flex justify-between items-center">
+              <button className="w-full bg-muted/70 text-foreground px-4 py-3 font-semibold text-xs hover:bg-muted transition-colors flex justify-between items-center">
                 View Report
                 <ArrowRight size={14} />
               </button>
             </DialogTrigger>
-            <DialogContent className="md:w-[400px] w-1/2">
-              <DialogHeader>
-                <DialogTitle>
-                  {nameKey
-                    ? nameKey.charAt(0).toUpperCase() + nameKey.slice(1)
-                    : ""}{" "}
-                  Weekly Reports
-                </DialogTitle>
-              </DialogHeader>
-              <div className="mt-2">
-                <div className="flex gap-2">
-                  <p className="text-4xl font-bold">
-                    {prefix}
-                    {formatNumberWithCommas(Number(value))}
-                  </p>
-                  <p className="text-xs font-bold mt-1 leading-3 opacity-60">
-                    Total
-                    <br />
-                    {nameKey
-                      ? nameKey.charAt(0).toUpperCase() + nameKey.slice(1)
-                      : ""}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-col items-center -mt-2">
-                <div className="flex w-full space-x-2">
-                  {weeklyMetrics &&
-                    weeklyMetrics.map(
-                      (
-                        week: { value: number; weekRange: string },
-                        index: number
-                      ) => {
-                        if (week.value === 0) return null;
+            <DialogContent className="w-[94vw] sm:max-w-xl max-h-[85vh] overflow-y-auto rounded-2xl">
+              {(() => {
+                // Brand-anchored week palette (red → orange → amber → green → blue)
+                const WEEK_COLORS = [
+                  "#f12924",
+                  "#fb6514",
+                  "#f79009",
+                  "#12b76a",
+                  "#2e90fa",
+                ];
+                const metricLabel = nameKey
+                  ? nameKey.charAt(0).toUpperCase() + nameKey.slice(1)
+                  : "";
+                const weeks: { value: number; weekRange: string }[] =
+                  weeklyMetrics ?? [];
+                const totalValue = weeks.reduce(
+                  (sum, week) => sum + (week.value || 0),
+                  0
+                );
 
-                        const totalValue = weeklyMetrics.reduce(
-                          (sum: number, week: { value: number }) =>
-                            sum + week.value,
-                          0
-                        );
-                        const percentage = (week.value / totalValue) * 100;
+                return (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle className="font-display text-xl tracking-tight">
+                        {metricLabel} — Weekly Report
+                      </DialogTitle>
+                    </DialogHeader>
 
-                        // Assign different colors for each week (up to 5)
-                        const weekColors = [
-                          "bg-red-500",
-                          "bg-yellow-500",
-                          "bg-green-500",
-                          "bg-blue-500",
-                          "bg-purple-500",
-                        ];
+                    {/* Total */}
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Total {metricLabel} this period
+                      </p>
+                      <p className="font-display text-4xl font-bold tracking-tight">
+                        {prefix}
+                        {formatNumberWithCommas(Number(value))}
+                      </p>
+                    </div>
 
+                    {/* Week share bar */}
+                    {totalValue > 0 && (
+                      <div className="flex w-full gap-1">
+                        {weeks.map((week, index) => {
+                          if (week.value === 0) return null;
+                          const percentage = (week.value / totalValue) * 100;
+                          return (
+                            <div
+                              key={index}
+                              className="h-2.5 rounded-full"
+                              style={{
+                                flex: `${percentage} 0 0`,
+                                minWidth: "12px",
+                                backgroundColor:
+                                  WEEK_COLORS[index % WEEK_COLORS.length],
+                              }}
+                              title={`Week ${index + 1} (${
+                                week.weekRange
+                              }): ${formatNumberWithCommas(
+                                week.value
+                              )} — ${percentage.toFixed(1)}%`}
+                            ></div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Week-by-week list */}
+                    <div className="divide-y divide-border rounded-xl border">
+                      {weeks.map((week, index) => {
+                        const percentage =
+                          totalValue > 0
+                            ? (week.value / totalValue) * 100
+                            : 0;
                         return (
                           <div
                             key={index}
-                            // className="text-center"
-                            style={{ flex: `${percentage} 0 0` }}
+                            className="flex items-center justify-between gap-3 px-4 py-3"
                           >
-                            {/* Individual week bar */}
-                            <div
-                              // style={{ height: "100%" }}
-                              className={`h-2 rounded-full ${
-                                weekColors[index % weekColors.length]
-                              }`}
-                              title={`Week ${
-                                index + 1
-                              }: ${formatNumberWithCommas(
-                                week.value
-                              )} (${percentage.toFixed(1)}%)`}
-                            ></div>
-                            {/* Label underneath the bar */}
-                            <p className="text-xs mt-1">
-                              {formatNumberWithCommas(week.value)}
-                            </p>
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span
+                                className="size-2.5 flex-shrink-0 rounded-full"
+                                style={{
+                                  backgroundColor:
+                                    WEEK_COLORS[index % WEEK_COLORS.length],
+                                }}
+                              />
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-foreground">
+                                  Week {index + 1}
+                                </p>
+                                <p className="text-sm text-muted-foreground truncate">
+                                  {week.weekRange}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="font-display text-base font-bold tracking-tight">
+                                {prefix}
+                                {formatNumberWithCommas(week.value)}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {percentage.toFixed(1)}% of total
+                              </p>
+                            </div>
                           </div>
                         );
-                      }
-                    )}
-                </div>
-              </div>
-              <div className="grid md:grid-cols-3 grid-cols-1 w-full gap-1 mt-1">
-                {weeklyMetrics &&
-                  weeklyMetrics.map(
-                    (
-                      week: { value: number; weekRange: string },
-                      index: number
-                    ) => {
-                      return (
-                        <div
-                          className="px-2 py-3 rounded-xl bg-slate-200 flex flex-col items-center justify-center"
-                          key={index}
-                        >
-                          <p className="font-bold text-xl">
-                            {prefix}
-                            {formatNumberWithCommas(week.value)}
-                          </p>
-                          <h1 className="text-xs opacity-80">
-                            Week {index + 1}
-                          </h1>
-                          <h1 className="text-xs opacity-80">
-                            {week.weekRange}
-                          </h1>
-                        </div>
-                      );
-                    }
-                  )}
-              </div>
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
             </DialogContent>
           </Dialog>
         </div>

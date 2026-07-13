@@ -9,35 +9,55 @@ interface StatusOverviewProps {
 export default function StatusOverview({ statusCounts }: StatusOverviewProps) {
   // Filter out statuses with 0 count
   const activeStatuses = Object.entries(statusCounts).filter(
-    ([, count]) => count > 0
+    ([, count]) => count > 0,
   );
 
   // Calculate total orders
   const totalOrders = Object.values(statusCounts).reduce(
     (sum, count) => sum + count,
-    0
+    0,
   );
 
   return (
-    <div className="border border-slate-200 flex flex-col gap-3 rounded-xl bg-white hover:shadow-sm transition-shadow duration-200 p-6 overflow-y-auto">
+    <div className="surface-card flex flex-col gap-3 px-5 py-4 overflow-y-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-gray-700 tracking-tight">Order Status</h1>
-        <Activity size={16} strokeWidth={1.5} className="text-gray-400" />
+        <h1 className="font-display text-lg font-bold tracking-tight">
+          Order Status
+        </h1>
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft">
+          <Activity size={15} strokeWidth={1.75} className="text-brand-deep" />
+        </span>
       </div>
       <p className="text-xs text-muted-foreground">
         {totalOrders} total orders
       </p>
 
-      <div className="space-y-3 min-h-0 flex-1">
+      <div className="space-y-3.5 min-h-0 flex-1">
         {activeStatuses.map(([status, count]) => (
-          <div key={status} className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700">{status}</span>
-            <Badge
-              variant="outline"
-              className={`font-bold ${getStatusClass(status)}`}
-            >
-              {count}
-            </Badge>
+          <div key={status} className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground/80">
+                {status}
+              </span>
+              <Badge
+                variant="outline"
+                className={`font-bold ${getStatusClass(status)}`}
+              >
+                {count}
+              </Badge>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primaryRed/70 transition-all duration-500"
+                style={{
+                  width: `${
+                    totalOrders > 0
+                      ? Math.max((count / totalOrders) * 100, 3)
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
           </div>
         ))}
 

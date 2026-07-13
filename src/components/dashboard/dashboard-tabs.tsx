@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import React from "react";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 
@@ -17,14 +16,23 @@ const DashboardTabs: React.FC<DashboardTabsProps> = ({
       className="w-full h-[calc(100%-1rem-0.5rem-2rem)] mt-4 mb-2"
       onValueChange={setCurrentTab}
     >
-      <TabsList className="grid w-fit grid-cols-3 gap-2">
-        <TabsTrigger value="overview" className="font-bold">
+      <TabsList className="grid w-fit grid-cols-3 gap-1 rounded-full p-1">
+        <TabsTrigger
+          value="overview"
+          className="rounded-full font-semibold data-[state=active]:text-brand-deep"
+        >
           Overview
         </TabsTrigger>
-        <TabsTrigger value="report" className="font-bold">
+        <TabsTrigger
+          value="report"
+          className="rounded-full font-semibold data-[state=active]:text-brand-deep"
+        >
           Sales Report
         </TabsTrigger>
-        <TabsTrigger value="analytics" className="font-bold">
+        <TabsTrigger
+          value="analytics"
+          className="rounded-full font-semibold data-[state=active]:text-brand-deep"
+        >
           Analytics
         </TabsTrigger>
       </TabsList>

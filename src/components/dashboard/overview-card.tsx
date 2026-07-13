@@ -25,11 +25,11 @@ export default function OverviewCard({
 
   const getPcpColor = (pcp: string) => {
     const value = parseFloat(pcp);
-    if (value === 0) return " text-gray-600";
-    if (value > 100) return "text-blue-700 border-blue-200";
-    if (value > 0) return "text-green-700 border-green-200";
-    if (value > -100) return "text-red-700 border-red-200";
-    return "text-purple-700 border-purple-200";
+    if (value === 0) return "bg-muted text-muted-foreground";
+    if (value > 100) return "bg-blue-50 text-blue-700";
+    if (value > 0) return "bg-emerald-50 text-emerald-700";
+    if (value > -100) return "bg-red-50 text-brand-deep";
+    return "bg-purple-50 text-purple-700";
   };
 
   const getPcpIcon = (pcp: string) => {
@@ -40,33 +40,45 @@ export default function OverviewCard({
         <TrendingUp
           size={12}
           strokeWidth={2}
-          className={value > 100 ? "text-blue-700" : "text-green-700"}
+          className={value > 100 ? "text-blue-700" : "text-emerald-700"}
         />
       );
     }
-    return <TrendingDown size={12} strokeWidth={2} className="text-red-700" />;
+    return (
+      <TrendingDown size={12} strokeWidth={2} className="text-brand-deep" />
+    );
   };
 
   return (
     <div
       className={cn(
-        "border border-slate-200 rounded-xl bg-white hover:shadow-sm transition-shadow duration-200 p-6 flex flex-col gap-4",
+        "surface-card p-6 flex flex-col gap-4",
         className
       )}
     >
       {/* Header with Icon */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xs font-semibold text-gray-700 tracking-tight">
+        <h1 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {data.header}
         </h1>
         {data.icon && (
-          <data.icon size={16} strokeWidth={1.5} className="text-gray-400" />
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft">
+            <data.icon
+              size={15}
+              strokeWidth={1.75}
+              className="text-brand-deep"
+            />
+          </span>
         )}
       </div>
 
       {/* Main Value */}
       <div className="flex flex-col flex-1 justify-between gap-3">
-        <AutoSizeText className="text-gray-900" minSize={16} maxSize={28}>
+        <AutoSizeText
+          className="font-display font-bold tracking-tight text-foreground"
+          minSize={16}
+          maxSize={28}
+        >
           <CountUp
             start={0}
             end={data.value as number}
@@ -85,18 +97,18 @@ export default function OverviewCard({
         <div className="flex items-center gap-2 text-xs flex-wrap">
           <div
             className={cn(
-              "inline-flex items-center gap-1 font-medium flex-shrink-0",
+              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold flex-shrink-0",
               getPcpColor(data.pcp)
             )}
           >
             {getPcpIcon(data.pcp)}
-            <span className="font-mono">
+            <span>
               {parseFloat(data.pcp) === 0
                 ? "0%"
                 : data.pcp.replace(/[+-]/g, "")}
             </span>
           </div>
-          <span className="text-gray-500">from last month</span>
+          <span className="text-muted-foreground">from last month</span>
         </div>
       </div>
     </div>

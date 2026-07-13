@@ -29,6 +29,19 @@ interface SalesGrowthChartProps {
   metrics: Metrics;
 }
 
+const compactPeso = new Intl.NumberFormat("en-PH", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+const formatAxisPeso = (value: number | string) =>
+  `₱${compactPeso.format(Number(value) || 0)}`;
+
+const formatDayTick = (value: string) => {
+  const parsed = new Date(value);
+  return isNaN(parsed.getTime()) ? value : format(parsed, "MMM d");
+};
+
 const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
   data,
   metrics,
@@ -185,7 +198,7 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
   return (
     <Tabs
       defaultValue="day"
-      className="sales-growth-chart border border-slate-200 py-4 px-5 rounded-xl h-[50vh] lg:col-span-1 col-span-2"
+      className="sales-growth-chart surface-card py-4 px-5 h-[50vh] col-span-1 sm:col-span-2 lg:col-span-1"
       value={currentTab}
       onValueChange={setCurrentTab}
     >
@@ -195,7 +208,7 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
             size={18}
             strokeWidth={1.5}
             color="#f12924"
-            className="size-8 p-1.5 bg-slate-50 rounded-lg"
+            className="size-8 p-1.5 bg-brand-soft rounded-lg"
           />
           Sales Growth Over Time
           <TooltipProvider>
@@ -241,7 +254,7 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
       <div className="my-1 ml-2 flex justify-between">
         <div className="text-sm font-bold flex flex-col">
           <div className="flex gap-2 items-start">
-            <p className="text-3xl">
+            <p className="font-display text-3xl tracking-tight">
               ₱
               <CountUp
                 start={0}
@@ -266,9 +279,9 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
                 {currentMetrics.pcpRevenue === 0 ? (
                   "~ "
                 ) : (currentMetrics?.pcpRevenue ?? 0) < 0 ? (
-                  <TrendingDown size={20} />
+                  <TrendingDown size={12} strokeWidth={2} />
                 ) : (
-                  <TrendingUp size={20} />
+                  <TrendingUp size={12} strokeWidth={2} />
                 )}
                 {(currentMetrics?.pcpRevenue ?? 0)
                   .toFixed(2)
@@ -299,21 +312,27 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
         <ResponsiveContainer className="overflow-hidden">
           <LineChart
             data={formattedData}
-            margin={{ top: 10, left: -20, bottom: 5 }}
+            margin={{ top: 10, left: -8, bottom: 5 }}
           >
             <Legend
               iconType="circle"
               iconSize={5}
               wrapperStyle={{ fontSize: "12px" }}
             />
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eceef1" />
             <XAxis
               dataKey="date"
               tickLine={false}
               axisLine={false}
               fontSize={10}
+              tickFormatter={formatDayTick}
             />
-            <YAxis tickLine={false} axisLine={false} fontSize={10} />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              fontSize={10}
+              tickFormatter={formatAxisPeso}
+            />
             <Tooltip content={<CustomToolTip />} />
             <Line
               type="monotone"
@@ -329,21 +348,26 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
         <ResponsiveContainer className="overflow-hidden">
           <LineChart
             data={weeklyData}
-            margin={{ top: 10, left: -20, bottom: 5 }}
+            margin={{ top: 10, left: -8, bottom: 5 }}
           >
             <Legend
               iconType="circle"
               iconSize={5}
               wrapperStyle={{ fontSize: "12px" }}
             />
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eceef1" />
             <XAxis
               dataKey="date"
               tickLine={false}
               axisLine={false}
               fontSize={10}
             />
-            <YAxis tickLine={false} axisLine={false} fontSize={10} />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              fontSize={10}
+              tickFormatter={formatAxisPeso}
+            />
             <Tooltip content={<CustomToolTip />} />
             <Line
               type="monotone"
@@ -358,21 +382,26 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
         <ResponsiveContainer className="overflow-hidden">
           <LineChart
             data={monthlyData}
-            margin={{ top: 10, left: -20, bottom: 5 }}
+            margin={{ top: 10, left: -8, bottom: 5 }}
           >
             <Legend
               iconType="circle"
               iconSize={5}
               wrapperStyle={{ fontSize: "12px" }}
             />
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eceef1" />
             <XAxis
               dataKey="date"
               tickLine={false}
               axisLine={false}
               fontSize={10}
             />
-            <YAxis tickLine={false} axisLine={false} fontSize={10} />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              fontSize={10}
+              tickFormatter={formatAxisPeso}
+            />
             <Tooltip content={<CustomToolTip />} />
             <Line
               type="monotone"

@@ -15,6 +15,7 @@ import {
 import { withComputedQuotationTotals } from "../../lib/quotation-totals";
 import font1 from "/fonts/Montserrat-Bold.ttf";
 import font2 from "/fonts/Montserrat-Black.ttf";
+import font3 from "/fonts/Agency-FB.ttf";
 
 interface QuotationPDFProps {
   data: CreateQuotationData & {
@@ -45,6 +46,11 @@ Font.register({
 Font.register({
   family: "Montserrat-Black",
   src: font2,
+});
+
+Font.register({
+  family: "Agency FB",
+  src: font3,
 });
 
 // Helper function to safely format numbers

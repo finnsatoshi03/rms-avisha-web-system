@@ -86,10 +86,10 @@ const WeekCalendar = () => {
         </span>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 mb-1 p-1 bg-slate-100 rounded-md">
+      <div className="grid grid-cols-7 gap-1 mb-1 p-1 bg-sidebar-accent/60 rounded-md">
         {dayNames.map((dayName, index) => (
           <div key={`day-${index}`} className="flex justify-center">
-            <span className="text-[10px] font-medium text-slate-600">
+            <span className="text-[10px] font-medium text-sidebar-foreground/60">
               {dayName}
             </span>
           </div>
@@ -103,12 +103,14 @@ const WeekCalendar = () => {
           return (
             <div
               key={index}
-              className="flex items-center justify-center p-1 rounded-md text-xs transition-colors hover:bg-sidebar-accent/20"
+              className="flex items-center justify-center p-0.5 text-xs"
             >
               <span
                 className={cn(
-                  "text-xs font-medium",
-                  isToday ? "text-red-500 font-bold" : "text-sidebar-foreground/70"
+                  "flex size-5 items-center justify-center rounded-full text-xs font-medium transition-colors",
+                  isToday
+                    ? "bg-primaryRed font-bold text-white"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40"
                 )}
               >
                 {date.getDate()}
@@ -140,6 +142,8 @@ export default function AppSidebar({
     onClose?.();
   };
 
+  // Main nav items keep the neutral active state; the red pill is reserved
+  // for accordion sub-items (see the inline NavLink classes below).
   const navItemClass = ({ isActive }: { isActive: boolean }) =>
     cn(
       "w-full",
@@ -194,7 +198,7 @@ export default function AppSidebar({
                                   cn(
                                     "w-full",
                                     isActive &&
-                                      "bg-sidebar-accent text-sidebar-accent-foreground"
+                                      "bg-brand-soft text-brand-deep font-medium"
                                   )
                                 }
                               >
@@ -211,7 +215,7 @@ export default function AppSidebar({
                                   cn(
                                     "w-full",
                                     isActive &&
-                                      "bg-sidebar-accent text-sidebar-accent-foreground"
+                                      "bg-brand-soft text-brand-deep font-medium"
                                   )
                                 }
                               >
@@ -256,7 +260,7 @@ export default function AppSidebar({
                                   cn(
                                     "w-full",
                                     isActive &&
-                                      "bg-sidebar-accent text-sidebar-accent-foreground"
+                                      "bg-brand-soft text-brand-deep font-medium"
                                   )
                                 }
                               >
@@ -273,7 +277,7 @@ export default function AppSidebar({
                                   cn(
                                     "w-full",
                                     isActive &&
-                                      "bg-sidebar-accent text-sidebar-accent-foreground"
+                                      "bg-brand-soft text-brand-deep font-medium"
                                   )
                                 }
                               >
@@ -382,7 +386,7 @@ export default function AppSidebar({
                                   cn(
                                     "w-full",
                                     isActive &&
-                                      "bg-sidebar-accent text-sidebar-accent-foreground"
+                                      "bg-brand-soft text-brand-deep font-medium"
                                   )
                                 }
                               >
@@ -399,7 +403,7 @@ export default function AppSidebar({
                                   cn(
                                     "w-full",
                                     isActive &&
-                                      "bg-sidebar-accent text-sidebar-accent-foreground"
+                                      "bg-brand-soft text-brand-deep font-medium"
                                   )
                                 }
                               >

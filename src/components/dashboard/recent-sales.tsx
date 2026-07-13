@@ -42,19 +42,21 @@ export default function RecentSalesSection({
   };
 
   return (
-    <div className="border border-slate-200 rounded-xl bg-white h-[50vh] overflow-y-auto relative">
-      <div className="sticky top-0 bg-white z-10 pt-4 px-5">
+    <div className="surface-card h-[50vh] overflow-y-auto relative">
+      <div className="sticky top-0 bg-card z-10 pt-4 px-5 pb-2">
         <div className="flex justify-between w-full">
           <div>
-            <h1 className="text-lg font-bold">Recent Sales</h1>
-            <p className="text-xs opacity-60">
+            <h1 className="font-display text-lg font-bold tracking-tight">
+              Recent Sales
+            </h1>
+            <p className="text-xs text-muted-foreground">
               You made {numberOfSales} sales this month
             </p>
           </div>
           <div className="self-start justify-self-start">
             <Link to={"/job-orders"} className="p-0">
               <Button
-                className="text-xs bg-white text-black h-fit p-0"
+                className="text-xs bg-card text-foreground h-fit p-0"
                 variant={"link"}
               >
                 View All
@@ -81,14 +83,25 @@ export default function RecentSalesSection({
               ? "Pull Out"
               : "Downpayment";
 
+            const initials = (order.clients.name || "?")
+              .split(/\s+/)
+              .map((part) => part[0])
+              .filter(Boolean)
+              .slice(0, 2)
+              .join("")
+              .toUpperCase();
+
             return (
               <div
-                className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0"
+                className="flex items-center gap-3 py-3 border-b border-border/60 last:border-b-0"
                 key={order.order_no}
               >
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-soft font-display text-xs font-bold text-brand-deep">
+                  {initials}
+                </span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <h1 className="font-bold truncate pr-2">
+                    <h1 className="font-semibold truncate pr-2">
                       {order.clients.name}
                     </h1>
                     <Badge
@@ -105,10 +118,10 @@ export default function RecentSalesSection({
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
-                    <p className="text-xs opacity-60 font-mono">
+                    <p className="text-xs text-muted-foreground font-mono">
                       {order.order_no}
                     </p>
-                    <p className="font-bold text-sm">
+                    <p className="font-display font-bold text-sm tracking-tight">
                       {formatCurrency(displayAmount ?? 0)}
                     </p>
                   </div>

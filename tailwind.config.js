@@ -18,11 +18,27 @@ module.exports = {
     },
     extend: {
       fontFamily: {
-        sans: "Nunito, sans-serif",
+        sans: [
+          "Inter Variable",
+          "Inter Fallback",
+          "system-ui",
+          "sans-serif",
+        ],
+        display: [
+          "Space Grotesk Variable",
+          "Space Grotesk Fallback",
+          "system-ui",
+          "sans-serif",
+        ],
       },
       colors: {
         primaryRed: "#f12924",
-        hoveredRed: "#e72e2bc2",
+        hoveredRed: "#d21f1b",
+        brand: {
+          DEFAULT: "hsl(var(--brand))",
+          deep: "hsl(var(--brand-deep))",
+          soft: "hsl(var(--brand-soft))",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -62,6 +78,11 @@ module.exports = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      boxShadow: {
+        card: "0 1px 2px 0 rgb(16 24 40 / 0.04), 0 1px 3px 0 rgb(16 24 40 / 0.03)",
+        "card-hover":
+          "0 4px 12px -2px rgb(16 24 40 / 0.08), 0 2px 6px -2px rgb(16 24 40 / 0.04)",
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
@@ -71,10 +92,15 @@ module.exports = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-up": "fade-up 0.4s ease-out both",
       },
     },
   },

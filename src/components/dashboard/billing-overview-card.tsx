@@ -15,7 +15,7 @@ export default function BillingOverviewCard({ branchId }: BillingOverviewCardPro
 
   if (isLoading) {
     return (
-      <div className="border border-slate-200 rounded-xl bg-white p-6 flex flex-col gap-4">
+      <div className="surface-card p-6 flex flex-col gap-4">
         <Skeleton className="h-5 w-32" />
         <Skeleton className="h-20 w-full" />
       </div>
@@ -25,34 +25,79 @@ export default function BillingOverviewCard({ branchId }: BillingOverviewCardPro
   if (!summary) return null;
 
   const hasOverdue = summary.overdue_accounts > 0;
+  const totalBilled =
+    Number(summary.total_collected) + Number(summary.total_receivables);
+  const collectedPct =
+    totalBilled > 0
+      ? Math.round((Number(summary.total_collected) / totalBilled) * 100)
+      : 0;
 
   return (
     <div
-      className="border border-slate-200 rounded-xl bg-white hover:shadow-sm transition-shadow duration-200 p-6 flex flex-col gap-3 cursor-pointer h-full"
+      className="surface-card p-6 flex flex-col gap-4 cursor-pointer h-full min-h-0"
       onClick={() => navigate("/billing")}
     >
       <div className="flex items-center justify-between">
-        <h1 className="text-xs font-semibold text-gray-700 tracking-tight">
+        <h1 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Billing Receivables
         </h1>
-        <ReceiptText size={16} strokeWidth={1.5} className="text-gray-400" />
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft">
+          <ReceiptText
+            size={15}
+            strokeWidth={1.75}
+            className="text-brand-deep"
+          />
+        </span>
       </div>
 
-      <p className="text-2xl font-bold text-gray-900 leading-none">
-        ₱{formatNumberWithCommas(Number(summary.total_receivables))}
-      </p>
-      <p className="text-xs text-muted-foreground">Outstanding across all accounts</p>
+      <div>
+        <p className="font-display text-3xl font-bold tracking-tight text-foreground leading-none">
+          ₱{formatNumberWithCommas(Number(summary.total_receivables))}
+        </p>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Outstanding across all accounts
+        </p>
+      </div>
 
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <p className="text-muted-foreground text-xs">Collected</p>
-          <p className="font-medium text-green-600">
+      {/* Collection progress (collected vs total billed) */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Collected</span>
+          <span className="font-semibold text-foreground">{collectedPct}%</span>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+            style={{ width: `${collectedPct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Stat tiles expand to fill the row height beside the chart */}
+      <div className="grid flex-1 min-h-0 grid-cols-1 content-stretch gap-3">
+        <div className="flex flex-col justify-center rounded-xl bg-emerald-50 px-4 py-3">
+          <p className="text-xs text-emerald-700/80">Collected</p>
+          <p className="font-display text-lg font-bold tracking-tight text-emerald-700">
             ₱{formatNumberWithCommas(Number(summary.total_collected))}
           </p>
         </div>
-        <div>
-          <p className="text-muted-foreground text-xs">Overdue</p>
-          <p className={`font-medium ${hasOverdue ? "text-red-600" : "text-muted-foreground"}`}>
+        <div
+          className={`flex flex-col justify-center rounded-xl px-4 py-3 ${
+            hasOverdue ? "bg-brand-soft" : "bg-muted/60"
+          }`}
+        >
+          <p
+            className={`text-xs ${
+              hasOverdue ? "text-brand-deep/80" : "text-muted-foreground"
+            }`}
+          >
+            Overdue
+          </p>
+          <p
+            className={`font-display text-lg font-bold tracking-tight ${
+              hasOverdue ? "text-brand-deep" : "text-muted-foreground"
+            }`}
+          >
             ₱{formatNumberWithCommas(Number(summary.total_overdue))}
           </p>
         </div>
@@ -62,7 +107,8 @@ export default function BillingOverviewCard({ branchId }: BillingOverviewCardPro
         <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 rounded-md px-2 py-1.5 border border-amber-200">
           <AlertTriangle size={14} className="flex-shrink-0" />
           <span>
-            {summary.overdue_accounts} account{summary.overdue_accounts > 1 ? "s" : ""} overdue
+            {summary.overdue_accounts} account
+            {summary.overdue_accounts > 1 ? "s" : ""} overdue
           </span>
         </div>
       )}
@@ -70,8 +116,11 @@ export default function BillingOverviewCard({ branchId }: BillingOverviewCardPro
       <Button
         variant="outline"
         size="sm"
-        className="w-full text-xs"
-        onClick={(e) => { e.stopPropagation(); navigate("/billing"); }}
+        className="mt-auto w-full text-xs"
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate("/billing");
+        }}
       >
         View All Accounts
       </Button>

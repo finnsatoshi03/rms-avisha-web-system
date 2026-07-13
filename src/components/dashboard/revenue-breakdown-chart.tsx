@@ -71,18 +71,18 @@ const PieChartComponent: React.FC<PieChartComponentProps> = ({
   // const minRevenueMachineType = sortedData[sortedData.length - 1];
 
   const colors = generateMonochromaticColors(
-    "#2e2e2e",
+    "#344054",
     aggregatedDataArray.length
   );
 
   return (
-    <div className="revenue-breakdown-chart border border-slate-200 p-5 rounded-xl h-[50vh] flex flex-col justify-between">
+    <div className="revenue-breakdown-chart surface-card p-5 h-[50vh] flex flex-col justify-between">
       <h3 className="text-sm font-bold flex items-center gap-1">
         <MonitorCheck
           size={18}
           strokeWidth={1.5}
           color="#f12924"
-          className="size-8 p-1.5 bg-slate-50 rounded-lg"
+          className="size-8 p-1.5 bg-brand-soft rounded-lg"
         />
         Revenue Breakdown
         <TooltipProvider>
@@ -124,12 +124,12 @@ const PieChartComponent: React.FC<PieChartComponentProps> = ({
       </ResponsiveContainer>
       <div className="flex flex-col min-h-0 text-center gap-4">
         <div>
-          <p className="font-bold text-black text-2xl">
+          <p className="font-display font-bold text-foreground text-2xl tracking-tight">
             {formatNumberWithCommas(metrics.numberOfSales)}
           </p>
-          <p className="text-xs text-gray-400">Total Sales</p>
+          <p className="text-xs text-muted-foreground">Total Sales</p>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto space-y-1.5">
           {aggregatedDataArray.map((item, index) => {
             const isMax = item.name === maxRevenueMachineType.name;
             const color = isMax ? "#f12924" : colors[index];

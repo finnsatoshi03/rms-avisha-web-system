@@ -30,7 +30,7 @@ export default function BarChartSection({
 }) {
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-  const barColors = ["#f12924", "#2e2e2e"];
+  const barColors = ["#f12924", "#e4e7ec"];
 
   const years = Array.from(
     new Set(orders.map((order) => new Date(order.created_at).getFullYear()))
@@ -103,9 +103,11 @@ export default function BarChartSection({
   }, [selectedYear, data, orders]);
 
   return (
-    <div className="border border-slate-200 rounded-xl bg-white pt-4 px-5 h-[45vh]">
+    <div className="surface-card pt-4 px-5 h-[45vh]">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold">Overview</h1>
+        <h1 className="font-display text-lg font-bold tracking-tight">
+          Overview
+        </h1>
         <Select
           onValueChange={(value) => setSelectedYear(parseInt(value))}
           value={selectedYear?.toString() || ""}
@@ -124,8 +126,8 @@ export default function BarChartSection({
       </div>
       <div className="flex items-center xl:gap-2 gap-1">
         <div>
-          <p className="opacity-60 text-xs">Sales this month</p>
-          <h1 className="font-bold xl:text-4xl text-3xl">
+          <p className="text-xs text-muted-foreground">Sales this month</p>
+          <h1 className="font-display font-bold tracking-tight xl:text-4xl text-3xl">
             ₱
             <span className="text-primaryRed">
               {currentMonthTotal.toLocaleString()}
@@ -148,23 +150,27 @@ export default function BarChartSection({
       </div>
       <ResponsiveContainer>
         <BarChart data={filteredData} margin={{ bottom: 90, top: 20 }}>
-          <Tooltip content={<CustomToolTip />} />
-          <CartesianGrid strokeDasharray="3 3" />
+          <Tooltip content={<CustomToolTip />} cursor={{ fill: "#f1f2f4" }} />
+          <CartesianGrid
+            strokeDasharray="3 3"
+            vertical={false}
+            stroke="#eceef1"
+          />
           <XAxis
             dataKey="monthName"
-            stroke="#888888"
+            stroke="#98a2b3"
             fontSize={12}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
-            stroke="#888888"
+            stroke="#98a2b3"
             fontSize={12}
             tickLine={false}
             axisLine={false}
             tickFormatter={(value) => `₱${value}`}
           />
-          <Bar dataKey="price" radius={[4, 4, 0, 0]}>
+          <Bar dataKey="price" radius={[6, 6, 0, 0]} maxBarSize={42}>
             {filteredData.map((entry, index) => {
               const entryMonthIndex = allMonths.indexOf(entry.monthName);
               return (

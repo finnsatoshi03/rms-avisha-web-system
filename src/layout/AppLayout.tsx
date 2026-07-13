@@ -218,21 +218,27 @@ export default function AppLayout() {
         ) : null}
         <AppSidebar isUser={isUser} />
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+          <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background/85 backdrop-blur transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
             <div className="flex items-center justify-between w-full px-4">
               {/* Left side - Sidebar trigger and breadcrumbs */}
               <div className="flex items-center gap-2">
                 <SidebarTrigger className="-ml-1" />
                 <Separator orientation="vertical" className="mr-2 h-4" />
-                <div className="flex items-center gap-2 text-sm font-medium">
+                <div className="flex items-center gap-2 text-sm">
                   {breadcrumbs.map((crumb, index) => (
                     <div key={index} className="flex items-center gap-2">
                       <span
-                        className={index === 0 ? "text-muted-foreground" : ""}
+                        className={
+                          index === breadcrumbs.length - 1
+                            ? "font-semibold text-foreground"
+                            : "text-muted-foreground"
+                        }
                       >
                         {crumb}
                       </span>
-                      {index < breadcrumbs.length - 1 && <span>/</span>}
+                      {index < breadcrumbs.length - 1 && (
+                        <span className="text-muted-foreground/50">/</span>
+                      )}
                     </div>
                   ))}
                 </div>

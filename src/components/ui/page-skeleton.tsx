@@ -82,32 +82,44 @@ export function DashboardSkeleton() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-2">
-        <Skeleton className="h-9 w-24 rounded-md" />
-        <Skeleton className="h-9 w-24 rounded-md" />
-        <Skeleton className="h-9 w-24 rounded-md" />
+      {/* Tabs (pill group) */}
+      <div className="flex items-center gap-1">
+        <Skeleton className="h-9 w-24 rounded-full" />
+        <Skeleton className="h-9 w-28 rounded-full" />
+        <Skeleton className="h-9 w-24 rounded-full" />
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="space-y-3 rounded-xl border p-5">
+      {/* Row 1: hero metric + compact stat tiles */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr]">
+        <div className="space-y-6 rounded-2xl border bg-muted/60 p-6 sm:col-span-2 xl:col-span-1">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-9 w-9 rounded-xl" />
+          </div>
+          <Skeleton className="h-10 w-44" />
+          <Skeleton className="h-5 w-36 rounded-full" />
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="space-y-4 rounded-2xl border p-6">
             <div className="flex items-center justify-between">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-4 w-4 rounded-full" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-8 w-8 rounded-lg" />
             </div>
-            <Skeleton className="h-8 w-32" />
-            <Skeleton className="h-3 w-40" />
+            <Skeleton className="h-7 w-28" />
+            <Skeleton className="h-5 w-32 rounded-full" />
           </div>
         ))}
       </div>
 
-      {/* Main chart + recent sales */}
-      <div className="grid flex-1 gap-4 lg:grid-cols-7">
-        <div className="space-y-4 rounded-xl border p-5 lg:col-span-4">
-          <Skeleton className="h-5 w-32" />
-          <div className="flex h-64 items-end gap-3">
+      {/* Row 2: wide bar chart + billing card */}
+      <div className="grid flex-1 grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
+        <div className="space-y-4 rounded-2xl border p-5">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-5 w-14" />
+          </div>
+          <Skeleton className="h-8 w-40" />
+          <div className="flex h-48 items-end gap-3">
             {[60, 80, 45, 90, 70, 55, 85, 65, 75, 50, 88, 62].map((h, i) => (
               <Skeleton
                 key={i}
@@ -117,10 +129,14 @@ export function DashboardSkeleton() {
             ))}
           </div>
         </div>
-        <div className="space-y-4 rounded-xl border p-5 lg:col-span-3">
-          <Skeleton className="h-5 w-28" />
+        <div className="space-y-4 rounded-2xl border p-6">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-8 w-8 rounded-lg" />
+          </div>
+          <Skeleton className="h-8 w-36" />
           <Skeleton className="h-3 w-44" />
-          {Array.from({ length: 5 }).map((_, i) => (
+          {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3">
               <Skeleton className="h-9 w-9 rounded-full" />
               <div className="flex-1 space-y-1.5">

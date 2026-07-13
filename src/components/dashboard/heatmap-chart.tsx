@@ -105,8 +105,8 @@ const TechnicianPerformanceAnalytics = ({
 
   return (
     <div
-      className={`tech-performance-chart border p-5 rounded-xl ${
-        !techPage ? "h-[50vh] min-h-0 grid border-slate-200" : ""
+      className={`tech-performance-chart p-5 ${
+        !techPage ? "surface-card h-[50vh] min-h-0 grid" : "border rounded-xl"
       }`}
     >
       {!techPage && (
@@ -115,7 +115,7 @@ const TechnicianPerformanceAnalytics = ({
             size={18}
             strokeWidth={1.5}
             color="#f12924"
-            className="size-8 p-1.5 bg-slate-50 rounded-lg"
+            className="size-8 p-1.5 bg-brand-soft rounded-lg"
           />
           Daily Repairs Heatmap
           <TooltipProvider>

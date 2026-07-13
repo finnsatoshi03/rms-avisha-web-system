@@ -53,6 +53,7 @@ import { DashboardSkeleton } from "../components/ui/page-skeleton";
 import { useUser } from "../components/auth/useUser";
 import { useExpenses } from "../components/expenses/useExpenses";
 import OverviewCard from "../components/dashboard/overview-card";
+import HeroMetricCard from "../components/dashboard/hero-metric-card";
 import { DatePickerWithRange } from "../components/date-range-picker";
 import BillingOverviewCard from "../components/dashboard/billing-overview-card";
 
@@ -549,6 +550,7 @@ export default function Dashboard() {
               .slice(1, 4)
               .map((reports) => (
                 <ReportCard
+                  key={reports.header}
                   header={reports.header}
                   value={reports.value}
                   prefix={reports.prefix}
@@ -614,27 +616,38 @@ export default function Dashboard() {
             <>
               <TabsContent value="overview" className="w-full pb-8">
                 <div className="h-[calc(100%-1rem-0.5rem-2rem)] mt-4 flex flex-col gap-4">
-                  {/* Row 1: [Overview cards + Billing] (left) | Bar Chart (right) */}
-                  <div className="grid xl:grid-cols-[0.65fr_1fr] grid-cols-1 gap-4">
-                    {/* Left: 3-col sub-grid — row1: 3 cards, row2: 1 card + billing (span 2) */}
-                    <div className="grid lg:grid-cols-3 sm:grid-cols-2 grid-cols-1 gap-4">
-                      {overviewData.slice(0, 3).map((data, index) => (
-                        <OverviewCard data={data} key={index} />
-                      ))}
-                      {overviewData[3] && <OverviewCard data={overviewData[3]} />}
-                      <div className="lg:col-span-2 sm:col-span-1">
-                        <BillingOverviewCard branchId={isManager ? currentBranchId ?? undefined : undefined} />
-                      </div>
-                    </div>
-                    {/* Right: Bar chart */}
+                  {/* Row 1: hero revenue + compact stat tiles (bento top band) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr] gap-4 animate-fade-up">
+                    <HeroMetricCard
+                      data={overviewData[0]}
+                      className="sm:col-span-2 xl:col-span-1"
+                    />
+                    {overviewData.slice(1, 4).map((data, index) => (
+                      <OverviewCard data={data} key={index} />
+                    ))}
+                  </div>
+
+                  {/* Row 2: monthly sales chart + billing receivables */}
+                  <div
+                    className="grid xl:grid-cols-[2fr_1fr] grid-cols-1 gap-4 animate-fade-up"
+                    style={{ animationDelay: "60ms" }}
+                  >
                     <BarChartSection
                       data={aggregatedDataArray}
                       orders={completedOrders}
                     />
+                    <BillingOverviewCard
+                      branchId={
+                        isManager ? currentBranchId ?? undefined : undefined
+                      }
+                    />
                   </div>
 
-                  {/* Row 2: Order Status + Recent Sales + Leaderboard */}
-                  <div className="grid xl:grid-cols-[0.35fr_1fr_0.5fr] lg:grid-cols-[0.4fr_1fr] grid-cols-1 gap-4">
+                  {/* Row 3: Order Status + Recent Sales + Leaderboard */}
+                  <div
+                    className="grid xl:grid-cols-[0.35fr_1fr_0.5fr] lg:grid-cols-[0.4fr_1fr] grid-cols-1 gap-4 animate-fade-up"
+                    style={{ animationDelay: "120ms" }}
+                  >
                     <StatusOverview statusCounts={statusCounts} />
                     <RecentSalesSection completedOrders={completedOrders} />
                     <RevenuePerTechnicianPieChart orders={completedOrders} />
@@ -649,11 +662,11 @@ export default function Dashboard() {
                 {/* <div className="grid grid-cols-[1fr_0.5fr] gap-4"> */}
                 {/* </div> */}
               </TabsContent>
-              <TabsContent value="analytics" className="mt-4">
-                <h2 className="font-bold text-lg">
+              <TabsContent value="analytics" className="mt-4 pb-8">
+                <h2 className="font-display font-bold text-lg tracking-tight">
                   Sales and Revenue Insights
                 </h2>
-                <div className="grid lg:grid-cols-[1fr_0.5fr_0.5fr] grid-cols-2 gap-2 mt-2">
+                <div className="grid lg:grid-cols-[1fr_0.5fr_0.5fr] sm:grid-cols-2 grid-cols-1 gap-4 mt-2">
                   <SalesGrowthChart
                     data={filteredOrders}
                     metrics={filteredMetrics}
@@ -667,10 +680,10 @@ export default function Dashboard() {
                     metrics={filteredMetrics}
                   />
                 </div>
-                <h2 className="font-bold text-lg mt-8">
+                <h2 className="font-display font-bold text-lg tracking-tight mt-8">
                   Technician Performance Analytics
                 </h2>
-                <div className="grid lg:grid-cols-[0.5fr_1fr] grid-cols-1 gap-2 mt-2">
+                <div className="grid lg:grid-cols-[0.5fr_1fr] grid-cols-1 gap-4 mt-2">
                   <RevenuePerTechnicianPieChart
                     orders={filteredOrders}
                     isAnalytics

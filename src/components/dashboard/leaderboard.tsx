@@ -435,7 +435,7 @@ export default function RevenuePerTechnicianLeaderboard({
 
   return (
     <>
-      <div className="revenue-per-tech-chart border border-slate-200 rounded-xl bg-white py-4 px-5 h-[50vh] flex flex-col">
+      <div className="revenue-per-tech-chart surface-card py-4 px-5 h-[50vh] flex flex-col">
         <motion.div
           className="flex justify-between mb-4"
           initial={{ opacity: 0, y: -10 }}
@@ -448,7 +448,7 @@ export default function RevenuePerTechnicianLeaderboard({
                 size={18}
                 strokeWidth={1.5}
                 color="#f12924"
-                className="size-8 p-1.5 bg-slate-50 rounded-lg"
+                className="size-8 p-1.5 bg-brand-soft rounded-lg"
               />
               Productivity Leaderboard
               <TooltipProvider>
@@ -469,7 +469,9 @@ export default function RevenuePerTechnicianLeaderboard({
             </h1>
           ) : (
             <>
-              <h1 className="text-lg font-bold">Productivity Leaderboard</h1>
+              <h1 className="font-display text-lg font-bold tracking-tight">
+                Productivity Leaderboard
+              </h1>
               <DropdownMenu>
                 <DropdownMenuTrigger className="h-fit w-fit mt-1.5 justify-self-end z-10 text-left text-xs flex items-center gap-1">
                   {selectedFilter === "Custom" && customDateRange ? (
@@ -610,6 +612,7 @@ export default function RevenuePerTechnicianLeaderboard({
             {topFiveData.length > 0 ? (
               <motion.div
                 key="leaderboard-content"
+                className="flex-1 flex flex-col justify-center min-h-0"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -635,7 +638,7 @@ export default function RevenuePerTechnicianLeaderboard({
                         <motion.div
                           initial={{ rotate: 0 }}
                           animate={{ rotate: [0, -10, 10, 0] }}
-                          transition={{ delay: 1.2, duration: 0.5 }}
+                          transition={{ delay: 0.5, duration: 0.5 }}
                         >
                           <Medal className="size-6 text-gray-600 mb-1" />
                         </motion.div>
@@ -644,7 +647,7 @@ export default function RevenuePerTechnicianLeaderboard({
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
                           transition={{
-                            delay: 1.4,
+                            delay: 0.55,
                             type: "spring",
                             stiffness: 200,
                           }}
@@ -656,7 +659,7 @@ export default function RevenuePerTechnicianLeaderboard({
                         className="text-center mt-2 px-2"
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 1.6 }}
+                        transition={{ delay: 0.6 }}
                       >
                         <div className="text-xs font-medium truncate max-w-[80px]">
                           {topFiveData[1].name}
@@ -689,7 +692,7 @@ export default function RevenuePerTechnicianLeaderboard({
                             rotate: [0, -15, 15, 0],
                             scale: [1, 1.1, 1],
                           }}
-                          transition={{ delay: 1.0, duration: 0.8 }}
+                          transition={{ delay: 0.4, duration: 0.8 }}
                         >
                           <Crown className="size-7 text-yellow-700 mb-1" />
                         </motion.div>
@@ -698,7 +701,7 @@ export default function RevenuePerTechnicianLeaderboard({
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
                           transition={{
-                            delay: 1.2,
+                            delay: 0.5,
                             type: "spring",
                             stiffness: 200,
                           }}
@@ -710,7 +713,7 @@ export default function RevenuePerTechnicianLeaderboard({
                         className="text-center mt-2 px-2"
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 1.4 }}
+                        transition={{ delay: 0.55 }}
                       >
                         <div className="text-xs font-bold truncate max-w-[80px]">
                           {topFiveData[0].name}
@@ -740,7 +743,7 @@ export default function RevenuePerTechnicianLeaderboard({
                         <motion.div
                           initial={{ rotate: 0 }}
                           animate={{ rotate: [0, 10, -10, 0] }}
-                          transition={{ delay: 1.6, duration: 0.5 }}
+                          transition={{ delay: 0.6, duration: 0.5 }}
                         >
                           <Award className="size-5 text-orange-600" />
                         </motion.div>
@@ -749,7 +752,7 @@ export default function RevenuePerTechnicianLeaderboard({
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
                           transition={{
-                            delay: 1.8,
+                            delay: 0.65,
                             type: "spring",
                             stiffness: 200,
                           }}
@@ -761,7 +764,7 @@ export default function RevenuePerTechnicianLeaderboard({
                         className="text-center mt-2 px-2"
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 2.0 }}
+                        transition={{ delay: 0.7 }}
                       >
                         <div className="text-xs font-medium truncate max-w-[80px]">
                           {topFiveData[2].name}
@@ -774,23 +777,23 @@ export default function RevenuePerTechnicianLeaderboard({
                   )}
                 </div>
 
-                {/* Remaining Rankings */}
+                {/* Remaining Rankings (ranks 4-5) */}
                 {topFiveData.length > 3 && (
                   <motion.div
-                    className="space-y-2 flex-1"
+                    className="space-y-2 flex-1 min-h-0 overflow-y-auto"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: 2.2 }}
+                    transition={{ delay: 0.8 }}
                   >
                     <motion.div
                       className="text-xs text-gray-500 text-center mb-2"
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 2.4 }}
+                      transition={{ delay: 0.9 }}
                     >
                       Other Top Performers
                     </motion.div>
-                    {topFiveData.slice(4).map((technician, index) => (
+                    {topFiveData.slice(3).map((technician, index) => (
                       <motion.div
                         key={index + 4}
                         className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border cursor-pointer"
@@ -866,7 +869,7 @@ export default function RevenuePerTechnicianLeaderboard({
               className="mt-4 pt-3 border-t"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 2.8 }}
+              transition={{ delay: 1.0 }}
             >
               <motion.div whileTap={{ scale: 0.98 }}>
                 <Button
@@ -875,7 +878,7 @@ export default function RevenuePerTechnicianLeaderboard({
                   className="w-full gap-2"
                 >
                   <Eye className="size-4" />
-                  View More ({allTechniciansData.length - 4} more)
+                  View More ({allTechniciansData.length - 5} more)
                 </Button>
               </motion.div>
             </motion.div>
