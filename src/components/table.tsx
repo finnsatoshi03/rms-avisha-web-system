@@ -66,6 +66,7 @@ import { useUser } from "./auth/useUser";
 import { isManagerReauthPasswordValid } from "./auth/manager-auth";
 
 import toast from "react-hot-toast";
+import { toastErrorWithRetry } from "../lib/toast-retry";
 import { Separator } from "@radix-ui/react-separator";
 import { TableCellWithHover } from "./job-order/cell-hover";
 import { PaymentDialog } from "./table/payment-dialog";
@@ -156,11 +157,13 @@ export default function Table({
 
       return { previous };
     },
-    onError: (_error, _variables, context) => {
+    onError: (_error, variables, context) => {
       for (const [key, snapshot] of context?.previous ?? []) {
         queryClient.setQueryData(key, snapshot);
       }
-      toast.error("Status change failed — reverted.");
+      toastErrorWithRetry("Status change failed — reverted.", () =>
+        updateStatusMutate(variables)
+      );
     },
   });
 

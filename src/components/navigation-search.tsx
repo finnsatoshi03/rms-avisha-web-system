@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../services/supabase";
+import { resetSoaTutorial } from "../lib/soa-progress";
 import {
   CommandDialog,
   CommandInput,
@@ -422,6 +423,19 @@ const NavigationSearch: React.FC = () => {
               <Plus className="h-4 w-4" />
               <span>New Job Order</span>
             </CommandItem>
+            {!isUser && (
+              <CommandItem
+                value="restart billing tutorial soa guide statement"
+                onSelect={() => {
+                  resetSoaTutorial();
+                  handleSelect("/billing");
+                }}
+                className="flex items-center gap-2 px-2 py-3"
+              >
+                <ReceiptText className="h-4 w-4" />
+                <span>Restart Billing Tutorial</span>
+              </CommandItem>
+            )}
           </CommandGroup>
           {matchedOrders.length > 0 && (
             <CommandGroup heading="Job Orders">

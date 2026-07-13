@@ -12,6 +12,7 @@ import {
 } from "./useBilling";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import toast from "react-hot-toast";
+import { markSoaStep } from "../../lib/soa-progress";
 import TransactionDateDialog from "./transaction-date-dialog";
 import { normalizeDateOnly, TransactionDateMode } from "../../lib/transaction-date";
 
@@ -160,6 +161,7 @@ export default function AttachRentalPanel({
       toast.success(
         `Transferred ${successCount} rental${successCount > 1 ? "s" : ""}`
       );
+      markSoaStep("attach_charge");
       onClose();
       return;
     }

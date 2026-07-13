@@ -3,7 +3,7 @@ import {
   Archive,
   Building2,
   Calendar,
-  ChevronDown,
+  ChevronRight,
   EllipsisVertical,
   Home,
   Package,
@@ -48,6 +48,7 @@ import { cn } from "../lib/utils";
 import { useUser } from "../components/auth/useUser";
 import { Skeleton } from "../components/ui/skeleton";
 import { SidebarSkeleton } from "../components/ui/page-skeleton";
+import SoaOnboardingChecklist from "../components/billing/soa-onboarding-checklist";
 import { useState } from "react";
 import { SettingsDialog } from "../components/settings/settings-dialog";
 import { useDevConsole } from "../components/dev-console/dev-console-context";
@@ -151,6 +152,9 @@ export default function AppSidebar({
         <img src="/RMS-Logo.png" alt="RMS Logo" className="w-3/4 h-auto" />
       </SidebarHeader>
 
+      {/* Priority billing tutorial — pinned above navigation until finished */}
+      {!isUser && !isLoading && <SoaOnboardingChecklist />}
+
       <SidebarContent>
         {isLoading && !user ? (
           <SidebarSkeleton />
@@ -171,10 +175,10 @@ export default function AppSidebar({
                             <Home size={20} />
                             <span>Dashboard</span>
                           </div>
-                          <ChevronDown
+                          <ChevronRight
                             size={16}
                             className={`transition-transform ${
-                              isHomeOpen ? "rotate-180" : ""
+                              isHomeOpen ? "rotate-90" : ""
                             }`}
                           />
                         </SidebarMenuButton>
@@ -233,10 +237,10 @@ export default function AppSidebar({
                             <Printer size={20} />
                             <span>Job Orders</span>
                           </div>
-                          <ChevronDown
+                          <ChevronRight
                             size={16}
                             className={`transition-transform ${
-                              isOperationsJobOrdersOpen ? "rotate-180" : ""
+                              isOperationsJobOrdersOpen ? "rotate-90" : ""
                             }`}
                           />
                         </SidebarMenuButton>
@@ -359,10 +363,10 @@ export default function AppSidebar({
                             <Package size={20} />
                             <span>Inventory</span>
                           </div>
-                          <ChevronDown
+                          <ChevronRight
                             size={16}
                             className={`transition-transform ${
-                              isInventoryOpen ? "rotate-180" : ""
+                              isInventoryOpen ? "rotate-90" : ""
                             }`}
                           />
                         </SidebarMenuButton>
@@ -512,10 +516,10 @@ export default function AppSidebar({
                         <Printer size={20} />
                         <span>Job Orders</span>
                       </div>
-                      <ChevronDown
+                      <ChevronRight
                         size={16}
                         className={`transition-transform ${
-                          isJobOrdersOpen ? "rotate-180" : ""
+                          isJobOrdersOpen ? "rotate-90" : ""
                         }`}
                       />
                     </SidebarMenuButton>

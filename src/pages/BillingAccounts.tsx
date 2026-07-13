@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Search, Plus, ReceiptText, Filter, Download } from "lucide-react";
+import {
+  markSoaStep,
+  requestSoaShowMe,
+  SOA_SHOW_ME_EVENT,
+} from "../lib/soa-progress";
 import toast from "react-hot-toast";
 
 import HeaderText from "../components/ui/headerText";
@@ -88,6 +93,14 @@ export default function BillingAccounts() {
     completeTour,
     replayTour,
   } = useFeatureOnboarding("billing_accounts");
+
+  // Tutorial checklist: visiting this page completes the first step.
+  useEffect(() => {
+    markSoaStep("visit_billing");
+  }, []);
+
+  // Local spotlight for the "open an account" tutorial step.
+  const [pageMiniTour, setPageMiniTour] = useState<string | null>(null);
 
   // Mock data shown during tour when no real accounts exist
   const mockCompanyClient: Client = {
@@ -188,7 +201,10 @@ export default function BillingAccounts() {
 
   const showMockData = showTour && filteredAccounts.length === 0;
   const displayAccounts = showMockData ? MOCK_ACCOUNTS : filteredAccounts;
-  const allAccounts = (accounts as BillingAccount[]) ?? [];
+  const allAccounts = useMemo(
+    () => (accounts as BillingAccount[]) ?? [],
+    [accounts]
+  );
   const selectedAccountForMockPdf =
     (selectedAccountId
       ? allAccounts.find((a) => a.id === selectedAccountId)
@@ -222,6 +238,47 @@ export default function BillingAccounts() {
     setSelectedAccountId(null);
     navigate("/billing", { replace: true });
   }, [navigate]);
+
+  // Tutorial "Show me" router. The point: the button must ALWAYS visibly do
+  // something. Spotlights the table for the open-account step; for steps that
+  // live inside an account, opens the first account automatically and then
+  // re-dispatches so the mounted sheet runs the walkthrough.
+  useEffect(() => {
+    const DETAIL_TOUR_KEYS = new Set([
+      "soa_add_charges",
+      "soa_generate_send",
+      "soa_record_payment",
+      "soa_interest_reminders",
+    ]);
+
+    const onShowMe = (event: Event) => {
+      const detail = (event as CustomEvent<{ featureKey: string }>).detail;
+      if (!detail) return;
+
+      if (detail.featureKey === "soa_open_account") {
+        event.preventDefault();
+        setPageMiniTour("soa_open_account");
+        return;
+      }
+
+      if (DETAIL_TOUR_KEYS.has(detail.featureKey)) {
+        // If an account sheet is already open its own listener claims the
+        // event (it registered after this one), so stay out of the way.
+        if (selectedAccountId) return;
+
+        const firstAccount = filteredAccounts[0] ?? allAccounts[0];
+        if (!firstAccount) return; // no accounts yet — widget shows its hint
+
+        event.preventDefault();
+        handleOpenAccount(firstAccount.id);
+        // Once the sheet has mounted, ask again — it will run the tour.
+        setTimeout(() => requestSoaShowMe(detail.featureKey), 900);
+      }
+    };
+
+    window.addEventListener(SOA_SHOW_ME_EVENT, onShowMe);
+    return () => window.removeEventListener(SOA_SHOW_ME_EVENT, onShowMe);
+  }, [selectedAccountId, filteredAccounts, allAccounts, handleOpenAccount]);
 
   const handleCreateReplayReady = useCallback(
     (replay: (() => void) | null) => {
@@ -588,6 +645,12 @@ export default function BillingAccounts() {
         featureKey="billing_accounts"
         active={showTour}
         onComplete={completeTour}
+      />
+      {/* Tutorial checklist spotlight (e.g. "click a row to open an account") */}
+      <GuidedTour
+        featureKey={pageMiniTour ?? ""}
+        active={pageMiniTour !== null}
+        onComplete={() => setPageMiniTour(null)}
       />
     </div>
   );

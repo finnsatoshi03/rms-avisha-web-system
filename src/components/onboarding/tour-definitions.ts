@@ -531,6 +531,165 @@ const tours: Record<string, TourDefinition> = {
     ],
   },
 
+  // ── Statement of Account mini-tours ─────────────────────────────────────
+  // Short, task-shaped tours launched from the SOA Guide ("Show me" buttons).
+  // They reuse the data-tour anchors inside the billing account sheet, so
+  // they only run while an account is open.
+  soa_open_account: {
+    featureKey: "soa_open_account",
+    steps: [
+      {
+        target: '[data-tour="billing-table"]',
+        title: "Open a company's account",
+        content:
+          "Click any row in this table. It opens the company's account — their balance is at the top, and the full history (charges, payments, statements) is below it.",
+        placement: "top",
+      },
+    ],
+  },
+
+  soa_add_charges: {
+    featureKey: "soa_add_charges",
+    steps: [
+      {
+        target: '[data-tour="billing-detail-action-attach-jo"]',
+        title: "Add a repair to the bill",
+        content:
+          "When a repair (job order) is done and the company will pay later, click here to move it onto their account — like adding it to their tab.",
+        placement: "bottom",
+      },
+      {
+        target: '[data-tour="billing-detail-dialog-attach-jo"]',
+        title: "Tick the ones to add",
+        content:
+          "Unpaid job orders for this company show up in this list — including ones made for their branches or departments. Tick the ones you want to add, check the total, and confirm.",
+        placement: "left",
+        clickBefore: '[data-tour="billing-detail-action-attach-jo"]',
+        waitMs: 350,
+      },
+      {
+        target: '[data-tour="billing-detail-action-attach-rental"]',
+        title: "Printer rentals work the same way",
+        content:
+          "Rentals can also go on the tab. Click here and pick the rentals to add, exactly like job orders.",
+        placement: "bottom",
+      },
+      {
+        target: '[data-tour="billing-detail-jo-section"]',
+        title: "See everything on the tab",
+        content:
+          "Everything you've added is listed down here — job orders in this section, rentals just below it. Each one shows if it's already Paid, Partial, or Unpaid.",
+        placement: "top",
+      },
+    ],
+  },
+
+  soa_generate_send: {
+    featureKey: "soa_generate_send",
+    steps: [
+      {
+        target: '[data-tour="billing-detail-action-statement"]',
+        title: "Make the statement",
+        content:
+          "A Statement of Account (SOA) is the summary bill you send the company — like an electric bill for a month. Click here to create one.",
+        placement: "bottom",
+      },
+      {
+        target: '[data-tour="billing-detail-dialog-statement"]',
+        title: "Pick the dates",
+        content:
+          "Choose the period the bill covers (the dates are usually already filled in for you) and click Generate. Don't worry — this only creates a draft; nothing is sent yet.",
+        placement: "left",
+        clickBefore: '[data-tour="billing-detail-action-statement"]',
+        waitMs: 350,
+      },
+      {
+        target: '[data-tour="billing-detail-statements-section"]',
+        title: "Your statements live here",
+        content:
+          "Every statement you've made is listed here. From this list you can download the PDF, or email it straight to the client with one click.",
+        placement: "top",
+      },
+      {
+        target: '[data-tour="billing-detail-email-logs"]',
+        title: "Did they receive it?",
+        content:
+          "If the client says they didn't get the email, check here — every email we sent is logged with a Sent or Failed status.",
+        placement: "top",
+      },
+    ],
+  },
+
+  soa_record_payment: {
+    featureKey: "soa_record_payment",
+    steps: [
+      {
+        target: '[data-tour="billing-detail-action-payment"]',
+        title: "The company paid — record it here",
+        content:
+          "Whenever money comes in (cash, GCash, bank transfer…), click here to record it against their tab.",
+        placement: "bottom",
+      },
+      {
+        target: '[data-tour="billing-detail-dialog-payment"]',
+        title: "Enter the payment",
+        content:
+          "Type the amount, pick how they paid, and attach the receipt if you have one. The system pays off their oldest charges first automatically — or you can choose exactly which charges to pay.",
+        placement: "left",
+        clickBefore: '[data-tour="billing-detail-action-payment"]',
+        waitMs: 350,
+      },
+      {
+        target: '[data-tour="billing-detail-balance"]',
+        title: "The balance updates instantly",
+        content:
+          "After saving, the amount they still owe updates right away. When it reaches zero, the tab is fully paid!",
+        placement: "bottom",
+      },
+      {
+        target: '[data-tour="billing-detail-payments-section"]',
+        title: "Every payment is remembered",
+        content:
+          "All recorded payments are listed here with the date, amount, and how they paid — so you can always answer \"when did we pay that?\"",
+        placement: "top",
+      },
+    ],
+  },
+
+  soa_interest_reminders: {
+    featureKey: "soa_interest_reminders",
+    steps: [
+      {
+        target: '[data-tour="billing-detail-balance"]',
+        title: "Overdue balances grow interest",
+        content:
+          "If the company doesn't pay on time, the system adds interest automatically every night — you don't have to compute anything.",
+        placement: "bottom",
+      },
+      {
+        target: '[data-tour="billing-detail-interest-logs"]',
+        title: "Every interest charge is explained",
+        content:
+          "Each interest charge is listed here: which month, how much was overdue, the rate, and the amount added. Show this to the client if they ask why the bill grew.",
+        placement: "top",
+      },
+      {
+        target: '[data-tour="billing-detail-admin-reminders"]',
+        title: "Reminders send themselves",
+        content:
+          "On the 1st of every month, reminder emails go out automatically to companies with unpaid balances. This button is only for sending an extra reminder by hand.",
+        placement: "bottom",
+      },
+      {
+        target: '[data-tour="billing-detail-admin-soa"]',
+        title: "Statements send themselves too",
+        content:
+          "On the 2nd of every month, the system creates and emails statements for all active accounts by itself. You only need the manual buttons for special cases.",
+        placement: "bottom",
+      },
+    ],
+  },
+
   rental_asset_create: {
     featureKey: "rental_asset_create",
     steps: [

@@ -20,6 +20,7 @@ import {
 import { useGenerateBillingStatement } from "./useBilling";
 import { supabase } from "../../services/supabase";
 import { useTransactionHandler } from "../../hooks/useTransactionHandler";
+import { markSoaStep } from "../../lib/soa-progress";
 
 interface GenerateStatementDialogProps {
   open: boolean;
@@ -94,6 +95,7 @@ export default function GenerateStatementDialog({
       }
     ).then((success) => {
       if (!success) return;
+      markSoaStep("generate_statement");
       resetForm();
       onOpenChange(false);
     });

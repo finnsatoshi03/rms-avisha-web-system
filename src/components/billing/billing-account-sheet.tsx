@@ -25,6 +25,7 @@ import {
   Ban,
   Trash2,
 } from "lucide-react";
+import { markSoaStep, SOA_SHOW_ME_EVENT } from "../../lib/soa-progress";
 
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -329,6 +330,31 @@ export default function BillingAccountSheetContent({
     completeTour: completeDetailTour,
     replayTour: replayDetailTour,
   } = useFeatureOnboarding("billing_account_detail");
+
+  // Focused SOA mini-tours, launched from the tutorial checklist's
+  // "Show me" buttons (see soa-onboarding-checklist.tsx).
+  const [activeMiniTour, setActiveMiniTour] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Opening an account is itself a tutorial step.
+    markSoaStep("open_account");
+
+    const miniTourKeys = new Set([
+      "soa_add_charges",
+      "soa_generate_send",
+      "soa_record_payment",
+      "soa_interest_reminders",
+    ]);
+    const onShowMe = (event: Event) => {
+      const detail = (event as CustomEvent<{ featureKey: string }>).detail;
+      if (detail && miniTourKeys.has(detail.featureKey)) {
+        event.preventDefault();
+        setActiveMiniTour(detail.featureKey);
+      }
+    };
+    window.addEventListener(SOA_SHOW_ME_EVENT, onShowMe);
+    return () => window.removeEventListener(SOA_SHOW_ME_EVENT, onShowMe);
+  }, []);
 
   // Collapsible section states
   const [statementsOpen, setStatementsOpen] = useState(false);
@@ -944,6 +970,8 @@ export default function BillingAccountSheetContent({
       a.click();
       URL.revokeObjectURL(url);
       toast.success("PDF downloaded");
+      markSoaStep("send_statement");
+      markSoaStep("send_statement");
     } catch (err) {
       toast.error("Failed to generate PDF");
       console.error(err);
@@ -1103,6 +1131,7 @@ export default function BillingAccountSheetContent({
           (data as { message?: string })?.message ||
           `Statement sent to ${primaryRecipient}`;
         toast.success(successMessage);
+        markSoaStep("send_statement");
         queryClient.invalidateQueries({ queryKey: ["billing_statements", accountId] });
         setStatementEmailDialogOpen(false);
         setStatementToEmail(null);
@@ -3466,6 +3495,13 @@ export default function BillingAccountSheetContent({
         featureKey="billing_account_detail"
         active={showDetailTour}
         onComplete={completeDetailTour}
+      />
+
+      {/* Focused SOA mini-tours triggered by the tutorial checklist */}
+      <GuidedTour
+        featureKey={activeMiniTour ?? ""}
+        active={activeMiniTour !== null}
+        onComplete={() => setActiveMiniTour(null)}
       />
     </TooltipProvider>
   );

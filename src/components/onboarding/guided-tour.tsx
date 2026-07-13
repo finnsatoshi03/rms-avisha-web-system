@@ -146,6 +146,11 @@ export default function GuidedTour({
 
   const tour = getTourDefinition(featureKey);
 
+  // Parents may pass inline closures; keep the latest in a ref so the step
+  // effect doesn't re-run (and re-trigger DOM actions) on every parent render.
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
   const cleanup = useCallback(() => {
     if (cleanupRef.current) {
       cleanupRef.current();
@@ -228,7 +233,7 @@ export default function GuidedTour({
                 setCurrentStep((prev) => prev + 1);
               } else {
                 cleanup();
-                onComplete();
+                onCompleteRef.current();
               }
             }
           }, 350);
@@ -243,7 +248,7 @@ export default function GuidedTour({
             setCurrentStep((prev) => prev + 1);
           } else {
             cleanup();
-            onComplete();
+            onCompleteRef.current();
           }
         }
       };
@@ -307,7 +312,9 @@ export default function GuidedTour({
     } else {
       findAndShow(5, 200);
     }
-  }, [active, currentStep, validSteps, cleanup, onComplete]);
+    // onComplete intentionally read via ref — inline closures from parents
+    // must not re-trigger DOM actions on every parent render.
+  }, [active, currentStep, validSteps, cleanup]);
 
   // Keep rect in sync on resize/scroll
   const updateRect = useCallback(() => {
@@ -318,7 +325,16 @@ export default function GuidedTour({
     if (el) {
       const rect = el.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
-        setTargetRect(rect);
+        // Skip no-op updates so scroll/resize storms don't churn renders.
+        setTargetRect((prev) =>
+          prev &&
+          prev.top === rect.top &&
+          prev.left === rect.left &&
+          prev.width === rect.width &&
+          prev.height === rect.height
+            ? prev
+            : rect
+        );
       }
     }
   }, [active, stepReady, currentStep, validSteps]);
@@ -342,16 +358,29 @@ export default function GuidedTour({
         width: Math.round(tooltipEl.offsetWidth || 320),
         height: Math.round(tooltipEl.offsetHeight || 220),
       };
+      // Hysteresis: the measured size feeds back into the tooltip's own
+      // maxHeight style, so tiny (scrollbar/rounding) differences can
+      // oscillate between two values forever. Ignore sub-4px changes.
       setTooltipSize((prev) =>
-        prev.width === next.width && prev.height === next.height ? prev : next
+        Math.abs(prev.width - next.width) < 4 &&
+        Math.abs(prev.height - next.height) < 4
+          ? prev
+          : next
       );
     };
 
     measure();
-    const resizeObserver = new ResizeObserver(measure);
+    // Defer observer callbacks to the next frame so a size-feedback cycle
+    // can never nest synchronously (ResizeObserver fires pre-paint).
+    let frame = 0;
+    const resizeObserver = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    });
     resizeObserver.observe(tooltipEl);
 
     return () => {
+      cancelAnimationFrame(frame);
       resizeObserver.disconnect();
     };
   }, [active, stepReady, currentStep]);
