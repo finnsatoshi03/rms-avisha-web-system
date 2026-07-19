@@ -8,6 +8,7 @@ import {
   PencilLine,
   Printer as PrinterIcon,
   RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import HeaderText from "../components/ui/headerText";
@@ -30,11 +31,15 @@ import {
   DEFAULT_CUSTOM_ROWS,
   DEFAULT_SHEET,
   DPI,
+  MM_PER_INCH,
   PRINT_PACKAGES,
+  PhysicalDim,
   SHEETS,
   SheetId,
   buildCustomPackage,
+  formatSize,
   packageHasCaption,
+  toPx,
 } from "../components/printing/print-config";
 import {
   applyLayoutOffset,
@@ -57,6 +62,10 @@ import SheetCanvas, {
 } from "../components/printing/sheet-canvas";
 import PackageThumbnail from "../components/printing/package-thumbnail";
 import PhotoSlotControls from "../components/printing/photo-slot-controls";
+import PhotoProcessorDialog, {
+  ProcessorTarget,
+} from "../components/processing/photo-processor-dialog";
+import ProcessOfferDialog from "../components/processing/process-offer-dialog";
 import CustomPackageBuilder from "../components/printing/custom-package-builder";
 import RecentJobs from "../components/printing/recent-jobs";
 import {
@@ -77,7 +86,8 @@ import { cn } from "../lib/utils";
 
 export default function Printing() {
   const [packageId, setPackageId] = useState(PRINT_PACKAGES[0].id);
-  const [customRows, setCustomRows] = useState<CustomRow[]>(DEFAULT_CUSTOM_ROWS);
+  const [customRows, setCustomRows] =
+    useState<CustomRow[]>(DEFAULT_CUSTOM_ROWS);
   const [sheetId, setSheetId] = useState<SheetId>(DEFAULT_SHEET);
   const [text, setText] = useState<CaptionText>({ name: "", subtitle: "" });
   const [mode, setMode] = useState<InteractionMode>("photo");
@@ -99,6 +109,12 @@ export default function Printing() {
   const { isAdmin, isDev } = useUser();
   const canEditPrices = isAdmin || isDev;
   const [priceDialogOpen, setPriceDialogOpen] = useState(false);
+  const [processorOpen, setProcessorOpen] = useState(false);
+  const [processorTarget, setProcessorTarget] =
+    useState<ProcessorTarget | null>(null);
+  const [processOffer, setProcessOffer] = useState<ProcessorTarget | null>(
+    null,
+  );
   const canvasRef = useRef<SheetCanvasHandle>(null);
 
   const pkg = useMemo(() => {
@@ -108,11 +124,11 @@ export default function Printing() {
 
   const baseLayout = useMemo(
     () => computeSheetLayout(pkg, sheetId),
-    [pkg, sheetId]
+    [pkg, sheetId],
   );
   const layout = useMemo(
     () => applyLayoutOffset(baseLayout, offset),
-    [baseLayout, offset]
+    [baseLayout, offset],
   );
   const slack = layoutSlack(baseLayout);
   const canMoveLayout = slack.x > 0 || slack.y > 0;
@@ -144,10 +160,45 @@ export default function Printing() {
   const handleLayoutMove = useCallback(
     (dx: number, dy: number) => {
       setOffset((prev) =>
-        clampLayoutOffset(baseLayout, { x: prev.x + dx, y: prev.y + dy })
+        clampLayoutOffset(baseLayout, { x: prev.x + dx, y: prev.y + dy }),
       );
     },
-    [baseLayout]
+    [baseLayout],
+  );
+
+  // ID-sized cells (1×1, 2×2, passport…) get an offer to run the upload
+  // through the local photo processor; larger formats upload as-is silently.
+  const inchesOf = (d: PhysicalDim) =>
+    d.unit === "in" ? d.value : d.value / MM_PER_INCH;
+
+  const slotProcessorTarget = useCallback(
+    (slotIndex: number, file: File): ProcessorTarget | null => {
+      const group =
+        pkg.groups.find((g) => (g.slot ?? 0) === slotIndex) ?? pkg.groups[0];
+      if (!group) return null;
+      if (inchesOf(group.width) > 2.5 || inchesOf(group.height) > 2.5)
+        return null;
+      // Name-plate cells reserve a caption strip; process to the photo area.
+      const heightPx =
+        toPx(group.height) -
+        (group.captionHeight ? toPx(group.captionHeight) : 0);
+      return {
+        slotIndex,
+        widthPx: toPx(group.width),
+        heightPx,
+        label: formatSize(group.width, group.height),
+        file,
+      };
+    },
+    [pkg],
+  );
+
+  const handlePickPhoto = useCallback(
+    (slotIndex: number, file: File) => {
+      setPhoto(slotIndex, file); // usable as-is even if the offer is declined
+      setProcessOffer(slotProcessorTarget(slotIndex, file));
+    },
+    [setPhoto, slotProcessorTarget],
   );
 
   const hasPhoto = Boolean(slots[0]?.image);
@@ -175,7 +226,10 @@ export default function Printing() {
           id: String(Date.now()),
           createdAt: Date.now(),
           packageId,
-          packageName: pkg.name === "Custom" ? `Custom (${pkg.slots.length} size${pkg.slots.length > 1 ? "s" : ""})` : pkg.name,
+          packageName:
+            pkg.name === "Custom"
+              ? `Custom (${pkg.slots.length} size${pkg.slots.length > 1 ? "s" : ""})`
+              : pkg.name,
           sheetId,
           customRows: packageId === CUSTOM_PACKAGE_ID ? customRows : undefined,
           text,
@@ -187,7 +241,7 @@ export default function Printing() {
         // Saving history must never block printing.
       }
     },
-    [pkg, slots, packageId, customRows, sheetId, text, refreshJobs]
+    [pkg, slots, packageId, customRows, sheetId, text, refreshJobs],
   );
 
   const handlePrint = () => {
@@ -214,7 +268,7 @@ export default function Printing() {
       await exportSheetPdf(
         canvas,
         { widthIn: layout.sheetWidthIn, heightIn: layout.sheetHeightIn },
-        `print-${pkg.id}-${sheetId}.pdf`
+        `print-${pkg.id}-${sheetId}.pdf`,
       );
       void persistJob(canvas);
     } catch {
@@ -290,7 +344,7 @@ export default function Printing() {
                       "relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center transition-colors",
                       active
                         ? "border-brand-deep/50 bg-brand-soft/60 shadow-sm"
-                        : "border-border bg-card hover:border-gray-300 hover:bg-muted/40"
+                        : "border-border bg-card hover:border-gray-300 hover:bg-muted/40",
                     )}
                   >
                     {price != null && (
@@ -304,13 +358,13 @@ export default function Printing() {
                       active={active}
                       className={cn(
                         "w-auto",
-                        p.orientation === "landscape" ? "h-9" : "h-14"
+                        p.orientation === "landscape" ? "h-9" : "h-14",
                       )}
                     />
                     <span
                       className={cn(
                         "text-xs font-medium leading-tight",
-                        active && "text-brand-deep"
+                        active && "text-brand-deep",
                       )}
                     >
                       {p.name}
@@ -330,7 +384,7 @@ export default function Printing() {
                   "flex flex-col items-center gap-1.5 rounded-lg border border-dashed p-2.5 text-center transition-colors",
                   packageId === CUSTOM_PACKAGE_ID
                     ? "border-brand-deep/50 bg-brand-soft/60 shadow-sm"
-                    : "border-gray-300 bg-card hover:border-gray-400 hover:bg-muted/40"
+                    : "border-gray-300 bg-card hover:border-gray-400 hover:bg-muted/40",
                 )}
               >
                 <PackageThumbnail
@@ -342,7 +396,7 @@ export default function Printing() {
                 <span
                   className={cn(
                     "text-xs font-medium leading-tight",
-                    packageId === CUSTOM_PACKAGE_ID && "text-brand-deep"
+                    packageId === CUSTOM_PACKAGE_ID && "text-brand-deep",
                   )}
                 >
                   Custom
@@ -389,16 +443,26 @@ export default function Printing() {
           <Separator />
 
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold">
-              {pkg.slots.length > 1 ? "Photos" : "Photo"}
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">
+                {pkg.slots.length > 1 ? "Photos" : "Photo"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setProcessorOpen(true)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Sparkles size={12} />
+                Process ID photo
+              </button>
+            </div>
             {pkg.slots.map((slot, i) => (
               <PhotoSlotControls
                 key={`${pkg.id}-${i}`}
                 slotIndex={i}
                 slot={slot}
                 state={slots[i]}
-                onPick={setPhoto}
+                onPick={handlePickPhoto}
                 onClear={clearPhoto}
                 onTransform={setTransform}
                 onRotate={rotatePhoto}
@@ -469,7 +533,7 @@ export default function Printing() {
                 disabled={!isReady}
                 className={cn(
                   "flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm text-white",
-                  "bg-primaryRed hover:bg-hoveredRed disabled:cursor-not-allowed disabled:opacity-50"
+                  "bg-primaryRed hover:bg-hoveredRed disabled:cursor-not-allowed disabled:opacity-50",
                 )}
               >
                 <PrinterIcon size={16} />
@@ -525,6 +589,27 @@ export default function Printing() {
               overrides={overrides}
             />
           )}
+
+          <ProcessOfferDialog
+            offer={processOffer}
+            onDismiss={() => setProcessOffer(null)}
+            onAccept={() => {
+              setProcessorTarget(processOffer);
+              setProcessOffer(null);
+              setProcessorOpen(true);
+            }}
+          />
+
+          <PhotoProcessorDialog
+            open={processorOpen}
+            onOpenChange={(o) => {
+              setProcessorOpen(o);
+              if (!o) setProcessorTarget(null);
+            }}
+            slots={pkg.slots}
+            onUse={setPhoto}
+            target={processorTarget}
+          />
         </div>
 
         {/* Right: live preview of the exact print canvas */}
@@ -627,7 +712,7 @@ function ModeButton({
         active
           ? "bg-white font-medium text-foreground shadow-sm"
           : "text-muted-foreground hover:text-foreground",
-        disabled && "cursor-not-allowed opacity-50 hover:text-muted-foreground"
+        disabled && "cursor-not-allowed opacity-50 hover:text-muted-foreground",
       )}
     >
       {icon}
