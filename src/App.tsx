@@ -42,6 +42,7 @@ const Rentals = lazy(() => import("./pages/Rentals"));
 const RentalAssets = lazy(() => import("./pages/RentalAssets"));
 const DashboardRental = lazy(() => import("./pages/DashboardRental"));
 const Archive = lazy(() => import("./pages/Archive"));
+const Printing = lazy(() => import("./pages/Printing"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -93,6 +94,7 @@ export default function App() {
               <Route path="billing" element={<BillingGuard><BillingAccounts /></BillingGuard>} />
               <Route path="billing/:id" element={<BillingGuard><BillingAccounts /></BillingGuard>} />
               <Route path="rentals" element={<Rentals />} />
+              <Route path="printing" element={<Printing />} />
               <Route path="rental-assets" element={<RentalAssets />} />
               <Route path="archive" element={<Archive />} />
               <Route path="dashboard/rental" element={<DashboardRental />} />

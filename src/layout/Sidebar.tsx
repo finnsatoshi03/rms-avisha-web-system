@@ -6,6 +6,7 @@ import {
   ChevronRight,
   EllipsisVertical,
   Home,
+  Images,
   Package,
   Printer,
   ReceiptText,
@@ -298,6 +299,18 @@ export default function AppSidebar({
                       >
                         <Handshake size={20} />
                         <span>Rentals</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip="Photo Printing">
+                      <NavLink
+                        to="printing"
+                        onClick={handleNavClick}
+                        className={navItemClass}
+                      >
+                        <Images size={20} />
+                        <span>Photo Printing</span>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

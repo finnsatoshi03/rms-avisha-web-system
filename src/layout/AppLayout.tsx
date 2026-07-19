@@ -33,6 +33,7 @@ const breadcrumbConfig: Record<string, string> = {
   branches: "Branch Management",
   settings: "Settings",
   billing: "Billing",
+  printing: "Photo Printing",
   archive: "Archive",
   technicians: "Technicians",
   account: "Account",
@@ -90,13 +91,8 @@ const generateBreadcrumbs = (pathname: string) => {
 };
 
 export default function AppLayout() {
-  const {
-    isUser,
-    user,
-    isAdmin,
-    isSharedManager,
-    requiresBranchSelection,
-  } = useUser();
+  const { isUser, user, isAdmin, isSharedManager, requiresBranchSelection } =
+    useUser();
   const { setActiveBranchSelection } = useBranchSession();
   const location = useLocation();
   const navigate = useNavigate();
@@ -202,8 +198,8 @@ export default function AppLayout() {
 
   const shouldShowMigrationNotice = Boolean(
     user.migration_notice_required &&
-      user.migrated_email &&
-      !isMigrationNoticeDismissed
+    user.migrated_email &&
+    !isMigrationNoticeDismissed,
   );
 
   return (
@@ -218,7 +214,7 @@ export default function AppLayout() {
         ) : null}
         <AppSidebar isUser={isUser} />
         <SidebarInset>
-          <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-background/85 backdrop-blur transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+          <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 bg-background/85 backdrop-blur transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
             <div className="flex items-center justify-between w-full px-4">
               {/* Left side - Sidebar trigger and breadcrumbs */}
               <div className="flex items-center gap-2">
