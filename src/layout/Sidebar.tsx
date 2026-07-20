@@ -6,7 +6,6 @@ import {
   ChevronRight,
   EllipsisVertical,
   Home,
-  Images,
   Package,
   Printer,
   ReceiptText,
@@ -302,18 +301,9 @@ export default function AppSidebar({
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip="Photo Printing">
-                      <NavLink
-                        to="printing"
-                        onClick={handleNavClick}
-                        className={navItemClass}
-                      >
-                        <Images size={20} />
-                        <span>Photo Printing</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {/* Photo Printing is hidden from the client build. The page,
+                      route and components still exist — restore this item plus
+                      the route in App.tsx to bring the feature back. */}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
