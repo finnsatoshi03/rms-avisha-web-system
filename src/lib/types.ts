@@ -253,6 +253,42 @@ export type JobOrderData = {
     | User;
 };
 
+// A single status transition on a job order, sourced from the joborder_events
+// table populated by the log_joborder_status_change trigger (Phase 1).
+// `actor` is null for backfilled rows (note === "backfilled") and for changes
+// made by a user we couldn't resolve to public.users (see resolve_app_user_id).
+export type JobOrderEvent = {
+  id: number;
+  joborder_id: number;
+  from_status: string | null;
+  to_status: string;
+  changed_at: string;
+  note: string | null;
+  actor:
+    | Pick<User, "id" | "fullname" | "email" | "migrated_email">
+    | null;
+};
+
+// One row on the Job Order Aging board. `enteredStatusAt` is when the order
+// entered its current status (the newest joborder_events row); `isEstimate` is
+// true when that came from a backfilled row, i.e. the order hasn't changed
+// status since Phase 1 was applied, so the age is a floor, not exact.
+export type JobOrderAgingRow = {
+  id: number;
+  order_no: string | null;
+  status: string;
+  client_name: string | null;
+  technician_id: string | null;
+  technician_name: string | null;
+  branch_location: string | null;
+  machine_type: string | null;
+  problem_statement: string | null;
+  created_at: string;
+  hasReport: boolean;
+  enteredStatusAt: string;
+  isEstimate: boolean;
+};
+
 export type CreateMaterial = {
   used?: boolean | null;
   material: string;

@@ -28,6 +28,7 @@ import {
   Search,
   Archive,
   Building2,
+  Clock,
   FileText,
   Handshake,
   Home,
@@ -71,6 +72,12 @@ const navigationItems = [
         title: "Job Orders",
         path: "/job-orders",
         keywords: ["job orders", "jobs", "orders", "work"],
+      },
+      {
+        icon: Clock,
+        title: "Aging Board",
+        path: "/job-order-aging",
+        keywords: ["aging", "aging board", "overdue", "stuck", "days in status", "turnaround", "waiting"],
       },
       {
         icon: Handshake,

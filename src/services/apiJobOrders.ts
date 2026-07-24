@@ -194,6 +194,42 @@ export async function getJobOrdersFiltered({
   return { data: normalizeJobOrderUsers(joborders), meta: { totalCount: count } };
 }
 
+// Full single job order in the shape JobOrderForm expects (same nested selects
+// as getJobOrdersFiltered). Used by the Aging board to open an order in a Sheet
+// without pulling a whole page of results.
+export async function getJobOrderById(id: number) {
+  const { data, error } = await supabase
+    .from("joborders")
+    .select(
+      `
+      *,
+      clients:client_id (*, parent_client:parent_client_id (id, name)),
+      branches:branch_id (*),
+      materials (
+        id,
+        material_description,
+        quantity,
+        unit_price,
+        total_amount,
+        job_order_id,
+        material_id,
+        used
+      ),
+      users:technician_id (*)
+    `
+    )
+    .eq("id", id)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching job order:", error);
+    throw new Error("Job order could not be loaded");
+  }
+
+  return data ? normalizeJobOrderUsers([data])[0] : null;
+}
+
 export async function upsertClient(
   supabase: SupabaseClient,
   client: {

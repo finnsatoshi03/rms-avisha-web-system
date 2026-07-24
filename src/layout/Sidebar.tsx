@@ -134,6 +134,7 @@ export default function AppSidebar({
   const [isHomeOpen, setIsHomeOpen] = useState(false);
   const [isOperationsJobOrdersOpen, setIsOperationsJobOrdersOpen] =
     useState(false);
+  const [isAllJobOrdersOpen, setIsAllJobOrdersOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isJobOrdersOpen, setIsJobOrdersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -252,21 +253,66 @@ export default function AppSidebar({
                       <CollapsibleContent>
                         <SidebarMenuSub>
                           <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild>
-                              <NavLink
-                                to="job-orders"
-                                onClick={handleNavClick}
-                                className={({ isActive }) =>
-                                  cn(
-                                    "w-full",
-                                    isActive &&
-                                      "bg-brand-soft text-brand-deep font-medium"
-                                  )
-                                }
-                              >
-                                All Job Orders
-                              </NavLink>
-                            </SidebarMenuSubButton>
+                            {/* "All Job Orders" both navigates (label) and
+                                expands (chevron) to reveal nested views like
+                                the Aging Board. */}
+                            <Collapsible
+                              open={isAllJobOrdersOpen}
+                              onOpenChange={setIsAllJobOrdersOpen}
+                            >
+                              <div className="flex items-center gap-1">
+                                <SidebarMenuSubButton asChild className="flex-1">
+                                  <NavLink
+                                    to="job-orders"
+                                    onClick={handleNavClick}
+                                    className={({ isActive }) =>
+                                      cn(
+                                        "w-full",
+                                        isActive &&
+                                          "bg-brand-soft text-brand-deep font-medium"
+                                      )
+                                    }
+                                  >
+                                    All Job Orders
+                                  </NavLink>
+                                </SidebarMenuSubButton>
+                                <CollapsibleTrigger asChild>
+                                  <button
+                                    type="button"
+                                    aria-label="Toggle job order views"
+                                    className="p-1 rounded hover:bg-sidebar-accent/50 text-sidebar-foreground/60"
+                                  >
+                                    <ChevronRight
+                                      size={14}
+                                      className={`transition-transform ${
+                                        isAllJobOrdersOpen ? "rotate-90" : ""
+                                      }`}
+                                    />
+                                  </button>
+                                </CollapsibleTrigger>
+                              </div>
+                              <CollapsibleContent>
+                                <SidebarMenuSub>
+                                  <SidebarMenuSubItem>
+                                    <SidebarMenuSubButton asChild>
+                                      <NavLink
+                                        to="job-order-aging"
+                                        onClick={handleNavClick}
+                                        className={({ isActive }) =>
+                                          cn(
+                                            "w-full",
+                                            isActive &&
+                                              "bg-brand-soft text-brand-deep font-medium"
+                                          )
+                                        }
+                                      >
+                                        Aging Board
+                                      </NavLink>
+                                    </SidebarMenuSubButton>
+                                  </SidebarMenuSubItem>
+                                </SidebarMenuSub>
+                              </CollapsibleContent>
+                            </Collapsible>
                           </SidebarMenuSubItem>
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild>

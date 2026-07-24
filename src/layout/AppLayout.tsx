@@ -27,6 +27,7 @@ const breadcrumbConfig: Record<string, string> = {
   dashboard: "Dashboard",
   "job-order": "Job Order",
   "job-orders": "Job Orders",
+  "job-order-aging": "Aging Board",
   clients: "Clients",
   materials: "Materials",
   expenses: "Expenses",
@@ -212,7 +213,7 @@ export default function AppLayout() {
           />
         ) : null}
         <AppSidebar isUser={isUser} />
-        <SidebarInset>
+        <SidebarInset className="min-w-0">
           <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 bg-background/85 backdrop-blur transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
             <div className="flex items-center justify-between w-full px-4">
               {/* Left side - Sidebar trigger and breadcrumbs */}

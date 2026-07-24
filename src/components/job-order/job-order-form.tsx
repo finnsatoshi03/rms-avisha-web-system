@@ -45,6 +45,7 @@ import { Textarea } from "../ui/textarea";
 import { Separator } from "../ui/separator";
 
 import AccessoriesSection from "./accessories-section";
+import JobOrderTimeline from "./job-order-timeline";
 import JoBillingSection from "../billing/jo-billing-section";
 import ClientAutoSuggest from "./client-auto-suggest";
 import PhoneInput from "../ui/phone-input";
@@ -3630,6 +3631,8 @@ export default function JobOrderForm({
                   </FormItem>
                 )}
               />
+              <Separator className="mt-4" />
+              <JobOrderTimeline jobOrderId={editId as number} />
             </>
           )}
           <div className="flex md:flex-row flex-col md:justify-between mt-2">
