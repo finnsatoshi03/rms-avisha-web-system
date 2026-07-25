@@ -22,6 +22,7 @@ import { ChevronDown, Pencil } from "lucide-react";
 import CollapsibleRows from "./collapsible-rows";
 import EditClientDialog from "./edit-client-dialog";
 import { Button } from "../ui/button";
+import { getServerNow } from "../../lib/server-time";
 
 const getClientStatus = (client: Client): string[] => {
   const jobOrders = client.joborders;
@@ -45,7 +46,7 @@ const getClientStatus = (client: Client): string[] => {
   if (jobOrderCount === 1) {
     const singleOrder = Object.values(jobOrders)[0];
     const orderDate = new Date(singleOrder.created_at);
-    const daysSinceOrder = differenceInDays(new Date(), orderDate);
+    const daysSinceOrder = differenceInDays(getServerNow(), orderDate);
     if (daysSinceOrder <= 3) {
       statuses.push("New");
     } else {

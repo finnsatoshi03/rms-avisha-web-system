@@ -5,6 +5,7 @@ import { History, Info, Loader2 } from "lucide-react";
 import { useJobOrderEvents } from "../../hooks/useJobOrderEvents";
 import { getStatusClass, formatReadableDate } from "../../lib/helpers";
 import { JobOrderEvent } from "../../lib/types";
+import { getServerNow } from "../../lib/server-time";
 
 function actorLabel(event: JobOrderEvent): string {
   // Backfilled rows predate the history feature — we don't know who set the
@@ -46,7 +47,7 @@ export default function JobOrderTimeline({
   // most recent change is at the top.
   const rows = useMemo(() => {
     if (!events) return [];
-    const now = new Date();
+    const now = getServerNow();
     return events
       .map((event, i) => {
         const isCurrent = i === events.length - 1;

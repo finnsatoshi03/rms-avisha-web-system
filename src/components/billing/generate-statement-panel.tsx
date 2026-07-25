@@ -13,6 +13,7 @@ import { useGenerateBillingStatement, useBillingStatements } from "./useBilling"
 import { useBillingAccount } from "./useBilling";
 import { supabase } from "../../services/supabase";
 import { BillingStatement } from "../../lib/billing-types";
+import { getServerNow } from "../../lib/server-time";
 
 interface GenerateStatementPanelProps {
   accountId: string;
@@ -28,7 +29,7 @@ function getAutoperiod(
   cutoffDay: number,
   lastStatement?: BillingStatement
 ): { start: string; end: string } {
-  const now = new Date();
+  const now = getServerNow();
 
   // If there's a last statement, start from the day after its period_end
   if (lastStatement?.period_end) {

@@ -26,6 +26,7 @@ import ReceiptAttachmentField from "./receipt-attachment-field";
 import ReceiptMissingConfirmDialog from "./receipt-missing-confirm-dialog";
 import { useTransactionHandler } from "../../hooks/useTransactionHandler";
 import { markSoaStep } from "../../lib/soa-progress";
+import { getServerNow } from "../../lib/server-time";
 
 interface RecordPaymentPanelProps {
   accountId: string;
@@ -53,7 +54,7 @@ const PAYMENT_METHODS = [
 ];
 
 function todayString(): string {
-  const d = new Date();
+  const d = getServerNow();
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");

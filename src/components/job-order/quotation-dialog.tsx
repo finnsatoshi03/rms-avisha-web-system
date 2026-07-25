@@ -52,6 +52,7 @@ import {
   computeQuotationTotal,
   resolveQuotationDownpayment,
 } from "../../lib/quotation-totals";
+import { getServerNow } from "../../lib/server-time";
 
 const quotationItemSchema = z
   .object({
@@ -880,7 +881,7 @@ export default function QuotationDialog({
   };
 
   const getValidityEndDate = (months: number) => {
-    const endDate = new Date();
+    const endDate = getServerNow();
     endDate.setMonth(endDate.getMonth() + months);
     return endDate.toLocaleDateString("en-US", {
       weekday: "long",
@@ -949,7 +950,7 @@ export default function QuotationDialog({
     }
 
     // Calculate end date based on validity months
-    const endDate = new Date();
+    const endDate = getServerNow();
     endDate.setMonth(endDate.getMonth() + data.validity_months);
 
     const computedTotals = computeQuotationTotal({
@@ -994,7 +995,7 @@ export default function QuotationDialog({
     onOpenChange(false); // Close the dialog after saving
   };
 
-  const date = new Date().toLocaleDateString("en-US", {
+  const date = getServerNow().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
     month: "long",

@@ -15,6 +15,7 @@ import {
   resolveQuotationDownpayment,
   withComputedQuotationTotals,
 } from "../../lib/quotation-totals";
+import { getServerNow } from "../../lib/server-time";
 
 interface ExportDropdownProps {
   jobOrderData: CreateJobOrderData;
@@ -80,7 +81,7 @@ export const ExportDropdown = ({
     setIsExporting(true);
     setExportingType(`quotation-${quotation.id}`);
     try {
-      const endDate = new Date();
+      const endDate = getServerNow();
       endDate.setMonth(endDate.getMonth() + 1);
 
       const laborRate = Number(quotation.labor_rate || 0);
@@ -146,7 +147,7 @@ export const ExportDropdown = ({
         },
         branch_id: branchId,
         job_order_no: jobOrderData.order_no || "",
-        date: new Date().toISOString().split("T")[0],
+        date: getServerNow().toISOString().split("T")[0],
       };
 
       const [{ pdf }, { default: QuotationPDF }] = await Promise.all([

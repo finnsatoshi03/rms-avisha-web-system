@@ -61,6 +61,7 @@ import {
   restoreArchivedQuotations,
   restoreArchivedRentals,
 } from "../services/apiArchive";
+import { getServerNowEpochMs } from "../lib/server-time";
 
 const TAB_OPTIONS: { value: ArchiveRecordType; label: string }[] = [
   { value: "joborders", label: "Job Orders" },
@@ -86,7 +87,10 @@ function formatDeletedAt(value: string | null | undefined) {
 function isRecentlyDeleted(value: string | null | undefined) {
   if (!value) return false;
   const parsed = new Date(value).getTime();
-  return Number.isFinite(parsed) && Date.now() - parsed <= RECENTLY_DELETED_WINDOW_MS;
+  return (
+    Number.isFinite(parsed) &&
+    getServerNowEpochMs() - parsed <= RECENTLY_DELETED_WINDOW_MS
+  );
 }
 
 function getReferenceNo(tab: ArchiveRecordType, row: any) {

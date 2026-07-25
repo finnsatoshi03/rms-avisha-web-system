@@ -133,6 +133,7 @@ import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
 import GuidedTour from "../onboarding/guided-tour";
 import TourReplayButton from "../onboarding/tour-replay-button";
 import { formatDateLabel, normalizeDateOnly } from "../../lib/transaction-date";
+import { getServerNow } from "../../lib/server-time";
 
 // ─── Badge maps ─────────────────────────────────────────────────────────────
 
@@ -465,10 +466,10 @@ export default function BillingAccountSheetContent({
     { id: "mock-pay-1", billing_account_id: accountId, amount: 1500, payment_date: new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10), payment_method: "gcash", reference_number: "GC-12345", notes: null, created_by: null, created_at: new Date(Date.now() - 5 * 86400000).toISOString() },
   ];
   const MOCK_STATEMENTS: BillingStatement[] = [
-    { id: "mock-stmt-1", billing_account_id: accountId, statement_number: "SOA-2026-03-001", period_start: new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10), period_end: new Date().toISOString().slice(0, 10), previous_balance: 0, new_charges: 8500, payments_received: 1500, interest_applied: 70, current_balance: 7070, due_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), branch_filter: null, status: "finalized", generated_by: null, generated_at: new Date().toISOString(), sent_at: null, pdf_url: null },
+    { id: "mock-stmt-1", billing_account_id: accountId, statement_number: "SOA-2026-03-001", period_start: new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10), period_end: getServerNow().toISOString().slice(0, 10), previous_balance: 0, new_charges: 8500, payments_received: 1500, interest_applied: 70, current_balance: 7070, due_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), branch_filter: null, status: "finalized", generated_by: null, generated_at: getServerNow().toISOString(), sent_at: null, pdf_url: null },
   ];
   const MOCK_INTEREST_LOGS: BillingInterestLog[] = [
-    { id: "mock-int-1", billing_account_id: accountId, billing_line_item_id: "mock-li-3", applied_at: new Date(Date.now() - 1 * 86400000).toISOString(), interest_amount: 70, rate: 2, overdue_balance: 3500, billing_cycle: new Date().toISOString().slice(0, 7), created_at: new Date(Date.now() - 1 * 86400000).toISOString() },
+    { id: "mock-int-1", billing_account_id: accountId, billing_line_item_id: "mock-li-3", applied_at: new Date(Date.now() - 1 * 86400000).toISOString(), interest_amount: 70, rate: 2, overdue_balance: 3500, billing_cycle: getServerNow().toISOString().slice(0, 7), created_at: new Date(Date.now() - 1 * 86400000).toISOString() },
   ];
   const MOCK_EMAIL_LOGS: EmailLog[] = [
     { id: "mock-email-1", billing_account_id: accountId, recipient: "billing@sunshine.com", subject: "Billing Reminder - March 2026", type: "billing_reminder", status: "sent", error_message: null, metadata: {}, sent_at: new Date(Date.now() - 2 * 86400000).toISOString(), created_at: new Date(Date.now() - 2 * 86400000).toISOString() },
@@ -542,7 +543,7 @@ export default function BillingAccountSheetContent({
     .reduce((sum, li) => sum + li.amount, 0);
 
   // Check if interest already applied this billing cycle
-  const currentCycle = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const currentCycle = getServerNow().toISOString().slice(0, 7); // YYYY-MM
   const rawInterestLogs = (interestLogs ?? []) as BillingInterestLog[];
   const typedInterestLogsAll = tourActive && rawInterestLogs.length === 0 ? MOCK_INTEREST_LOGS : rawInterestLogs;
   const interestAlreadyApplied = typedInterestLogsAll.some(

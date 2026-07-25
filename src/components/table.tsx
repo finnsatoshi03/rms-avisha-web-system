@@ -77,6 +77,7 @@ import {
   isBillingLinkedSource,
 } from "../lib/billing-sync";
 import { computeStoredAmountDue } from "../lib/transaction-totals";
+import { getServerNow } from "../lib/server-time";
 
 export default function Table({
   data,
@@ -628,7 +629,7 @@ export default function Table({
 
     if (orderToUpdate) {
       const createdDate = new Date(orderToUpdate.created_at);
-      const twoDaysAgo = new Date();
+      const twoDaysAgo = getServerNow();
       twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
       const isPendingTooLong =
         orderToUpdate.status === "Pending" && createdDate < twoDaysAgo;
@@ -742,7 +743,7 @@ export default function Table({
 
     const problematicOrders = ordersToUpdate.filter((order) => {
       const createdDate = new Date(order.created_at);
-      const twoDaysAgo = new Date();
+      const twoDaysAgo = getServerNow();
       twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
       const isPendingTooLong =
         order.status === "Pending" && createdDate < twoDaysAgo;
@@ -874,7 +875,7 @@ export default function Table({
 
   const shouldHighlightRow = (createdAt: string, status: string) => {
     const createdDate = new Date(createdAt);
-    const twoDaysAgo = new Date();
+    const twoDaysAgo = getServerNow();
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
     return status === "Pending" && createdDate < twoDaysAgo;
   };
@@ -1000,7 +1001,7 @@ export default function Table({
                         completed_at: currentOrder.completed_at || "",
                         date: currentOrder.created_at
                           ? new Date(currentOrder.created_at)
-                          : new Date(),
+                          : getServerNow(),
                         email: currentOrder.clients?.email || "",
                         grand_total: currentOrder.grand_total ?? 0,
                         labor_description: currentOrder.labor_description || "",

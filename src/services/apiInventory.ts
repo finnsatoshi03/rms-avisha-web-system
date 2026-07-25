@@ -1,3 +1,4 @@
+import { getServerNow } from "../lib/server-time";
 import { supabase } from "./supabase";
 import {
   DEFAULT_CONSUMPTION_WINDOW_DAYS,
@@ -82,7 +83,7 @@ function toNumber(value: number | string | null): number | null {
 }
 
 function windowStart(days: number): string {
-  const since = new Date();
+  const since = getServerNow();
   since.setDate(since.getDate() - days);
   return since.toISOString();
 }

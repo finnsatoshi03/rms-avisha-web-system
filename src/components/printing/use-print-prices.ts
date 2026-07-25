@@ -37,7 +37,8 @@ export function useSavePrintPrices() {
     mutationFn: async (overrides: PriceOverrides) => {
       const { error } = await supabase
         .from("system_settings")
-        .update({ value: overrides, updated_at: new Date().toISOString() })
+        // updated_at is stamped by set_system_settings_updated_at.
+        .update({ value: overrides })
         .eq("key", "photo_printing_prices");
       if (error) throw new Error(error.message);
       return overrides;

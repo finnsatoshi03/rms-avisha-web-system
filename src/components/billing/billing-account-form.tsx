@@ -29,6 +29,7 @@ import { Label } from "../ui/label";
 import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
 import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
 import GuidedTour from "../onboarding/guided-tour";
+import { getServerNow } from "../../lib/server-time";
 
 const CUTOFF_DAYS = Array.from({ length: 28 }, (_, i) => i + 1);
 
@@ -207,7 +208,7 @@ export default function BillingAccountFormSheet({
               day: "numeric",
               year: "numeric",
             })
-            : new Date().toLocaleDateString("en-US", {
+            : getServerNow().toLocaleDateString("en-US", {
               month: "long",
               day: "numeric",
               year: "numeric",

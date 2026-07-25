@@ -5,6 +5,7 @@ import CurrentJobOrderCard from "./current-job-order-card";
 import RevenueBreakdown from "./revenue-breakdown";
 import JobOrdersList from "./job-order-list";
 import TechnicianPerformanceAnalytics from "./heatmap-chart";
+import { getServerNow } from "../../lib/server-time";
 
 export default function TechnicianDashboard({
   technician,
@@ -16,7 +17,7 @@ export default function TechnicianDashboard({
     recentJobOrder
   );
   const [selectedYear, setSelectedYear] = useState<number>(
-    new Date().getFullYear()
+    getServerNow().getFullYear()
   );
   const jobOrders = technician.joborders || [];
 

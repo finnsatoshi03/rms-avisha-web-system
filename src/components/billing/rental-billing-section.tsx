@@ -38,6 +38,7 @@ import {
   resolveTransactionDateFromMode,
   TransactionDateMode,
 } from "../../lib/transaction-date";
+import { getServerNow } from "../../lib/server-time";
 
 interface RentalBillingSectionProps {
   rental: RentalData;
@@ -71,7 +72,7 @@ export default function RentalBillingSection({ rental }: RentalBillingSectionPro
   const sourceTransactionDate = normalizeDateOnly(rental.created_at);
   const sourceTransactionDateLabel = formatDateLabel(sourceTransactionDate);
   const currentTransactionDateLabel = formatDateLabel(
-    normalizeDateOnly(new Date())
+    normalizeDateOnly(getServerNow())
   );
 
   useEffect(() => {

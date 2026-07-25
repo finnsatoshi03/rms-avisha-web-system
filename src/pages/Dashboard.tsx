@@ -58,6 +58,7 @@ import { DatePickerWithRange } from "../components/date-range-picker";
 import BillingOverviewCard from "../components/dashboard/billing-overview-card";
 
 import { useNavigate } from "react-router-dom";
+import { getServerNow } from "../lib/server-time";
 
 export default function Dashboard() {
   const { isManager, branchId: currentBranchId, isUser } = useUser();
@@ -132,17 +133,17 @@ export default function Dashboard() {
 
   const [currentTab, setCurrentTab] = useState("overview");
   const [selectedYear, setSelectedYear] = useState<number>(
-    new Date().getFullYear()
+    getServerNow().getFullYear()
   );
 
-  const defaultToDate = new Date();
+  const defaultToDate = getServerNow();
   defaultToDate.setHours(23, 59, 59, 999);
 
-  const [defaultFromDate, setDefaultFromDate] = useState<Date>(new Date());
+  const [defaultFromDate, setDefaultFromDate] = useState<Date>(getServerNow());
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfMonth(new Date()),
-    to: endOfMonth(new Date()),
+    from: startOfMonth(getServerNow()),
+    to: endOfMonth(getServerNow()),
   });
 
   useEffect(() => {
@@ -177,7 +178,7 @@ export default function Dashboard() {
 
       setDefaultFromDate(earliestDate);
     } else {
-      const today = new Date();
+      const today = getServerNow();
       setDefaultFromDate(startOfMonth(today));
     }
   }, [job_orders, expenses]);
@@ -215,7 +216,7 @@ export default function Dashboard() {
         )
         : earliestJobOrderDate;
 
-      const allTimeToDate = new Date();
+      const allTimeToDate = getServerNow();
       allTimeToDate.setHours(23, 59, 59, 999);
 
       setDateRange({
@@ -225,8 +226,8 @@ export default function Dashboard() {
     } else if (currentTab === "analytics") {
       // Set to current month for analytics tab
       setDateRange({
-        from: startOfMonth(new Date()),
-        to: endOfMonth(new Date()),
+        from: startOfMonth(getServerNow()),
+        to: endOfMonth(getServerNow()),
       });
     }
     // Note: We don't change dateRange for overview tab to maintain user's selection
@@ -520,7 +521,7 @@ export default function Dashboard() {
     [aggregatedData]
   );
 
-  const currentDate = format(new Date(), "EEEE, MMMM do yyyy");
+  const currentDate = format(getServerNow(), "EEEE, MMMM do yyyy");
 
   const uniqueYears = useMemo(
     () =>

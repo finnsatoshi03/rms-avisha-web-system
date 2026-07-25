@@ -21,6 +21,7 @@ import { useGenerateBillingStatement } from "./useBilling";
 import { supabase } from "../../services/supabase";
 import { useTransactionHandler } from "../../hooks/useTransactionHandler";
 import { markSoaStep } from "../../lib/soa-progress";
+import { getServerNow } from "../../lib/server-time";
 
 interface GenerateStatementDialogProps {
   open: boolean;
@@ -30,7 +31,7 @@ interface GenerateStatementDialogProps {
 }
 
 function todayString() {
-  return new Date().toISOString().split("T")[0];
+  return getServerNow().toISOString().split("T")[0];
 }
 
 export default function GenerateStatementDialog({

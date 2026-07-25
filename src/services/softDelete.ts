@@ -1,3 +1,4 @@
+import { getServerNowISO } from "../lib/server-time";
 import { supabase } from "./supabase";
 
 export const ACTIVE_RECORD_FILTER = { deleted_at: null as string | null };
@@ -14,7 +15,7 @@ export async function getCurrentUserId(): Promise<string | null> {
 
 export async function buildSoftDeleteUpdate() {
   return {
-    deleted_at: new Date().toISOString(),
+    deleted_at: getServerNowISO(),
     deleted_by: await getCurrentUserId(),
   };
 }

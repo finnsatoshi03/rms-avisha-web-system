@@ -21,6 +21,7 @@ import { useFeatureUsageTracker } from "../hooks/useFeatureUsageTracker";
 import SharedManagerBranchGateway from "../components/auth/shared-manager-branch-gateway";
 import SharedManagerBranchSwitcher from "../components/auth/shared-manager-branch-switcher";
 import AccountMigrationNotice from "../components/auth/account-migration-notice";
+import ClockSkewWarning from "../components/clock-skew-warning";
 import toast from "react-hot-toast";
 
 // Breadcrumb configuration
@@ -252,6 +253,8 @@ export default function AppLayout() {
             </div>
           </header>
           <div className="flex flex-1 flex-col gap-4 pt-0">
+            {/* Renders null when the clock is fine, so it adds no flex gap. */}
+            <ClockSkewWarning />
             <div className="h-[calc(100vh-6rem)]">
               <div className="h-full px-6">
                 {/* Boundary lives inside the layout so the sidebar/header stay

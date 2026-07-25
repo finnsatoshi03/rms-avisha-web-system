@@ -27,6 +27,7 @@ import ExpensesForm from "../components/expenses/expenses-form";
 import TotalExpense from "../components/expenses/total-expenses-card";
 // import { ExpensesStatistics } from "../components/expenses/expenses-statistics";
 import { useUser } from "../components/auth/useUser";
+import { getServerNow } from "../lib/server-time";
 
 export default function Expenses() {
   const { expenses: expenseData, isLoading } = useExpenses();
@@ -49,9 +50,9 @@ export default function Expenses() {
     return expenseData;
   }, [expenseData, isAdmin, isManager, currentBranchId]);
 
-  const defaultToDate = endOfMonth(new Date());
+  const defaultToDate = endOfMonth(getServerNow());
 
-  const [defaultFromDate, setDefaultFromDate] = useState<Date>(new Date());
+  const [defaultFromDate, setDefaultFromDate] = useState<Date>(getServerNow());
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: defaultFromDate,
     to: defaultToDate,
@@ -182,11 +183,11 @@ export default function Expenses() {
       );
       setDefaultFromDate(earliestDate);
       setDateRange({
-        from: startOfMonth(new Date()),
-        to: endOfMonth(new Date()),
+        from: startOfMonth(getServerNow()),
+        to: endOfMonth(getServerNow()),
       });
     } else {
-      const today = new Date();
+      const today = getServerNow();
       setDefaultFromDate(startOfMonth(today));
       setDateRange({ from: startOfMonth(today), to: endOfMonth(today) });
     }
@@ -218,7 +219,7 @@ export default function Expenses() {
 
   useEffect(() => {
     if (expenses && expenses.length > 0) {
-      const now = new Date();
+      const now = getServerNow();
       const startOfCurrentMonth = startOfMonth(now);
       const endOfCurrentMonth = endOfMonth(now);
       const startOfLastMonth = startOfMonth(subMonths(now, 1));
@@ -280,7 +281,7 @@ export default function Expenses() {
   //     const totalExpensesLastMonth = expenses
   //       .filter((expense) => {
   //         const expenseDate = new Date(expense.created_at);
-  //         const now = new Date();
+  //         const now = getServerNow();
   //         const startOfLastMonth = new Date(
   //           now.getFullYear(),
   //           now.getMonth() - 1,

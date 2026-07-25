@@ -3,6 +3,7 @@ import { format, startOfMonth, startOfWeek } from "date-fns";
 import { Expenses, JobOrderData } from "./types";
 import { DateRange } from "react-day-picker";
 import { getClientRollupKey } from "./client-hierarchy";
+import { getServerNow, getServerNowEpochMs } from "./server-time";
 
 export function getStatusClass(status: string) {
   switch (status.toLowerCase()) {
@@ -145,7 +146,7 @@ export function calculateMetrics(
     ? totalNetIncludingDownpayments / numberOfSales
     : 0;
 
-  const currentDate = new Date();
+  const currentDate = getServerNow();
   const currentMonth = currentDate.getMonth() + 1;
   const currentYear = currentDate.getFullYear();
   const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
@@ -648,7 +649,7 @@ export function formatReadableDate(
 }
 
 export function calculateWarrantyDays(warrantyDate: string): number {
-  const today = new Date();
+  const today = getServerNow();
   const warrantyEnd = new Date(warrantyDate);
   const diffTime = warrantyEnd.getTime() - today.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -663,7 +664,7 @@ export const renderWarrantyInfo = (warrantyDate: string | null) => {
 };
 
 export const formatTimeAgo = (date: Date) => {
-  const now = new Date().getTime();
+  const now = getServerNowEpochMs();
   const diffInSeconds = Math.floor((now - date.getTime()) / 1000);
 
   if (diffInSeconds < 60) {

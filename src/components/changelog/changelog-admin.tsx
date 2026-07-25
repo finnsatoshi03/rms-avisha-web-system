@@ -37,6 +37,7 @@ import {
   CreateChangelogData,
   UpdateChangelogData,
 } from "../../services/apiChangelog";
+import { getServerNow } from "../../lib/server-time";
 
 export default function ChangelogAdmin() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -45,7 +46,7 @@ export default function ChangelogAdmin() {
     title: "",
     description: "",
     version: "",
-    release_date: new Date().toISOString().split("T")[0],
+    release_date: getServerNow().toISOString().split("T")[0],
     features: [],
     roles: [],
   });
@@ -121,7 +122,7 @@ export default function ChangelogAdmin() {
       title: "",
       description: "",
       version: "",
-      release_date: new Date().toISOString().split("T")[0],
+      release_date: getServerNow().toISOString().split("T")[0],
       features: [],
       roles: [],
     });

@@ -1,11 +1,13 @@
 import { format } from "date-fns";
 
+import { getServerNow } from "./server-time";
+
 export type TransactionDateMode = "current" | "source" | "custom";
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 export function getTodayDateString(): string {
-  return format(new Date(), "yyyy-MM-dd");
+  return format(getServerNow(), "yyyy-MM-dd");
 }
 
 export function normalizeDateOnly(

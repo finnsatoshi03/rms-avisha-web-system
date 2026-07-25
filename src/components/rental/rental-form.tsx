@@ -45,6 +45,7 @@ import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
 import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
 import GuidedTour from "../onboarding/guided-tour";
 import { getClientDisplayName } from "../../lib/client-hierarchy";
+import { getServerNow } from "../../lib/server-time";
 
 interface RentalFormProps {
   onSuccess?: (rentalData?: { rental_no: string; rental_id: number }) => void;
@@ -117,7 +118,7 @@ export default function RentalForm({
       email: "",
       rental_asset_id: undefined,
       technician_id: null,
-      start_date: new Date().toISOString().split("T")[0],
+      start_date: getServerNow().toISOString().split("T")[0],
       end_date: "",
       due_date: "",
       rental_type: "MONTHLY",

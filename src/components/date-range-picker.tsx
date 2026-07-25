@@ -15,6 +15,7 @@ import { cn } from "./../lib/utils";
 import { Button } from "./ui/button";
 import { Calendar } from "./ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { getServerNow } from "../lib/server-time";
 
 interface DatePickerWithRangeProps {
   className?: string;
@@ -53,26 +54,26 @@ export function DatePickerWithRange({
         break;
       case "last-month":
         newRange = {
-          from: startOfMonth(subDays(new Date(), 30)),
-          to: endOfMonth(subDays(new Date(), 30)),
+          from: startOfMonth(subDays(getServerNow(), 30)),
+          to: endOfMonth(subDays(getServerNow(), 30)),
         };
         break;
       case "this-month":
         newRange = {
-          from: startOfMonth(new Date()),
-          to: endOfMonth(new Date()),
+          from: startOfMonth(getServerNow()),
+          to: endOfMonth(getServerNow()),
         };
         break;
       case "last-quarter":
         newRange = {
-          from: startOfQuarter(subDays(new Date(), 90)),
-          to: endOfQuarter(subDays(new Date(), 90)),
+          from: startOfQuarter(subDays(getServerNow(), 90)),
+          to: endOfQuarter(subDays(getServerNow(), 90)),
         };
         break;
       case "year-to-date":
         newRange = {
-          from: startOfYear(new Date()),
-          to: new Date(),
+          from: startOfYear(getServerNow()),
+          to: getServerNow(),
         };
         break;
       default:
@@ -92,23 +93,23 @@ export function DatePickerWithRange({
         );
       case "last-month":
         return (
-          isSameDay(value.from!, startOfMonth(subDays(new Date(), 30))) &&
-          isSameDay(value.to!, endOfMonth(subDays(new Date(), 30)))
+          isSameDay(value.from!, startOfMonth(subDays(getServerNow(), 30))) &&
+          isSameDay(value.to!, endOfMonth(subDays(getServerNow(), 30)))
         );
       case "this-month":
         return (
-          isSameDay(value.from!, startOfMonth(new Date())) &&
-          isSameDay(value.to!, endOfMonth(new Date()))
+          isSameDay(value.from!, startOfMonth(getServerNow())) &&
+          isSameDay(value.to!, endOfMonth(getServerNow()))
         );
       case "last-quarter":
         return (
-          isSameDay(value.from!, startOfQuarter(subDays(new Date(), 90))) &&
-          isSameDay(value.to!, endOfQuarter(subDays(new Date(), 90)))
+          isSameDay(value.from!, startOfQuarter(subDays(getServerNow(), 90))) &&
+          isSameDay(value.to!, endOfQuarter(subDays(getServerNow(), 90)))
         );
       case "year-to-date":
         return (
-          isSameDay(value.from!, startOfYear(new Date())) &&
-          isSameDay(value.to!, new Date())
+          isSameDay(value.from!, startOfYear(getServerNow())) &&
+          isSameDay(value.to!, getServerNow())
         );
       default:
         return false;
@@ -147,12 +148,12 @@ export function DatePickerWithRange({
             <Calendar
               initialFocus
               mode="range"
-              defaultMonth={value?.from || subDays(new Date(), 30)}
+              defaultMonth={value?.from || subDays(getServerNow(), 30)}
               selected={value}
               onSelect={onChange}
               numberOfMonths={2}
               disabled={(date) =>
-                date > new Date() || date < new Date("1900-01-01")
+                date > getServerNow() || date < new Date("1900-01-01")
               }
             />
             {(isAnalytics || isExpenses) && (

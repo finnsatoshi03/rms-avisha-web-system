@@ -201,7 +201,6 @@ export async function createRental(
       name: data.name,
       contact_number: data.contact_number,
       email: data.email,
-      date: new Date().toISOString(),
     },
     clientId
   );
@@ -297,7 +296,6 @@ export async function updateRental(
         name: data.name,
         contact_number: data.contact_number,
         email: data.email,
-        date: new Date().toISOString(),
       },
       data.client_id || null
     );

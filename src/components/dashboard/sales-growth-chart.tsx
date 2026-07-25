@@ -23,6 +23,7 @@ import {
 } from "../ui/tooltip";
 import CountUp from "react-countup";
 import { format, subDays } from "date-fns";
+import { getServerNow } from "../../lib/server-time";
 
 interface SalesGrowthChartProps {
   data: JobOrderData[];
@@ -114,7 +115,7 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .filter((item) => {
       const date = new Date(item.date);
-      const currentDate = new Date();
+      const currentDate = getServerNow();
       return (
         date.getMonth() === currentDate.getMonth() &&
         date.getFullYear() === currentDate.getFullYear()
@@ -123,7 +124,7 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
 
   const weeklyData = aggregateByWeek(data).filter((item: any) => {
     const date = new Date(item.date);
-    const currentDate = new Date();
+    const currentDate = getServerNow();
     return (
       date.getMonth() === currentDate.getMonth() &&
       date.getFullYear() === currentDate.getFullYear()
@@ -143,9 +144,9 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
       filteredData = monthlyData.slice(-1); // current month
       previousPeriodData = monthlyData.slice(-2, -1); // last month
     } else {
-      const today = format(new Date(), "yyyy-MM-dd");
+      const today = format(getServerNow(), "yyyy-MM-dd");
       filteredData = formattedData.filter((item) => item.date === today);
-      const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
+      const yesterday = format(subDays(getServerNow(), 1), "yyyy-MM-dd");
       previousPeriodData = formattedData.filter(
         (item) => item.date === yesterday
       );
@@ -170,7 +171,7 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
     };
   };
 
-  const currentMonth = new Date().toLocaleString("default", { month: "long" });
+  const currentMonth = getServerNow().toLocaleString("default", { month: "long" });
 
   useEffect(() => {
     const newMetricsDay = calculateMetrics("day");

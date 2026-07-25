@@ -1,3 +1,4 @@
+import { getServerNow } from "../lib/server-time";
 import { supabase } from "./supabase";
 
 /**
@@ -102,7 +103,7 @@ export async function getFeatureUsage(params: {
     .limit(params.limit ?? 5000);
 
   if (params.sinceDays != null) {
-    const since = new Date();
+    const since = getServerNow();
     since.setDate(since.getDate() - params.sinceDays);
     query = query.gte("created_at", since.toISOString());
   }

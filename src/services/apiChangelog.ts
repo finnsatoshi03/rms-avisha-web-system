@@ -1,3 +1,4 @@
+import { getServerNowISO } from "../lib/server-time";
 import { supabase } from "./supabase";
 
 export interface ChangelogItem {
@@ -96,7 +97,7 @@ export async function updateChangelog(
 ): Promise<ChangelogItem> {
   const { data, error } = await supabase
     .from("changelogs")
-    .update({ ...changelogData, updated_at: new Date().toISOString() })
+    .update({ ...changelogData, updated_at: getServerNowISO() })
     .eq("id", id)
     .select()
     .single();
@@ -126,7 +127,7 @@ export async function toggleChangelogStatus(
 ): Promise<ChangelogItem> {
   const { data, error } = await supabase
     .from("changelogs")
-    .update({ is_active: isActive, updated_at: new Date().toISOString() })
+    .update({ is_active: isActive, updated_at: getServerNowISO() })
     .eq("id", id)
     .select()
     .single();

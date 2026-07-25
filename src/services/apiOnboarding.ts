@@ -1,3 +1,4 @@
+import { getServerNowISO } from "../lib/server-time";
 import { supabase } from "./supabase";
 
 export type FeatureOnboarding = {
@@ -62,7 +63,7 @@ export async function updateOnboardingStatus(
         user_id: user.id,
         feature_key: featureKey,
         status,
-        completed_at: status === "completed" ? new Date().toISOString() : null,
+        completed_at: status === "completed" ? getServerNowISO() : null,
       },
       { onConflict: "user_id,feature_key" }
     );

@@ -13,6 +13,7 @@ import {
   SheetTitle,
 } from "../ui/sheet";
 import { Separator } from "../ui/separator";
+import { getServerNow } from "../../lib/server-time";
 
 export default function CollapsibleRows({
   visibleColumns,
@@ -35,7 +36,7 @@ export default function CollapsibleRows({
   if (
     sortedJobOrders.length > 0 &&
     sortedJobOrders[0].status === "Pending" &&
-    differenceInDays(new Date(), parseISO(sortedJobOrders[0].created_at)) <= 3
+    differenceInDays(getServerNow(), parseISO(sortedJobOrders[0].created_at)) <= 3
   ) {
     sortedJobOrders[0].status = "New";
   }

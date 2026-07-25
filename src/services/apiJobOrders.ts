@@ -2,6 +2,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { CreateJobOrderData, MaterialItem } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
+import { getServerNow } from "../lib/server-time";
 import { supabase } from "./supabase";
 import { buildSoftDeleteUpdate } from "./softDelete";
 import { expandClientIdsWithChildren } from "./apiClients";
@@ -105,7 +106,7 @@ export async function getJobOrdersFiltered({
   // Add warning filter if provided
   if (showWarningsOnly) {
     // Filter for job orders that are pending for more than 2 days
-    const twoDaysAgo = new Date();
+    const twoDaysAgo = getServerNow();
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
     const twoDaysAgoISO = twoDaysAgo.toISOString();
 
@@ -236,7 +237,6 @@ export async function upsertClient(
     name: string;
     contact_number: string;
     email?: string;
-    date: string | Date;
   },
   clientId: number | null
 ): Promise<number> {
@@ -295,7 +295,10 @@ async function upsertJobOrder(
     branch_id: jobOrder.branch_id,
     brand_model: jobOrder.brand_model,
     client_id: clientId,
-    created_at: jobOrder.date,
+    // created_at is deliberately not written here. On insert the column's
+    // `default now()` stamps it server-side; on edit the stored value is left
+    // alone (the form only ever echoed it back unchanged anyway). This keeps
+    // the creation time immune to a skewed client clock.
     materials_expense: jobOrder.materials_expense,
     discount: jobOrder.discount,
     downpayment: jobOrder.downpayment,
@@ -415,7 +418,6 @@ export async function createEditJobOrder(
         .join(" "),
       contact_number: newJobOrder.contact_number,
       email: newJobOrder.email,
-      date: newJobOrder.date,
     };
 
     // If client_id was provided by auto-suggest, use it directly and update contact info
@@ -482,7 +484,8 @@ export async function duplicateJobOrder(id: number) {
       branch_id: jobOrderData.branch_id,
       brand_model: jobOrderData.brand_model,
       client_id: newClientId,
-      created_at: new Date().toISOString(),
+      // created_at is intentionally omitted: the column defaults to now(), so
+      // the server stamps the duplicate rather than the (often skewed) client.
       materials_expense: jobOrderData.materials_expense,
       discount: jobOrderData.discount,
       grand_total: jobOrderData.grand_total,
@@ -561,13 +564,16 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
     throw new Error("Could not fetch job orders");
   }
 
-  const warranty =
-    nextStatusNormalized === "completed"
-      ? new Date(new Date().setDate(new Date().getDate() + 30)) // Default 1 month if no warranty_months
-      : null;
+  // Warranty windows are measured from server time, never the local clock.
+  const warrantyFromNow = (days: number) => {
+    const expiry = getServerNow();
+    expiry.setDate(expiry.getDate() + days);
+    return expiry;
+  };
 
-  const completedAt =
-    isNextTerminalPaidStatus ? new Date() : null;
+  // completed_at is no longer sent from here: the joborders_stamp_completed_at
+  // trigger sets it from now() on the transition into Completed/Pull Out and
+  // clears it on rollback, so it cannot be poisoned by client clock drift.
 
   const shouldResetCounterPayment = (jobOrder: {
     status?: string | null;
@@ -587,7 +593,6 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
   const buildPayload = (jobOrder: (typeof jobOrders)[number]) => {
     const payload: Record<string, unknown> = {
       status,
-      completed_at: completedAt,
     };
 
     if (nextStatusNormalized === "pull out") {
@@ -598,7 +603,8 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
         newRate = 500;
       }
 
-      payload.warranty = warranty;
+      // Pull Out has never carried a warranty.
+      payload.warranty = null;
       payload.rate = Number(newRate);
       payload.grand_total = Number(newRate);
       payload.net_sales = Number(newRate);
@@ -607,11 +613,7 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
         nextStatusNormalized === "completed" &&
         jobOrder.warranty_months &&
         jobOrder.warranty_months > 0
-          ? new Date(
-              new Date().setDate(
-                new Date().getDate() + jobOrder.warranty_months * 30
-              )
-            )
+          ? warrantyFromNow(jobOrder.warranty_months * 30)
           : null;
     }
 

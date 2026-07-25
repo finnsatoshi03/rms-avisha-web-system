@@ -53,6 +53,7 @@ import SoaOnboardingChecklist from "../components/billing/soa-onboarding-checkli
 import { useState } from "react";
 import { SettingsDialog } from "../components/settings/settings-dialog";
 import { useDevConsole } from "../components/dev-console/dev-console-context";
+import { getServerNow } from "../lib/server-time";
 
 interface SidebarProps {
   className?: string;
@@ -61,7 +62,7 @@ interface SidebarProps {
 }
 
 const WeekCalendar = () => {
-  const today = new Date();
+  const today = getServerNow();
   const currentDay = today.getDay();
   const startOfWeek = new Date(today);
   startOfWeek.setDate(today.getDate() - currentDay);

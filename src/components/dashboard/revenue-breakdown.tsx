@@ -5,6 +5,7 @@ import { formatNumberWithCommas } from "../../lib/helpers";
 import OverviewCard from "../technicians/overview-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { JobOrderData } from "../../lib/types";
+import { getServerNow } from "../../lib/server-time";
 
 // const gradientBackgrounds = [
 //   "bg-gradient-to-b from-red-300 to-white",
@@ -25,8 +26,8 @@ export default function RevenueBreakdown({
   totalRevenue,
   monthlyRevenue, // Receive the monthly revenue
 }: RevenueBreakdownProps) {
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
+  const currentMonth = getServerNow().getMonth() + 1;
+  const currentYear = getServerNow().getFullYear();
   const lastDayOfMonth = new Date(currentYear, currentMonth, 0).getDate();
   const numberOfWeeksInMonth = Math.ceil(lastDayOfMonth / 7);
 
@@ -60,7 +61,7 @@ export default function RevenueBreakdown({
         {new Intl.DateTimeFormat("en-US", {
           month: "long",
           year: "numeric",
-        }).format(new Date())}
+        }).format(getServerNow())}
       </h3>
       <OverviewCard
         label="Total Revenue"

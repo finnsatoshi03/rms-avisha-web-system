@@ -127,6 +127,7 @@ import {
 import BillingImpactConfirmDialog from "../billing/billing-impact-confirm-dialog";
 import ReceiptMissingConfirmDialog from "../billing/receipt-missing-confirm-dialog";
 import { EmailComposePayload } from "../email/document-email-composer";
+import { getServerNow } from "../../lib/server-time";
 
 const rateOptions = [
   { label: "Walk-in Service", value: 1500 },
@@ -775,7 +776,7 @@ export default function JobOrderForm({
     setReactiveMaterials(materials || []);
   }, [materials]);
 
-  const date = new Date().toLocaleDateString("en-US", {
+  const date = getServerNow().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -1181,7 +1182,7 @@ export default function JobOrderForm({
   };
 
   const buildQuotationPDFBlob = async (quotationData: CreateQuotationData) => {
-    const endDate = new Date();
+    const endDate = getServerNow();
     endDate.setMonth(endDate.getMonth() + 1);
     const sourceDiscount = Number(
       quotationData.discount ?? selectedDiscount ?? 0
@@ -1227,7 +1228,7 @@ export default function JobOrderForm({
       branch_id: watchedBranchId ?? currentUserBranchId ?? 0,
       branch: resolveBranchForPdf(watchedBranchId ?? currentUserBranchId),
       job_order_no: jobOrderNo,
-      date: new Date().toISOString().split("T")[0],
+      date: getServerNow().toISOString().split("T")[0],
     };
 
     const [{ pdf }, { default: QuotationPDF }] = await Promise.all([
@@ -1364,7 +1365,7 @@ export default function JobOrderForm({
         client_name: clientName,
         quote_no: quoteNo,
         job_order_no: jobOrderNo,
-        quotation_date: new Date().toISOString().split("T")[0],
+        quotation_date: getServerNow().toISOString().split("T")[0],
         total_quote: Number(totalQuote ?? 0),
         downpayment: Number(quotationDownpayment ?? 0),
         branch_name:
@@ -1659,7 +1660,7 @@ export default function JobOrderForm({
       net_sales: adjustedGrandTotal - (totalMaterialsCost ?? 0),
       date: editSession
         ? String(jobOrderToEdit.created_at)
-        : new Date().toISOString(),
+        : getServerNow().toISOString(),
       branch_id: branchId ?? currentUserBranchId ?? values.branch_id ?? 0,
       warranty: editSession ? editValues.warranty ?? undefined : undefined,
       warranty_months:
@@ -2345,7 +2346,7 @@ export default function JobOrderForm({
   const quotationEmailRecipient = (form.getValues("email") || "").trim();
   const quotationEmailClientName = (form.getValues("name") || "Client").trim();
   const quotationReference = quotationData?.quote_no?.trim() || "N/A";
-  const quotationEmailDate = format(new Date(), "MMM d, yyyy");
+  const quotationEmailDate = format(getServerNow(), "MMM d, yyyy");
   const quotationTotalAmount = Number(normalizedQuotationTotals?.total_quote ?? 0);
   const quotationBranchName =
     resolveBranchForPdf(watchedBranchId ?? currentUserBranchId)?.name || "";

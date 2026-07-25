@@ -2,13 +2,14 @@ import { Link } from "react-router-dom";
 import { JobOrderData } from "../../lib/types";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
+import { getServerNow } from "../../lib/server-time";
 
 export default function RecentSalesSection({
   completedOrders,
 }: {
   completedOrders: JobOrderData[];
 }) {
-  const currentDate = new Date();
+  const currentDate = getServerNow();
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
 

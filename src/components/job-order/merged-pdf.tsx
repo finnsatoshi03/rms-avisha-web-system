@@ -2,6 +2,7 @@ import { Document } from "@react-pdf/renderer";
 import { CreateJobOrderData, CreateQuotationData } from "../../lib/types";
 import JobOrderPDF from "./job-order-pdf";
 import QuotationPDF from "./quotation-pdf";
+import { getServerNow } from "../../lib/server-time";
 
 interface MergedPDFProps {
   jobOrderData: CreateJobOrderData;
@@ -22,7 +23,7 @@ export default function MergedPDF({
     technician_id: technicianName,
   };
 
-  const endDate = new Date();
+  const endDate = getServerNow();
   endDate.setMonth(endDate.getMonth() + 1); // Default 1 month validity
 
   const quotationPDFData = {
@@ -41,7 +42,7 @@ export default function MergedPDF({
     branch_id: jobOrderData.branch_id || 0,
     branch: quotationData.branch ?? jobOrderData.branch,
     job_order_no: jobOrderData.order_no || "", // Use actual job order number, no fallback
-    date: new Date().toISOString().split("T")[0],
+    date: getServerNow().toISOString().split("T")[0],
   };
 
   return (

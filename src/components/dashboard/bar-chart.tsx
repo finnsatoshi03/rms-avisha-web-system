@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { TrendingDown, TrendingUp } from "lucide-react";
+import { getServerNow } from "../../lib/server-time";
 
 export default function BarChartSection({
   data,
@@ -28,8 +29,8 @@ export default function BarChartSection({
   data: AggregatedData[];
   orders: JobOrderData[];
 }) {
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
+  const currentMonth = getServerNow().getMonth();
+  const currentYear = getServerNow().getFullYear();
   const barColors = ["#f12924", "#e4e7ec"];
 
   const years = Array.from(

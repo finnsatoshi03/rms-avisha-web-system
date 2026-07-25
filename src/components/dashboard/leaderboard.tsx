@@ -38,6 +38,7 @@ import {
   Star,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { getServerNow } from "../../lib/server-time";
 
 function formatDateRange(start: Date | undefined, end: Date | undefined) {
   const options = { year: "numeric", month: "short", day: "numeric" } as const;
@@ -324,7 +325,7 @@ export default function RevenuePerTechnicianLeaderboard({
   );
   const [allTechniciansOpen, setAllTechniciansOpen] = useState(false);
 
-  const now = new Date();
+  const now = getServerNow();
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
   const lastQuarterStart = new Date(now.getFullYear(), now.getMonth() - 3, 1);
@@ -401,7 +402,7 @@ export default function RevenuePerTechnicianLeaderboard({
             (order) =>
               new Date(order.created_at) >=
                 (customDateRange?.from ?? new Date(0)) &&
-              new Date(order.created_at) <= (customDateRange?.to ?? new Date())
+              new Date(order.created_at) <= (customDateRange?.to ?? getServerNow())
           );
         }
         break;

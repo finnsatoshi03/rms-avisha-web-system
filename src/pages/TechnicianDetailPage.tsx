@@ -6,6 +6,7 @@ import { JobOrderData } from "../lib/types";
 import { formatNumberWithCommas, getStatusClass } from "../lib/helpers";
 import { useMemo, useState } from "react";
 import TechnicianPerformanceAnalytics from "../components/dashboard/heatmap-chart";
+import { getServerNow } from "../lib/server-time";
 
 export default function TechnicianDetailPage() {
   const location = useLocation();
@@ -46,7 +47,7 @@ export default function TechnicianDetailPage() {
 
   // Define state to manage selected year for the heatmap
   const [selectedYear, setSelectedYear] = useState<number>(
-    new Date().getFullYear()
+    getServerNow().getFullYear()
   );
 
   // Extract unique years from job orders for heatmap component
@@ -143,8 +144,8 @@ export default function TechnicianDetailPage() {
   };
 
   // Calculate weekly metrics for the current month
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
+  const currentMonth = getServerNow().getMonth() + 1;
+  const currentYear = getServerNow().getFullYear();
   const lastDayOfMonth = new Date(currentYear, currentMonth, 0).getDate();
   const numberOfWeeksInMonth = Math.ceil(lastDayOfMonth / 7);
   const weeklyRevenueMetrics = Array.from(
@@ -227,7 +228,7 @@ export default function TechnicianDetailPage() {
               <h2 className="font-bold">
                 Weekly Revenue Report for{" "}
                 {new Intl.DateTimeFormat("en-US", { month: "long" }).format(
-                  new Date()
+                  getServerNow()
                 )}
               </h2>
               <div className="grid md:grid-cols-5 grid-cols-1 w-full gap-1 mt-1">

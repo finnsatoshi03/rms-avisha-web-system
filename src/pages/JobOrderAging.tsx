@@ -35,6 +35,11 @@ import {
   thresholdForStatus,
 } from "../components/job-order/aging-config";
 import { formatMachineType } from "../lib/helpers";
+import {
+  getServerNow,
+  getServerNowEpochMs,
+  getServerNowISO,
+} from "../lib/server-time";
 import { JobOrderAgingRow, JobOrderData, User } from "../lib/types";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -210,7 +215,7 @@ export default function JobOrderAging() {
             ? {
                 ...r,
                 status,
-                enteredStatusAt: new Date().toISOString(),
+                enteredStatusAt: getServerNowISO(),
                 isEstimate: false,
               }
             : r
@@ -231,7 +236,7 @@ export default function JobOrderAging() {
   });
 
   const rows = useMemo<DerivedRow[]>(() => {
-    const now = Date.now();
+    const now = getServerNowEpochMs();
     return (data ?? []).map((row) => {
       const days =
         (now - new Date(row.enteredStatusAt).getTime()) / MS_PER_DAY;
@@ -293,7 +298,7 @@ export default function JobOrderAging() {
     // Same guard the Job Orders table enforces: a job order pending more than
     // two days with no technical report cannot leave Pending.
     if (row.status === "Pending" && !row.hasReport) {
-      const twoDaysAgo = new Date();
+      const twoDaysAgo = getServerNow();
       twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
       if (new Date(row.created_at) < twoDaysAgo) {
         toast.error(

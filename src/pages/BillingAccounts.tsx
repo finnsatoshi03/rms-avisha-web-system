@@ -56,6 +56,7 @@ import { useFeatureOnboarding } from "../components/onboarding/useFeatureOnboard
 import FeatureAnnouncementModal from "../components/onboarding/feature-announcement-modal";
 import GuidedTour from "../components/onboarding/guided-tour";
 import TourReplayButton from "../components/onboarding/tour-replay-button";
+import { getServerNow } from "../lib/server-time";
 
 const statusVariant: Record<BillingAccountStatus, string> = {
   active: "bg-green-100 text-green-800 border-green-200",
@@ -291,7 +292,7 @@ export default function BillingAccounts() {
     if (downloadingMockPdf || !mockPdfAccount) return;
     setDownloadingMockPdf(true);
 
-    const now = new Date();
+    const now = getServerNow();
     const periodStart = new Date(now);
     periodStart.setDate(periodStart.getDate() - 30);
     const dueDate = new Date(now);

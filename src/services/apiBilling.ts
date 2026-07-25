@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { getServerNow } from "../lib/server-time";
 import { supabase } from "./supabase";
 import {
   BillingAccount,
@@ -737,7 +738,8 @@ export async function applySourcePayment(
     p_source_type: sourceType,
     p_source_id: sourceId,
     p_amount: amount,
-    p_payment_date: options?.paymentDate || new Date().toISOString().slice(0, 10),
+    p_payment_date:
+      options?.paymentDate || getServerNow().toISOString().slice(0, 10),
     p_payment_method: paymentMethod,
     p_reference_number: options?.referenceNumber || null,
     p_notes: options?.notes || splitNotes,

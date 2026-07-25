@@ -83,6 +83,7 @@ import {
 import { RestorableSlot } from "../components/printing/use-photo-slots";
 import { formatNumberWithCommas } from "../lib/helpers";
 import { cn } from "../lib/utils";
+import { getServerNowEpochMs } from "../lib/server-time";
 
 export default function Printing() {
   const [packageId, setPackageId] = useState(PRINT_PACKAGES[0].id);
@@ -224,7 +225,7 @@ export default function Printing() {
         }
         await saveJob({
           id: String(Date.now()),
-          createdAt: Date.now(),
+          createdAt: getServerNowEpochMs(),
           packageId,
           packageName:
             pkg.name === "Custom"

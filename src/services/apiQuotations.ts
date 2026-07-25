@@ -1,3 +1,4 @@
+import { getServerNow } from "../lib/server-time";
 import { supabase } from "./supabase";
 import { CreateQuotationData } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
@@ -628,7 +629,7 @@ export async function getQuotationJobOrders({
   // Add warning filter if provided
   if (showWarningsOnly) {
     // Filter for quotations that are pending for more than 2 days
-    const twoDaysAgo = new Date();
+    const twoDaysAgo = getServerNow();
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
     const twoDaysAgoISO = twoDaysAgo.toISOString();
 

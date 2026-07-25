@@ -1,4 +1,5 @@
 import { MaterialStocks } from "../lib/types";
+import { getServerNowISO } from "../lib/server-time";
 import { supabase } from "./supabase";
 
 export async function getMaterialStocks({
@@ -46,7 +47,7 @@ export async function createEditMaterialStock(
       .from("material_stocks")
       .update({
         ...newMaterialStock,
-        ...(stocksChanged && { last_stocks_added: new Date().toISOString() }),
+        ...(stocksChanged && { last_stocks_added: getServerNowISO() }),
       })
       .eq("id", editId)
       .select()
@@ -61,8 +62,8 @@ export async function createEditMaterialStock(
       .from("material_stocks")
       .insert({
         ...newMaterialStock,
-        created_at: new Date().toISOString(),
-        last_stocks_added: new Date().toISOString(),
+        // created_at omitted: the column defaults to CURRENT_TIMESTAMP.
+        last_stocks_added: getServerNowISO(),
       })
       .select()
       .single();

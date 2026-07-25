@@ -38,6 +38,7 @@ import {
   resolveTransactionDateFromMode,
   TransactionDateMode,
 } from "../../lib/transaction-date";
+import { getServerNow } from "../../lib/server-time";
 
 interface JoBillingSectionProps {
   jobOrder: JobOrderData;
@@ -71,7 +72,7 @@ export default function JoBillingSection({ jobOrder }: JoBillingSectionProps) {
   const sourceTransactionDate = normalizeDateOnly(jobOrder.created_at);
   const sourceTransactionDateLabel = formatDateLabel(sourceTransactionDate);
   const currentTransactionDateLabel = formatDateLabel(
-    normalizeDateOnly(new Date())
+    normalizeDateOnly(getServerNow())
   );
 
   useEffect(() => {
