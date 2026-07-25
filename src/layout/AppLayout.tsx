@@ -31,6 +31,7 @@ const breadcrumbConfig: Record<string, string> = {
   "job-order-aging": "Aging Board",
   clients: "Clients",
   materials: "Materials",
+  "low-stock": "Low Stock",
   expenses: "Expenses",
   branches: "Branch Management",
   "feature-usage": "Feature Usage",

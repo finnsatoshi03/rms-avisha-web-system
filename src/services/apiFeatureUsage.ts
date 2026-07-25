@@ -31,6 +31,7 @@ const FEATURE_LABELS: Record<string, string> = {
   quotations: "Quotations",
   clients: "Clients",
   materials: "Materials",
+  "low-stock": "Low Stock",
   expenses: "Expenses",
   billing: "Billing",
   rentals: "Rentals",

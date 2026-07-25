@@ -137,6 +137,7 @@ export default function AppSidebar({
     useState(false);
   const [isAllJobOrdersOpen, setIsAllJobOrdersOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [isMaterialsOpen, setIsMaterialsOpen] = useState(false);
   const [isJobOrdersOpen, setIsJobOrdersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -428,21 +429,67 @@ export default function AppSidebar({
                       <CollapsibleContent>
                         <SidebarMenuSub>
                           <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild>
-                              <NavLink
-                                to="materials"
-                                onClick={handleNavClick}
-                                className={({ isActive }) =>
-                                  cn(
-                                    "w-full",
-                                    isActive &&
-                                      "bg-brand-soft text-brand-deep font-medium"
-                                  )
-                                }
-                              >
-                                Materials
-                              </NavLink>
-                            </SidebarMenuSubButton>
+                            {/* "Materials" both navigates (label) and expands
+                                (chevron) to reveal nested views like the Low
+                                Stock board — same pattern as All Job Orders →
+                                Aging Board. */}
+                            <Collapsible
+                              open={isMaterialsOpen}
+                              onOpenChange={setIsMaterialsOpen}
+                            >
+                              <div className="flex items-center gap-1">
+                                <SidebarMenuSubButton asChild className="flex-1">
+                                  <NavLink
+                                    to="materials"
+                                    onClick={handleNavClick}
+                                    className={({ isActive }) =>
+                                      cn(
+                                        "w-full",
+                                        isActive &&
+                                          "bg-brand-soft text-brand-deep font-medium"
+                                      )
+                                    }
+                                  >
+                                    Materials
+                                  </NavLink>
+                                </SidebarMenuSubButton>
+                                <CollapsibleTrigger asChild>
+                                  <button
+                                    type="button"
+                                    aria-label="Toggle material views"
+                                    className="p-1 rounded hover:bg-sidebar-accent/50 text-sidebar-foreground/60"
+                                  >
+                                    <ChevronRight
+                                      size={14}
+                                      className={`transition-transform ${
+                                        isMaterialsOpen ? "rotate-90" : ""
+                                      }`}
+                                    />
+                                  </button>
+                                </CollapsibleTrigger>
+                              </div>
+                              <CollapsibleContent>
+                                <SidebarMenuSub>
+                                  <SidebarMenuSubItem>
+                                    <SidebarMenuSubButton asChild>
+                                      <NavLink
+                                        to="low-stock"
+                                        onClick={handleNavClick}
+                                        className={({ isActive }) =>
+                                          cn(
+                                            "w-full",
+                                            isActive &&
+                                              "bg-brand-soft text-brand-deep font-medium"
+                                          )
+                                        }
+                                      >
+                                        Low Stock
+                                      </NavLink>
+                                    </SidebarMenuSubButton>
+                                  </SidebarMenuSubItem>
+                                </SidebarMenuSub>
+                              </CollapsibleContent>
+                            </Collapsible>
                           </SidebarMenuSubItem>
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild>
