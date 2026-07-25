@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import {
+  Activity,
   Archive,
   Building2,
   Calendar,
@@ -486,6 +487,20 @@ export default function AppSidebar({
                         >
                           <Building2 size={20} />
                           <span>Branch Management</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                  {isAdmin && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild tooltip="Feature Usage">
+                        <NavLink
+                          to="feature-usage"
+                          onClick={handleNavClick}
+                          className={navItemClass}
+                        >
+                          <Activity size={20} />
+                          <span>Feature Usage</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

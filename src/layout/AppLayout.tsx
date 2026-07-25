@@ -17,6 +17,7 @@ import { DevConsoleProvider } from "../components/dev-console/dev-console-contex
 import DevUsers from "../pages/DevUsers";
 import { useBranchSession } from "../components/auth/branch-session-context";
 import { useJobOrdersRealtime } from "../hooks/useJobOrdersRealtime";
+import { useFeatureUsageTracker } from "../hooks/useFeatureUsageTracker";
 import SharedManagerBranchGateway from "../components/auth/shared-manager-branch-gateway";
 import SharedManagerBranchSwitcher from "../components/auth/shared-manager-branch-switcher";
 import AccountMigrationNotice from "../components/auth/account-migration-notice";
@@ -32,6 +33,7 @@ const breadcrumbConfig: Record<string, string> = {
   materials: "Materials",
   expenses: "Expenses",
   branches: "Branch Management",
+  "feature-usage": "Feature Usage",
   settings: "Settings",
   billing: "Billing",
   archive: "Archive",
@@ -97,6 +99,7 @@ export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   useJobOrdersRealtime();
+  useFeatureUsageTracker();
   const [isMigrationNoticeDismissed, setIsMigrationNoticeDismissed] =
     useState(false);
 

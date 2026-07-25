@@ -43,6 +43,7 @@ const RentalAssets = lazy(() => import("./pages/RentalAssets"));
 const DashboardRental = lazy(() => import("./pages/DashboardRental"));
 const Archive = lazy(() => import("./pages/Archive"));
 const JobOrderAging = lazy(() => import("./pages/JobOrderAging"));
+const FeatureUsage = lazy(() => import("./pages/FeatureUsage"));
 // Photo Printing is hidden from the client build — the page and its components
 // remain in the repo; re-add this import and the "printing" route to restore it.
 
@@ -101,6 +102,7 @@ export default function App() {
               <Route path="archive" element={<Archive />} />
               <Route path="dashboard/rental" element={<DashboardRental />} />
               <Route path="branches" element={<Branches />} />
+              <Route path="feature-usage" element={<FeatureUsage />} />
               <Route path="settings" element={<Maintenance />} />
               <Route path="technicians" element={<Technicians />} />
               <Route

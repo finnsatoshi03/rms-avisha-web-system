@@ -35,6 +35,13 @@ export default function ProtectedRoute({
       return;
     }
 
+    if (location.pathname === "/feature-usage" && !isAdmin) {
+      navigate(isTechnician ? "/technician-dashboard" : "/dashboard/job-order", {
+        replace: true,
+      });
+      return;
+    }
+
     if (isTechnician) {
       const allowedPaths = ["/technician-dashboard", "/job-orders", "/account"];
       if (!allowedPaths.includes(location.pathname)) {

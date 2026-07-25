@@ -15,3 +15,12 @@
 {"file":"c:/Users/Nelson/Desktop/Projects/rms-avisha/rms-avisha-web-system/src/layout/AppLayout.tsx","action":"Edit","timestamp":"2026-07-24T13:57:08Z","important":false}
 {"file":"c:/Users/Nelson/Desktop/Projects/rms-avisha/rms-avisha-web-system/src/pages/JobOrderAging.tsx","action":"Write","timestamp":"2026-07-24T13:57:46Z","important":false}
 {"file":"c:/Users/Nelson/Desktop/Projects/rms-avisha/rms-avisha-web-system/src/services/apiJobOrders.ts","action":"Edit","timestamp":"2026-07-24T14:12:41Z","important":false}
+{"file":"c:/Users/Nelson/Desktop/Projects/rms-avisha/rms-avisha-web-system/supabase/migrations/20260725120000_feature_usage_events.sql","action":"Write","timestamp":"2026-07-25T03:56:13Z","important":false}
+{"file":"c:/Users/Nelson/Desktop/Projects/rms-avisha/rms-avisha-web-system/docs/FEATURE_USAGE_TRACKING.md","action":"Write","timestamp":"2026-07-25T03:56:36Z","important":false}
+{"file":"c:/Users/Nelson/Desktop/Projects/rms-avisha/rms-avisha-web-system/src/services/apiFeatureUsage.ts","action":"Write","timestamp":"2026-07-25T03:57:06Z","important":false}
+{"file":"c:/Users/Nelson/Desktop/Projects/rms-avisha/rms-avisha-web-system/src/hooks/useFeatureUsageTracker.ts","action":"Write","timestamp":"2026-07-25T03:57:17Z","important":false}
+{"file":"c:/Users/Nelson/Desktop/Projects/rms-avisha/rms-avisha-web-system/src/layout/AppLayout.tsx","action":"Edit","timestamp":"2026-07-25T03:58:33Z","important":false}
+{"file":"c:/Users/Nelson/Desktop/Projects/rms-avisha/rms-avisha-web-system/src/pages/FeatureUsage.tsx","action":"Write","timestamp":"2026-07-25T03:59:24Z","important":false}
+{"file":"c:/Users/Nelson/Desktop/Projects/rms-avisha/rms-avisha-web-system/src/App.tsx","action":"Edit","timestamp":"2026-07-25T03:59:32Z","important":false}
+{"file":"c:/Users/Nelson/Desktop/Projects/rms-avisha/rms-avisha-web-system/src/components/protected-route.tsx","action":"Edit","timestamp":"2026-07-25T03:59:47Z","important":false}
+{"file":"c:/Users/Nelson/Desktop/Projects/rms-avisha/rms-avisha-web-system/src/layout/Sidebar.tsx","action":"Edit","timestamp":"2026-07-25T04:00:08Z","important":false}
