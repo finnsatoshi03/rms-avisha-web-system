@@ -125,7 +125,6 @@ import {
   withComputedQuotationTotals,
 } from "../../lib/quotation-totals";
 import BillingImpactConfirmDialog from "../billing/billing-impact-confirm-dialog";
-import ReceiptMissingConfirmDialog from "../billing/receipt-missing-confirm-dialog";
 import { EmailComposePayload } from "../email/document-email-composer";
 import { getServerNow } from "../../lib/server-time";
 
@@ -153,8 +152,8 @@ const blobToBase64 = async (blob: Blob): Promise<string> => {
   return btoa(
     new Uint8Array(buffer).reduce(
       (acc, byte) => acc + String.fromCharCode(byte),
-      ""
-    )
+      "",
+    ),
   );
 };
 
@@ -201,7 +200,7 @@ const MaterialCombobox: React.FC<MaterialComboboxProps> = ({
   useEffect(() => {
     if (value) {
       const selectedMaterial = materials?.find(
-        (stock) => String(stock.id) === value && stock.branch_id === branchId
+        (stock) => String(stock.id) === value && stock.branch_id === branchId,
       );
       if (!selectedMaterial) {
         onChange(""); // Clear selection if material is not available in new branch
@@ -212,7 +211,7 @@ const MaterialCombobox: React.FC<MaterialComboboxProps> = ({
   const filteredMaterials =
     materials?.filter((stock) => {
       const isMaterialSelected = materialsJobOrder.some(
-        (material) => String(material.material_id) === String(stock.id)
+        (material) => String(material.material_id) === String(stock.id),
       );
       return (
         (disabled || !stock.deleted) &&
@@ -223,11 +222,12 @@ const MaterialCombobox: React.FC<MaterialComboboxProps> = ({
 
   // Get selected material name for display
   const selectedMaterial = filteredMaterials.find(
-    (material) => String(material.id) === value
+    (material) => String(material.id) === value,
   );
   const selectedMaterialName = selectedMaterial
-    ? `${selectedMaterial.material_name}${selectedMaterial.brand ? ` - ${selectedMaterial.brand}` : ""
-    }`
+    ? `${selectedMaterial.material_name}${
+        selectedMaterial.brand ? ` - ${selectedMaterial.brand}` : ""
+      }`
     : "Select material";
 
   return (
@@ -264,7 +264,7 @@ const MaterialCombobox: React.FC<MaterialComboboxProps> = ({
                   (stock.brand &&
                     stock.brand
                       .toLowerCase()
-                      .includes(searchValue.toLowerCase()))
+                      .includes(searchValue.toLowerCase())),
               )
               .map((stock) => (
                 <CommandItem
@@ -280,7 +280,7 @@ const MaterialCombobox: React.FC<MaterialComboboxProps> = ({
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4 flex-shrink-0",
-                      value === String(stock.id) ? "opacity-100" : "opacity-0"
+                      value === String(stock.id) ? "opacity-100" : "opacity-0",
                     )}
                   />
                   <span className="truncate">
@@ -371,26 +371,28 @@ export default function JobOrderForm({
   const navigate = useNavigate();
   const [contactNumber, setContactNumber] = useState("+63 ");
   const [selectedClient, setSelectedClient] = useState<Client | null>(
-    editSession && clients ? (clients as Client) : null
+    editSession && clients ? (clients as Client) : null,
   );
-  const [selectedSubClientId, setSelectedSubClientId] = useState<string>("none");
+  const [selectedSubClientId, setSelectedSubClientId] =
+    useState<string>("none");
   const { children: childClients } = useClientChildren(
     selectedClient && selectedClient.parent_client_id == null
       ? selectedClient.id
-      : null
+      : null,
   );
   const selectedSubClient =
     selectedSubClientId !== "none"
-      ? childClients.find((child) => String(child.id) === selectedSubClientId) ||
-        null
+      ? childClients.find(
+          (child) => String(child.id) === selectedSubClientId,
+        ) || null
       : null;
   const effectiveSelectedClient = selectedSubClient || selectedClient;
   const [selectedMachineType, setSelectedMachineType] = useState(
-    editSession ? editValuesWithClient?.machine_type : ""
+    editSession ? editValuesWithClient?.machine_type : "",
   );
   const [specifyInputValue, setSpecifyInputValue] = useState("");
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>(
-    editSession ? parsedAccessories : []
+    editSession ? parsedAccessories : [],
   );
 
   const [jobOrderDataForPrinting, setJobOrderDataForPrinting] =
@@ -400,16 +402,16 @@ export default function JobOrderForm({
 
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [selectedDiscount, setSelectedDiscount] = useState<number | null>(
-    editValues.discount ?? null
+    editValues.discount ?? null,
   );
   const [downpaymentInputVisible, setDownpaymentInputVisible] = useState(
-    Boolean(editValues.downpayment && editValues.downpayment > 0)
+    Boolean(editValues.downpayment && editValues.downpayment > 0),
   );
   const [isManualRate, setIsManualRate] = useState(
-    editSession ? Boolean(editValues.is_manual_rate) : false
+    editSession ? Boolean(editValues.is_manual_rate) : false,
   );
   const [savedFixedRate, setSavedFixedRate] = useState(
-    editSession ? Number(editValues.rate) || 0 : 0
+    editSession ? Number(editValues.rate) || 0 : 0,
   );
 
   // Quotation state
@@ -421,25 +423,29 @@ export default function JobOrderForm({
     useState(false);
   const [quotationPrintDialogOpen, setQuotationPrintDialogOpen] =
     useState(false);
-  const [quotationActionDialogInitialAction, setQuotationActionDialogInitialAction] =
-    useState<"print" | "download" | "email">("print");
-  const [closeParentOnQuotationActionDialogClose, setCloseParentOnQuotationActionDialogClose] =
-    useState(false);
+  const [
+    quotationActionDialogInitialAction,
+    setQuotationActionDialogInitialAction,
+  ] = useState<"print" | "download" | "email">("print");
+  const [
+    closeParentOnQuotationActionDialogClose,
+    setCloseParentOnQuotationActionDialogClose,
+  ] = useState(false);
   const [latestQuotationId, setLatestQuotationId] = useState<number | null>(
-    null
+    null,
   );
   const hydratedQuotationDownpaymentIdRef = useRef<number | null>(null);
   const [isSendingQuotationEmail, setIsSendingQuotationEmail] = useState(false);
   const [quotationEmailError, setQuotationEmailError] = useState<string | null>(
-    null
+    null,
   );
   const [quotationDeleteDialogOpen, setQuotationDeleteDialogOpen] =
     useState(false);
   const [quotationToDelete, setQuotationToDelete] = useState<number | null>(
-    null
+    null,
   );
   const [includeManualItemsInTotal, setIncludeManualItemsInTotal] = useState(
-    editSession ? editValues.include_quotation_items !== false : true
+    editSession ? editValues.include_quotation_items !== false : true,
   );
   const [billingImpactDialogOpen, setBillingImpactDialogOpen] = useState(false);
   const [billingImpactPending, setBillingImpactPending] = useState(false);
@@ -448,14 +454,6 @@ export default function JobOrderForm({
   >(null);
   const [closeAfterBillingImpact, setCloseAfterBillingImpact] = useState(false);
   const [openingReceipt, setOpeningReceipt] = useState(false);
-  const [postPrintReceiptSourceId, setPostPrintReceiptSourceId] = useState<
-    number | null
-  >(null);
-  const [postPrintReceiptPromptOpen, setPostPrintReceiptPromptOpen] =
-    useState(false);
-  const [isUploadingPostPrintReceipt, setIsUploadingPostPrintReceipt] =
-    useState(false);
-  const postPrintReceiptInputRef = useRef<HTMLInputElement | null>(null);
   const sourceReceiptInputRef = useRef<HTMLInputElement | null>(null);
   const [isUploadingSourceReceipt, setIsUploadingSourceReceipt] =
     useState(false);
@@ -526,8 +524,8 @@ export default function JobOrderForm({
 
   const extendedBaseSchema = canSelectBranch
     ? baseSchema.extend({
-      branch_id: z.number().min(1, "Branch is required"),
-    })
+        branch_id: z.number().min(1, "Branch is required"),
+      })
     : baseSchema;
 
   const formSchema = extendedBaseSchema.superRefine((data, ctx) => {
@@ -552,29 +550,33 @@ export default function JobOrderForm({
     mode: "onTouched",
     reValidateMode: "onChange",
     defaultValues: editSession
-      ? { ...editValuesWithClient, client_id: clientId || undefined, technical_report: existingTechnicalReport }
+      ? {
+          ...editValuesWithClient,
+          client_id: clientId || undefined,
+          technical_report: existingTechnicalReport,
+        }
       : {
-        branch_id: undefined,
-        client_id: undefined,
-        name: "",
-        contact_number: "",
-        email: "",
-        order_received: "",
-        brand_model: "",
-        serial_number: "",
-        machine_type: "",
-        problem_statement: "",
-        additional_comments: "",
-        labor_description: "",
-        rate: 0,
-        amount: undefined,
-        materials: [],
-        accessories: [],
-        technician_id: "",
-        technical_report: "",
-        downpayment: undefined,
-        warranty_months: 1,
-      },
+          branch_id: undefined,
+          client_id: undefined,
+          name: "",
+          contact_number: "",
+          email: "",
+          order_received: "",
+          brand_model: "",
+          serial_number: "",
+          machine_type: "",
+          problem_statement: "",
+          additional_comments: "",
+          labor_description: "",
+          rate: 0,
+          amount: undefined,
+          materials: [],
+          accessories: [],
+          technician_id: "",
+          technical_report: "",
+          downpayment: undefined,
+          warranty_months: 1,
+        },
   });
 
   useEffect(() => {
@@ -625,7 +627,7 @@ export default function JobOrderForm({
 
   const hasPreviouslySentQuotation = useMemo(
     () => quotationEmailLogs.some((log) => log.status === "sent"),
-    [quotationEmailLogs]
+    [quotationEmailLogs],
   );
   const displayedExistingQuotationTotal = useMemo(() => {
     const quotation = existingQuotations?.[0];
@@ -635,13 +637,13 @@ export default function JobOrderForm({
     const serviceFee = Number(quotation.service_fee || 0);
     const resolvedAmount = Math.max(serviceFee - laborRate, 0);
     const sourceDiscount = Number(
-      selectedDiscount ?? editValues.discount ?? quotation.discount ?? 0
+      selectedDiscount ?? editValues.discount ?? quotation.discount ?? 0,
     );
     const sourceDownpayment = Number(
       resolveQuotationDownpayment(
         quotation.downpayment,
-        editValues.downpayment
-      ) ?? 0
+        editValues.downpayment,
+      ) ?? 0,
     );
 
     return withComputedQuotationTotals({
@@ -670,7 +672,7 @@ export default function JobOrderForm({
     const timer = setTimeout(() => {
       formElementRef.current
         ?.querySelector<HTMLInputElement>(
-          "input:not([type=hidden]):not([disabled]):not([readonly])"
+          "input:not([type=hidden]):not([disabled]):not([readonly])",
         )
         ?.focus();
     }, 150);
@@ -685,7 +687,7 @@ export default function JobOrderForm({
     toast.error(
       count === 1
         ? "1 field needs your attention before saving."
-        : `${count} fields need your attention before saving.`
+        : `${count} fields need your attention before saving.`,
     );
   };
   const onWarranty = editSession && Boolean(editValues.warranty);
@@ -704,13 +706,13 @@ export default function JobOrderForm({
       const serviceFee = Number(quotation.service_fee || 0);
       const resolvedAmount = Math.max(serviceFee - laborRate, 0);
       const sourceDiscount = Number(
-        selectedDiscount ?? editValues.discount ?? quotation.discount ?? 0
+        selectedDiscount ?? editValues.discount ?? quotation.discount ?? 0,
       );
       const sourceDownpayment = Number(
         resolveQuotationDownpayment(
           quotation.downpayment,
-          editValues.downpayment
-        ) ?? 0
+          editValues.downpayment,
+        ) ?? 0,
       );
       const normalizedTotals = withComputedQuotationTotals({
         subtotal: quotation.subtotal || 0,
@@ -786,7 +788,7 @@ export default function JobOrderForm({
   const inventoryMaterialsPrice =
     materials?.reduce(
       (total, { quantity = 0, unitPrice = 0 }) => total + quantity * unitPrice,
-      0
+      0,
     ) ?? 0;
 
   // Calculate total from manual quotation items
@@ -810,7 +812,7 @@ export default function JobOrderForm({
           ?.cost || 0;
       return total + quantity * cost;
     },
-    0
+    0,
   );
   const laborTotal =
     Number(form.watch("rate") || 0) + Number(form.watch("amount") || 0);
@@ -826,7 +828,10 @@ export default function JobOrderForm({
     downpaymentError,
     handleDownpaymentChange,
     setDownpaymentValueStrict,
-  } = useDownpayment(totalBeforeDownpayment, editValues.downpayment || undefined);
+  } = useDownpayment(
+    totalBeforeDownpayment,
+    editValues.downpayment || undefined,
+  );
   useEffect(() => {
     const quotation = existingQuotations?.[0];
     const quotationId = Number(quotation?.id || 0);
@@ -840,17 +845,13 @@ export default function JobOrderForm({
     const quotationDownpayment =
       resolveQuotationDownpayment(
         quotation.downpayment,
-        editValues.downpayment
+        editValues.downpayment,
       ) ?? 0;
     if (setDownpaymentValueStrict(quotationDownpayment)) {
       hydratedQuotationDownpaymentIdRef.current = quotationId;
       setDownpaymentInputVisible(quotationDownpayment > 0);
     }
-  }, [
-    existingQuotations,
-    editValues.downpayment,
-    setDownpaymentValueStrict,
-  ]);
+  }, [existingQuotations, editValues.downpayment, setDownpaymentValueStrict]);
   const totals = computeTransactionTotal({
     subTotal: grandTotal,
     discount: selectedDiscount ?? 0,
@@ -886,8 +887,15 @@ export default function JobOrderForm({
         (editValuesWithClient.status === "Completed" && !effectiveReceiptUrl)
       : editValuesWithClient.status === "Completed" && !effectiveReceiptUrl
     : false;
+  // Receipts are attached when a job order is completed, not when it is created.
+  // Replacing an existing receipt stays available so earlier attachments are not stranded.
   const canManageSourceReceipt =
-    editSession && Boolean(editId) && !isTechnician;
+    editSession &&
+    Boolean(editId) &&
+    !isTechnician &&
+    (editValuesWithClient.status === "Completed" ||
+      isBillingLinked ||
+      Boolean(effectiveReceiptUrl));
 
   const handleOpenReceipt = async () => {
     if (!effectiveReceiptUrl || openingReceipt) return;
@@ -901,7 +909,7 @@ export default function JobOrderForm({
       toast.error(
         error instanceof Error
           ? error.message
-          : "Failed to open receipt attachment."
+          : "Failed to open receipt attachment.",
       );
     } finally {
       setOpeningReceipt(false);
@@ -926,14 +934,14 @@ export default function JobOrderForm({
 
       await updateSourceReceipt("job_order", sourceId, uploadedReceiptPath);
 
-      if (
-        previousReceiptPath &&
-        previousReceiptPath !== uploadedReceiptPath
-      ) {
+      if (previousReceiptPath && previousReceiptPath !== uploadedReceiptPath) {
         try {
           await deleteReceiptFile(previousReceiptPath);
         } catch (cleanupError) {
-          console.error("Failed to clean up previous receipt file", cleanupError);
+          console.error(
+            "Failed to clean up previous receipt file",
+            cleanupError,
+          );
         }
       }
 
@@ -945,18 +953,23 @@ export default function JobOrderForm({
         queryKey: ["source_receipt_stats", "job_order", sourceId],
       });
       queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
-      toast.success(previousReceiptPath ? "Receipt replaced." : "Receipt attached.");
+      toast.success(
+        previousReceiptPath ? "Receipt replaced." : "Receipt attached.",
+      );
     } catch (error) {
       if (uploadedReceiptPath) {
         try {
           await deleteReceiptFile(uploadedReceiptPath);
         } catch (deleteError) {
-          console.error("Failed to rollback source receipt upload", deleteError);
+          console.error(
+            "Failed to rollback source receipt upload",
+            deleteError,
+          );
         }
       }
       console.error(error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to update receipt."
+        error instanceof Error ? error.message : "Failed to update receipt.",
       );
     } finally {
       setIsUploadingSourceReceipt(false);
@@ -968,7 +981,7 @@ export default function JobOrderForm({
 
   const openBillingImpactGuard = (
     action: () => Promise<void>,
-    options?: { closeAfterSuccess?: boolean }
+    options?: { closeAfterSuccess?: boolean },
   ) => {
     if (!isBillingLinked) {
       void action();
@@ -994,7 +1007,7 @@ export default function JobOrderForm({
       queryClient.invalidateQueries({ queryKey: ["billing_ledger"] });
       queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
       toast.success(
-        "Billing has been updated based on your changes. Previous payments were adjusted."
+        "Billing has been updated based on your changes. Previous payments were adjusted.",
       );
       if (closeAfterBillingImpact && onClose) onClose();
       setBillingImpactDialogOpen(false);
@@ -1005,7 +1018,7 @@ export default function JobOrderForm({
       toast.error(
         error instanceof Error
           ? error.message
-          : "Failed to recalculate linked billing record."
+          : "Failed to recalculate linked billing record.",
       );
     } finally {
       setBillingImpactPending(false);
@@ -1019,15 +1032,11 @@ export default function JobOrderForm({
     if (branchId !== null) {
       return technicians.filter(
         (technician) =>
-          technician.branch_id === branchId || technician.branch_id === null
+          technician.branch_id === branchId || technician.branch_id === null,
       );
     }
     return technicians;
-  }, [
-    technicians,
-    branchId,
-    isFormReadonly,
-  ]);
+  }, [technicians, branchId, isFormReadonly]);
 
   const resolveBranchForPdf = (id: number | null | undefined) => {
     if (id === null || id === undefined) return undefined;
@@ -1049,74 +1058,14 @@ export default function JobOrderForm({
   });
 
   const finalizePrintFlow = () => {
-    if (postPrintReceiptSourceId) {
-      setPostPrintReceiptPromptOpen(true);
-      return;
-    }
-
     if (onClose) {
       onClose();
     }
   };
 
-  const clearPostPrintReceiptPrompt = () => {
-    setPostPrintReceiptPromptOpen(false);
-    setPostPrintReceiptSourceId(null);
-    if (postPrintReceiptInputRef.current) {
-      postPrintReceiptInputRef.current.value = "";
-    }
-  };
-
-  const handlePostPrintReceiptUpload = async (file: File | null) => {
-    if (!file || !postPrintReceiptSourceId) {
-      return;
-    }
-
-    let uploadedReceiptPath: string | null = null;
-    setIsUploadingPostPrintReceipt(true);
-
-    try {
-      uploadedReceiptPath = await uploadReceiptFile({
-        sourceType: "job_order",
-        sourceId: postPrintReceiptSourceId,
-        file,
-      });
-
-      await updateSourceReceipt("job_order", postPrintReceiptSourceId, uploadedReceiptPath);
-      queryClient.invalidateQueries({ queryKey: ["job_order"] });
-      queryClient.invalidateQueries({
-        queryKey: ["source_latest_receipt", "job_order", postPrintReceiptSourceId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["source_receipt_stats", "job_order", postPrintReceiptSourceId],
-      });
-      toast.success("Receipt attached to job order.");
-      clearPostPrintReceiptPrompt();
-      if (onClose) {
-        onClose();
-      }
-    } catch (error) {
-      if (uploadedReceiptPath) {
-        try {
-          await deleteReceiptFile(uploadedReceiptPath);
-        } catch (deleteError) {
-          console.error("Failed to rollback post-print receipt upload", deleteError);
-        }
-      }
-      toast.error(
-        error instanceof Error ? error.message : "Failed to upload receipt."
-      );
-    } finally {
-      setIsUploadingPostPrintReceipt(false);
-      if (postPrintReceiptInputRef.current) {
-        postPrintReceiptInputRef.current.value = "";
-      }
-    }
-  };
-
   const generatePDF = async (
     data: CreateJobOrderData,
-    type?: "company" | "client" | "both" | null
+    type?: "company" | "client" | "both" | null,
   ) => {
     setIsPrinting(true);
     console.log("[PrintFlow] Job order print started", {
@@ -1126,7 +1075,7 @@ export default function JobOrderForm({
 
     // Find the technician by order_received ID
     const orderReceivedTechnician = technicians.find(
-      (tech) => tech.id === data.order_received
+      (tech) => tech.id === data.order_received,
     );
     const orderReceivedTechnicianName = orderReceivedTechnician
       ? orderReceivedTechnician.fullname
@@ -1134,7 +1083,7 @@ export default function JobOrderForm({
 
     // Find the technician by technician_id
     const technician = technicians.find(
-      (tech) => tech.id === data.technician_id
+      (tech) => tech.id === data.technician_id,
     );
     const technicianName = technician ? technician.fullname : "---";
 
@@ -1185,10 +1134,10 @@ export default function JobOrderForm({
     const endDate = getServerNow();
     endDate.setMonth(endDate.getMonth() + 1);
     const sourceDiscount = Number(
-      quotationData.discount ?? selectedDiscount ?? 0
+      quotationData.discount ?? selectedDiscount ?? 0,
     );
     const sourceDownpayment = Number(
-      quotationData.downpayment ?? downpaymentValue ?? 0
+      quotationData.downpayment ?? downpaymentValue ?? 0,
     );
 
     const normalizedTotals = withComputedQuotationTotals({
@@ -1330,9 +1279,7 @@ export default function JobOrderForm({
 
     const shouldForceSend =
       hasPreviouslySentQuotation &&
-      window.confirm(
-        "This quotation has already been emailed.\n\nSend again?"
-      );
+      window.confirm("This quotation has already been emailed.\n\nSend again?");
 
     if (hasPreviouslySentQuotation && !shouldForceSend) {
       return;
@@ -1349,8 +1296,7 @@ export default function JobOrderForm({
         clientName,
         totalQuote,
         downpayment: quotationDownpayment,
-      } =
-        await buildQuotationPDFBlob(quotationData);
+      } = await buildQuotationPDFBlob(quotationData);
       const pdfBase64 = await blobToBase64(asBlob);
       const emailPayload = {
         quotation_id: currentQuotationId,
@@ -1376,7 +1322,7 @@ export default function JobOrderForm({
 
       if (!result.success && result.already_sent_before && !shouldForceSend) {
         const confirmResend = window.confirm(
-          "This quotation has already been emailed.\n\nSend again?"
+          "This quotation has already been emailed.\n\nSend again?",
         );
 
         if (!confirmResend) {
@@ -1424,7 +1370,7 @@ export default function JobOrderForm({
 
   const generateMergedPDF = async (
     jobOrderData: CreateJobOrderData,
-    quotationData: CreateQuotationData
+    quotationData: CreateQuotationData,
   ) => {
     setIsPrinting(true);
     console.log("[PrintFlow] Merged print started", {
@@ -1433,10 +1379,10 @@ export default function JobOrderForm({
     });
 
     const sourceDiscount = Number(
-      quotationData.discount ?? selectedDiscount ?? 0
+      quotationData.discount ?? selectedDiscount ?? 0,
     );
     const sourceDownpayment = Number(
-      quotationData.downpayment ?? downpaymentValue ?? 0
+      quotationData.downpayment ?? downpaymentValue ?? 0,
     );
     const normalizedTotals = withComputedQuotationTotals({
       subtotal: quotationData.subtotal,
@@ -1466,7 +1412,7 @@ export default function JobOrderForm({
     try {
       // Find the technician by order_received ID
       const orderReceivedTechnician = technicians.find(
-        (tech) => tech.id === jobOrderData.order_received
+        (tech) => tech.id === jobOrderData.order_received,
       );
       const orderReceivedTechnicianName = orderReceivedTechnician
         ? orderReceivedTechnician.fullname
@@ -1474,7 +1420,7 @@ export default function JobOrderForm({
 
       // Find the technician by technician_id
       const technician = technicians.find(
-        (tech) => tech.id === jobOrderData.technician_id
+        (tech) => tech.id === jobOrderData.technician_id,
       );
       const technicianName = technician ? technician.fullname : "---";
 
@@ -1535,12 +1481,14 @@ export default function JobOrderForm({
       quantity?: number;
       unitPrice?: number;
       used?: boolean | null;
-    }> = []
+    }> = [],
   ) =>
     items
       .map((item) => ({
         material_id: Number(item.material_id || 0),
-        material: String(item.material || "").trim().toLowerCase(),
+        material: String(item.material || "")
+          .trim()
+          .toLowerCase(),
         quantity: Number(item.quantity || 0),
         unitPrice: Number(item.unitPrice || 0),
         used: Boolean(item.used),
@@ -1555,7 +1503,9 @@ export default function JobOrderForm({
         return a.quantity - b.quantity;
       });
 
-  const hasHighImpactJobOrderChanges = (submittedValues: CreateJobOrderData) => {
+  const hasHighImpactJobOrderChanges = (
+    submittedValues: CreateJobOrderData,
+  ) => {
     const hasNumberChange = (current: number, next: number) =>
       Math.abs(Number(current || 0) - Number(next || 0)) > 0.009;
 
@@ -1566,7 +1516,7 @@ export default function JobOrderForm({
         quantity: material.quantity,
         unitPrice: material.unit_price,
         used: material.used,
-      }))
+      })),
     );
     const nextMaterials = normalizeMaterialEntries(
       (submittedValues.materials || []).map((material) => ({
@@ -1575,31 +1525,37 @@ export default function JobOrderForm({
         quantity: material.quantity,
         unitPrice: material.unitPrice,
         used: material.used,
-      }))
+      })),
     );
 
     return (
-      hasNumberChange(Number(editValues.rate || 0), Number(submittedValues.rate || 0)) ||
-      hasNumberChange(Number(editValues.amount || 0), Number(submittedValues.amount || 0)) ||
+      hasNumberChange(
+        Number(editValues.rate || 0),
+        Number(submittedValues.rate || 0),
+      ) ||
+      hasNumberChange(
+        Number(editValues.amount || 0),
+        Number(submittedValues.amount || 0),
+      ) ||
       hasNumberChange(
         Number(editValues.material_total || 0),
-        Number(submittedValues.material_total || 0)
+        Number(submittedValues.material_total || 0),
       ) ||
       hasNumberChange(
         Number(editValues.labor_total || 0),
-        Number(submittedValues.labor_total || 0)
+        Number(submittedValues.labor_total || 0),
       ) ||
       hasNumberChange(
         Number(editValues.discount || 0),
-        Number(submittedValues.discount || 0)
+        Number(submittedValues.discount || 0),
       ) ||
       hasNumberChange(
         Number(editValues.downpayment || 0),
-        Number(submittedValues.downpayment || 0)
+        Number(submittedValues.downpayment || 0),
       ) ||
       hasNumberChange(
         Number(editValues.grand_total || 0),
-        Number(submittedValues.grand_total || 0)
+        Number(submittedValues.grand_total || 0),
       ) ||
       JSON.stringify(currentMaterials) !== JSON.stringify(nextMaterials)
     );
@@ -1618,7 +1574,7 @@ export default function JobOrderForm({
       const currentStock = getStockForMaterial(material.material_id);
 
       const originalMaterial = editMaterials?.find(
-        (m) => String(m.material_id) === String(material.material_id)
+        (m) => String(m.material_id) === String(material.material_id),
       );
 
       const isQuantityExceedingStock =
@@ -1662,7 +1618,7 @@ export default function JobOrderForm({
         ? String(jobOrderToEdit.created_at)
         : getServerNow().toISOString(),
       branch_id: branchId ?? currentUserBranchId ?? values.branch_id ?? 0,
-      warranty: editSession ? editValues.warranty ?? undefined : undefined,
+      warranty: editSession ? (editValues.warranty ?? undefined) : undefined,
       warranty_months:
         values.warranty_months !== undefined ? values.warranty_months : 1,
       brand_model: values.brand_model || "",
@@ -1680,7 +1636,7 @@ export default function JobOrderForm({
 
     const submitEditedJobOrder = async (
       payload: CreateJobOrderData,
-      options?: { closeAfterSuccess?: boolean }
+      options?: { closeAfterSuccess?: boolean },
     ) => {
       await new Promise<void>((resolve, reject) => {
         editJobOrder(
@@ -1715,7 +1671,7 @@ export default function JobOrderForm({
               toast.error("An error occurred. Please try again.");
               reject(error);
             },
-          }
+          },
         );
       });
     };
@@ -1728,10 +1684,10 @@ export default function JobOrderForm({
 
         try {
           const sourceDiscount = Number(
-            selectedDiscount ?? quotationData.discount ?? 0
+            selectedDiscount ?? quotationData.discount ?? 0,
           );
           const sourceDownpayment = Number(
-            downpaymentValue ?? quotationData.downpayment ?? 0
+            downpaymentValue ?? quotationData.downpayment ?? 0,
           );
           const normalizedTotals = withComputedQuotationTotals({
             subtotal: quotationData.subtotal,
@@ -1759,18 +1715,22 @@ export default function JobOrderForm({
           };
 
           if (existingQuotations && existingQuotations.length > 0) {
-            const { updateQuotation } = await import(
-              "../../services/apiQuotations"
+            const { updateQuotation } =
+              await import("../../services/apiQuotations");
+            await updateQuotation(
+              existingQuotations[0].id!,
+              finalQuotationData,
             );
-            await updateQuotation(existingQuotations[0].id!, finalQuotationData);
             toast.success("Quotation updated successfully!");
             return;
           }
 
-          const { addQuotationToJobOrder } = await import(
-            "../../services/apiQuotations"
+          const { addQuotationToJobOrder } =
+            await import("../../services/apiQuotations");
+          const response = await addQuotationToJobOrder(
+            editId,
+            finalQuotationData,
           );
-          const response = await addQuotationToJobOrder(editId, finalQuotationData);
           const finalUpdatedQuotationData = {
             ...finalQuotationData,
             quote_no: response.quote_no,
@@ -1786,7 +1746,7 @@ export default function JobOrderForm({
         } catch (error) {
           console.error("Error saving quotation:", error);
           toast.error(
-            "Job order updated but quotation failed. Please create quotation manually."
+            "Job order updated but quotation failed. Please create quotation manually.",
           );
         }
       };
@@ -1801,7 +1761,7 @@ export default function JobOrderForm({
           async () => {
             await runEditFlow(false);
           },
-          { closeAfterSuccess: true }
+          { closeAfterSuccess: true },
         );
       } else {
         void runEditFlow(true);
@@ -1816,14 +1776,13 @@ export default function JobOrderForm({
           // Create quotation if one was prepared
           if (quotationData && isCreatingQuotation) {
             try {
-              const { createQuotation } = await import(
-                "../../services/apiQuotations"
-              );
+              const { createQuotation } =
+                await import("../../services/apiQuotations");
               const sourceDiscount = Number(
-                selectedDiscount ?? quotationData.discount ?? 0
+                selectedDiscount ?? quotationData.discount ?? 0,
               );
               const sourceDownpayment = Number(
-                downpaymentValue ?? quotationData.downpayment ?? 0
+                downpaymentValue ?? quotationData.downpayment ?? 0,
               );
               const normalizedTotals = withComputedQuotationTotals({
                 subtotal: quotationData.subtotal,
@@ -1870,7 +1829,7 @@ export default function JobOrderForm({
             } catch (error) {
               console.error("Error creating quotation:", error);
               toast.error(
-                "Job order created but quotation failed. Please create quotation manually."
+                "Job order created but quotation failed. Please create quotation manually.",
               );
             }
           }
@@ -1879,7 +1838,6 @@ export default function JobOrderForm({
             ...submittedValues,
             order_no: response.order_no,
           });
-          setPostPrintReceiptSourceId(response.jobOrder);
 
           // Show print selection dialog if in quotation mode, otherwise show regular print dialog
           if (isCreatingQuotation && quotationData) {
@@ -1902,7 +1860,7 @@ export default function JobOrderForm({
     if (selectedMaterial) {
       form.setValue(
         `materials.${index}.material`,
-        selectedMaterial.material_name
+        selectedMaterial.material_name,
       );
       form.setValue(`materials.${index}.material_id`, String(materialId));
       form.setValue(`materials.${index}.unitPrice`, selectedMaterial.price);
@@ -1924,7 +1882,7 @@ export default function JobOrderForm({
 
   const handleContactNumberChange = (
     value: string,
-    onChange: (value: string) => void
+    onChange: (value: string) => void,
   ) => {
     setContactNumber(value);
     onChange(value);
@@ -1932,14 +1890,14 @@ export default function JobOrderForm({
 
   const handleAccessorySelection = (
     accessory: string,
-    action?: "add" | "remove"
+    action?: "add" | "remove",
   ) => {
     if (isFormReadonly) return;
 
     if (action === "remove" || selectedAccessories.includes(accessory)) {
       // Remove accessory
       setSelectedAccessories((prev: string[]) =>
-        prev.filter((item) => item !== accessory)
+        prev.filter((item) => item !== accessory),
       );
     } else {
       // Add accessory
@@ -1956,13 +1914,13 @@ export default function JobOrderForm({
       const serviceFee = Number(quotation.service_fee || 0);
       const resolvedAmount = Math.max(serviceFee - laborRate, 0);
       const sourceDiscount = Number(
-        selectedDiscount ?? editValues.discount ?? quotation.discount ?? 0
+        selectedDiscount ?? editValues.discount ?? quotation.discount ?? 0,
       );
       const sourceDownpayment = Number(
         resolveQuotationDownpayment(
           quotation.downpayment,
           downpaymentValue ?? editValues.downpayment,
-        ) ?? 0
+        ) ?? 0,
       );
       const normalizedTotals = withComputedQuotationTotals({
         subtotal: quotation.subtotal || 0,
@@ -1999,7 +1957,7 @@ export default function JobOrderForm({
   const handleSaveQuotation = (quotation: CreateQuotationData) => {
     const sourceDiscount = Number(quotation.discount ?? selectedDiscount ?? 0);
     const sourceDownpayment = Number(
-      quotation.downpayment ?? downpaymentValue ?? 0
+      quotation.downpayment ?? downpaymentValue ?? 0,
     );
     const normalizedTotals = withComputedQuotationTotals({
       subtotal: quotation.subtotal,
@@ -2137,7 +2095,7 @@ export default function JobOrderForm({
       quantity: number;
       unitPrice: number;
       material_id: string;
-    }>
+    }>,
   ) => {
     console.log("Job order form received materials update:", updatedMaterials);
 
@@ -2167,7 +2125,7 @@ export default function JobOrderForm({
     // This ensures the form updates are reflected in the UI
     console.log(
       "Job order form materials updated to:",
-      form.getValues("materials")
+      form.getValues("materials"),
     );
   };
 
@@ -2288,9 +2246,11 @@ export default function JobOrderForm({
   useEffect(() => {
     if (!quotationData) return;
 
-    const sourceDiscount = Number(selectedDiscount ?? quotationData.discount ?? 0);
+    const sourceDiscount = Number(
+      selectedDiscount ?? quotationData.discount ?? 0,
+    );
     const sourceDownpayment = Number(
-      quotationData.downpayment ?? downpaymentValue ?? 0
+      quotationData.downpayment ?? downpaymentValue ?? 0,
     );
 
     const normalizedTotals = withComputedQuotationTotals({
@@ -2347,7 +2307,9 @@ export default function JobOrderForm({
   const quotationEmailClientName = (form.getValues("name") || "Client").trim();
   const quotationReference = quotationData?.quote_no?.trim() || "N/A";
   const quotationEmailDate = format(getServerNow(), "MMM d, yyyy");
-  const quotationTotalAmount = Number(normalizedQuotationTotals?.total_quote ?? 0);
+  const quotationTotalAmount = Number(
+    normalizedQuotationTotals?.total_quote ?? 0,
+  );
   const quotationBranchName =
     resolveBranchForPdf(watchedBranchId ?? currentUserBranchId)?.name || "";
   const quotationEmailDefaultMessage = [
@@ -2398,7 +2360,10 @@ export default function JobOrderForm({
               {editSession ? formatReadableDate(editValues.created_at) : date}
             </div>
             {!editSession && !readonly && (
-              <TourReplayButton onClick={replayTour} label="How to use client search" />
+              <TourReplayButton
+                onClick={replayTour}
+                label="How to use client search"
+              />
             )}
             {(editSession || readonly) && (
               <div className="px-3 py-1 bg-red-200 rounded-full text-red-600 text-xs w-fit flex items-center gap-1">
@@ -2409,8 +2374,8 @@ export default function JobOrderForm({
               <div className="px-3 py-1 bg-green-200 rounded-full text-green-600 text-xs w-fit flex items-center gap-1">
                 {editSession || readonly
                   ? `Warranty: ${renderWarrantyInfo(
-                    editValuesWithClient.warranty
-                  )}`
+                      editValuesWithClient.warranty,
+                    )}`
                   : ""}
               </div>
             )}
@@ -2473,26 +2438,32 @@ export default function JobOrderForm({
                     onClick={() => sourceReceiptInputRef.current?.click()}
                     disabled={isUploadingSourceReceipt}
                   >
-                    {isUploadingSourceReceipt ? "Uploading..." : "Upload Receipt"}
+                    {isUploadingSourceReceipt
+                      ? "Uploading..."
+                      : "Upload Receipt"}
                   </Button>
                 )}
               </div>
             )}
-            {!effectiveReceiptUrl && !hasMissingReceipt && canManageSourceReceipt && (
-              <div className="px-3 py-1 bg-slate-100 rounded-full text-slate-700 text-xs w-fit flex items-center gap-2">
-                <span>No Receipt Attached</span>
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  className="h-auto p-0 text-xs text-slate-700"
-                  onClick={() => sourceReceiptInputRef.current?.click()}
-                  disabled={isUploadingSourceReceipt}
-                >
-                  {isUploadingSourceReceipt ? "Uploading..." : "Upload Receipt"}
-                </Button>
-              </div>
-            )}
+            {!effectiveReceiptUrl &&
+              !hasMissingReceipt &&
+              canManageSourceReceipt && (
+                <div className="px-3 py-1 bg-slate-100 rounded-full text-slate-700 text-xs w-fit flex items-center gap-2">
+                  <span>No Receipt Attached</span>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-slate-700"
+                    onClick={() => sourceReceiptInputRef.current?.click()}
+                    disabled={isUploadingSourceReceipt}
+                  >
+                    {isUploadingSourceReceipt
+                      ? "Uploading..."
+                      : "Upload Receipt"}
+                  </Button>
+                </div>
+              )}
             {readonly && !isEditMode && (
               <Button
                 type="button"
@@ -2526,7 +2497,9 @@ export default function JobOrderForm({
           </div>
           {isFormReadonly ? (
             <div className="text-3xl font-bold mb-2">
-              {getClientDisplayName(selectedClient, "") || form.getValues("name") || "—"}
+              {getClientDisplayName(selectedClient, "") ||
+                form.getValues("name") ||
+                "—"}
               {selectedClient?.type === "company" && (
                 <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full align-middle">
                   company
@@ -2547,7 +2520,10 @@ export default function JobOrderForm({
                         setSelectedSubClientId("none");
                         form.setValue("name", client.name);
                         form.setValue("client_id", client.id);
-                        form.setValue("contact_number", client.contact_number || "+63 ");
+                        form.setValue(
+                          "contact_number",
+                          client.contact_number || "+63 ",
+                        );
                         setContactNumber(client.contact_number || "+63 ");
                         form.setValue("email", client.email || "");
                         form.clearErrors("name");
@@ -2558,7 +2534,10 @@ export default function JobOrderForm({
                         setSelectedSubClientId("none");
                         form.setValue("name", client.name);
                         form.setValue("client_id", client.id);
-                        form.setValue("contact_number", client.contact_number || "+63 ");
+                        form.setValue(
+                          "contact_number",
+                          client.contact_number || "+63 ",
+                        );
                         setContactNumber(client.contact_number || "+63 ");
                         form.setValue("email", client.email || "");
                         form.clearErrors("name");
@@ -2584,12 +2563,15 @@ export default function JobOrderForm({
                               form.setValue("client_id", selectedClient.id);
                               form.setValue(
                                 "contact_number",
-                                selectedClient.contact_number || "+63 "
+                                selectedClient.contact_number || "+63 ",
                               );
                               setContactNumber(
-                                selectedClient.contact_number || "+63 "
+                                selectedClient.contact_number || "+63 ",
                               );
-                              form.setValue("email", selectedClient.email || "");
+                              form.setValue(
+                                "email",
+                                selectedClient.email || "",
+                              );
                             }
                           }}
                         >
@@ -2601,7 +2583,10 @@ export default function JobOrderForm({
                               Parent-level (all departments)
                             </SelectItem>
                             {childClients.map((child) => (
-                              <SelectItem key={child.id} value={String(child.id)}>
+                              <SelectItem
+                                key={child.id}
+                                value={String(child.id)}
+                              >
                                 {child.name}
                               </SelectItem>
                             ))}
@@ -2625,10 +2610,8 @@ export default function JobOrderForm({
                   control={form.control}
                   name="contact_number"
                   render={({ field }) => {
-                    const {
-                      onChange: fieldOnChange,
-                      value: fieldValue,
-                    } = field;
+                    const { onChange: fieldOnChange, value: fieldValue } =
+                      field;
                     return (
                       <FormItem className="space-y-0">
                         <FormLabel required>Contact No.</FormLabel>
@@ -2745,12 +2728,13 @@ export default function JobOrderForm({
                                 autoFocus={!editSession && !field.value}
                               >
                                 <SelectValue
-                                  placeholder={`${form.watch("branch_id")
+                                  placeholder={`${
+                                    form.watch("branch_id")
                                       ? (branches || []).find(
-                                        (branch) => branch.id === field.value
-                                      )?.name || `Branch ${field.value}`
+                                          (branch) => branch.id === field.value,
+                                        )?.name || `Branch ${field.value}`
                                       : "Select a branch"
-                                    }`}
+                                  }`}
                                 />
                               </SelectTrigger>
                             </FormControl>
@@ -3052,10 +3036,10 @@ export default function JobOrderForm({
                                 onChange={(e) => {
                                   const value = e.target.value.replace(
                                     /[^0-9.]/g,
-                                    ""
+                                    "",
                                   );
                                   field.onChange(
-                                    value ? parseFloat(value) : ""
+                                    value ? parseFloat(value) : "",
                                   );
                                 }}
                                 disabled={isFormReadonly}
@@ -3083,7 +3067,7 @@ export default function JobOrderForm({
                             onChange={(e) => {
                               const value = e.target.value.replace(
                                 /[^0-9.]/g,
-                                ""
+                                "",
                               );
                               field.onChange(value ? parseFloat(value) : "");
                             }}
@@ -3170,31 +3154,31 @@ export default function JobOrderForm({
                           </span>
                           {/* Manual items indicator */}
                           {existingQuotations[0].quotation_items?.some(
-                            (item: QuotationItem) => item.is_manual
+                            (item: QuotationItem) => item.is_manual,
                           ) && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <div className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full flex items-center gap-1">
-                                      <Info size={10} />
-                                      Manual Items
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p className="text-xs">
-                                      This quotation contains manual items that
-                                      don't sync with inventory
-                                    </p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <div className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full flex items-center gap-1">
+                                    <Info size={10} />
+                                    Manual Items
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">
+                                    This quotation contains manual items that
+                                    don't sync with inventory
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">
                             ₱
                             {formatNumberWithCommas(
-                              displayedExistingQuotationTotal
+                              displayedExistingQuotationTotal,
                             )}
                           </span>
                           {!isFormReadonly && (
@@ -3261,10 +3245,11 @@ export default function JobOrderForm({
                               size="sm"
                               onClick={handleCreateQuotation}
                               disabled={isPending || quotationsLoading}
-                              className={`px-3 py-1 w-full text-xs flex items-center gap-1 ${quotationData
+                              className={`px-3 py-1 w-full text-xs flex items-center gap-1 ${
+                                quotationData
                                   ? "bg-green-600/10 hover:bg-green-700/10 text-black border"
                                   : ""
-                                }`}
+                              }`}
                             >
                               {!quotationData && (
                                 <Plus size={12} strokeWidth={1.5} />
@@ -3274,7 +3259,7 @@ export default function JobOrderForm({
                                 : isCreatingQuotation
                                   ? "Edit Quotation"
                                   : existingQuotations &&
-                                    existingQuotations.length > 0
+                                      existingQuotations.length > 0
                                     ? "Edit Existing Quotation"
                                     : "Create Quotation"}
                               {quotationData && (
@@ -3285,7 +3270,7 @@ export default function JobOrderForm({
                           <TooltipContent className="max-w-xs">
                             <p className="text-xs">
                               {existingQuotations &&
-                                existingQuotations.length > 0
+                              existingQuotations.length > 0
                                 ? "Edit the existing quotation for this job order. Only one quotation per job order is allowed."
                                 : quotationData
                                   ? "View or edit the existing quotation for this job order."
@@ -3491,7 +3476,7 @@ export default function JobOrderForm({
                               onChange={(e) => {
                                 const value = e.target.value.replace(
                                   /[^0-9.]/g,
-                                  ""
+                                  "",
                                 );
                                 field.onChange(value ? parseFloat(value) : "");
                               }}
@@ -3508,13 +3493,13 @@ export default function JobOrderForm({
                     <p className="text-sm">
                       {isNaN(
                         form.watch(`materials.${index}.quantity`) *
-                        form.watch(`materials.${index}.unitPrice`)
+                          form.watch(`materials.${index}.unitPrice`),
                       )
                         ? 0
                         : (
-                          form.watch(`materials.${index}.quantity`) *
-                          form.watch(`materials.${index}.unitPrice`)
-                        ).toFixed(2)}
+                            form.watch(`materials.${index}.quantity`) *
+                            form.watch(`materials.${index}.unitPrice`)
+                          ).toFixed(2)}
                     </p>
                   </div>
                   <Button
@@ -3544,7 +3529,7 @@ export default function JobOrderForm({
                     });
                   } else {
                     alert(
-                      "Please fill out all material fields before adding a new one."
+                      "Please fill out all material fields before adding a new one.",
                     );
                   }
                 }}
@@ -3775,7 +3760,6 @@ export default function JobOrderForm({
                 </div>
               </div>
             </div>
-
           </div>
 
           {/* Billing Section - visible in readonly mode for non-technicians */}
@@ -3809,7 +3793,6 @@ export default function JobOrderForm({
         open={printDialogOpen}
         onClose={() => {
           setPrintDialogOpen(false);
-          setPostPrintReceiptSourceId(null);
           if (onClose) {
             onClose();
           }
@@ -3818,7 +3801,7 @@ export default function JobOrderForm({
           if (jobOrderDataForPrinting) {
             generatePDF(
               jobOrderDataForPrinting,
-              option as "client" | "both" | "company" | null
+              option as "client" | "both" | "company" | null,
             );
           }
         }}
@@ -3873,7 +3856,6 @@ export default function JobOrderForm({
         open={printSelectionDialogOpen}
         onClose={() => {
           setPrintSelectionDialogOpen(false);
-          setPostPrintReceiptSourceId(null);
           if (onClose) onClose();
         }}
         onSelectOption={handlePrintSelection}
@@ -3887,7 +3869,6 @@ export default function JobOrderForm({
           setQuotationPrintDialogOpen(false);
           setQuotationActionDialogInitialAction("print");
           setQuotationEmailError(null);
-          setPostPrintReceiptSourceId(null);
           if (closeParentOnQuotationActionDialogClose && onClose) {
             onClose();
           }
@@ -3916,32 +3897,6 @@ export default function JobOrderForm({
         initialAction={quotationActionDialogInitialAction}
         hasSentBefore={hasPreviouslySentQuotation}
         emailError={quotationEmailError}
-      />
-      <ReceiptMissingConfirmDialog
-        open={postPrintReceiptPromptOpen}
-        onOpenChange={setPostPrintReceiptPromptOpen}
-        title="Attach Receipt or Document"
-        description="Would you like to attach a receipt or supporting document now?"
-        onAttachNow={() => {
-          setPostPrintReceiptPromptOpen(false);
-          postPrintReceiptInputRef.current?.click();
-        }}
-        onContinueWithoutReceipt={() => {
-          clearPostPrintReceiptPrompt();
-          if (onClose) {
-            onClose();
-          }
-        }}
-      />
-      <input
-        ref={postPrintReceiptInputRef}
-        type="file"
-        accept="image/jpeg,image/png,application/pdf"
-        className="hidden"
-        disabled={isUploadingPostPrintReceipt}
-        onChange={(event) =>
-          void handlePostPrintReceiptUpload(event.target.files?.[0] || null)
-        }
       />
       <input
         ref={sourceReceiptInputRef}
