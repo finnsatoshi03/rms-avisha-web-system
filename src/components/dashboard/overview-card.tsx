@@ -8,16 +8,25 @@ interface OverviewData {
   value: number | string;
   prefix?: string;
   suffix?: string;
-  pcp: string;
+  /** Percent change vs last month. Omit on surfaces that have no
+   *  period-over-period figure (e.g. the rental dashboard) — the trend pill is
+   *  hidden rather than showing a fabricated 0%. */
+  pcp?: string;
   icon: LucideIcon | null;
 }
 
 export default function OverviewCard({
   data,
   className,
+  valueClassName,
+  decimals,
 }: {
   data: OverviewData;
   className?: string;
+  /** Tints the main figure — used for alert states like overdue counts. */
+  valueClassName?: string;
+  /** Overrides the default header-name inference below. */
+  decimals?: number;
 }) {
   if (!data) {
     return null;
@@ -75,7 +84,10 @@ export default function OverviewCard({
       {/* Main Value */}
       <div className="flex flex-col flex-1 justify-between gap-3">
         <AutoSizeText
-          className="font-display font-bold tracking-tight text-foreground"
+          className={cn(
+            "font-display font-bold tracking-tight text-foreground",
+            valueClassName
+          )}
           minSize={16}
           maxSize={28}
         >
@@ -85,7 +97,8 @@ export default function OverviewCard({
             duration={1.2}
             separator=","
             decimals={
-              data.header === "Clients" || data.header === "Sales" ? 0 : 2
+              decimals ??
+              (data.header === "Clients" || data.header === "Sales" ? 0 : 2)
             }
             decimal="."
             prefix={data.prefix}
@@ -93,23 +106,25 @@ export default function OverviewCard({
           {data.suffix || ""}
         </AutoSizeText>
 
-        {/* Percentage Change */}
-        <div className="flex items-center gap-2 text-xs flex-wrap">
-          <div
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold flex-shrink-0",
-              getPcpColor(data.pcp)
-            )}
-          >
-            {getPcpIcon(data.pcp)}
-            <span>
-              {parseFloat(data.pcp) === 0
-                ? "0%"
-                : data.pcp.replace(/[+-]/g, "")}
-            </span>
+        {/* Percentage Change — omitted entirely when there is no pcp to show */}
+        {data.pcp !== undefined && (
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <div
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold flex-shrink-0",
+                getPcpColor(data.pcp)
+              )}
+            >
+              {getPcpIcon(data.pcp)}
+              <span>
+                {parseFloat(data.pcp) === 0
+                  ? "0%"
+                  : data.pcp.replace(/[+-]/g, "")}
+              </span>
+            </div>
+            <span className="text-muted-foreground">from last month</span>
           </div>
-          <span className="text-muted-foreground">from last month</span>
-        </div>
+        )}
       </div>
     </div>
   );

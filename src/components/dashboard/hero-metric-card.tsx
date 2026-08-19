@@ -7,8 +7,13 @@ interface OverviewData {
   value: number | string;
   prefix?: string;
   suffix?: string;
-  pcp: string;
+  /** Percent change vs last month. Omit where no period-over-period figure
+   *  exists — the trend pill is hidden instead of showing a fabricated 0%. */
+  pcp?: string;
   icon: LucideIcon | null;
+  /** Replaces the trend row when there is no pcp (e.g. "Completed rentals +
+   *  billing payments"). Ignored when pcp is present. */
+  caption?: string;
 }
 
 /**
@@ -24,7 +29,7 @@ export default function HeroMetricCard({
 }) {
   if (!data) return null;
 
-  const pcpValue = parseFloat(data.pcp);
+  const pcpValue = parseFloat(data.pcp ?? "");
   const isUp = pcpValue > 0;
   const isFlat = pcpValue === 0;
 
@@ -69,27 +74,31 @@ export default function HeroMetricCard({
           />
           {data.suffix || ""}
         </p>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-1 font-semibold",
-              isFlat
-                ? "bg-white/10 text-white/80"
-                : isUp
-                ? "bg-emerald-400/15 text-emerald-300"
-                : "bg-primaryRed/20 text-red-300"
-            )}
-          >
-            {!isFlat &&
-              (isUp ? (
-                <TrendingUp size={12} strokeWidth={2} />
-              ) : (
-                <TrendingDown size={12} strokeWidth={2} />
-              ))}
-            {isFlat ? "0%" : data.pcp.replace(/[+-]/g, "")}
-          </span>
-          <span className="text-white/60">from last month</span>
-        </div>
+        {data.pcp !== undefined ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-1 font-semibold",
+                isFlat
+                  ? "bg-white/10 text-white/80"
+                  : isUp
+                  ? "bg-emerald-400/15 text-emerald-300"
+                  : "bg-primaryRed/20 text-red-300"
+              )}
+            >
+              {!isFlat &&
+                (isUp ? (
+                  <TrendingUp size={12} strokeWidth={2} />
+                ) : (
+                  <TrendingDown size={12} strokeWidth={2} />
+                ))}
+              {isFlat ? "0%" : data.pcp.replace(/[+-]/g, "")}
+            </span>
+            <span className="text-white/60">from last month</span>
+          </div>
+        ) : data.caption ? (
+          <p className="text-xs text-white/60">{data.caption}</p>
+        ) : null}
       </div>
     </div>
   );
