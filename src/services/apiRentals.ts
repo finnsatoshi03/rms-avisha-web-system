@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { CreateRentalConsumable } from "../lib/types";
 import { supabase } from "./supabase";
+import { buildClientSearchFilter } from "../lib/client-search";
 import { upsertClient } from "./apiJobOrders";
 import { buildSoftDeleteUpdate } from "./softDelete";
 import { expandClientIdsWithChildren } from "./apiClients";
@@ -94,9 +95,7 @@ export async function getRentalsFiltered({
     const { data: matchingClients, error: clientError } = await supabase
       .from("clients")
       .select("id")
-      .or(
-        `name.ilike.%${term}%,email.ilike.%${term}%,contact_number.ilike.%${term}%`
-      );
+      .or(buildClientSearchFilter(term));
 
     // Search technicians
     const { data: matchingTechnicians, error: techError } = await supabase

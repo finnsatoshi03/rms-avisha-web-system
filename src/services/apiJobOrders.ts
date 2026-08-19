@@ -4,6 +4,7 @@ import { CreateJobOrderData, MaterialItem } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
 import { getServerNow } from "../lib/server-time";
 import { supabase } from "./supabase";
+import { buildClientSearchFilter } from "../lib/client-search";
 import { buildSoftDeleteUpdate } from "./softDelete";
 import { expandClientIdsWithChildren } from "./apiClients";
 
@@ -146,11 +147,7 @@ export async function getJobOrdersFiltered({
     const { data: matchingClients, error: clientError } = await supabase
       .from("clients")
       .select("id")
-      .or(
-        `name.ilike.%${term}%,` +
-          `email.ilike.%${term}%,` +
-          `contact_number.ilike.%${term}%`
-      );
+      .or(buildClientSearchFilter(term));
 
     const { data: matchingTechnicians, error: techError } = await supabase
       .from("users")

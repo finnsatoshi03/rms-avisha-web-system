@@ -1,5 +1,6 @@
 import { getServerNow } from "../lib/server-time";
 import { supabase } from "./supabase";
+import { buildClientSearchFilter } from "../lib/client-search";
 import { CreateQuotationData } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
 import { buildSoftDeleteUpdate } from "./softDelete";
@@ -666,11 +667,7 @@ export async function getQuotationJobOrders({
     const { data: matchingClients, error: clientError } = await supabase
       .from("clients")
       .select("id")
-      .or(
-        `name.ilike.%${term}%,` +
-          `email.ilike.%${term}%,` +
-          `contact_number.ilike.%${term}%`,
-      );
+      .or(buildClientSearchFilter(term));
 
     if (clientError) {
       console.error("Error searching clients:", clientError);

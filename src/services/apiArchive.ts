@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
 import { supabase } from "./supabase";
+import { buildClientSearchFilter } from "../lib/client-search";
 import {
   buildSoftDeleteUpdate,
   RESTORE_SOFT_DELETE_UPDATE,
@@ -149,9 +150,7 @@ export async function getArchivedJobOrdersFiltered({
     const { data: matchingClients } = await supabase
       .from("clients")
       .select("id")
-      .or(
-        `name.ilike.%${term}%,email.ilike.%${term}%,contact_number.ilike.%${term}%`
-      );
+      .or(buildClientSearchFilter(term));
 
     const clientIds = await expandClientIdsWithChildren(
       (matchingClients ?? []).map((client) => client.id)
@@ -235,9 +234,7 @@ export async function getArchivedRentalsFiltered({
     const { data: matchingClients } = await supabase
       .from("clients")
       .select("id")
-      .or(
-        `name.ilike.%${term}%,email.ilike.%${term}%,contact_number.ilike.%${term}%`
-      );
+      .or(buildClientSearchFilter(term));
 
     const clientIds = await expandClientIdsWithChildren(
       (matchingClients ?? []).map((client) => client.id)
@@ -340,9 +337,7 @@ export async function getArchivedQuotationsFiltered({
     const { data: matchingClients } = await supabase
       .from("clients")
       .select("id")
-      .or(
-        `name.ilike.%${term}%,email.ilike.%${term}%,contact_number.ilike.%${term}%`
-      );
+      .or(buildClientSearchFilter(term));
 
     const matchingClientIds = await expandClientIdsWithChildren(
       (matchingClients ?? []).map((client) => client.id)
