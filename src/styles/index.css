@@ -358,14 +358,124 @@ label {
   list-style-type: none !important;
 }
 
-::-webkit-scrollbar {
-  width: 3px;
+/* ---------------------------------------------------------------------------
+   Scrollbars — one design everywhere (page, panels, sheets, dialogs, tables).
+   A 14px gutter holds an 8px rounded thumb: the 3px transparent border is
+   clipped to the padding box so the thumb reads thin while the hit area stays
+   comfortable. Firefox gets the same colours through `scrollbar-color`, which
+   is the closest native equivalent (`thin` ~ the same footprint).
+--------------------------------------------------------------------------- */
+:root {
+  --scrollbar-size: 14px;
+  --scrollbar-thumb: 222 22% 11%;
+  --scrollbar-thumb-opacity: 0.2;
+  --scrollbar-thumb-opacity-hover: 0.35;
 }
-::-webkit-scrollbar-track {
+
+.dark {
+  --scrollbar-thumb: 220 20% 96%;
+  --scrollbar-thumb-opacity: 0.22;
+  --scrollbar-thumb-opacity-hover: 0.4;
+}
+
+/* Firefox only. Chromium 121+ drops every ::-webkit-scrollbar rule on any
+   element that sets `scrollbar-width`/`scrollbar-color` and falls back to the
+   native Fluent bar (arrow buttons, width capped at `thin`), so these must NOT
+   reach WebKit/Blink — hence the @supports guard. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(
+        var(--scrollbar-thumb) / var(--scrollbar-thumb-opacity)
+      )
+      transparent;
+  }
+}
+
+/* WebKit / Blink (Chrome, Edge, Safari, Electron) */
+::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
   background: transparent;
 }
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-track-piece,
+::-webkit-scrollbar-corner {
+  background: transparent;
+  border: none;
+}
+/* Kill the stepper arrows Windows/Linux WebKit would otherwise draw */
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(155, 155, 155, 0.5);
-  border-radius: 20px;
-  border: transparent;
+  background-color: hsl(var(--scrollbar-thumb) / var(--scrollbar-thumb-opacity));
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 9999px;
+  min-height: 40px;
+  transition: background-color 150ms ease;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(
+    var(--scrollbar-thumb) / var(--scrollbar-thumb-opacity-hover)
+  );
+}
+::-webkit-scrollbar-thumb:active {
+  background-color: hsl(var(--scrollbar-thumb) / 0.5);
+}
+::-webkit-scrollbar-thumb:horizontal {
+  min-height: 0;
+  min-width: 40px;
+}
+
+/* Sheets, dialogs and popovers sit on rounded surfaces: keep the thumb clear
+   of the corner radius so it never bleeds past the panel edge. */
+[data-radix-popper-content-wrapper] *::-webkit-scrollbar-thumb,
+[role="dialog"] *::-webkit-scrollbar-thumb,
+[role="dialog"]::-webkit-scrollbar-thumb {
+  border-width: 4px;
+}
+
+@layer utilities {
+  /* Opt out entirely (carousels, chip rows, anything scrolled by gesture) */
+  .scrollbar-none {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  /* Reserve the gutter so content does not shift when the bar appears */
+  .scrollbar-stable {
+    scrollbar-gutter: stable;
+  }
+
+  /* Fade the thumb in on hover for dense, low-chrome surfaces */
+  @supports not selector(::-webkit-scrollbar) {
+    .scrollbar-on-hover {
+      scrollbar-color: transparent transparent;
+    }
+    .scrollbar-on-hover:hover,
+    .scrollbar-on-hover:focus-within {
+      scrollbar-color: hsl(
+          var(--scrollbar-thumb) / var(--scrollbar-thumb-opacity)
+        )
+        transparent;
+    }
+  }
+  .scrollbar-on-hover::-webkit-scrollbar-thumb {
+    background-color: transparent;
+  }
+  .scrollbar-on-hover:hover::-webkit-scrollbar-thumb,
+  .scrollbar-on-hover:focus-within::-webkit-scrollbar-thumb {
+    background-color: hsl(
+      var(--scrollbar-thumb) / var(--scrollbar-thumb-opacity)
+    );
+  }
 }
