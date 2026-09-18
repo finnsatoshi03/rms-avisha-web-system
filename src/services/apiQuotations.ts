@@ -14,6 +14,15 @@ type UserEmailShape = {
   migrated_email?: string | null;
 };
 
+export async function isQuotationNumberAvailable(quoteNo: string, quotationId?: number) {
+  let query = supabase.from("quotations").select("id").eq("quote_no", quoteNo.trim());
+  if (quotationId) query = query.neq("id", quotationId);
+  // Archived quotations also retain their unique numbers in the database.
+  const { data, error } = await query.limit(1);
+  if (error) throw new Error("Could not check the quotation number.");
+  return !data?.length;
+}
+
 export type QuotationEmailLog = {
   id: string;
   recipient: string;
@@ -300,34 +309,8 @@ export async function updateQuotation(
   const finalQuotation: Record<string, unknown> = { ...quotation };
   delete finalQuotation.branch;
 
-  const hasPricingInput =
-    quotation.subtotal !== undefined ||
-    quotation.discount !== undefined ||
-    downpayment !== undefined ||
-    quotation.labor_rate !== undefined ||
-    laborAmount !== undefined ||
-    quotation.service_fee !== undefined ||
-    quotation_items !== undefined;
-
-  if (hasPricingInput) {
-    const normalizedTotals = withComputedQuotationTotals({
-      subtotal: quotation.subtotal,
-      discount: quotation.discount,
-      downpayment,
-      labor_rate: quotation.labor_rate,
-      amount: laborAmount,
-      service_fee: quotation.service_fee,
-      total_quote: quotation.total_quote,
-      quotation_items: quotation_items || [],
-    });
-
-    finalQuotation.subtotal = normalizedTotals.subtotal;
-    finalQuotation.discount = normalizedTotals.discount;
-    finalQuotation.downpayment = normalizedTotals.downpayment;
-    finalQuotation.labor_rate = normalizedTotals.labor_rate;
-    finalQuotation.service_fee = normalizedTotals.service_fee;
-    finalQuotation.total_quote = normalizedTotals.total_quote;
-  }
+  if (downpayment !== undefined) finalQuotation.downpayment = downpayment;
+  if (laborAmount !== undefined) finalQuotation.amount = laborAmount;
 
   if (
     !auto_generate_quote_no &&
@@ -337,61 +320,23 @@ export async function updateQuotation(
     // Use manual quote number
     finalQuotation.quote_no = manual_quote_no.trim();
   }
-  // If auto_generate_quote_no is true, don't update the quote_no (keep existing)
+  // Auto-numbering only applies on creation; editing must preserve identity.
+  if (auto_generate_quote_no) delete finalQuotation.quote_no;
 
-  // Update the quotation
-  const { data: quotationResult, error: quotationError } = await supabase
-    .from("quotations")
-    .update(finalQuotation)
-    .eq("id", quotationId)
-    .is("deleted_at", null)
-    .select(
-      `
-      *,
-      joborders:job_order_id (order_no, downpayment)
-    `,
-    )
-    .single();
-
-  if (quotationError) {
-    console.error("Error updating quotation:", quotationError);
-    throw new Error("Failed to update quotation");
-  }
-
-  // Update quotation items if provided
-  if (quotation_items) {
-    // Delete existing items
-    await supabase
-      .from("quotation_items")
-      .delete()
-      .eq("quotation_id", quotationId);
-
-    // Insert new items
-    if (quotation_items.length > 0) {
-      const itemsWithQuotationId = quotation_items.map((item) => ({
-        ...item,
-        quotation_id: quotationId,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from("quotation_items")
-        .insert(itemsWithQuotationId);
-
-      if (itemsError) {
-        console.error("Error updating quotation items:", itemsError);
-        throw new Error("Failed to update quotation items");
-      }
-    }
-  }
-
-  // Add job_order_no to the response
-  const normalizedQuotationResult = normalizeQuotationFinancials({
-    ...quotationResult,
-    quotation_items: quotation_items || [],
+  const { data: quotationResult, error } = await supabase.rpc("update_quotation_atomic", {
+    p_quotation_id: quotationId,
+    p_changes: finalQuotation,
+    p_items: quotation_items ?? null,
   });
-
+  if (error) {
+    if (error.code === "23505") {
+      throw new Error("Another quotation uses this number. Change the number and try again.");
+    }
+    throw new Error("Quotation changes could not be saved. Your existing quotation is unchanged. Please try again.");
+  }
+  const normalized = normalizeQuotationFinancials(quotationResult);
   return {
-    ...normalizedQuotationResult,
+    ...normalized,
     job_order_no: quotationResult.joborders?.order_no || null,
   };
 }

@@ -236,7 +236,8 @@ export function withComputedQuotationTotals<T extends QuotationFinancialShape>(
     total_quote: quotation.total_quote,
     downpayment: quotation.downpayment,
     quotation_items: quotation.quotation_items,
-    material_total: quotation.subtotal,
+    // An explicit empty list means all items were removed, not missing legacy data.
+    material_total: quotation.quotation_items != null ? undefined : quotation.subtotal,
     include_manual_items:
       options?.include_manual_items ??
       (quotation.include_manual_items ?? true),

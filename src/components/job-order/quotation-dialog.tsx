@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { createQuotationSchema, QuotationFormData } from "../../lib/quotation-schema";
+import { isQuotationNumberAvailable } from "../../services/apiQuotations";
 import { Plus, Trash, Clock, X, Check, ChevronsUpDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getMaterialStocks } from "../../services/apiMaterials";
@@ -47,97 +48,19 @@ import {
 } from "../../lib/types";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import { cn } from "../../lib/utils";
-import { supabase } from "../../services/supabase";
+
 import {
   computeQuotationTotal,
   resolveQuotationDownpayment,
 } from "../../lib/quotation-totals";
 import { getServerNow } from "../../lib/server-time";
 
-const quotationItemSchema = z
-  .object({
-    description: z.string().min(1, "Description is required"),
-    qty: z.number().min(1, "Quantity must be at least 1"),
-    unit_price: z.number().min(0, "Unit price must be non-negative"),
-    amount: z.number().min(0, "Amount must be non-negative"),
-    material_id: z.string().optional(),
-    is_manual: z.boolean().optional(),
-  })
-  .refine(
-    (data) => {
-      // If it's manual, material_id is optional, otherwise it's required
-      if (data.is_manual) {
-        return true; // Manual items don't need material_id
-      }
-      return data.material_id && data.material_id.trim() !== "";
-    },
-    {
-      message: "Please select an inventory item or enable manual input",
-      path: ["material_id"],
-    }
-  );
-
-// Function to validate quote number uniqueness
-const validateQuoteNumberUniqueness = async (
-  quoteNo: string
-): Promise<boolean> => {
-  if (!quoteNo || quoteNo.trim() === "") return true; // Empty is valid (will be auto-generated)
-
-  try {
-    const { data, error } = await supabase
-      .from("quotations")
-      .select("quote_no")
-      .eq("quote_no", quoteNo.trim())
-      .single();
-
-    if (error && error.code === "PGRST116") {
-      // No rows found - quote number is unique
-      return true;
-    }
-
-    if (data) {
-      // Quote number already exists
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error("Error validating quote number:", error);
-    return false;
-  }
-};
-
-const quotationSchema = z.object({
-  company: z.string().optional(),
-  address: z.string().optional(),
-  validity_months: z.number().min(1, "Validity period is required"),
-  labor_rate: z.number().min(0, "Labor rate must be non-negative"),
-  amount: z.number().min(0, "Amount must be non-negative"),
-  note: z.string().optional(),
-  quotation_items: z.array(quotationItemSchema).optional(),
-  auto_generate_quote_no: z.boolean().default(true),
-  manual_quote_no: z
-    .string()
-    .optional()
-    .refine(
-      async (value) => {
-        if (!value || value.trim() === "") return true;
-        return await validateQuoteNumberUniqueness(value);
-      },
-      {
-        message:
-          "Quote number already exists. Please choose a different number.",
-      }
-    ),
-});
-
-type QuotationFormData = z.infer<typeof quotationSchema>;
-
 interface QuotationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (quotationData: CreateQuotationData) => void;
   initialData?: Partial<CreateQuotationData>;
+  quotationId?: number;
   clientData?: {
     name: string;
     contact_number: string;
@@ -327,6 +250,7 @@ export default function QuotationDialog({
   onOpenChange,
   onSave,
   initialData,
+  quotationId,
   clientData,
   onClientDataChange,
   jobOrderMaterials = [],
@@ -366,9 +290,9 @@ export default function QuotationDialog({
   );
   const [downpaymentError, setDownpaymentError] = useState<string | null>(null);
   const [laborRate, setLaborRate] = useState(
-    initialData?.labor_rate || jobOrderRate || 0
+    initialData?.labor_rate ?? jobOrderRate ?? 0
   );
-  const [amount, setAmount] = useState(initialData?.amount || jobOrderAmount || 0);
+  const [amount, setAmount] = useState(initialData?.amount ?? jobOrderAmount ?? 0);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [isManualRate, setIsManualRate] = useState(isManualRateMode);
   const [validityMonths, setValidityMonths] = useState(
@@ -388,18 +312,15 @@ export default function QuotationDialog({
     }
   );
 
-  // Ref to prevent infinite sync loops
-  const isSyncingRef = useRef(false);
+  const [isEditingQuoteNumber, setIsEditingQuoteNumber] = useState(false);
 
   const updateDiscountValue = useCallback(
     (nextDiscount: number) => {
       const normalizedDiscount = Math.max(Number(nextDiscount || 0), 0);
       setDiscount(normalizedDiscount);
-      if (onDiscountChange) {
-        onDiscountChange(normalizedDiscount);
-      }
+
     },
-    [onDiscountChange]
+    []
   );
 
   // Branch validation - use the selected branch from job order form
@@ -419,16 +340,9 @@ export default function QuotationDialog({
     queryFn: () => getMaterialStocks({ fetchAll: false }),
   });
 
-  // Update editedClientData when clientData prop changes
-  useEffect(() => {
-    if (clientData) {
-      setEditedClientData(clientData);
-    }
-  }, [clientData]);
-
   const buildInitialQuotationItems = useCallback(
     (itemsFromInitialData?: QuotationItem[]) => {
-      if (itemsFromInitialData && itemsFromInitialData.length > 0) {
+      if (itemsFromInitialData !== undefined) {
         return itemsFromInitialData.map((item) => ({
           ...item,
           is_manual: item.is_manual ?? false,
@@ -464,13 +378,13 @@ export default function QuotationDialog({
   };
 
   const form = useForm<QuotationFormData>({
-    resolver: zodResolver(quotationSchema),
+    resolver: zodResolver(createQuotationSchema(isQuotationNumberAvailable, quotationId, initialData?.quote_no)),
     defaultValues: {
       company: initialData?.company || "",
       address: initialData?.address || "",
       validity_months: jobOrderWarrantyMonths ?? 1,
-      labor_rate: initialData?.labor_rate || jobOrderRate || 0,
-      amount: initialData?.amount || jobOrderAmount || 0,
+      labor_rate: initialData?.labor_rate ?? jobOrderRate ?? 0,
+      amount: initialData?.amount ?? jobOrderAmount ?? 0,
       note: initialData?.note || "",
       quotation_items: createInitialQuotationItems(),
       auto_generate_quote_no:
@@ -479,7 +393,7 @@ export default function QuotationDialog({
     },
   });
 
-  const { fields, append, remove, replace } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "quotation_items",
   });
@@ -512,9 +426,7 @@ export default function QuotationDialog({
 
     setDownpaymentError(null);
     setDownpayment(normalizedDownpayment);
-    if (onDownpaymentChange) {
-      onDownpaymentChange(normalizedDownpayment);
-    }
+
     return true;
   };
 
@@ -536,6 +448,10 @@ export default function QuotationDialog({
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
+      setIsEditingQuoteNumber(false);
+      setIsManualRate(isManualRateMode);
+      setSavedFixedRate(jobOrderRate);
+      setEditedClientData(clientData || { name: "", contact_number: "", email: "", brand_model: "", serial_number: "", machine_type: "", problem_statement: "" });
       const initialDiscount = Number(
         jobOrderDiscount ?? initialData?.discount ?? 0
       );
@@ -546,9 +462,9 @@ export default function QuotationDialog({
         ) ?? 0
       );
       const initialLaborRate = Number(
-        initialData?.labor_rate || jobOrderRate || 0
+        initialData?.labor_rate ?? jobOrderRate ?? 0
       );
-      const initialAmount = Number(initialData?.amount || jobOrderAmount || 0);
+      const initialAmount = Number(initialData?.amount ?? jobOrderAmount ?? 0);
       const initialValidityMonths = Number(jobOrderWarrantyMonths ?? 1);
       const initialItems = buildInitialQuotationItems(
         initialData?.quotation_items as QuotationItem[] | undefined
@@ -594,140 +510,9 @@ export default function QuotationDialog({
     jobOrderWarrantyMonths,
     jobOrderRate,
     jobOrderAmount,
+    clientData,
+    isManualRateMode,
     form,
-  ]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const normalizedDiscount = Number(jobOrderDiscount || 0);
-    if (normalizedDiscount !== discount) {
-      setDiscount(normalizedDiscount);
-    }
-  }, [open, jobOrderDiscount, discount]);
-
-  useEffect(() => {
-    if (!open || initialData?.downpayment !== undefined) return;
-
-    const normalizedDownpayment = Number(jobOrderDownpayment || 0);
-    if (normalizedDownpayment !== downpayment) {
-      setDownpayment(normalizedDownpayment);
-      setDownpaymentError(null);
-    }
-    if (normalizedDownpayment > 0) {
-      setDownpaymentInputVisible(true);
-    }
-  }, [open, initialData?.downpayment, jobOrderDownpayment, downpayment]);
-
-  // Sync labor rate and amount with job order
-  useEffect(() => {
-    if (jobOrderRate !== undefined && jobOrderRate !== laborRate) {
-      setLaborRate(jobOrderRate);
-      form.setValue("labor_rate", jobOrderRate);
-    }
-  }, [jobOrderRate, laborRate, form]);
-
-  useEffect(() => {
-    if (jobOrderAmount !== undefined && jobOrderAmount !== amount) {
-      setAmount(jobOrderAmount);
-      form.setValue("amount", jobOrderAmount);
-    }
-  }, [jobOrderAmount, amount, form]);
-
-  // Sync manual rate mode from job order form
-  useEffect(() => {
-    if (isManualRateMode !== isManualRate) {
-      setIsManualRate(isManualRateMode);
-    }
-  }, [isManualRateMode, isManualRate]);
-
-  // Sync warranty/validity months from job order to quotation (Job Order -> Quotation)
-  useEffect(() => {
-    const currentValidityMonths = form.getValues("validity_months");
-    if (
-      jobOrderWarrantyMonths !== undefined &&
-      jobOrderWarrantyMonths !== currentValidityMonths
-    ) {
-      setValidityMonths(jobOrderWarrantyMonths);
-      form.setValue("validity_months", jobOrderWarrantyMonths);
-    }
-  }, [jobOrderWarrantyMonths, form]);
-
-  // Bidirectional sync with conflict prevention
-  useEffect(() => {
-    if (!open) return;
-
-    console.log(
-      "Quotation dialog received jobOrderMaterials:",
-      jobOrderMaterials
-    );
-    console.log("isSyncingRef.current:", isSyncingRef.current);
-
-    if (isSyncingRef.current) {
-      console.log("Skipping sync - already syncing");
-      return; // Prevent infinite loops
-    }
-    if (!jobOrderMaterials) {
-      console.log("Skipping sync - no material payload");
-      return;
-    }
-
-    console.log("Starting sync from job order to quotation");
-
-    // Debounce the sync to prevent conflicts with user input
-    const timeoutId = setTimeout(() => {
-      // Get current quotation items to preserve manual items
-      const currentItems = form.getValues("quotation_items") || [];
-
-      // Preserve manual items and in-progress inventory rows (no material_id yet)
-      const manualItems = currentItems.filter((item) => item.is_manual);
-      const draftInventoryItems = currentItems.filter(
-        (item) => !item.is_manual && !item.material_id
-      );
-
-      // Convert job order materials to quotation items (inventory only)
-      const inventoryItems: QuotationItem[] = jobOrderMaterials
-        .filter((material) => material.material_id)
-        .map((material) => ({
-          description: material.material,
-          qty: material.quantity,
-          unit_price: material.unitPrice,
-          amount: material.quantity * material.unitPrice,
-          material_id: material.material_id,
-          is_manual: false, // Items from job order are inventory-based
-        }));
-
-      // Combine preserved draft rows with updated inventory items from JO
-      const updatedItems = [...manualItems, ...draftInventoryItems, ...inventoryItems];
-
-      console.log("Preserving manual items:", manualItems);
-      console.log("Preserving draft inventory items:", draftInventoryItems);
-      console.log("Adding inventory items:", inventoryItems);
-      console.log("Combined quotation items:", updatedItems);
-
-      // Set sync flag
-      isSyncingRef.current = true;
-
-      // Update quotation items with combined items (manual + inventory)
-      replace(updatedItems);
-      form.setValue("quotation_items", updatedItems);
-
-      console.log("Quotation dialog updated with preserved manual items");
-
-      // Reset sync flag after a short delay
-      setTimeout(() => {
-        isSyncingRef.current = false;
-        console.log("Sync flag reset");
-      }, 100);
-    }, 300); // 300ms debounce
-
-    return () => clearTimeout(timeoutId);
-  }, [
-    open,
-    jobOrderMaterials,
-    form,
-    replace,
-    initialData?.quotation_items,
   ]);
 
   useEffect(() => {
@@ -742,7 +527,7 @@ export default function QuotationDialog({
       return;
     }
 
-    setDownpaymentStrict(maxDownpayment);
+    setDownpaymentError("Downpayment exceeds the revised total. Review the downpayment before applying changes.");
   }, [open, downpayment, quotationTotals.total_before_downpayment]);
 
   const handleItemChange = (
@@ -774,9 +559,6 @@ export default function QuotationDialog({
     if (field === "qty" || field === "unit_price") {
       form.setValue(`quotation_items.${index}.amount`, items[index].amount);
     }
-
-    // Sync materials back to job order form
-    handleMaterialsChange(items);
   };
 
   const handleAddItem = () => {
@@ -791,14 +573,7 @@ export default function QuotationDialog({
   };
 
   const handleRemoveItem = (index: number) => {
-    if ((fields || []).length > 1) {
-      remove(index);
-      // Sync materials after removing
-      setTimeout(() => {
-        const currentItems = form.getValues("quotation_items");
-        handleMaterialsChange(currentItems || []);
-      }, 0);
-    }
+    remove(index);
   };
 
   const handleInventorySelection = (index: number, materialId: string) => {
@@ -822,12 +597,6 @@ export default function QuotationDialog({
       const currentQty = form.getValues(`quotation_items.${index}.qty`) || 1;
       const newAmount = currentQty * selectedMaterial.price;
       form.setValue(`quotation_items.${index}.amount`, newAmount);
-
-      // Sync with latest quotation item values
-      const items = form.getValues("quotation_items") || [];
-
-      // Sync materials back to job order form
-      handleMaterialsChange(items);
     }
   };
 
@@ -847,10 +616,6 @@ export default function QuotationDialog({
       form.setValue(`quotation_items.${index}.amount`, 0);
     }
 
-    const items = form.getValues("quotation_items") || [];
-
-    // Sync materials back to job order form
-    handleMaterialsChange(items);
   };
 
   const handleSelectDiscount = (discount: number) => {
@@ -865,9 +630,6 @@ export default function QuotationDialog({
     if (rawValue === "") {
       setDownpaymentError(null);
       setDownpayment(0);
-      if (onDownpaymentChange) {
-        onDownpaymentChange(0);
-      }
       return;
     }
 
@@ -881,6 +643,11 @@ export default function QuotationDialog({
   };
 
   const getValidityEndDate = (months: number) => {
+    if (quotationId && initialData?.end_date && !form.getFieldState("validity_months").isDirty) {
+      return new Date(`${initialData.end_date}T00:00:00`).toLocaleDateString("en-US", {
+        year: "numeric", month: "long", day: "numeric",
+      });
+    }
     const endDate = getServerNow();
     endDate.setMonth(endDate.getMonth() + months);
     return endDate.toLocaleDateString("en-US", {
@@ -896,18 +663,12 @@ export default function QuotationDialog({
       ...prev,
       [field]: value,
     }));
-    // Immediately update the parent form
-    if (onClientDataChange) {
-      const updatedData = { ...editedClientData, [field]: value };
-      onClientDataChange(updatedData);
-    }
+
   };
 
   const handleMaterialsChange = (
     updatedMaterials: QuotationItem[] | undefined
   ) => {
-    // Prevent infinite loops
-    if (isSyncingRef.current) return;
 
     console.log(
       "Quotation dialog syncing materials to job order:",
@@ -966,9 +727,11 @@ export default function QuotationDialog({
     console.log("Final:", computedTotals.grand_total);
 
     const quotationData: CreateQuotationData = {
-      quote_no: data.auto_generate_quote_no ? "" : data.manual_quote_no || "", // Empty string for auto-generation, manual value otherwise
-      job_order_id: 0, // Will be set when job order is created
-      end_date: endDate.toISOString().split("T")[0],
+      quote_no: data.auto_generate_quote_no ? initialData?.quote_no || "" : data.manual_quote_no?.trim() || "",
+      job_order_id: initialData?.job_order_id || 0,
+      end_date: quotationId && !form.getFieldState("validity_months").isDirty
+        ? initialData?.end_date || endDate.toISOString().split("T")[0]
+        : endDate.toISOString().split("T")[0],
       company: data.company || "",
       address: data.address || "",
       note: data.note || "",
@@ -990,7 +753,13 @@ export default function QuotationDialog({
       (item) => !item.is_manual && item.material_id && item.material_id !== ""
     );
     handleMaterialsChange(inventoryItems);
-
+    onClientDataChange?.(editedClientData);
+    onLaborRateChange?.(data.labor_rate);
+    onAmountChange?.(data.amount);
+    onRateModeChange?.(isManualRate);
+    onWarrantyMonthsChange?.(data.validity_months);
+    onDiscountChange?.(discount);
+    onDownpaymentChange?.(downpayment);
     onSave(quotationData);
     onOpenChange(false); // Close the dialog after saving
   };
@@ -1003,7 +772,9 @@ export default function QuotationDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      if (!form.formState.isSubmitting) onOpenChange(nextOpen);
+    }}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-bold">
@@ -1011,10 +782,11 @@ export default function QuotationDialog({
               ? `Edit Quotation #${initialData.quote_no}`
               : "Create Quotation"}
           </DialogTitle>
+          <p className="text-sm text-muted-foreground">Edit items and review the total, then apply your changes. Save the job order to finish.</p>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={(event) => { event.stopPropagation(); void form.handleSubmit(onSubmit)(event); }} className="space-y-6">
             {/* Header with date */}
             <div className="flex flex-wrap gap-2 mb-4">
               <div className="px-3 py-1 bg-gray-200 rounded-full text-gray-600 text-xs w-fit flex items-center gap-1">
@@ -1262,16 +1034,10 @@ export default function QuotationDialog({
                               className="group-data-[state=checked]:text-muted-foreground/70 cursor-pointer text-right text-xs font-medium"
                               onClick={() => {
                                 setIsManualRate(false);
-                                if (onRateModeChange) {
-                                  onRateModeChange(false);
-                                }
                                 // Restore saved fixed rate
                                 if (savedFixedRate) {
                                   field.onChange(savedFixedRate);
                                   setLaborRate(savedFixedRate);
-                                  if (onLaborRateChange) {
-                                    onLaborRateChange(savedFixedRate);
-                                  }
                                 }
                               }}
                             >
@@ -1281,16 +1047,10 @@ export default function QuotationDialog({
                               checked={isManualRate}
                               onCheckedChange={(checked) => {
                                 setIsManualRate(checked);
-                                if (onRateModeChange) {
-                                  onRateModeChange(checked);
-                                }
                                 // When switching to fixed, restore saved rate
                                 if (!checked && savedFixedRate) {
                                   field.onChange(savedFixedRate);
                                   setLaborRate(savedFixedRate);
-                                  if (onLaborRateChange) {
-                                    onLaborRateChange(savedFixedRate);
-                                  }
                                 }
                               }}
                             />
@@ -1298,9 +1058,6 @@ export default function QuotationDialog({
                               className="group-data-[state=unchecked]:text-muted-foreground/70 cursor-pointer text-left text-xs font-medium"
                               onClick={() => {
                                 setIsManualRate(true);
-                                if (onRateModeChange) {
-                                  onRateModeChange(true);
-                                }
                               }}
                             >
                               Manual
@@ -1315,9 +1072,6 @@ export default function QuotationDialog({
                                 setLaborRate(rateValue);
                                 setSavedFixedRate(rateValue);
                                 // Sync back to job order form
-                                if (onLaborRateChange) {
-                                  onLaborRateChange(rateValue);
-                                }
                               }}
                             >
                               <FormControl>
@@ -1359,9 +1113,6 @@ export default function QuotationDialog({
                                   field.onChange(rateValue);
                                   setLaborRate(rateValue);
                                   // Sync back to job order form
-                                  if (onLaborRateChange) {
-                                    onLaborRateChange(rateValue);
-                                  }
                                 }}
                               />
                             </FormControl>
@@ -1397,9 +1148,6 @@ export default function QuotationDialog({
                                 field.onChange(amountValue);
                                 setAmount(amountValue);
                                 // Sync back to job order form
-                                if (onAmountChange) {
-                                  onAmountChange(amountValue);
-                                }
                               }}
                             />
                           </FormControl>
@@ -1423,9 +1171,6 @@ export default function QuotationDialog({
                             field.onChange(months);
                             setValidityMonths(months);
                             // Sync back to job order form (Quotation -> Job Order)
-                            if (onWarrantyMonthsChange) {
-                              onWarrantyMonthsChange(months);
-                            }
                           }}
                           value={field.value !== undefined ? field.value.toString() : "1"}
                         >
@@ -1460,9 +1205,15 @@ export default function QuotationDialog({
 
                 {/* Quote Number Section */}
                 <div className="border-b py-2">
+                  {quotationId && !isEditingQuoteNumber ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <div><p className="text-sm font-medium">Quotation number</p><p className="text-sm">#{initialData?.quote_no}</p><p className="text-xs text-muted-foreground">Kept when you edit this quotation.</p></div>
+                      <Button type="button" variant="link" size="sm" onClick={() => setIsEditingQuoteNumber(true)}>Change number</Button>
+                    </div>
+                  ) : (<>
                   <div className="space-y-0 flex justify-between items-center w-full mb-2">
                     <FormLabel>Quote Number</FormLabel>
-                    <div className="flex items-center gap-2">
+                    {!quotationId && <div className="flex items-center gap-2">
                       <FormField
                         control={form.control}
                         name="auto_generate_quote_no"
@@ -1484,7 +1235,7 @@ export default function QuotationDialog({
                           </FormItem>
                         )}
                       />
-                    </div>
+                    </div>}
                   </div>
 
                   {form.watch("auto_generate_quote_no") ? (
@@ -1524,6 +1275,7 @@ export default function QuotationDialog({
                       )}
                     />
                   )}
+                  </>)}
                 </div>
 
                 <FormField
@@ -1560,6 +1312,12 @@ export default function QuotationDialog({
                 <h2 className="text-sm">Unit Price</h2>
                 <h2 className="text-sm">Amount</h2>
                 <h2></h2>
+
+                {fields.length === 0 && (
+                  <p className="col-span-6 py-3 text-sm text-muted-foreground">
+                    No materials added. This quotation includes labor only.
+                  </p>
+                )}
 
                 {(fields || []).map((field, index) => (
                   <React.Fragment key={field.id}>
@@ -1717,7 +1475,7 @@ export default function QuotationDialog({
                       size="icon"
                       className="text-xs p-2 h-fit self-center w-fit justify-self-center"
                       onClick={() => handleRemoveItem(index)}
-                      disabled={(fields || []).length === 1}
+                      aria-label={`Remove ${watchedItems[index]?.description || "item"}`}
                     >
                       <Trash size={12} strokeWidth={1.5} />
                     </Button>
@@ -1846,17 +1604,21 @@ export default function QuotationDialog({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex justify-end gap-3">
+            <div className="sticky -bottom-6 -mx-6 border-t bg-background px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm"><span className="text-muted-foreground">Quotation total</span><p className="font-semibold">₱{formatNumberWithCommas(totalQuote)}</p></div>
+              <div className="flex gap-3">
               <Button
                 type="button"
                 variant="outline"
+                disabled={form.formState.isSubmitting}
                 onClick={() => onOpenChange(false)}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={Boolean(downpaymentError)}>
-                Save Quotation
+              <Button type="submit" disabled={Boolean(downpaymentError) || form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Checking…" : quotationId ? "Apply Quotation Changes" : "Add Quotation to Job Order"}
               </Button>
+              </div>
             </div>
           </form>
         </Form>

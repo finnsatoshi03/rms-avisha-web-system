@@ -419,6 +419,9 @@ export default function JobOrderForm({
   const [quotationData, setQuotationData] =
     useState<CreateQuotationData | null>(null);
   const [isCreatingQuotation, setIsCreatingQuotation] = useState(false);
+  const [isSavingEditedOrder, setIsSavingEditedOrder] = useState(false);
+  const [quotationSaveError, setQuotationSaveError] = useState<string | null>(null);
+  const [pendingQuotationDownpayment, setPendingQuotationDownpayment] = useState<number | null>(null);
   const [printSelectionDialogOpen, setPrintSelectionDialogOpen] =
     useState(false);
   const [quotationPrintDialogOpen, setQuotationPrintDialogOpen] =
@@ -630,6 +633,7 @@ export default function JobOrderForm({
     [quotationEmailLogs],
   );
   const displayedExistingQuotationTotal = useMemo(() => {
+    if (isCreatingQuotation && quotationData) return quotationData.total_quote;
     const quotation = existingQuotations?.[0];
     if (!quotation) return 0;
 
@@ -658,12 +662,14 @@ export default function JobOrderForm({
     }).total_quote;
   }, [
     existingQuotations,
+    isCreatingQuotation,
+    quotationData,
     selectedDiscount,
     editValues.discount,
     editValues.downpayment,
   ]);
 
-  const isPending = isCreating || isEditing || materialStocksLoading;
+  const isPending = isCreating || isEditing || isSavingEditedOrder || materialStocksLoading;
 
   // Focus the first editable field once the sheet's open animation settles.
   const formElementRef = useRef<HTMLFormElement>(null);
@@ -697,8 +703,9 @@ export default function JobOrderForm({
 
   const materials = form.watch("materials");
 
-  // Set quotation data when existing quotations are loaded
+  // Preserve prepared edits across background refetches until they are saved.
   useEffect(() => {
+    if (isCreatingQuotation) return;
     if (existingQuotations && existingQuotations.length > 0) {
       // Use the first quotation if multiple exist
       const quotation = existingQuotations[0];
@@ -729,6 +736,9 @@ export default function JobOrderForm({
       setQuotationData({
         job_order_id: editId!,
         quote_no: quotation.quote_no,
+        status: quotation.status,
+        is_final: quotation.is_final,
+        is_active: quotation.is_active,
         end_date: quotation.end_date || "",
         company: quotation.company || "",
         address: quotation.address || "",
@@ -750,6 +760,7 @@ export default function JobOrderForm({
     }
   }, [
     existingQuotations,
+    isCreatingQuotation,
     editId,
     selectedDiscount,
     editValues.discount,
@@ -832,6 +843,11 @@ export default function JobOrderForm({
     totalBeforeDownpayment,
     editValues.downpayment || undefined,
   );
+  useEffect(() => {
+    if (pendingQuotationDownpayment === null) return;
+    setDownpaymentValueStrict(pendingQuotationDownpayment);
+    setPendingQuotationDownpayment(null);
+  }, [pendingQuotationDownpayment, setDownpaymentValueStrict]);
   useEffect(() => {
     const quotation = existingQuotations?.[0];
     const quotationId = Number(quotation?.id || 0);
@@ -1660,7 +1676,7 @@ export default function JobOrderForm({
                   material_total: payload.material_total,
                 });
               }
-              toast.success("Job order successfully edited!");
+
               if (options?.closeAfterSuccess !== false && onClose) {
                 onClose();
               }
@@ -1680,7 +1696,7 @@ export default function JobOrderForm({
       const requiresBillingRecalculation =
         isBillingLinked && hasHighImpactJobOrderChanges(submittedValues);
       const syncQuotationForEditedJobOrder = async () => {
-        if (!quotationData || !isCreatingQuotation) return;
+        if (!quotationData || !isCreatingQuotation) return false;
 
         try {
           const sourceDiscount = Number(
@@ -1709,20 +1725,16 @@ export default function JobOrderForm({
             amount: normalizedTotals.amount,
             service_fee: normalizedTotals.service_fee,
             total_quote: normalizedTotals.total_quote,
-            status: "approved" as const,
-            is_final: true,
-            is_active: true,
+            status: quotationData.status ?? "approved" as const,
+            is_final: quotationData.is_final ?? true,
+            is_active: quotationData.is_active ?? true,
           };
 
-          if (existingQuotations && existingQuotations.length > 0) {
+          if (currentQuotationId) {
             const { updateQuotation } =
               await import("../../services/apiQuotations");
-            await updateQuotation(
-              existingQuotations[0].id!,
-              finalQuotationData,
-            );
-            toast.success("Quotation updated successfully!");
-            return;
+            await updateQuotation(currentQuotationId, finalQuotationData);
+            return false;
           }
 
           const { addQuotationToJobOrder } =
@@ -1743,17 +1755,31 @@ export default function JobOrderForm({
           setCloseParentOnQuotationActionDialogClose(true);
           setQuotationEmailError(null);
           setQuotationPrintDialogOpen(true);
+          return true;
         } catch (error) {
           console.error("Error saving quotation:", error);
-          toast.error(
-            "Job order updated but quotation failed. Please create quotation manually.",
-          );
+          const message = `Job order saved, but quotation changes were not saved. ${error instanceof Error ? error.message : "Please try again."}`;
+          setQuotationSaveError(message);
+          throw new Error(message);
         }
       };
 
       const runEditFlow = async (closeAfterSuccess: boolean) => {
-        await submitEditedJobOrder(submittedValues, { closeAfterSuccess });
-        await syncQuotationForEditedJobOrder();
+        setIsSavingEditedOrder(true);
+        setQuotationSaveError(null);
+        try {
+          await submitEditedJobOrder(submittedValues, { closeAfterSuccess: false });
+          const createdQuotation = await syncQuotationForEditedJobOrder();
+          setIsCreatingQuotation(false);
+          setIsFormChanged(false);
+          setInitialFormValues(form.getValues());
+          await queryClient.invalidateQueries({ queryKey: ["quotations"] });
+          await queryClient.invalidateQueries({ queryKey: ["jobOrderQuotations"] });
+          toast.success(isCreatingQuotation ? "Job order and quotation saved." : "Job order saved.");
+          if (closeAfterSuccess && !createdQuotation) onClose?.();
+        } finally {
+          setIsSavingEditedOrder(false);
+        }
       };
 
       if (requiresBillingRecalculation) {
@@ -1764,7 +1790,9 @@ export default function JobOrderForm({
           { closeAfterSuccess: true },
         );
       } else {
-        void runEditFlow(true);
+        void runEditFlow(true).catch((error) => {
+          toast.error(error instanceof Error ? error.message : "Changes could not be saved. Please try again.");
+        });
       }
     } else {
       createJobOrder(submittedValues, {
@@ -1907,8 +1935,8 @@ export default function JobOrderForm({
 
   // Quotation handlers
   const handleCreateQuotation = () => {
-    // If there's an existing quotation, load its data
-    if (existingQuotations && existingQuotations.length > 0) {
+    // Reopening prepared changes must not reload stale persisted items.
+    if (!isCreatingQuotation && existingQuotations && existingQuotations.length > 0) {
       const quotation = existingQuotations[0];
       const laborRate = Number(quotation.labor_rate || 0);
       const serviceFee = Number(quotation.service_fee || 0);
@@ -1936,6 +1964,9 @@ export default function JobOrderForm({
       setQuotationData({
         job_order_id: editId!,
         quote_no: quotation.quote_no,
+        status: quotation.status,
+        is_final: quotation.is_final,
+        is_active: quotation.is_active,
         end_date: quotation.end_date || "",
         company: quotation.company || "",
         address: quotation.address || "",
@@ -1949,7 +1980,6 @@ export default function JobOrderForm({
         total_quote: normalizedTotals.total_quote,
         quotation_items: quotation.quotation_items || [],
       });
-      setIsCreatingQuotation(true);
     }
     setQuotationDialogOpen(true);
   };
@@ -1970,7 +2000,7 @@ export default function JobOrderForm({
       quotation_items: quotation.quotation_items || [],
     });
 
-    // Always set quotations as final
+    // Preserve the existing document status; new quotations retain current defaults.
     const finalQuotation = {
       ...quotation,
       subtotal: normalizedTotals.subtotal,
@@ -1980,13 +2010,17 @@ export default function JobOrderForm({
       amount: normalizedTotals.amount,
       service_fee: normalizedTotals.service_fee,
       total_quote: normalizedTotals.total_quote,
-      status: "approved" as const,
-      is_final: true,
-      is_active: true,
+      status: quotationData?.status ?? "approved" as const,
+      is_final: quotationData?.is_final ?? true,
+      is_active: quotationData?.is_active ?? true,
     };
 
+    setIsEditMode(true);
+    setQuotationSaveError(null);
     setSelectedDiscount(normalizedTotals.discount);
-    setDownpaymentValueStrict(normalizedTotals.downpayment);
+    // Apply after the revised materials/rates have rendered, so validation uses
+    // the new total rather than the previous job-order total.
+    setPendingQuotationDownpayment(normalizedTotals.downpayment);
     setQuotationData(finalQuotation);
     setIsCreatingQuotation(true);
     setQuotationDialogOpen(false);
@@ -2104,7 +2138,9 @@ export default function JobOrderForm({
       quantity: Number(material.quantity || 0),
       unitPrice: Number(material.unitPrice || 0),
       material_id: String(material.material_id || ""),
-      used: false,
+      used: form.getValues("materials")?.find(
+        (existing) => String(existing.material_id) === String(material.material_id),
+      )?.used ?? false,
     }));
 
     replace(normalizedMaterials);
@@ -3150,7 +3186,7 @@ export default function JobOrderForm({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">
-                            Quote #{existingQuotations[0].quote_no}
+                            Quote #{isCreatingQuotation ? quotationData?.quote_no || existingQuotations[0].quote_no : existingQuotations[0].quote_no}
                           </span>
                           {/* Manual items indicator */}
                           {existingQuotations[0].quotation_items?.some(
@@ -3200,7 +3236,7 @@ export default function JobOrderForm({
                       <div className="text-xs text-gray-600">
                         <span>
                           Valid until:{" "}
-                          {formatReadableDate(existingQuotations[0].end_date)}
+                          {formatReadableDate(isCreatingQuotation ? quotationData?.end_date || existingQuotations[0].end_date : existingQuotations[0].end_date)}
                         </span>
                       </div>
                       {canSendQuotationEmail &&
@@ -3212,7 +3248,7 @@ export default function JobOrderForm({
                               size="sm"
                               variant="outline"
                               onClick={openQuotationEmailDialog}
-                              disabled={isSendingQuotationEmail || isPending}
+                              disabled={isSendingQuotationEmail || isPending || isCreatingQuotation}
                               className="text-xs h-7"
                             >
                               {isSendingQuotationEmail ? (
@@ -3234,6 +3270,16 @@ export default function JobOrderForm({
                     </div>
                   )}
 
+                  {isCreatingQuotation && (
+                    <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm" role="status">
+                      <p className="font-medium">Quotation changes ready to save</p>
+                      <p className="mt-1 text-xs">Review your changes, then save the job order and quotation together.</p>
+                      <Button type="submit" size="sm" className="mt-2" disabled={isPending}>
+                        {isPending ? "Saving…" : editSession ? "Save Job Order & Quotation" : "Create Job Order & Quotation"}
+                      </Button>
+                    </div>
+                  )}
+                  {quotationSaveError && <p role="alert" className="mb-3 text-sm text-red-600">{quotationSaveError} Your edits are still available here.</p>}
                   <div className="flex flex-col gap-2">
                     {(!isFormReadonly || quotationData) && (
                       <TooltipProvider delayDuration={100}>
@@ -3255,7 +3301,7 @@ export default function JobOrderForm({
                                 <Plus size={12} strokeWidth={1.5} />
                               )}
                               {quotationData
-                                ? "View/Edit Quotation"
+                                ? "Edit Quotation"
                                 : isCreatingQuotation
                                   ? "Edit Quotation"
                                   : existingQuotations &&
@@ -3623,14 +3669,14 @@ export default function JobOrderForm({
           )}
           <div className="flex md:flex-row flex-col md:justify-between mt-2">
             {!isFormReadonly && (
-              <Button type="submit" disabled={isPending || !isFormChanged}>
+              <Button type="submit" disabled={isPending || (!isFormChanged && !isCreatingQuotation)}>
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     {editSession ? "Updating.." : "Creating.."}
                   </>
                 ) : editSession ? (
-                  "Update Job Order"
+                  isCreatingQuotation ? "Save Job Order & Quotation" : "Update Job Order"
                 ) : (
                   "Create Job Order"
                 )}
@@ -3813,6 +3859,7 @@ export default function JobOrderForm({
         onOpenChange={setQuotationDialogOpen}
         onSave={handleSaveQuotation}
         initialData={quotationData || undefined}
+        quotationId={currentQuotationId ?? undefined}
         clientData={{
           name: form.getValues("name") || "",
           contact_number: form.getValues("contact_number") || "",
@@ -3847,9 +3894,6 @@ export default function JobOrderForm({
           setSelectedDiscount(discount);
         }}
         jobOrderDownpayment={downpaymentValue ?? 0}
-        onDownpaymentChange={(downpayment) => {
-          setDownpaymentValueStrict(downpayment);
-        }}
       />
 
       <PrintSelectionDialog
