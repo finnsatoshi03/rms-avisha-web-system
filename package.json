@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:job-order-statuses": "node --test tests/job-order-statuses.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

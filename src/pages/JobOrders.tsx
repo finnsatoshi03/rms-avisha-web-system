@@ -40,6 +40,10 @@ import {
 } from "../components/ui/popover";
 import ExportDialog from "../components/job-order/export-dialog";
 import BatchDeleteDialog from "../components/job-order/batch-delete-dialog";
+import {
+  ALL_JOB_ORDER_STATUSES,
+  JOB_ORDER_STATUS_PRIORITY as statusPriority,
+} from "../lib/job-order-statuses";
 
 const viewColumns = [
   { key: "created_at", title: "Date" },
@@ -50,21 +54,10 @@ const viewColumns = [
   { key: "completed_at", title: "Completed Date" },
 ];
 
-// Add this after the viewColumns definition
-const allStatuses = [
-  { label: "Quotation", value: "Quotation" },
-  { label: "Pending", value: "Pending" },
-  { label: "For Approval", value: "For Approval" },
-  { label: "Repairing", value: "Repairing" },
-  { label: "Waiting Parts", value: "Waiting Parts" },
-  { label: "On hold", value: "On hold" },
-  { label: "Ready for Pickup", value: "Ready for Pickup" },
-  { label: "For Collection", value: "For Collection" },
-  { label: "For Billing", value: "For Billing" },
-  { label: "Completed", value: "Completed" },
-  { label: "Pull Out", value: "Pull Out" },
-  { label: "Canceled", value: "Canceled" },
-];
+const allStatuses = ALL_JOB_ORDER_STATUSES.map(({ label }) => ({
+  label,
+  value: label,
+}));
 
 // Define the query response type
 interface JobOrderResponse {
@@ -291,21 +284,6 @@ export default function JobOrders() {
   }, [job_orders, sorts]);
 
   const applySorts = (newSorts: Sort[]) => setSorts(newSorts);
-
-  const statusPriority: Record<string, number> = {
-    quotation: 1,
-    pending: 2,
-    "for approval": 3,
-    repairing: 4,
-    "waiting parts": 5,
-    "on hold": 6,
-    "ready for pickup": 7,
-    "for collection": 8,
-    "for billing": 9,
-    completed: 10,
-    "pull out": 11,
-    canceled: 12,
-  };
 
   // Modified sortData function to properly handle nested fields like users.fullname
   const sortData = (data: JobOrderData[] | undefined) => {

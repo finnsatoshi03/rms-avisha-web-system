@@ -18,6 +18,7 @@ import {
 import JobOrderForm from "../components/job-order/job-order-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getQuotationJobOrders } from "../services/apiQuotations";
+import { JOB_ORDER_STATUS_PRIORITY as statusPriority } from "../lib/job-order-statuses";
 import PageSkeleton from "../components/ui/page-skeleton";
 import ErrorBoundary from "../components/error-boundery";
 import { getTechnicians } from "../services/apiTechnicians";
@@ -154,13 +155,6 @@ export default function Quotations() {
   const sortData = useCallback(
     (data: JobOrderData[] | undefined) => {
       if (!data) return [];
-
-      const statusPriority: Record<string, number> = {
-        quotation: 1,
-        "for approval": 2,
-        pending: 3,
-        canceled: 4,
-      };
 
       const sortedData = [...data];
       sorts.forEach((sort) => {

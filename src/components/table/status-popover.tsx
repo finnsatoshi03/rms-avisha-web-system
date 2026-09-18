@@ -32,6 +32,7 @@ import {
 } from "../ui/tooltip";
 import { cn } from "../../lib/utils";
 import { JobOrderData } from "../../lib/types";
+import { JOB_ORDER_STATUS_GROUPS } from "../../lib/job-order-statuses";
 
 export type Status = {
   value: string;
@@ -45,43 +46,33 @@ export type StatusGroup = {
 };
 
 // ── Job Order statuses ──
-export const jobOrderStatusGroups: StatusGroup[] = [
-  {
-    label: "Intake",
-    items: [
-      { value: "pending", label: "Pending", icon: CircleDashed },
-      { value: "for approval", label: "For Approval", icon: CircleDashed },
-    ],
-  },
-  {
-    label: "In Progress",
-    items: [
-      { value: "repairing", label: "Repairing", icon: CircleDotDashed },
-      { value: "waiting parts", label: "Waiting Parts", icon: CircleDotDashed },
-      { value: "on hold", label: "On hold", icon: CircleDashed },
-    ],
-  },
-  {
-    label: "Ready & Billing",
-    items: [
-      {
-        value: "ready for pickup",
-        label: "Ready for Pickup",
-        icon: ArrowUpCircle,
-      },
-      { value: "for collection", label: "For Collection", icon: Wallet },
-      { value: "for billing", label: "For Billing", icon: Receipt },
-    ],
-  },
-  {
-    label: "Closed",
-    items: [
-      { value: "completed", label: "Completed", icon: CheckCircle2 },
-      { value: "pull out", label: "Pull Out", icon: ArrowDownCircle },
-      { value: "canceled", label: "Canceled", icon: XCircle },
-    ],
-  },
-];
+const jobOrderStatusIcons: Record<string, LucideIcon> = {
+  pending: CircleDashed,
+  "for quotation": Receipt,
+  "for approval": CircleDashed,
+  "quotation in progress": Receipt,
+  repairing: CircleDotDashed,
+  "waiting parts": CircleDotDashed,
+  "on hold": CircleDashed,
+  "ready for pickup": ArrowUpCircle,
+  "for pullout": Truck,
+  "for collection": Wallet,
+  "for billing": Receipt,
+  completed: CheckCircle2,
+  "pull out": ArrowDownCircle,
+  canceled: XCircle,
+};
+
+export const jobOrderStatusGroups: StatusGroup[] = JOB_ORDER_STATUS_GROUPS.map(
+  (group) => ({
+    label: group.label,
+    items: group.items.map(({ value, label }) => ({
+      value,
+      label,
+      icon: jobOrderStatusIcons[value],
+    })),
+  }),
+);
 export const statuses: Status[] = jobOrderStatusGroups.flatMap(
   (group) => group.items
 );

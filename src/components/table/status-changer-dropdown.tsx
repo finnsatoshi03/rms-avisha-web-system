@@ -23,7 +23,7 @@ export const StatusChanger = ({
         <span className="hidden sm:block">Change Status</span>
       </Button>
     </DropdownMenuTrigger>
-    <DropdownMenuContent className="w-56 p-1 bg-slate-700 border-none text-white">
+    <DropdownMenuContent className="w-64 max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto p-1 bg-slate-700 border-none text-white">
       {jobOrderStatusGroups.map((group, groupIndex) => (
         <Fragment key={group.label}>
           <DropdownMenuLabel className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">

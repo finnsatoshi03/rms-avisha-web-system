@@ -182,6 +182,18 @@ td:last-of-type {
   background-color: #17a2b83f;
   color: #0c5460;
 }
+.status-for-quotation {
+  background-color: #06b6d43f;
+  color: #155e75;
+}
+.status-quotation-in-progress {
+  background-color: #6366f13f;
+  color: #3730a3;
+}
+.status-for-pullout {
+  background-color: #f973163f;
+  color: #9a3412;
+}
 .status-repairing {
   background-color: #007bff4b;
   color: #002144;

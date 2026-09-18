@@ -652,6 +652,7 @@ export async function getQuotationJobOrders({
     console.log("Using search term:", term);
 
     const jobOrderConditions = [
+      `status.ilike.%${term}%`,
       `brand_model.ilike.%${term}%`,
       `serial_number.ilike.%${term}%`,
       `machine_type.ilike.%${term}%`,

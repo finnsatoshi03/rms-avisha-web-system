@@ -4,34 +4,13 @@ import { Expenses, JobOrderData } from "./types";
 import { DateRange } from "react-day-picker";
 import { getClientRollupKey } from "./client-hierarchy";
 import { getServerNow, getServerNowEpochMs } from "./server-time";
+import { ALL_JOB_ORDER_STATUSES, jobOrderStatusClass } from "./job-order-statuses";
 
 export function getStatusClass(status: string) {
+  const jobOrderClass = jobOrderStatusClass(status);
+  if (jobOrderClass) return jobOrderClass;
+
   switch (status.toLowerCase()) {
-    case "pending":
-      return "status-pending";
-    case "quotation":
-      return "status-quotation";
-    case "for approval":
-      return "status-for-approval";
-    case "repairing":
-      return "status-repairing";
-    case "waiting parts":
-      return "status-waiting-parts";
-    case "on hold":
-      return "status-on-hold";
-    case "ready for pickup":
-    case "ready to pickup":
-      return "status-ready-for-pickup";
-    case "completed":
-      return "status-completed";
-    case "canceled":
-      return "status-canceled";
-    case "pull out":
-      return "status-pull-out";
-    case "for collection":
-      return "status-for-collection";
-    case "for billing":
-      return "status-for-billing";
     // Rental asset statuses
     case "available":
       return "status-available";
@@ -691,21 +670,10 @@ export const formatTimeAgo = (date: Date) => {
 };
 
 export const countJobOrdersByStatus = (jobOrders: JobOrderData[]) => {
-  const statusCounts: any = {
-    Pending: 0,
-    Quotation: 0,
-    "For Approval": 0,
-    Repairing: 0,
-    "Waiting Parts": 0,
-    "On hold": 0,
-    "Ready for Pickup": 0,
-    "Ready to Pickup": 0,
-    Completed: 0,
-    Canceled: 0,
-    "Pull Out": 0,
-    "For Collection": 0,
-    "For Billing": 0,
-  };
+  const statusCounts: Record<string, number> = Object.fromEntries([
+    ...ALL_JOB_ORDER_STATUSES.map((status) => [status.label, 0]),
+    ["Ready to Pickup", 0],
+  ]);
 
   jobOrders.forEach((order) => {
     if (statusCounts[order.status] !== undefined) {

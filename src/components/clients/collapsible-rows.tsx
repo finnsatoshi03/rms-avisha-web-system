@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { differenceInDays, parseISO } from "date-fns";
-import { formatMachineType, formatNumberWithCommas } from "../../lib/helpers";
+import { formatMachineType, formatNumberWithCommas, getStatusClass } from "../../lib/helpers";
 import { JobOrderData, User } from "../../lib/types";
 import { useState } from "react";
 import { Button } from "../ui/button";
@@ -80,30 +80,10 @@ export default function CollapsibleRows({
                       </div>
                     </Button>
                     <p
-                      className={`font-bold ${
+                      className={`font-bold rounded px-1 w-fit ${
                         order.status === "New"
                           ? "text-blue-600"
-                          : order.status === "Pending"
-                          ? "text-yellow-500"
-                          : order.status === "For Approval"
-                          ? "text-orange-400"
-                          : order.status === "Repairing"
-                          ? "text-orange-500"
-                          : order.status === "Waiting Parts"
-                          ? "text-purple-500"
-                          : order.status === "On hold"
-                          ? "text-slate-600"
-                          : order.status.toLowerCase() === "ready for pickup"
-                          ? "text-purple-600"
-                          : order.status === "Completed"
-                          ? "text-green-600"
-                          : order.status === "Pull Out"
-                          ? "text-red-500"
-                          : order.status === "For Collection"
-                          ? "text-blue-800"
-                          : order.status === "For Billing"
-                          ? "text-pink-800"
-                          : "text-red-600"
+                          : getStatusClass(order.status)
                       }`}
                     >
                       {order.status}

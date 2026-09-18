@@ -19,6 +19,8 @@ export const getStatusIconAndClass = (status: string) => {
           <ClockIcon size={14} fill="#5e4703" className="text-background" />
         ),
       };
+    case "For Quotation":
+    case "Quotation in Progress":
     case "Quotation":
       return {
         icon: (
@@ -53,6 +55,7 @@ export const getStatusIconAndClass = (status: string) => {
           <ClockIcon size={14} fill="#334155" className="text-background" />
         ),
       };
+    case "For Pullout":
     case "Ready for Pickup":
       return {
         icon: (
