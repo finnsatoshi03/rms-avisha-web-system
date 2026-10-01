@@ -92,6 +92,7 @@ import { Checkbox } from "../ui/checkbox";
 import { Switch } from "../ui/switch";
 import { baseSchema } from "./jobOrderSchema";
 import { useDownpayment } from "./useDownpayment";
+import CompletedPaymentDetails from "./completed-payment-details";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import QuotationDialog from "./quotation-dialog";
 import { CreateQuotationData } from "../../lib/types";
@@ -3805,6 +3806,9 @@ export default function JobOrderForm({
                     )}
                 </div>
               </div>
+              {editSession && editValuesWithClient.status === "Completed" && !isTechnician && (
+                <CompletedPaymentDetails jobOrder={jobOrderToEdit} />
+              )}
             </div>
           </div>
 
