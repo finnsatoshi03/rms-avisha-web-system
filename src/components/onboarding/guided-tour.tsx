@@ -80,14 +80,6 @@ function triggerTourStepAction(trigger: HTMLElement) {
 }
 
 function closeTourTransientUI(trigger?: HTMLElement | null) {
-  const subSheetBack = document.querySelector(
-    '[data-tour="billing-detail-subsheet-back"]'
-  ) as HTMLElement | null;
-  if (subSheetBack) {
-    subSheetBack.click();
-    return;
-  }
-
   const alertCancel = document.querySelector(
     "[data-radix-alert-dialog-cancel]"
   ) as HTMLElement | null;

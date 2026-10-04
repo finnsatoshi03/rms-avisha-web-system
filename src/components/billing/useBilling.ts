@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getBillingAccounts,
   getBillingAccount,
@@ -73,6 +73,34 @@ export function useBillingAccountAging(accountId: string | undefined) {
     queryFn: () => getBillingAccountAging(accountId!),
     enabled: !!accountId,
   });
+}
+
+// Balance + overdue for every account in the list. Shares cache keys with the
+// detail sheet so opening an account is instant.
+// ponytail: 2 RPCs per account; add a bulk balances RPC if the list grows past ~100.
+export function useBillingAccountTotals(accountIds: string[]) {
+  const balances = useQueries({
+    queries: accountIds.map((id) => ({
+      queryKey: ["billing_balance", id],
+      queryFn: () => getBillingAccountBalance(id),
+    })),
+  });
+  const agings = useQueries({
+    queries: accountIds.map((id) => ({
+      queryKey: ["billing_aging", id],
+      queryFn: () => getBillingAccountAging(id),
+    })),
+  });
+
+  const totals: Record<string, { balance?: number; overdue?: number }> = {};
+  accountIds.forEach((id, i) => {
+    const a = agings[i].data;
+    totals[id] = {
+      balance: balances[i].data,
+      overdue: a ? a.days_1_30 + a.days_31_60 + a.days_61_90 + a.days_90_plus : undefined,
+    };
+  });
+  return totals;
 }
 
 export function useBillingLineItems(accountId: string | undefined) {

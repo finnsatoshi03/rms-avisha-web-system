@@ -25,7 +25,6 @@ import {
 import ReceiptAttachmentField from "./receipt-attachment-field";
 import ReceiptMissingConfirmDialog from "./receipt-missing-confirm-dialog";
 import { useTransactionHandler } from "../../hooks/useTransactionHandler";
-import { markSoaStep } from "../../lib/soa-progress";
 import { getServerNow } from "../../lib/server-time";
 
 interface RecordPaymentPanelProps {
@@ -273,7 +272,6 @@ export default function RecordPaymentPanel({
     );
 
     if (!success) return;
-    markSoaStep("record_payment");
     onClose();
   }
 

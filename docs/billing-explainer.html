@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Billing in RMS Avisha</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #F02A24;        /* brand red (from src/styles/index.css --brand) */
+    --red-deep: #C5211B;
+    --red-soft: #FEECEB;
+    --ink: #1F2328;
+    --muted: #6B7280;
+    --line: #E5E7EB;
+    --soft: #F7F8FA;
+    --green: #16A34A;
+    --green-ink: #166534;
+    --green-soft: #DCFCE7;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #EEF0F3; color: var(--ink);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+  b { font-weight: 700; }
+  .muted { color: var(--muted); }
+  .red { color: var(--red); }
+  .ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; flex: none; }
+
+  /* ---------- Stage (fixed 1280x720, scaled to fit) ---------- */
+  #stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; background: #fff; overflow: hidden;
+    transform-origin: 0 0; box-shadow: 0 8px 40px rgba(16,24,40,.10); }
+  #scene { position: absolute; inset: 0; transition: opacity .4s ease; }
+  #stage.paused, #stage.paused * { animation-play-state: paused !important; }
+
+  /* ---------- Captions ---------- */
+  #cap { position: absolute; left: 50%; bottom: 24px; z-index: 60; width: max-content; max-width: 1120px;
+    padding: 14px 30px; border-radius: 18px; background: rgba(31,35,40,.88); color: #fff;
+    font-size: 30px; font-weight: 600; line-height: 1.32; text-align: center; white-space: pre-line;
+    animation: capIn .5s ease-out both; }
+  @keyframes capIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+  /* ---------- Cursor, click ripple, highlight ring ---------- */
+  #cursor { position: absolute; left: 0; top: 0; margin: -2px 0 0 -5px; z-index: 55; opacity: 0; pointer-events: none;
+    transition: transform .65s cubic-bezier(.45,0,.25,1), opacity .3s; filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
+  #cursor.on { opacity: 1; }
+  #cursor svg { display: block; transform-origin: 5px 2px; }
+  #cursor.press svg { animation: press .35s ease; }
+  @keyframes press { 50% { transform: scale(.8); } }
+  .ripple { position: absolute; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%;
+    border: 3px solid var(--red); z-index: 54; pointer-events: none; animation: rip .6s ease-out forwards; }
+  @keyframes rip { from { transform: scale(.2); opacity: .9; } to { transform: scale(1.4); opacity: 0; } }
+  .ring { position: absolute; z-index: 40; border-radius: 14px; border: 3px solid var(--red); pointer-events: none;
+    animation: ringIn .4s ease-out, pulse 1.6s .4s ease-in-out infinite; }
+  @keyframes ringIn { from { opacity: 0; transform: scale(1.04); } }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(240,42,36,.35); } 50% { box-shadow: 0 0 0 10px rgba(240,42,36,0); } }
+  .tap { animation: tap .3s ease; }
+  @keyframes tap { 50% { transform: scale(.95); } }
+  tr.tap td { animation: rowTap .6s ease; }
+  @keyframes rowTap { 30% { background: var(--red-soft); } }
+
+  /* ---------- App frame ---------- */
+  .app { position: absolute; left: 80px; top: 24px; width: 1120px; height: 548px; background: #fff; overflow: hidden;
+    border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 40px rgba(16,24,40,.08); }
+  .topbar { height: 45px; display: flex; align-items: center; gap: 10px; padding: 0 18px; border-bottom: 1px solid var(--line);
+    font-weight: 700; font-size: 14px; }
+  .logo { width: 22px; height: 22px; border-radius: 6px; background: var(--red); }
+  .crumb { color: var(--muted); font-weight: 500; }
+  .page { padding: 22px 28px; transition: opacity .5s; }
+  .page > * { transition: opacity .5s; }
+  .app.dim .page { opacity: .3; }
+  .app.fc .toolbar, .app.fa table { opacity: .3; }
+  h1 { font-size: 24px; font-weight: 700; margin: 0 0 16px; letter-spacing: -.01em; }
+  .toolbar { display: flex; gap: 10px; margin-bottom: 16px; }
+  .search { width: 340px; height: 38px; border: 1px solid var(--line); border-radius: 9px; display: flex; align-items: center;
+    gap: 8px; padding: 0 12px; color: #9CA3AF; font-size: 14px; }
+  .filter { height: 38px; border: 1px solid var(--line); border-radius: 9px; padding: 0 14px; display: flex; align-items: center; font-size: 14px; font-weight: 500; }
+  .btn-red { background: var(--red); color: #fff; border-radius: 9px; height: 38px; padding: 0 16px; font-weight: 600; font-size: 14px;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .btn-out { background: #fff; border: 1px solid var(--line); border-radius: 9px; height: 38px; padding: 0 14px; font-weight: 600; font-size: 14px;
+    display: inline-flex; align-items: center; white-space: nowrap; }
+  .btn-ghost { height: 38px; padding: 0 14px; font-weight: 600; font-size: 14px; color: var(--muted); display: inline-flex; align-items: center; }
+  .toolbar .btn-red { margin-left: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 13px; padding: 10px 14px; background: var(--soft); border-bottom: 1px solid var(--line); }
+  td { padding: 14px; border-bottom: 1px solid var(--line); }
+  .pill-green { background: var(--green-soft); color: var(--green-ink); font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+  tr.newrow { display: none; }
+  .app.added tr.newrow { display: table-row; }
+  .app.added tr.newrow td { animation: rowIn 1.6s ease; }
+  @keyframes rowIn { 0% { opacity: 0; background: #F0FDF4; } 30% { opacity: 1; background: #F0FDF4; } }
+
+  /* ---------- Client account panel ---------- */
+  .panel { position: absolute; top: 45px; right: 0; bottom: 0; width: 600px; z-index: 5; background: #fff; padding: 22px 28px;
+    border-left: 1px solid var(--line); box-shadow: -24px 0 48px rgba(16,24,40,.10);
+    transform: translateX(105%); transition: transform .7s cubic-bezier(.2,.8,.2,1); }
+  .panel.in { transform: none; }
+  .panel > * { transition: opacity .5s; }
+  .panel.quiet .tabs, .panel.quiet .tabbody,
+  .panel.f-owes .actions, .panel.f-owes .tabs, .panel.f-owes .tabbody,
+  .panel.f-tabs .owes-box, .panel.f-tabs .actions { opacity: .3; }
+  .p-head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .p-acc { font-size: 13px; color: var(--muted); }
+  .p-name { font-size: 22px; font-weight: 700; margin-top: 2px; }
+  .kebab { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 18px; color: var(--muted); }
+  .owes-box { position: relative; margin: 16px 0; padding: 16px 18px; border-radius: 14px; background: var(--soft); }
+  .owes-box .lbl { font-size: 14px; color: var(--muted); font-weight: 500; }
+  .big { font-size: 44px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .over { color: var(--red); font-weight: 600; font-size: 15px; margin-top: 4px; }
+  .over.clear { color: var(--green); }
+  .paid { position: absolute; right: 18px; top: 18px; background: var(--green-soft); color: var(--green-ink); font-weight: 700; font-size: 15px;
+    padding: 8px 14px; border-radius: 999px; opacity: 0; transform: scale(.7); transition: opacity .4s, transform .5s cubic-bezier(.3,1.6,.5,1); }
+  .paid.show { opacity: 1; transform: none; }
+  .flash-up { animation: flUp 1.8s ease; }
+  .flash-down { animation: flDown 1.8s ease; }
+  @keyframes flUp { 20%, 70% { color: var(--red-deep); } }
+  @keyframes flDown { 20%, 70% { color: var(--green); } }
+  .actions { display: flex; gap: 10px; }
+  .tabs { display: flex; gap: 24px; margin-top: 20px; border-bottom: 1px solid var(--line); font-size: 14px; font-weight: 500; color: var(--muted); }
+  .tab { padding: 10px 0; margin-bottom: -1px; border-bottom: 2px solid transparent; transition: color .3s, border-color .3s; }
+  .tab.on { color: var(--ink); border-color: var(--red); font-weight: 600; }
+  .tabbody.swap { animation: fadeUp .45s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } }
+  .hrow { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .hrow .d { width: 52px; color: var(--muted); font-size: 13px; }
+  .hrow .t { flex: 1; }
+  .hrow .a { font-weight: 700; }
+  .hrow .a.paid-amt { color: var(--green); }
+  .tag { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+  .tag.overdue { background: var(--red-soft); color: var(--red-deep); }
+  .tag.paid { background: var(--green-soft); color: var(--green-ink); }
+  .tag.sent { background: #F3F4F6; color: var(--muted); }
+
+  /* ---------- Dialogs ---------- */
+  .scrim { position: absolute; inset: 0; z-index: 20; background: rgba(17,24,39,.28); opacity: 0; transition: opacity .4s; }
+  .scrim.in { opacity: 1; }
+  .dlg { position: absolute; left: 50%; top: 50%; z-index: 21; width: 460px; padding: 22px 24px; background: #fff; border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(16,24,40,.25); opacity: 0; transform: translate(-50%, -46%);
+    transition: opacity .4s, transform .5s cubic-bezier(.2,.8,.2,1); }
+  .dlg.in { opacity: 1; transform: translate(-50%, -50%); }
+  .dlg.out { opacity: 0; transform: translate(-50%, -50%) scale(.96); }
+  .dlg.sent { opacity: 0; transform: translate(-20%, -90%) scale(.3); transition: opacity .6s, transform .7s ease-in; }
+  .dlg h3 { margin: 0 0 14px; font-size: 19px; }
+  .dlg label { display: block; margin: 12px 0 6px; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .field { height: 42px; border: 1px solid var(--line); border-radius: 10px; display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 0 12px; font-size: 15px; transition: background .4s, border-color .4s; }
+  .field .ph { color: #9CA3AF; }
+  .field .val { display: none; font-weight: 600; }
+  .field.filled .ph { display: none; }
+  .field.filled .val { display: inline; }
+  .ok { color: var(--green); font-weight: 700; opacity: 0; transition: opacity .3s; }
+  .filled .ok { opacity: 1; }
+  .caret { color: var(--muted); margin-left: auto; }
+  .selwrap { position: relative; }
+  .menu { position: absolute; left: 0; right: 0; top: 46px; z-index: 3; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(16,24,40,.14); opacity: 0; transform: translateY(-4px); transition: opacity .25s, transform .25s; }
+  .menu.in { opacity: 1; transform: none; }
+  .mi { padding: 9px 10px; border-radius: 7px; font-size: 14px; transition: background .2s; }
+  .mi.hov { background: var(--soft); font-weight: 600; }
+  .autofill { opacity: .4; transition: opacity .5s; }
+  .autofill.filled { opacity: 1; }
+  .autofill .field.filled { background: #F0FDF4; border-color: #BBF7D0; }
+  .dlg-foot { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 20px; }
+  .seltot { margin-right: auto; font-size: 14px; color: var(--muted); }
+  .seltot b { color: var(--ink); font-size: 16px; }
+  .seg { display: inline-flex; padding: 4px; background: var(--soft); border-radius: 10px; font-size: 14px; font-weight: 600; }
+  .seg span { padding: 7px 16px; border-radius: 7px; color: var(--muted); }
+  .seg .on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .hint { font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  .pick { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px;
+    transition: background .3s, border-color .3s; }
+  .pick.on { background: var(--red-soft); border-color: #FBC7C4; }
+  .pick .sub { color: var(--muted); }
+  .pick .amt { margin-left: auto; font-weight: 700; }
+  .cb { width: 20px; height: 20px; border-radius: 6px; border: 2px solid #CBD5E1; display: grid; place-items: center; color: #fff; font-size: 12px; transition: .25s; }
+  .cb::after { content: "✓"; opacity: 0; }
+  .pick.on .cb { background: var(--red); border-color: var(--red); }
+  .pick.on .cb::after { opacity: 1; }
+  .chips { display: flex; gap: 8px; }
+  .chip { flex: 1; height: 40px; border: 1px solid var(--line); border-radius: 10px; display: grid; place-items: center; font-weight: 600; font-size: 14px; transition: .3s; }
+  .chip.on { border-color: var(--red); background: var(--red-soft); color: var(--red-deep); }
+  .drop { height: 74px; border: 2px dashed #D1D5DB; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--muted);
+    font-size: 14px; transition: background .4s, border-color .4s; }
+  .drop .ph { display: flex; align-items: center; gap: 8px; }
+  .drop .thumb { display: none; align-items: center; gap: 12px; font-size: 14px; color: var(--ink); }
+  .drop.filled { border-style: solid; border-color: #BBF7D0; background: #F0FDF4; justify-content: flex-start; padding: 0 12px; }
+  .drop.filled .ph { display: none; }
+  .drop.filled .thumb { display: flex; animation: fadeUp .4s ease; }
+  .thumbimg { width: 44px; height: 52px; border-radius: 6px; border: 1px solid var(--line); background: repeating-linear-gradient(#fff 0 6px, #E5E7EB 6px 8px); }
+  .dates { display: flex; gap: 12px; }
+  .dates > div { flex: 1; }
+  .auto { font-size: 11px; font-weight: 700; color: var(--green-ink); background: var(--green-soft); padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
+  .sumbox { margin-top: 16px; padding: 14px 16px; background: var(--soft); border-radius: 12px; display: flex; justify-content: space-between; font-size: 15px; }
+  .mail { width: 580px; padding: 0; overflow: hidden; }
+  .mail-top { display: flex; justify-content: space-between; padding: 12px 18px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 600; }
+  .mrow { display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .mrow .k { width: 60px; color: var(--muted); }
+  .to-chip { padding: 4px 10px; border-radius: 999px; background: var(--soft); border: 1px solid var(--line); font-weight: 600; }
+  .mbody { padding: 14px 18px 0; font-size: 14px; line-height: 1.6; color: #374151; }
+  .attach { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--ink); }
+  .mail .dlg-foot { padding: 0 18px 16px; margin-top: 14px; }
+  .plane { position: absolute; z-index: 45; width: 46px; height: 46px; color: var(--red); animation: fly 1.5s cubic-bezier(.4,0,.6,1) forwards; }
+  .plane svg { width: 100%; height: 100%; stroke-width: 1.8; }
+  @keyframes fly { 0% { transform: translate(0,0) scale(.5); opacity: 0; } 15% { opacity: 1; }
+    50% { transform: translate(160px,-120px) rotate(-6deg) scale(1); } 100% { transform: translate(420px,-400px) rotate(-14deg) scale(.7); opacity: 0; } }
+  .toast { position: absolute; left: 50%; top: 62px; z-index: 30; padding: 10px 18px; border-radius: 999px; background: #fff; border: 1px solid #BBF7D0;
+    color: var(--green-ink); font-weight: 600; font-size: 15px; box-shadow: 0 10px 30px rgba(16,24,40,.12);
+    opacity: 0; transform: translate(-50%, -10px); transition: opacity .4s, transform .4s; }
+  .toast.in { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ---------- Scene 1: hook ---------- */
+  .hook { position: absolute; inset: 0; }
+  .card { position: absolute; top: 70px; z-index: 2; width: 250px; padding: 16px 18px; background: #fff; border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(16,24,40,.10); opacity: 0; transition: transform 1s cubic-bezier(.5,0,.3,1), opacity .8s; }
+  .card .kind { font-size: 12px; font-weight: 700; letter-spacing: .08em; color: var(--muted); }
+  .card .no { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .card .what { font-size: 18px; font-weight: 700; margin-top: 8px; }
+  .card .amt { font-size: 22px; font-weight: 800; margin-top: 2px; }
+  .unpaid { display: inline-block; margin-top: 10px; padding: 4px 10px; border-radius: 999px; background: var(--red-soft); color: var(--red-deep); font-size: 12px; font-weight: 600; }
+  .c1 { left: 250px; transform: translateX(-80px); }
+  .c2 { left: 780px; transform: translateX(80px); }
+  .hook.s1 .card { opacity: 1; transform: none; }
+  .hook.s2 .c1 { opacity: 0; transform: translate(265px, 250px) scale(.35); }
+  .hook.s2 .c2 { opacity: 0; transform: translate(-265px, 250px) scale(.35); }
+  .folder { position: absolute; left: 510px; top: 330px; width: 260px; height: 180px; }
+  .f-back { position: absolute; inset: 0; z-index: 1; background: #F9C9C6; border-radius: 6px 14px 14px 14px; }
+  .f-back::before { content: ""; position: absolute; left: 0; top: -22px; width: 110px; height: 26px; background: #F9C9C6; border-radius: 10px 10px 0 0; }
+  .f-front { position: absolute; left: 0; right: 0; bottom: 0; height: 150px; z-index: 3; padding: 16px 18px; border-radius: 14px; background: var(--red); color: #fff;
+    display: flex; flex-direction: column; justify-content: flex-end; transform-origin: bottom; }
+  .f-name { font-size: 17px; font-weight: 700; }
+  .f-count { font-size: 14px; margin-top: 4px; opacity: 0; transition: opacity .4s; }
+  .hook.s3 .f-count { opacity: .95; }
+  .hook.s3 .f-front { animation: bump .5s ease; }
+  @keyframes bump { 50% { transform: scaleY(.93); } }
+
+  /* ---------- Scene 9: recap ---------- */
+  .recap-title { position: absolute; left: 0; right: 0; top: 70px; text-align: center; font-size: 15px; font-weight: 600; color: var(--muted); letter-spacing: .06em; }
+  .recap { position: absolute; left: 0; right: 0; top: 140px; display: flex; justify-content: center; align-items: flex-start; gap: 28px; }
+  .rstep { width: 240px; text-align: center; opacity: 0; transform: translateY(16px); transition: opacity .6s, transform .6s; }
+  .rstep.show { opacity: 1; transform: none; }
+  .ric { width: 136px; height: 136px; margin: 0 auto 18px; border-radius: 50%; background: var(--red-soft); color: var(--red); display: grid; place-items: center; }
+  .ric .ic { width: 60px; height: 60px; }
+  .rnum { font-size: 14px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+  .rlabel { font-size: 26px; font-weight: 700; }
+  .rarrow { margin-top: 48px; font-size: 40px; color: #CBD5E1; opacity: 0; transition: opacity .5s; }
+  .rarrow.show { opacity: 1; }
+  .recap.done .ric { animation: pulse 1.8s ease-in-out infinite; }
+
+  /* ---------- Controls ---------- */
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; height: 64px; display: flex; align-items: center; gap: 12px; padding: 0 20px;
+    background: #fff; border-top: 1px solid var(--line); }
+  #prog { position: absolute; left: 0; top: -1px; height: 3px; width: 0; background: var(--red); }
+  #bar button { border: 0; cursor: pointer; font: inherit; color: var(--ink); }
+  .ctl { width: 40px; height: 40px; border-radius: 50%; background: var(--soft); display: grid; place-items: center; }
+  .ctl:hover { background: #EDEFF2; }
+  .ctl svg { width: 18px; height: 18px; }
+  #dots { flex: 1; display: flex; justify-content: center; gap: 10px; }
+  .dot { width: 14px; height: 14px; padding: 0; border-radius: 50%; background: #D1D5DB !important; transition: transform .2s, background .2s; }
+  .dot.done { background: #9CA3AF !important; }
+  .dot.on { background: var(--red) !important; transform: scale(1.3); }
+  .dot:hover { transform: scale(1.3); }
+  #lbl { min-width: 200px; text-align: right; font-size: 14px; color: var(--muted); font-weight: 500; }
+  @media (max-width: 640px) { #lbl { display: none; } #dots { gap: 6px; } }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="scene"></div>
+  <div id="cursor"><svg width="28" height="28" viewBox="0 0 24 24"><path d="M4 2l16 9.5-7 1.5-3.5 6.5z" fill="#1F2328" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+  <div id="cap"></div>
+</div>
+
+<div id="bar">
+  <div id="prog"></div>
+  <button class="ctl" id="b-play" aria-label="Play or pause"></button>
+  <button class="ctl" id="b-restart" aria-label="Restart"><svg class="ic" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+  <div id="dots"></div>
+  <div id="lbl"></div>
+</div>
+
+<script>
+/* =====================================================================
+   CAPTIONS — all teaching text lives here. Translate freely.
+   "\n" = line break (keep captions to 2 short lines).
+   ===================================================================== */
+const CAPTIONS = {
+  hook:     "Some clients pay later.\nBilling keeps track of what they owe, all in one place.",
+  find:     "Every client with an account is here.\nSee who owes, and who's overdue.",
+  add:      "No account yet? Click Add,\npick the client, and save. That's it.",
+  open:     "Click a client to see how much they owe.",
+  charges:  "Finished a job but the client will pay later?\nAdd it to their account.",
+  payment:  "Client paid? Record it and attach the receipt.\nThe balance updates automatically.",
+  send1:    "Send the client a statement:\na summary of what they owe.",
+  send2:    "The dates are already filled in,\nso just click Create & send.",
+  history:  "Everything is saved here:\ncharges, payments, and statements sent.",
+  recap1:   "Just remember these three.",
+  recap2:   "That's billing. Three buttons.\nYou've got this.",
+
+  // Recap labels
+  stepCharge: "Add charges",
+  stepPay:    "Record payment",
+  stepSend:   "Send statement",
+  recapTitle: "BILLING IN RMS AVISHA",
+
+  // Little pop-up messages
+  toastCreated: "✓ Account created",
+  toastSent:    "✓ Statement sent",
+
+  // Scene names (shown on the control bar and dot tooltips)
+  steps: ["Why billing", "Find a client", "New account", "Open account", "Add charges",
+          "Record payment", "Send statement", "History", "Recap"],
+};
+
+/* =====================================================================
+   Helpers
+   ===================================================================== */
+const stage = document.getElementById("stage");
+const S = document.getElementById("scene");
+const CUR = document.getElementById("cursor");
+const CAP = document.getElementById("cap");
+
+const peso = n => "₱" + n.toLocaleString("en-PH");
+const $ = s => S.querySelector(s);
+const all = s => S.querySelectorAll(s);
+const add = (s, c = "in") => all(s).forEach(e => e.classList.add(c));
+const rm = (s, c = "in") => all(s).forEach(e => e.classList.remove(c));
+const restart = (el, c) => { el.classList.remove(c); void el.offsetWidth; el.classList.add(c); };
+
+function cap(key) { CAP.textContent = CAPTIONS[key]; CAP.style.animation = "none"; void CAP.offsetWidth; CAP.style.animation = ""; }
+
+// Union rectangle of everything matching `sel`, in stage pixels.
+function box(sel) {
+  const sr = stage.getBoundingClientRect(), k = sr.width / 1280;
+  let l = 1e9, t = 1e9, r = -1e9, b = -1e9;
+  all(sel).forEach(e => {
+    const q = e.getBoundingClientRect();
+    if (!q.width) return;
+    l = Math.min(l, q.left); t = Math.min(t, q.top); r = Math.max(r, q.right); b = Math.max(b, q.bottom);
+  });
+  return { x: (l - sr.left) / k, y: (t - sr.top) / k, w: (r - l) / k, h: (b - t) / k };
+}
+
+let cx = 900, cy = 640;
+function point(sel, fx = .5, fy = .5) {
+  const b = box(sel);
+  cx = b.x + b.w * fx; cy = b.y + b.h * fy;
+  CUR.style.transform = `translate(${cx}px,${cy}px)`;
+  CUR.classList.add("on");
+}
+function click(sel) {
+  restart(CUR, "press");
+  const r = document.createElement("div");
+  r.className = "ripple"; r.style.left = cx + "px"; r.style.top = cy + "px";
+  S.appendChild(r);
+  if (sel) all(sel).forEach(e => restart(e, "tap"));
+}
+function ring(sel) {
+  unring();
+  const b = box(sel), r = document.createElement("div");
+  r.className = "ring";
+  Object.assign(r.style, { left: b.x - 8 + "px", top: b.y - 8 + "px", width: b.w + 16 + "px", height: b.h + 16 + "px" });
+  S.appendChild(r);
+}
+function unring() { all(".ring").forEach(r => r.remove()); }
+
+// Number tween driven by the scene clock (so it respects pause).
+let tweens = [];
+function count(sel, from, to, dur) {
+  const el = $(sel), s = t;
+  tweens.push(() => {
+    const p = Math.min(1, (t - s) / dur), e = 1 - Math.pow(1 - p, 3);
+    el.textContent = peso(Math.round(from + (to - from) * e));
+    return p < 1;
+  });
+}
+
+function plane() {
+  const b = box("#b-send"), p = document.createElement("div");
+  p.className = "plane"; p.innerHTML = ICON.send;
+  p.style.left = b.x + b.w / 2 - 23 + "px"; p.style.top = b.y - 16 + "px";
+  S.appendChild(p);
+}
+
+function setTab(name) {
+  rm(".tab", "on"); add(`[data-t=${name}]`, "on");
+  const body = $("#tabbody");
+  body.innerHTML = rows(HIST[name]);
+  restart(body, "swap");
+}
+
+/* =====================================================================
+   Mock UI building blocks
+   ===================================================================== */
+const ICON = {
+  search: '<svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  camera: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  doc:    '<svg class="ic" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>',
+  plus:   '<svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  wallet: '<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14.5" r="1.2"/></svg>',
+  send:   '<svg class="ic" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>',
+  play:   '<svg viewBox="0 0 24 24"><path d="M7 5v14l12-7z" fill="currentColor"/></svg>',
+  pause:  '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>',
+};
+
+const app = (inner, cls = "", toast = "") =>
+  `<div class="app ${cls}" id="app"><div class="topbar"><span class="logo"></span>RMS Avisha <span class="crumb">/ Billing</span></div>
+   ${inner}<div class="scrim"></div>${toast ? `<div class="toast">${toast}</div>` : ""}</div>`;
+
+// Billing list. mode: undefined = 4 rows, "hidden" = new row waiting to appear, "shown" = 5 rows.
+const ROWS = [
+  ["BA-01-001", "Sunshine Electronics Corp.", "₱8,570", "₱3,500"],
+  ["BA-01-002", "Juan dela Cruz", "₱1,200", ""],
+  ["BA-01-003", "Reyes Printing Services", "₱12,400", "₱6,000"],
+  ["BA-01-004", "Ana Villanueva", "₱650", ""],
+  ["BA-01-005", "Pedro Ramos", "₱0", ""],
+];
+function listPage(mode) {
+  const rows = mode ? ROWS : ROWS.slice(0, 4);
+  return `<div class="page" id="list"><h1>Billing Accounts</h1>
+    <div class="toolbar"><div class="search">${ICON.search} Search client or account no.</div>
+      <div class="filter">All Status&nbsp;▾</div><span class="btn-red" id="b-add">+ Add</span></div>
+    <table><thead><tr><th>Account No.</th><th>Client Name</th><th class="c-owes">Owes</th><th class="c-over">Overdue</th><th>Status</th></tr></thead>
+    <tbody>${rows.map((r, i) => `<tr id="r${i}" class="${i === 4 && mode === "hidden" ? "newrow" : ""}">
+      <td class="muted">${r[0]}</td><td><b>${r[1]}</b></td><td class="c-owes"><b>${r[2]}</b></td>
+      <td class="c-over">${r[3] ? `<b class="red">${r[3]}</b>` : '<span class="muted">—</span>'}</td>
+      <td><span class="pill-green">active</span></td></tr>`).join("")}</tbody></table></div>`;
+}
+
+// Account history rows: [date, text, amount, tag]
+const HIST = {
+  start: [
+    ["Sep 25", "Rental · R-0088 Projector rental", "₱5,070"],
+    ["Sep 18", "Job order · JO-0139 Aircon repair", "₱3,500", "overdue"],
+  ],
+  history: [
+    ["Sep 30", "Statement sent · Sep 1–30", "₱7,820", "sent"],
+    ["Sep 30", "Payment · GCash", "−₱5,000", "paid"],
+    ["Sep 29", "Charges · JO-0151, JO-0153", "₱4,250"],
+    ["Sep 25", "Rental · R-0088 Projector rental", "₱5,070"],
+  ],
+  payments: [["Sep 30", "GCash · receipt attached", "₱5,000", "paid"]],
+  statements: [["Sep 30", "Statement · Sep 1–30, 2026", "₱7,820", "sent"]],
+};
+const rows = list => list.map(([d, txt, a, tag]) =>
+  `<div class="hrow"><span class="d">${d}</span><span class="t">${txt}</span>${tag ? `<span class="tag ${tag}">${tag}</span>` : ""}
+   <span class="a ${tag === "paid" ? "paid-amt" : ""}">${a}</span></div>`).join("");
+
+// Client account panel. o = { owes, over, paid, cls, hist }
+function panel(o) {
+  return `<div class="panel ${o.cls || ""}" id="panel">
+    <div class="p-head"><div><div class="p-acc">BA-01-001</div><div class="p-name">Sunshine Electronics Corp.</div></div><div class="kebab">⋯</div></div>
+    <div class="owes-box" id="owes-box"><div class="lbl">Owes</div><div class="big" id="owes">${peso(o.owes)}</div>
+      ${o.over ? `<div class="over" id="over">${peso(o.over)} overdue</div>` : `<div class="over clear" id="over">✓ Nothing overdue</div>`}
+      <span class="paid ${o.paid ? "show" : ""}" id="paid">✓ Paid ₱5,000</span></div>
+    <div class="actions"><span class="btn-red a-charge">+ Add charges</span><span class="btn-out a-pay">Record payment</span><span class="btn-out a-send">Send statement</span></div>
+    <div class="tabs">${["History", "Charges", "Payments", "Statements", "More"].map(n =>
+      `<span class="tab ${n === "History" ? "on" : ""}" data-t="${n.toLowerCase()}">${n}</span>`).join("")}</div>
+    <div class="tabbody" id="tabbody">${rows(o.hist || HIST.start)}</div></div>`;
+}
+
+/* =====================================================================
+   SCENES — each has a duration (ms), a build() that draws its starting
+   frame, and timed steps [ms, fn]. Captions are referenced by key.
+   ===================================================================== */
+const SCENES = [
+
+  /* ===== SCENE 1: Hook (5s) ===== */
+  { dur: 5000,
+    build() {
+      S.innerHTML = `<div class="hook">
+        <div class="card c1"><div class="kind">JOB ORDER</div><div class="no">JO-0139</div><div class="what">Aircon repair</div><div class="amt">₱3,500</div><span class="unpaid">Not yet paid</span></div>
+        <div class="card c2"><div class="kind">RENTAL</div><div class="no">R-0088</div><div class="what">Projector rental</div><div class="amt">₱5,070</div><span class="unpaid">Not yet paid</span></div>
+        <div class="folder"><div class="f-back"></div><div class="f-front"><div class="f-name">Sunshine Electronics Corp.</div><div class="f-count">2 items · Owes ₱8,570</div></div></div>
+      </div>`;
+    },
+    steps: [
+      [0,    () => cap("hook")],
+      [150,  () => add(".hook", "s1")],
+      [2300, () => add(".hook", "s2")],
+      [3200, () => add(".hook", "s3")],
+    ] },
+
+  /* ===== SCENE 2: Find the client (8s) ===== */
+  { dur: 8000,
+    build() { S.innerHTML = app(listPage()); },
+    steps: [
+      [0,    () => cap("find")],
+      [800,  () => { add("#app", "fc"); point("th.c-owes"); }],
+      [1500, () => ring(".c-owes")],
+      [4300, () => { unring(); point("th.c-over"); }],
+      [5000, () => ring(".c-over")],
+    ] },
+
+  /* ===== SCENE 3: New client? (8s) ===== */
+  { dur: 8000,
+    build() {
+      S.innerHTML = app(listPage("hidden") + `
+        <div class="dlg" id="d-add"><h3>New billing account</h3>
+          <label>Client</label>
+          <div class="selwrap">
+            <div class="field" id="f-client"><span class="ph">Select a client…</span><span class="val">Pedro Ramos</span><span class="caret">▾</span></div>
+            <div class="menu" id="menu"><div class="mi">Maria Santos</div><div class="mi" id="mi-pedro">Pedro Ramos</div><div class="mi">Rosa Lim Trading</div></div>
+          </div>
+          <div class="autofill" id="autofill">
+            <label>Email</label><div class="field"><span class="ph">—</span><span class="val">pedro.ramos@gmail.com</span><span class="ok">✓</span></div>
+            <label>Phone</label><div class="field"><span class="ph">—</span><span class="val">0917 123 4567</span><span class="ok">✓</span></div>
+          </div>
+          <div class="dlg-foot"><span class="btn-ghost">Cancel</span><span class="btn-red" id="b-create">Create</span></div>
+        </div>`, "", CAPTIONS.toastCreated);
+    },
+    steps: [
+      [0,    () => cap("add")],
+      [300,  () => { add("#app", "fa"); point("#b-add"); }],
+      [1000, () => { click("#b-add"); add(".scrim"); add("#d-add"); }],
+      [2000, () => point("#f-client", .4)],
+      [2700, () => { click("#f-client"); add("#menu"); }],
+      [3200, () => { point("#mi-pedro", .3); add("#mi-pedro", "hov"); }],
+      [3900, () => { click(); rm("#menu"); add("#f-client", "filled"); }],
+      [4300, () => { add("#autofill .field", "filled"); add("#autofill", "filled"); ring("#autofill"); }],
+      [5800, () => { unring(); point("#b-create"); }],
+      [6500, () => click("#b-create")],
+      [6700, () => { add("#d-add", "out"); rm(".scrim"); rm("#app", "fa"); add("#app", "added"); add(".toast"); }],
+    ] },
+
+  /* ===== SCENE 4: Open the account (6s) ===== */
+  { dur: 6000,
+    build() { S.innerHTML = app(listPage("shown") + panel({ owes: 8570, over: 3500 })); },
+    steps: [
+      [0,    () => cap("open")],
+      [400,  () => point("#r0", .3)],
+      [1100, () => { click("#r0"); add("#panel"); add("#app", "dim"); }],
+      [2300, () => { add("#panel", "f-owes"); point("#owes", .8, .6); }],
+      [2900, () => ring("#owes-box")],
+    ] },
+
+  /* ===== SCENE 5: Add charges (10s) ===== */
+  { dur: 10000,
+    build() {
+      const jobs = [["k1", "JO-0151", "Laptop screen replacement", "₱2,800"], ["k2", "JO-0153", "Printer repair", "₱1,450"], ["k3", "JO-0157", "CCTV installation", "₱4,200"]];
+      S.innerHTML = app(listPage("shown") + panel({ owes: 8570, over: 3500, cls: "in quiet" }) + `
+        <div class="dlg" id="d-charge" style="width:520px"><h3>Add charges</h3>
+          <div class="seg"><span class="on">Job Orders</span><span>Rentals</span></div>
+          <div class="hint">Unpaid job orders for Sunshine Electronics Corp.</div>
+          ${jobs.map(([id, no, what, amt]) => `<div class="pick" id="${id}"><span class="cb"></span><span><b>${no}</b> <span class="sub">${what}</span></span><span class="amt">${amt}</span></div>`).join("")}
+          <div class="dlg-foot"><span class="seltot">Selected: <b id="seltot">₱0</b></span><span class="btn-ghost">Cancel</span><span class="btn-red" id="b-addc">Add</span></div>
+        </div>`, "dim");
+    },
+    steps: [
+      [0,    () => cap("charges")],
+      [400,  () => point(".a-charge")],
+      [1100, () => { click(".a-charge"); add(".scrim"); add("#d-charge"); }],
+      [2200, () => point("#k1 .cb")],
+      [2900, () => { click(); add("#k1", "on"); $("#seltot").textContent = "₱2,800"; }],
+      [3400, () => point("#k2 .cb")],
+      [4100, () => { click(); add("#k2", "on"); $("#seltot").textContent = "₱4,250"; }],
+      [4800, () => point("#b-addc")],
+      [5500, () => { click("#b-addc"); add("#d-charge", "out"); rm(".scrim"); }],
+      [6100, () => { point("#owes", .85, .6); ring("#owes-box"); count("#owes", 8570, 12820, 1600); restart($("#owes"), "flash-up"); }],
+    ] },
+
+  /* ===== SCENE 6: Record a payment (10s) ===== */
+  { dur: 10000,
+    build() {
+      S.innerHTML = app(listPage("shown") + panel({ owes: 12820, over: 3500, cls: "in quiet" }) + `
+        <div class="dlg" id="d-pay"><h3>Record payment</h3>
+          <label>Amount</label><div class="field" id="f-amt"><span class="ph">₱0.00</span><span class="val" id="amt">₱0</span></div>
+          <label>Payment method</label><div class="chips"><span class="chip">Cash</span><span class="chip" id="ch-gcash">GCash</span><span class="chip">Bank</span></div>
+          <label>Receipt photo</label>
+          <div class="drop" id="drop"><span class="ph">${ICON.camera} Attach receipt photo</span>
+            <span class="thumb"><span class="thumbimg"></span><span><b>resibo-0930.jpg</b><br><span style="color:var(--green)">Attached ✓</span></span></span></div>
+          <div class="dlg-foot"><span class="btn-ghost">Cancel</span><span class="btn-red" id="b-save">Save</span></div>
+        </div>`, "dim");
+    },
+    steps: [
+      [0,    () => cap("payment")],
+      [400,  () => point(".a-pay")],
+      [1100, () => { click(".a-pay"); add(".scrim"); add("#d-pay"); }],
+      [2100, () => point("#f-amt", .3)],
+      [2800, () => { click(); add("#f-amt", "filled"); count("#amt", 0, 5000, 700); }],
+      [3500, () => point("#ch-gcash")],
+      [4200, () => { click("#ch-gcash"); add("#ch-gcash", "on"); }],
+      [4800, () => point("#drop")],
+      [5500, () => { click(); add("#drop", "filled"); }],
+      [6300, () => point("#b-save")],
+      [7000, () => { click("#b-save"); add("#d-pay", "out"); rm(".scrim"); }],
+      [7400, () => { point("#owes", .85, .6); ring("#owes-box"); count("#owes", 12820, 7820, 1500); restart($("#owes"), "flash-down"); }],
+      [8400, () => { const o = $("#over"); o.className = "over clear"; o.textContent = "✓ Nothing overdue"; add("#paid", "show"); }],
+    ] },
+
+  /* ===== SCENE 7: Send a statement (12s) ===== */
+  { dur: 12000,
+    build() {
+      S.innerHTML = app(listPage("shown") + panel({ owes: 7820, paid: true, cls: "in quiet" }) + `
+        <div class="dlg" id="d-stmt"><h3>Send statement</h3>
+          <div class="dates" id="dates">
+            <div><label>From <span class="auto">auto</span></label><div class="field filled"><span class="val">Sep 1, 2026</span></div></div>
+            <div><label>To <span class="auto">auto</span></label><div class="field filled"><span class="val">Sep 30, 2026</span></div></div>
+          </div>
+          <div class="sumbox"><span class="muted">Amount owed</span><b>₱7,820</b></div>
+          <div class="dlg-foot"><span class="btn-ghost">Cancel</span><span class="btn-red" id="b-cs">Create &amp; send</span></div>
+        </div>
+        <div class="dlg mail" id="mail">
+          <div class="mail-top"><span>New email</span><span>✕</span></div>
+          <div class="mrow"><span class="k">To</span><span class="to-chip" id="to">accounts@sunshine-electronics.ph</span></div>
+          <div class="mrow"><span class="k">Subject</span><span>Statement of Account · September 2026</span></div>
+          <div class="mbody">Hi Sunshine Electronics Corp.,<br>Here is your statement for Sep 1–30, 2026. Amount owed: <b>₱7,820</b>.<br>Thank you!
+            <div><span class="attach">${ICON.doc} SOA-BA-01-001-Sep2026.pdf</span></div></div>
+          <div class="dlg-foot"><span class="btn-red" id="b-send">${ICON.send} Send</span></div>
+        </div>`, "dim", CAPTIONS.toastSent);
+    },
+    steps: [
+      [0,    () => cap("send1")],
+      [400,  () => point(".a-send")],
+      [1100, () => { click(".a-send"); add(".scrim"); add("#d-stmt"); }],
+      [2400, () => { cap("send2"); ring("#dates"); point("#dates", .5, .75); }],
+      [4200, () => { unring(); point("#b-cs"); }],
+      [4900, () => { click("#b-cs"); add("#d-stmt", "out"); }],
+      [5300, () => add("#mail")],
+      [6200, () => { ring("#to"); point("#to", .6); }],
+      [7900, () => { unring(); point("#b-send"); }],
+      [8600, () => { click("#b-send"); plane(); add("#mail", "sent"); }],
+      [9800, () => { rm(".scrim"); add(".toast"); }],
+    ] },
+
+  /* ===== SCENE 8: Check history (6s) ===== */
+  { dur: 6000,
+    build() { S.innerHTML = app(listPage("shown") + panel({ owes: 7820, paid: true, cls: "in f-tabs", hist: HIST.history }), "dim"); },
+    steps: [
+      [0,    () => cap("history")],
+      [300,  () => point("[data-t=history]")],
+      [1000, () => { click("[data-t=history]"); setTab("history"); }],
+      [2000, () => point("[data-t=payments]")],
+      [2700, () => { click("[data-t=payments]"); setTab("payments"); }],
+      [3600, () => point("[data-t=statements]")],
+      [4300, () => { click("[data-t=statements]"); setTab("statements"); }],
+    ] },
+
+  /* ===== SCENE 9: Recap (8s) ===== */
+  { dur: 8000,
+    build() {
+      const step = (id, n, icon, label) => `<div class="rstep" id="${id}"><div class="ric">${icon}</div><div class="rnum">${n}</div><div class="rlabel">${label}</div></div>`;
+      S.innerHTML = `<div class="recap-title">${CAPTIONS.recapTitle}</div><div class="recap">
+        ${step("rs1", 1, ICON.plus, CAPTIONS.stepCharge)}<div class="rarrow" id="ra1">→</div>
+        ${step("rs2", 2, ICON.wallet, CAPTIONS.stepPay)}<div class="rarrow" id="ra2">→</div>
+        ${step("rs3", 3, ICON.send, CAPTIONS.stepSend)}</div>`;
+    },
+    steps: [
+      [0,    () => cap("recap1")],
+      [300,  () => add("#rs1", "show")],
+      [1200, () => add("#ra1", "show")],
+      [1600, () => add("#rs2", "show")],
+      [2500, () => add("#ra2", "show")],
+      [2900, () => add("#rs3", "show")],
+      [4400, () => { cap("recap2"); add(".recap", "done"); }],
+    ] },
+];
+
+/* =====================================================================
+   Player engine
+   ===================================================================== */
+const TOTAL = SCENES.reduce((a, s) => a + s.dur, 0);
+const startOf = i => SCENES.slice(0, i).reduce((a, s) => a + s.dur, 0);
+let idx = 0, t = 0, pi = 0, playing = true, last = 0;
+
+const playBtn = document.getElementById("b-play");
+const dots = document.getElementById("dots");
+const lbl = document.getElementById("lbl");
+const prog = document.getElementById("prog");
+
+SCENES.forEach((_, i) => {
+  const d = document.createElement("button");
+  d.className = "dot"; d.title = `${i + 1}. ${CAPTIONS.steps[i]}`; d.setAttribute("aria-label", d.title);
+  d.onclick = () => { goto(i); setPlaying(true); };
+  dots.appendChild(d);
+});
+
+function goto(i) {
+  idx = i; t = 0; pi = 0; tweens = [];
+  CUR.classList.remove("on");
+  S.style.transition = "none"; S.style.opacity = 0;
+  SCENES[i].build();
+  void S.offsetWidth;
+  S.style.transition = ""; S.style.opacity = 1;
+  [...dots.children].forEach((d, j) => { d.classList.toggle("on", j === i); d.classList.toggle("done", j < i); });
+  lbl.textContent = `${i + 1} / ${SCENES.length} · ${CAPTIONS.steps[i]}`;
+}
+
+function setPlaying(v) {
+  if (v && idx === SCENES.length - 1 && t >= SCENES[idx].dur) goto(0); // replay from the end
+  playing = v;
+  stage.classList.toggle("paused", !v);
+  playBtn.innerHTML = v ? ICON.pause : ICON.play;
+}
+
+function tick(now) {
+  const dt = Math.min(100, now - last); last = now;
+  if (playing) {
+    t += dt;
+    const sc = SCENES[idx];
+    while (pi < sc.steps.length && sc.steps[pi][0] <= t) sc.steps[pi++][1]();
+    tweens = tweens.filter(f => f());
+    if (t >= sc.dur) {
+      if (idx < SCENES.length - 1) goto(idx + 1);
+      else { t = sc.dur; setPlaying(false); }
+    }
+  }
+  prog.style.width = (startOf(idx) + Math.min(t, SCENES[idx].dur)) / TOTAL * 100 + "%";
+  requestAnimationFrame(tick);
+}
+
+function fit() {
+  const W = innerWidth, H = innerHeight - 64, k = Math.min(W / 1280, H / 720);
+  stage.style.transform = `translate(${(W - 1280 * k) / 2}px, ${(H - 720 * k) / 2}px) scale(${k})`;
+}
+
+playBtn.onclick = () => setPlaying(!playing);
+document.getElementById("b-restart").onclick = () => { goto(0); setPlaying(true); };
+addEventListener("resize", fit);
+addEventListener("keydown", e => {
+  if (e.code === "Space") { e.preventDefault(); setPlaying(!playing); }
+  if (e.code === "ArrowRight" && idx < SCENES.length - 1) { goto(idx + 1); setPlaying(true); }
+  if (e.code === "ArrowLeft" && idx > 0) { goto(idx - 1); setPlaying(true); }
+});
+
+fit();
+goto(0);
+setPlaying(true);
+requestAnimationFrame(n => { last = n; tick(n); });
+</script>
+</body>
+</html>

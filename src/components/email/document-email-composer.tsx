@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Eye, EyeOff, Loader2, RotateCcw } from "lucide-react";
+import { Eye, EyeOff, FileText, Loader2, RotateCcw, Send } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
@@ -39,6 +39,8 @@ interface DocumentEmailComposerProps {
   error?: string | null;
   hasSentBefore?: boolean;
   showBack?: boolean;
+  /** File name shown as an attachment chip, e.g. the statement PDF. */
+  attachmentName?: string;
   onBack?: () => void;
   onCancel: () => void;
   onSubmit: (payload: EmailComposePayload) => void | Promise<void>;
@@ -120,6 +122,7 @@ export default function DocumentEmailComposer({
   error = null,
   hasSentBefore = false,
   showBack = false,
+  attachmentName,
   onBack,
   onCancel,
   onSubmit,
@@ -135,6 +138,7 @@ export default function DocumentEmailComposer({
   });
   const [validationError, setValidationError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [showCopies, setShowCopies] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -149,6 +153,7 @@ export default function DocumentEmailComposer({
     });
     setValidationError(null);
     setPreviewOpen(false);
+    setShowCopies(Boolean(initialValues?.cc || initialValues?.bcc));
   }, [
     open,
     initialValues?.to,
@@ -217,9 +222,13 @@ export default function DocumentEmailComposer({
             : undefined
         }
       >
-        <div className="space-y-3 min-w-0">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold" htmlFor="email-to">
+        <div className="min-w-0 overflow-hidden rounded-xl border">
+          <div className="bg-foreground px-4 py-2.5 text-sm font-semibold text-background">
+            New email
+          </div>
+
+          <div className="flex items-center gap-3 border-b px-4 py-2">
+            <label className="w-14 shrink-0 text-sm text-muted-foreground" htmlFor="email-to">
               To
             </label>
             <Input
@@ -231,151 +240,100 @@ export default function DocumentEmailComposer({
               }
               placeholder="client@email.com"
               disabled={isSending}
+              className="h-8 rounded-full border bg-muted/50 px-3 text-sm font-semibold focus-visible:ring-1 focus-visible:ring-offset-0"
             />
+            {!showCopies && (
+              <button
+                type="button"
+                onClick={() => setShowCopies(true)}
+                disabled={isSending}
+                className="shrink-0 text-xs font-medium text-muted-foreground hover:text-foreground"
+              >
+                Cc/Bcc
+              </button>
+            )}
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold" htmlFor="email-cc">
-              CC
-            </label>
-            <div className="min-h-10 w-full rounded-md border border-input bg-background px-2 py-1">
-              <div className="flex flex-wrap gap-1">
-                {formValues.cc.map((email) => (
-                  <span
-                    key={email}
-                    className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700"
+          {showCopies &&
+            (["cc", "bcc"] as const).map((group) => {
+              const inputKey = group === "cc" ? "ccInput" : "bccInput";
+              const label = group.toUpperCase();
+              return (
+                <div key={group} className="flex items-center gap-3 border-b px-4 py-1.5">
+                  <label
+                    className="w-14 shrink-0 text-sm text-muted-foreground"
+                    htmlFor={`email-${group}`}
                   >
-                    {email}
-                    <button
-                      type="button"
-                      onClick={() =>
+                    {label}
+                  </label>
+                  <div className="flex min-h-8 flex-1 flex-wrap items-center gap-1">
+                    {formValues[group].map((email) => (
+                      <span
+                        key={email}
+                        className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700"
+                      >
+                        {email}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormValues((prev) => ({
+                              ...prev,
+                              [group]: prev[group].filter((item) => item !== email),
+                            }))
+                          }
+                          disabled={isSending}
+                          className="text-slate-500 hover:text-slate-700 disabled:opacity-50"
+                          aria-label={`Remove ${email}`}
+                        >
+                          x
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      id={`email-${group}`}
+                      type="text"
+                      value={formValues[inputKey]}
+                      onChange={(event) =>
                         setFormValues((prev) => ({
                           ...prev,
-                          cc: prev.cc.filter((item) => item !== email),
+                          [inputKey]: event.target.value,
                         }))
                       }
+                      onInput={() => {
+                        if (validationError) {
+                          setValidationError(null);
+                        }
+                      }}
+                      onBlur={() => commitEmailTags(group)}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "Enter" ||
+                          event.key === "Tab" ||
+                          event.key === ","
+                        ) {
+                          event.preventDefault();
+                          commitEmailTags(group);
+                          return;
+                        }
+
+                        if (event.key === "Backspace" && !formValues[inputKey]) {
+                          setFormValues((prev) => ({
+                            ...prev,
+                            [group]: prev[group].slice(0, -1),
+                          }));
+                        }
+                      }}
+                      placeholder={formValues[group].length === 0 ? `Add ${label} email` : ""}
                       disabled={isSending}
-                      className="text-slate-500 hover:text-slate-700 disabled:opacity-50"
-                      aria-label={`Remove ${email}`}
-                    >
-                      x
-                    </button>
-                  </span>
-                ))}
-                <input
-                  id="email-cc"
-                  type="text"
-                  value={formValues.ccInput}
-                  onChange={(event) =>
-                    setFormValues((prev) => ({
-                      ...prev,
-                      ccInput: event.target.value,
-                    }))
-                  }
-                  onInput={() => {
-                    if (validationError) {
-                      setValidationError(null);
-                    }
-                  }}
-                  onBlur={() => commitEmailTags("cc")}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === "Enter" ||
-                      event.key === "Tab" ||
-                      event.key === ","
-                    ) {
-                      event.preventDefault();
-                      commitEmailTags("cc");
-                      return;
-                    }
+                      className="min-w-[140px] flex-1 border-0 bg-transparent p-1 text-sm outline-none"
+                    />
+                  </div>
+                </div>
+              );
+            })}
 
-                    if (event.key === "Backspace" && !formValues.ccInput) {
-                      setFormValues((prev) => ({
-                        ...prev,
-                        cc: prev.cc.slice(0, -1),
-                      }));
-                    }
-                  }}
-                  placeholder={formValues.cc.length === 0 ? "Add CC email" : ""}
-                  disabled={isSending}
-                  className="min-w-[140px] flex-1 border-0 bg-transparent p-1 text-sm outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold" htmlFor="email-bcc">
-              BCC
-            </label>
-            <div className="min-h-10 w-full rounded-md border border-input bg-background px-2 py-1">
-              <div className="flex flex-wrap gap-1">
-                {formValues.bcc.map((email) => (
-                  <span
-                    key={email}
-                    className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700"
-                  >
-                    {email}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFormValues((prev) => ({
-                          ...prev,
-                          bcc: prev.bcc.filter((item) => item !== email),
-                        }))
-                      }
-                      disabled={isSending}
-                      className="text-slate-500 hover:text-slate-700 disabled:opacity-50"
-                      aria-label={`Remove ${email}`}
-                    >
-                      x
-                    </button>
-                  </span>
-                ))}
-                <input
-                  id="email-bcc"
-                  type="text"
-                  value={formValues.bccInput}
-                  onChange={(event) =>
-                    setFormValues((prev) => ({
-                      ...prev,
-                      bccInput: event.target.value,
-                    }))
-                  }
-                  onInput={() => {
-                    if (validationError) {
-                      setValidationError(null);
-                    }
-                  }}
-                  onBlur={() => commitEmailTags("bcc")}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === "Enter" ||
-                      event.key === "Tab" ||
-                      event.key === ","
-                    ) {
-                      event.preventDefault();
-                      commitEmailTags("bcc");
-                      return;
-                    }
-
-                    if (event.key === "Backspace" && !formValues.bccInput) {
-                      setFormValues((prev) => ({
-                        ...prev,
-                        bcc: prev.bcc.slice(0, -1),
-                      }));
-                    }
-                  }}
-                  placeholder={formValues.bcc.length === 0 ? "Add BCC email" : ""}
-                  disabled={isSending}
-                  className="min-w-[140px] flex-1 border-0 bg-transparent p-1 text-sm outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold" htmlFor="email-subject">
+          <div className="flex items-center gap-3 border-b px-4 py-2">
+            <label className="w-14 shrink-0 text-sm text-muted-foreground" htmlFor="email-subject">
               Subject
             </label>
             <Input
@@ -385,23 +343,30 @@ export default function DocumentEmailComposer({
                 setFormValues((prev) => ({ ...prev, subject: event.target.value }))
               }
               disabled={isSending}
+              className="h-8 border-0 px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold" htmlFor="email-message">
-              Message
-            </label>
-            <Textarea
-              id="email-message"
-              value={formValues.message}
-              onChange={(event) =>
-                setFormValues((prev) => ({ ...prev, message: event.target.value }))
-              }
-              rows={8}
-              disabled={isSending}
-            />
-          </div>
+          <Textarea
+            id="email-message"
+            aria-label="Message"
+            value={formValues.message}
+            onChange={(event) =>
+              setFormValues((prev) => ({ ...prev, message: event.target.value }))
+            }
+            rows={8}
+            disabled={isSending}
+            className="rounded-none border-0 px-4 py-3 focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+
+          {attachmentName && (
+            <div className="px-4 pb-3">
+              <span className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold">
+                <FileText className="h-4 w-4 text-brand" />
+                {attachmentName}
+              </span>
+            </div>
+          )}
         </div>
 
         {previewOpen && (
@@ -492,7 +457,10 @@ export default function DocumentEmailComposer({
               Retry
             </>
           ) : (
-            "Send"
+            <>
+              <Send className="mr-2 h-4 w-4" />
+              Send
+            </>
           )}
         </Button>
       </div>

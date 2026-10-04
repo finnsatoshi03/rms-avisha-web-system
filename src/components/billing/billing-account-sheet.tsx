@@ -12,8 +12,6 @@ import {
   Phone,
   Mail,
   User,
-  ChevronDown,
-  ChevronRight,
   ArrowLeft,
   Info,
   Send,
@@ -25,11 +23,9 @@ import {
   Ban,
   Trash2,
 } from "lucide-react";
-import { markSoaStep, SOA_SHOW_ME_EVENT } from "../../lib/soa-progress";
 
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
-import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
@@ -43,11 +39,7 @@ import {
 } from "../ui/table";
 import { Separator } from "../ui/separator";
 import { Skeleton } from "../ui/skeleton";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "../ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -97,6 +89,7 @@ import {
   deleteReceiptFile,
   getSignedReceiptUrl,
   resolveReceiptStorageContextFromPayment,
+  updateBillingStatement,
   updateBillingPaymentReceipt,
   uploadReceiptFile,
 } from "../../services/apiBilling";
@@ -128,10 +121,6 @@ import TransactionDateDialog from "./transaction-date-dialog";
 import DocumentEmailComposer, {
   EmailComposePayload,
 } from "../email/document-email-composer";
-import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
-import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
-import GuidedTour from "../onboarding/guided-tour";
-import TourReplayButton from "../onboarding/tour-replay-button";
 import { formatDateLabel, normalizeDateOnly } from "../../lib/transaction-date";
 import { getServerNow } from "../../lib/server-time";
 
@@ -157,8 +146,6 @@ const statementStatusBadge: Record<string, string> = {
   sent: "bg-green-100 text-green-700 border-green-200",
 };
 
-const STATEMENT_SEND_HINT_STORAGE_KEY = "billing_statement_send_hint_hidden";
-type StatementActionType = "finalize" | "send";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -170,12 +157,6 @@ function amt(value: number | null | undefined): string {
 function creditLimitPercent(balance: number, limit: number): number {
   if (limit <= 0) return 0;
   return Math.min(100, Math.round((balance / limit) * 100));
-}
-
-function creditBarColor(pct: number): string {
-  if (pct < 50) return "bg-green-500";
-  if (pct < 80) return "bg-yellow-500";
-  return "bg-red-500";
 }
 
 function balanceColorClass(balance: number, aging?: BillingAging): string {
@@ -190,30 +171,9 @@ function balanceColorClass(balance: number, aging?: BillingAging): string {
   return "text-gray-900";
 }
 
-// ─── Tooltip helper ─────────────────────────────────────────────────────────
-
-function HelpTip({ text }: { text: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Info
-          size={12}
-          className="inline-block ml-1 text-gray-400 hover:text-gray-600 cursor-help align-middle"
-        />
-      </TooltipTrigger>
-      <TooltipContent
-        side="top"
-        className="max-w-[220px] text-xs leading-snug"
-      >
-        {text}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 // ─── Sub-sheet types ────────────────────────────────────────────────────────
 
-type SubSheetType = "payment" | "attach-jo" | "attach-rental" | "statement" | "edit" | null;
+type SubSheetType = "payment" | "charges" | "statement" | "edit" | null;
 
 type GenerateStatementsResult = {
   account_id: string;
@@ -274,7 +234,7 @@ export default function BillingAccountSheetContent({
   } = useBillingAccount(accountId);
   const { data: balanceData, isLoading: balanceLoading } =
     useBillingAccountBalance(accountId);
-  const { data: agingData, isLoading: agingLoading } =
+  const { data: agingData } =
     useBillingAccountAging(accountId);
   const { data: ledger, isLoading: ledgerLoading } =
     useBillingLedger(accountId);
@@ -322,46 +282,7 @@ export default function BillingAccountSheetContent({
   const sendReminders = useTriggerSendBillingReminders();
   const generateStatements = useTriggerGenerateStatements();
 
-  // Onboarding tour
-  const {
-    showAnnouncement: showDetailAnnouncement,
-    showTour: showDetailTour,
-    onboardingData: detailOnboardingData,
-    startTour: startDetailTour,
-    completeTour: completeDetailTour,
-    replayTour: replayDetailTour,
-  } = useFeatureOnboarding("billing_account_detail");
-
-  // Focused SOA mini-tours, launched from the tutorial checklist's
-  // "Show me" buttons (see soa-onboarding-checklist.tsx).
-  const [activeMiniTour, setActiveMiniTour] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Opening an account is itself a tutorial step.
-    markSoaStep("open_account");
-
-    const miniTourKeys = new Set([
-      "soa_add_charges",
-      "soa_generate_send",
-      "soa_record_payment",
-      "soa_interest_reminders",
-    ]);
-    const onShowMe = (event: Event) => {
-      const detail = (event as CustomEvent<{ featureKey: string }>).detail;
-      if (detail && miniTourKeys.has(detail.featureKey)) {
-        event.preventDefault();
-        setActiveMiniTour(detail.featureKey);
-      }
-    };
-    window.addEventListener(SOA_SHOW_ME_EVENT, onShowMe);
-    return () => window.removeEventListener(SOA_SHOW_ME_EVENT, onShowMe);
-  }, []);
-
   // Collapsible section states
-  const [statementsOpen, setStatementsOpen] = useState(false);
-  const [paymentsOpen, setPaymentsOpen] = useState(false);
-  const [jobOrdersOpen, setJobOrdersOpen] = useState(false);
-  const [rentalsOpen, setRentalsOpen] = useState(false);
   const [showInterestConfirm, setShowInterestConfirm] = useState(false);
   const [showStatusConfirm, setShowStatusConfirm] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<BillingAccountStatus | null>(null);
@@ -377,8 +298,7 @@ export default function BillingAccountSheetContent({
   const [deleteAuthError, setDeleteAuthError] = useState<string | null>(null);
   const [showRemindersConfirm, setShowRemindersConfirm] = useState(false);
   const [showGenerateSOAConfirm, setShowGenerateSOAConfirm] = useState(false);
-  const [interestLogsOpen, setInterestLogsOpen] = useState(false);
-  const [emailLogsOpen, setEmailLogsOpen] = useState(false);
+  const [historyTab, setHistoryTab] = useState("all");
   const [sourceFilter, setSourceFilter] = useState<"all" | "job_order" | "rental">("all");
   const [sendingStatementId, setSendingStatementId] = useState<string | null>(null);
   const [statementEmailDialogOpen, setStatementEmailDialogOpen] = useState(false);
@@ -387,15 +307,6 @@ export default function BillingAccountSheetContent({
     null
   );
   const [downloadingStatementId, setDownloadingStatementId] = useState<string | null>(null);
-  const [highlightStatementAction, setHighlightStatementAction] =
-    useState<StatementActionType | null>(null);
-  const [showStatementActionHint, setShowStatementActionHint] = useState(false);
-  const [statementHintAction, setStatementHintAction] =
-    useState<StatementActionType>("send");
-  const [dontRemindStatementActionHint, setDontRemindStatementActionHint] =
-    useState(false);
-  const [suppressStatementActionHint, setSuppressStatementActionHint] =
-    useState(false);
   const [replacingReceiptPaymentId, setReplacingReceiptPaymentId] = useState<string | null>(
     null
   );
@@ -404,125 +315,19 @@ export default function BillingAccountSheetContent({
   const [editingTransactionDateLineItem, setEditingTransactionDateLineItem] =
     useState<BillingLineItem | null>(null);
   const [receiptInputKey, setReceiptInputKey] = useState(0);
-  const statementAttentionTimerRef = useRef<number | null>(null);
-  const statementHighlightTimerRef = useRef<number | null>(null);
   const paymentReceiptInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Mock data for detail tour when account has no data
-  const tourActive = showDetailTour;
-  const MOCK_LINE_ITEMS: BillingLineItem[] = [
-    {
-      id: "mock-li-1",
-      billing_account_id: accountId,
-      job_order_id: 1,
-      rental_id: null,
-      branch_id: 1,
-      type: "charge",
-      description: "JO JO-01-001 - Printer Repair",
-      amount: 3500,
-      balance_at_time: 3500,
-      due_date: new Date(Date.now() - 18 * 86400000).toISOString().slice(0, 10),
-      created_by: null,
-      created_at: new Date(Date.now() - 45 * 86400000).toISOString(),
-      branches: { id: 1, name: "Main", prefix: "01" },
-      joborders: { id: 1, order_no: "JO-01-001", status: "Completed" },
-      paid_amount: 1500,
-    },
-    {
-      id: "mock-li-2",
-      billing_account_id: accountId,
-      job_order_id: null,
-      rental_id: 1,
-      branch_id: 1,
-      type: "charge",
-      description: "Rental R-01-001 - Epson L3210 (MONTHLY)",
-      amount: 5000,
-      balance_at_time: 8500,
-      due_date: new Date(Date.now() - 46 * 86400000).toISOString().slice(0, 10),
-      created_by: null,
-      created_at: new Date(Date.now() - 60 * 86400000).toISOString(),
-      branches: { id: 1, name: "Main", prefix: "01" },
-      rentals: { id: 1, rental_no: "R-01-001", status: "Ongoing" },
-      paid_amount: 0,
-    },
-    {
-      id: "mock-li-3",
-      billing_account_id: accountId,
-      job_order_id: null,
-      rental_id: null,
-      branch_id: 1,
-      type: "interest",
-      description: "Monthly interest (2.00%)",
-      amount: 70,
-      balance_at_time: 8570,
-      due_date: null,
-      created_by: null,
-      created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-      branches: { id: 1, name: "Main", prefix: "01" },
-      paid_amount: 0,
-    },
-  ];
-  const MOCK_PAYMENTS: BillingPayment[] = [
-    { id: "mock-pay-1", billing_account_id: accountId, amount: 1500, payment_date: new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10), payment_method: "gcash", reference_number: "GC-12345", notes: null, created_by: null, created_at: new Date(Date.now() - 5 * 86400000).toISOString() },
-  ];
-  const MOCK_STATEMENTS: BillingStatement[] = [
-    { id: "mock-stmt-1", billing_account_id: accountId, statement_number: "SOA-2026-03-001", period_start: new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10), period_end: getServerNow().toISOString().slice(0, 10), previous_balance: 0, new_charges: 8500, payments_received: 1500, interest_applied: 70, current_balance: 7070, due_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), branch_filter: null, status: "finalized", generated_by: null, generated_at: getServerNow().toISOString(), sent_at: null, pdf_url: null },
-  ];
-  const MOCK_INTEREST_LOGS: BillingInterestLog[] = [
-    { id: "mock-int-1", billing_account_id: accountId, billing_line_item_id: "mock-li-3", applied_at: new Date(Date.now() - 1 * 86400000).toISOString(), interest_amount: 70, rate: 2, overdue_balance: 3500, billing_cycle: getServerNow().toISOString().slice(0, 7), created_at: new Date(Date.now() - 1 * 86400000).toISOString() },
-  ];
-  const MOCK_EMAIL_LOGS: EmailLog[] = [
-    { id: "mock-email-1", billing_account_id: accountId, recipient: "billing@sunshine.com", subject: "Billing Reminder - March 2026", type: "billing_reminder", status: "sent", error_message: null, metadata: {}, sent_at: new Date(Date.now() - 2 * 86400000).toISOString(), created_at: new Date(Date.now() - 2 * 86400000).toISOString() },
-  ];
-  const MOCK_LEDGER: LedgerEntry[] = [
-    { id: "mock-led-1", date: new Date(Date.now() - 7 * 86400000).toISOString(), type: "charge", description: "JO JO-01-001 - Printer Repair", debit: 3500, credit: 0, balance: 3500, branch: "Main", source: "line_item" },
-    { id: "mock-led-2", date: new Date(Date.now() - 5 * 86400000).toISOString(), type: "payment", description: "Payment - GCash (GC-12345)", debit: 0, credit: 1500, balance: 2000, source: "payment" },
-    { id: "mock-led-3", date: new Date(Date.now() - 3 * 86400000).toISOString(), type: "charge", description: "Rental R-01-001 - Epson L3210 (MONTHLY)", debit: 5000, credit: 0, balance: 7000, branch: "Main", source: "line_item" },
-    { id: "mock-led-4", date: new Date(Date.now() - 1 * 86400000).toISOString(), type: "interest", description: "Monthly interest (2.00%)", debit: 70, credit: 0, balance: 7070, branch: "Main", source: "line_item" },
-  ];
-  const MOCK_AGING: BillingAging = {
-    current_amount: 570,
-    days_1_30: 3000,
-    days_31_60: 3500,
-    days_61_90: 0,
-    days_90_plus: 0,
-  };
 
   // Derived
   const acct = account as BillingAccount | undefined;
-  const rawLineItems = (lineItems ?? []) as BillingLineItem[];
-  const usingMockLineItems = tourActive && rawLineItems.length === 0;
-  const allLineItems = usingMockLineItems ? MOCK_LINE_ITEMS : rawLineItems;
+  const allLineItems = (lineItems ?? []) as BillingLineItem[];
+  const effectiveLedger = useMemo(() => (ledger ?? []) as LedgerEntry[], [ledger]);
 
-  const rawLedger = (ledger ?? []) as LedgerEntry[];
-  const usingMockLedger = tourActive && rawLedger.length === 0;
-  const effectiveLedger: LedgerEntry[] = usingMockLedger ? MOCK_LEDGER : rawLedger;
-
-  const computedBalance =
+  const balance =
     typeof balanceData === "number"
       ? balanceData
       : (acct?.current_balance ?? 0);
-  const fallbackMockBalance =
-    effectiveLedger.length > 0
-      ? effectiveLedger[effectiveLedger.length - 1]?.balance ?? 0
-      : 0;
-  const balance =
-    tourActive && computedBalance <= 0 && usingMockLineItems
-      ? fallbackMockBalance
-      : computedBalance;
 
-  const rawAging = (agingData ?? acct?.aging) as BillingAging | undefined;
-  const hasRawAgingBreakdown =
-    !!rawAging &&
-    (rawAging.current_amount > 0 ||
-      rawAging.days_1_30 > 0 ||
-      rawAging.days_31_60 > 0 ||
-      rawAging.days_61_90 > 0 ||
-      rawAging.days_90_plus > 0);
-  const aging =
-    tourActive && !hasRawAgingBreakdown && usingMockLineItems
-      ? MOCK_AGING
-      : rawAging;
+  const aging = (agingData ?? acct?.aging) as BillingAging | undefined;
 
   const clientId = acct?.client_id ?? 0;
   const creditLimit = acct?.credit_limit ?? 0;
@@ -538,14 +343,10 @@ export default function BillingAccountSheetContent({
   const totalInterestCharges = allLineItems
     .filter((li) => li.type === "interest")
     .reduce((sum, li) => sum + li.amount, 0);
-  const totalCharges = allLineItems
-    .filter((li) => li.type === "charge")
-    .reduce((sum, li) => sum + li.amount, 0);
 
   // Check if interest already applied this billing cycle
   const currentCycle = getServerNow().toISOString().slice(0, 7); // YYYY-MM
-  const rawInterestLogs = (interestLogs ?? []) as BillingInterestLog[];
-  const typedInterestLogsAll = tourActive && rawInterestLogs.length === 0 ? MOCK_INTEREST_LOGS : rawInterestLogs;
+  const typedInterestLogsAll = (interestLogs ?? []) as BillingInterestLog[];
   const interestAlreadyApplied = typedInterestLogsAll.some(
     (log) => log.billing_cycle === currentCycle
   );
@@ -554,8 +355,7 @@ export default function BillingAccountSheetContent({
   const recipientEmail = acct?.billing_contact_email || acct?.clients?.email;
 
   // Latest statement info
-  const rawStatements = (statements ?? []) as BillingStatement[];
-  const typedStatements = tourActive && rawStatements.length === 0 ? MOCK_STATEMENTS : rawStatements;
+  const typedStatements = (statements ?? []) as BillingStatement[];
   const latestStatement = typedStatements.length > 0
     ? [...typedStatements].sort((a, b) =>
         new Date(b.period_end).getTime() - new Date(a.period_end).getTime()
@@ -566,9 +366,7 @@ export default function BillingAccountSheetContent({
   const draftStatements = typedStatements.filter((s) => s.status === "draft");
   const finalizedNotSent = typedStatements.filter((s) => s.status === "finalized");
 
-  const rawEmailLogs = (emailLogs ?? []) as EmailLog[];
-  const typedEmailLogs =
-    tourActive && rawEmailLogs.length === 0 ? MOCK_EMAIL_LOGS : rawEmailLogs;
+  const typedEmailLogs = (emailLogs ?? []) as EmailLog[];
   const statementEmailLogs = typedEmailLogs.filter((log) => {
     if (log.entity_type) {
       return log.entity_type === "billing_statement";
@@ -596,9 +394,10 @@ export default function BillingAccountSheetContent({
     ? statementSentEntityIds.has(statementToEmail.id)
     : false;
 
-  // Use mock data for tour if payments are empty
-  const rawPayments = (payments ?? []) as BillingPayment[];
-  const effectivePayments: BillingPayment[] = tourActive && rawPayments.length === 0 ? MOCK_PAYMENTS : rawPayments;
+  const effectivePayments = useMemo(
+    () => (payments ?? []) as BillingPayment[],
+    [payments]
+  );
   const paymentsMissingReceiptCount = useMemo(
     () =>
       effectivePayments.filter((payment) => {
@@ -665,123 +464,6 @@ export default function BillingAccountSheetContent({
       return true;
     });
   }, [effectiveLedger, sourceFilter]);
-
-  useEffect(() => {
-    const savedValue = window.localStorage.getItem(
-      STATEMENT_SEND_HINT_STORAGE_KEY
-    );
-    setSuppressStatementActionHint(savedValue === "1");
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (statementAttentionTimerRef.current) {
-        window.clearTimeout(statementAttentionTimerRef.current);
-      }
-      if (statementHighlightTimerRef.current) {
-        window.clearTimeout(statementHighlightTimerRef.current);
-      }
-    };
-  }, []);
-
-  const dismissStatementActionHint = useCallback(() => {
-    if (dontRemindStatementActionHint) {
-      window.localStorage.setItem(STATEMENT_SEND_HINT_STORAGE_KEY, "1");
-      setSuppressStatementActionHint(true);
-    }
-    setShowStatementActionHint(false);
-  }, [dontRemindStatementActionHint]);
-
-  const focusStatementsAndHighlightAction = useCallback((preferredAction: StatementActionType) => {
-    setStatementsOpen(true);
-    if (activeSubSheet) {
-      setActiveSubSheet(null);
-    }
-
-    let attempts = 0;
-    const maxAttempts = 12;
-
-    const run = () => {
-      const section = document.querySelector(
-        '[data-tour="billing-detail-statements-section"]'
-      ) as HTMLElement | null;
-      const table = document.querySelector(
-        '[data-tour="billing-detail-statements-table"]'
-      ) as HTMLElement | null;
-      (table || section)?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-
-      const targetSelector =
-        preferredAction === "finalize"
-          ? '[data-statement-finalize-cta="true"]'
-          : '[data-statement-send-cta="true"]';
-      const targetButtons = document.querySelectorAll(targetSelector);
-      const fallbackButtons =
-        preferredAction === "finalize"
-          ? document.querySelectorAll('[data-statement-send-cta="true"]')
-          : [];
-
-      let actionToHighlight: StatementActionType | null = null;
-      if (targetButtons.length > 0) {
-        actionToHighlight = preferredAction;
-      } else if (preferredAction === "finalize" && fallbackButtons.length > 0) {
-        actionToHighlight = "send";
-      }
-
-      if (actionToHighlight || attempts >= maxAttempts) {
-        if (actionToHighlight) {
-          setHighlightStatementAction(actionToHighlight);
-          if (!suppressStatementActionHint) {
-            setDontRemindStatementActionHint(false);
-            setStatementHintAction(actionToHighlight);
-            setShowStatementActionHint(true);
-          }
-          if (statementHighlightTimerRef.current) {
-            window.clearTimeout(statementHighlightTimerRef.current);
-          }
-          statementHighlightTimerRef.current = window.setTimeout(() => {
-            setHighlightStatementAction(null);
-          }, 8000);
-        } else {
-          setHighlightStatementAction(null);
-          setShowStatementActionHint(false);
-        }
-        return;
-      }
-
-      attempts += 1;
-      statementAttentionTimerRef.current = window.setTimeout(run, 250);
-    };
-
-    if (statementAttentionTimerRef.current) {
-      window.clearTimeout(statementAttentionTimerRef.current);
-    }
-    statementAttentionTimerRef.current = window.setTimeout(run, 180);
-  }, [activeSubSheet, suppressStatementActionHint]);
-
-  const focusStatementsForManualGeneration = useCallback(() => {
-    focusStatementsAndHighlightAction("finalize");
-  }, [focusStatementsAndHighlightAction]);
-
-  const focusStatementsForSend = useCallback(() => {
-    focusStatementsAndHighlightAction("send");
-  }, [focusStatementsAndHighlightAction]);
-
-  const clearStatementAttention = useCallback(() => {
-    setShowStatementActionHint(false);
-    setHighlightStatementAction(null);
-  }, []);
-
-  const statementHintTitle =
-    statementHintAction === "finalize"
-      ? "Statement created as draft"
-      : "Statement ready to send";
-  const statementHintDescription =
-    statementHintAction === "finalize"
-      ? 'Click the "Finalize" action first, then send it to the client.'
-      : 'Use the "Send" action to email it to the client.';
 
   const openSubSheet = useCallback((type: SubSheetType) => {
     setActiveSubSheet(type);
@@ -971,8 +653,6 @@ export default function BillingAccountSheetContent({
       a.click();
       URL.revokeObjectURL(url);
       toast.success("PDF downloaded");
-      markSoaStep("send_statement");
-      markSoaStep("send_statement");
     } catch (err) {
       toast.error("Failed to generate PDF");
       console.error(err);
@@ -986,10 +666,24 @@ export default function BillingAccountSheetContent({
       id: statementId,
       updates: { status: "finalized" },
     }, {
-      onSuccess: () => {
-        focusStatementsForSend();
-      },
     });
+  }
+
+  // New statement → mark ready → straight into the email composer.
+  function handleStatementCreated(statementId: string) {
+    updateBillingStatement(statementId, { status: "finalized" }).then(
+      (statement) => {
+        queryClient.invalidateQueries({ queryKey: ["billing_statements", accountId] });
+        setHistoryTab("statements");
+        const email = acct?.billing_contact_email || acct?.clients?.email;
+        if (canManageAccount && email) {
+          openStatementSendDialog(statement);
+        } else {
+          toast.success("Statement ready. Download it from the Statements tab.");
+        }
+      },
+      (error: Error) => toast.error(error.message)
+    );
   }
 
   function buildStatementEmailDraft(statement: BillingStatement) {
@@ -1132,7 +826,6 @@ export default function BillingAccountSheetContent({
           (data as { message?: string })?.message ||
           `Statement sent to ${primaryRecipient}`;
         toast.success(successMessage);
-        markSoaStep("send_statement");
         queryClient.invalidateQueries({ queryKey: ["billing_statements", accountId] });
         setStatementEmailDialogOpen(false);
         setStatementToEmail(null);
@@ -1330,18 +1023,20 @@ export default function BillingAccountSheetContent({
     pendingStatus === "suspended" ? "Suspend" : "Activate";
 
   const isCompressed = activeSubSheet !== null;
+  const totalOverdue = aging
+    ? aging.days_1_30 + aging.days_31_60 + aging.days_61_90 + aging.days_90_plus
+    : 0;
   const shouldStack = isNarrow && isCompressed;
 
   // ─── Header (always visible) ──────────────────────────────────────────────
 
   const headerSection = (
-    <div className="space-y-3" data-tour="billing-detail-header">
+    <div className="space-y-3">
       {/* Account number + tour row */}
       <div className="flex items-center gap-2">
         <span className="font-mono text-sm font-semibold">
           {acct.account_number}
         </span>
-        <TourReplayButton onClick={replayDetailTour} label="Account tour" />
       </div>
 
       {/* Account details + status/actions */}
@@ -1388,21 +1083,53 @@ export default function BillingAccountSheetContent({
                 variant="ghost"
                 className="h-7 w-7 p-0"
                 aria-label="More account actions"
-                data-tour="billing-detail-more-actions"
+               
               >
                 <MoreHorizontal size={16} />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="min-w-[170px]"
-              data-tour="billing-detail-more-actions-menu"
-            >
+            <DropdownMenuContent align="end" className="min-w-[190px]">
+              {(isDev || isAdmin) && (
+                <>
+                  <DropdownMenuItem onClick={() => openSubSheet("edit")} className="gap-2">
+                    <Pencil size={14} />
+                    Edit account settings
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={handleApplyInterest}
+                    disabled={applyInterest.isPending}
+                    className="gap-2"
+                  >
+                    <Percent size={14} />
+                    Apply interest
+                    {!interestAlreadyApplied && totalOverdue > 0 && (
+                      <span className="ml-auto text-[10px] text-amber-600">due</span>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setShowRemindersConfirm(true)}
+                    disabled={sendReminders.isPending}
+                    className="gap-2"
+                  >
+                    <Mail size={14} />
+                    Send payment reminders
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setShowGenerateSOAConfirm(true)}
+                    disabled={generateStatements.isPending}
+                    className="gap-2"
+                  >
+                    <FileText size={14} />
+                    Auto-generate statements
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem
                 onClick={handleRequestStatusChange}
                 disabled={updateAccount.isPending || acct.status === "closed"}
                 className="gap-2"
-                data-tour="billing-detail-more-actions-status"
+               
               >
                 <Ban size={14} />
                 {updateAccount.isPending
@@ -1414,7 +1141,7 @@ export default function BillingAccountSheetContent({
                 onClick={openDeleteDialog}
                 disabled={deleteAccount.isPending || isLoadingDeleteImpact}
                 className="gap-2 text-red-600 focus:text-red-600"
-                data-tour="billing-detail-more-actions-delete"
+               
               >
                 <Trash2 size={14} />
                 {isLoadingDeleteImpact
@@ -1433,286 +1160,78 @@ export default function BillingAccountSheetContent({
 
   // ─── Balance summary (always visible) ─────────────────────────────────────
 
-  const totalOverdue = aging
-    ? aging.days_1_30 + aging.days_31_60 + aging.days_61_90 + aging.days_90_plus
-    : 0;
-
   const balanceSummary = (
-    <div className="space-y-3" data-tour="billing-detail-balance">
-      {/* Balance */}
-      <div>
-        <div className="flex items-center gap-1 mb-0.5">
-          <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-            Total Unpaid
-          </span>
-          <HelpTip text="Total amount this client still owes across all job orders and charges." />
-        </div>
-        {balanceLoading ? (
-          <Skeleton className="h-8 w-28" />
-        ) : (
-          <span
-            className={`text-2xl font-bold tabular-nums block ${balanceColorClass(balance, aging)}`}
-          >
-            {amt(balance)}
-          </span>
-        )}
-        {totalOverdue > 0 && (
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <p className="text-[11px] text-red-500">
-              {amt(totalOverdue)} overdue
-            </p>
-            {!interestAlreadyApplied && (isDev || isAdmin) && (
-              <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] px-1.5 py-0 rounded-full font-semibold">
-                Interest pending
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Balance breakdown */}
-      {(totalCharges > 0 || totalInterestCharges > 0) && !isCompressed && (
-        <div className="rounded-lg border bg-gray-50/80 p-2.5 space-y-1">
-          <div className="flex justify-between text-xs">
-            <span className="text-gray-500">Charges Subtotal</span>
-            <span className="tabular-nums">{amt(totalCharges)}</span>
-          </div>
+    <div>
+      <span className="text-xs text-gray-500">Owes</span>
+      {balanceLoading ? (
+        <Skeleton className="h-9 w-32" />
+      ) : (
+        <span
+          className={`text-3xl font-bold tabular-nums block ${balanceColorClass(balance, aging)}`}
+        >
+          {amt(balance)}
+        </span>
+      )}
+      {totalOverdue > 0 ? (
+        <p className="text-sm text-red-600 font-medium">
+          {amt(totalOverdue)} overdue
           {totalInterestCharges > 0 && (
-            <div className="flex justify-between text-xs">
-              <span className="text-amber-600 flex items-center gap-1">
-                <Percent size={10} /> Interest Applied
-              </span>
-              <span className="tabular-nums text-amber-600 font-medium">
-                {amt(totalInterestCharges)}
-              </span>
-            </div>
+            <span className="text-amber-600 font-normal">
+              {" "}· includes {amt(totalInterestCharges)} interest
+            </span>
           )}
-          <div className="border-t pt-1 flex justify-between text-xs font-semibold">
-            <span>Total Due</span>
-            <span className="tabular-nums">{amt(balance)}</span>
-          </div>
-        </div>
+        </p>
+      ) : (
+        balance > 0 && <p className="text-sm text-gray-500">Nothing overdue</p>
       )}
-
-      {/* Credit limit bar */}
-      {creditLimit > 0 && (
-        <div>
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span className="flex items-center">
-              Credit Limit: {amt(creditLimit)}
-              <HelpTip text="Maximum allowed unpaid balance. New charges may be restricted when this limit is reached." />
-            </span>
-            <span>{usagePct}% used</span>
-          </div>
-          <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${creditBarColor(usagePct)}`}
-              style={{ width: `${usagePct}%` }}
-            />
-          </div>
-        </div>
+      {creditLimit > 0 && usagePct >= 80 && (
+        <p className="text-xs text-red-600 mt-1">
+          {usagePct}% of {amt(creditLimit)} credit limit used
+        </p>
       )}
-
-      {/* Aging breakdown */}
-      {agingLoading ? (
-        <Skeleton className="h-12 w-full" />
-      ) : aging ? (
-        <div>
-          <div className="flex items-center gap-1 mb-1.5">
-            <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
-              Aging Breakdown
-            </span>
-            <HelpTip text="Shows how old the unpaid amounts are. 'Current' means not yet due. Overdue amounts are grouped by how many days past due." />
-          </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {[
-              {
-                label: "Current",
-                desc: "Not yet due",
-                value: aging.current_amount,
-                warn: false,
-              },
-              {
-                label: "1-30 days",
-                desc: "Overdue 1-30 days",
-                value: aging.days_1_30,
-                warn: true,
-              },
-              {
-                label: "31-60 days",
-                desc: "Overdue 31-60 days",
-                value: aging.days_31_60,
-                warn: true,
-              },
-              {
-                label: "61-90 days",
-                desc: "Overdue 61-90 days",
-                value: aging.days_61_90,
-                warn: true,
-              },
-              {
-                label: "Over 90 days",
-                desc: "Overdue more than 90 days",
-                value: aging.days_90_plus,
-                warn: true,
-              },
-            ].map((bucket) => (
-              <Tooltip key={bucket.label}>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center justify-between px-2 py-1 rounded border bg-gray-50/80 cursor-default">
-                    <span className="text-[11px] text-gray-500">
-                      {bucket.label}
-                    </span>
-                    <span
-                      className={`text-xs font-semibold tabular-nums ${
-                        bucket.value > 0 && bucket.warn ? "text-red-600" : ""
-                      }`}
-                    >
-                      {amt(bucket.value)}
-                    </span>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-xs">
-                  {bucket.desc}
-                </TooltipContent>
-              </Tooltip>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 
   // ─── Action buttons ───────────────────────────────────────────────────────
 
+  const toggleSubSheet = (type: Exclude<SubSheetType, null>) =>
+    activeSubSheet === type ? closeSubSheet() : openSubSheet(type);
+
   const actionButtons = (
-    <div className={`grid gap-1.5 ${isCompressed ? "grid-cols-1" : "grid-cols-2"}`} data-tour="billing-detail-actions">
+    <div className={`grid gap-2 ${isCompressed ? "grid-cols-1" : "grid-cols-3"}`}>
       <Button
-        size="sm"
-        className="gap-1.5 h-8 text-xs"
+        variant={activeSubSheet === "charges" ? "default" : "outline"}
+        className="gap-1.5"
+        onClick={() => toggleSubSheet("charges")}
+      >
+        <Plus size={14} />
+        Add charges
+      </Button>
+      <Button
         variant={activeSubSheet === "payment" ? "default" : "outline"}
-        onClick={() =>
-          activeSubSheet === "payment"
-            ? closeSubSheet()
-            : openSubSheet("payment")
-        }
-        data-tour="billing-detail-action-payment"
+        className="gap-1.5"
+        onClick={() => toggleSubSheet("payment")}
       >
-        <DollarSign size={13} />
-        Payment
+        <DollarSign size={14} />
+        Record payment
       </Button>
       <Button
-        size="sm"
-        className="gap-1.5 h-8 text-xs"
-        variant={activeSubSheet === "attach-jo" ? "default" : "outline"}
-        onClick={() =>
-          activeSubSheet === "attach-jo"
-            ? closeSubSheet()
-            : openSubSheet("attach-jo")
-        }
-        data-tour="billing-detail-action-attach-jo"
-      >
-        <Plus size={13} />
-        Attach JO
-      </Button>
-      <Button
-        size="sm"
-        className="gap-1.5 h-8 text-xs"
-        variant={activeSubSheet === "attach-rental" ? "default" : "outline"}
-        onClick={() =>
-          activeSubSheet === "attach-rental"
-            ? closeSubSheet()
-            : openSubSheet("attach-rental")
-        }
-        data-tour="billing-detail-action-attach-rental"
-      >
-        <Plus size={13} />
-        Attach Rental
-      </Button>
-      <Button
-        size="sm"
-        className="gap-1.5 h-8 text-xs"
         variant={activeSubSheet === "statement" ? "default" : "outline"}
-        onClick={() =>
-          activeSubSheet === "statement"
-            ? closeSubSheet()
-            : openSubSheet("statement")
-        }
-        data-tour="billing-detail-action-statement"
+        className="gap-1.5"
+        onClick={() => toggleSubSheet("statement")}
       >
-        <FileText size={13} />
-        Statement
+        <Send size={14} />
+        Send statement
       </Button>
-      {(isDev || isAdmin) && (
-        <Button
-          size="sm"
-          className="gap-1.5 h-8 text-xs"
-          variant={activeSubSheet === "edit" ? "default" : "outline"}
-          onClick={() =>
-            activeSubSheet === "edit"
-              ? closeSubSheet()
-              : openSubSheet("edit")
-          }
-          data-tour="billing-detail-action-edit"
-        >
-          <Pencil size={13} />
-          Edit
-        </Button>
-      )}
-      {(isDev || isAdmin) && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="gap-1.5 h-8 text-xs"
-          onClick={handleApplyInterest}
-          disabled={applyInterest.isPending}
-          data-tour="billing-detail-admin-interest"
-        >
-          <Percent size={13} />
-          {applyInterest.isPending ? "Applying..." : "Apply Interest"}
-        </Button>
-      )}
-      {(isDev || isAdmin) && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="gap-1.5 h-8 text-xs"
-          onClick={() => setShowRemindersConfirm(true)}
-          disabled={sendReminders.isPending}
-          data-tour="billing-detail-admin-reminders"
-        >
-          <Send size={13} />
-          {sendReminders.isPending ? "Sending..." : "Send Reminders"}
-        </Button>
-      )}
-      {(isDev || isAdmin) && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="gap-1.5 h-8 text-xs"
-          onClick={() => setShowGenerateSOAConfirm(true)}
-          disabled={generateStatements.isPending}
-          data-tour="billing-detail-admin-soa"
-        >
-          <FileText size={13} />
-          {generateStatements.isPending ? "Generating..." : "Auto-Generate SOA"}
-        </Button>
-      )}
     </div>
   );
 
   // ─── Ledger table ─────────────────────────────────────────────────────────
 
   const ledgerSection = (
-    <div data-tour="billing-detail-ledger">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1">
-          <h3 className="text-xs font-bold opacity-40 uppercase tracking-wider">
-            Transaction Ledger
-          </h3>
-          <HelpTip text="Complete history of all charges, payments, and adjustments on this account. Debit = amount owed, Credit = amount paid." />
-        </div>
-        <div className="flex gap-1" data-tour="billing-detail-source-filter">
+    <div>
+      <div className="flex justify-end my-2">
+        <div className="flex gap-1">
           {(["all", "job_order", "rental"] as const).map((f) => (
             <Button
               key={f}
@@ -1878,25 +1397,20 @@ export default function BillingAccountSheetContent({
   // ─── Collapsible sections ─────────────────────────────────────────────────
 
   const jobOrdersSection = (
-    <Collapsible open={jobOrdersOpen} onOpenChange={setJobOrdersOpen}>
-      <CollapsibleTrigger data-tour="billing-detail-jo-section" className="flex items-center justify-between w-full py-2 text-xs font-bold opacity-50 uppercase tracking-wider hover:opacity-80 transition-opacity">
+    <div>
+      <div className="flex items-center justify-between w-full py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
         <span className="flex items-center gap-1.5">
           <Receipt size={13} />
           Attached Job Orders ({joLineItems.length})
         </span>
-        {jobOrdersOpen ? (
-          <ChevronDown size={14} />
-        ) : (
-          <ChevronRight size={14} />
-        )}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
+      </div>
+      <>
         {joLineItems.length === 0 ? (
           <p className="text-xs text-gray-400 py-4 text-center">
             No job orders attached.
           </p>
         ) : (
-          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2" data-tour="billing-detail-jo-table">
+          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2">
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
@@ -2041,30 +1555,25 @@ export default function BillingAccountSheetContent({
             </Table>
           </div>
         )}
-      </CollapsibleContent>
-    </Collapsible>
+      </>
+    </div>
   );
 
   const rentalsSection = (
-    <Collapsible open={rentalsOpen} onOpenChange={setRentalsOpen}>
-      <CollapsibleTrigger data-tour="billing-detail-rental-section" className="flex items-center justify-between w-full py-2 text-xs font-bold opacity-50 uppercase tracking-wider hover:opacity-80 transition-opacity">
+    <div>
+      <div className="flex items-center justify-between w-full py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
         <span className="flex items-center gap-1.5">
           <Receipt size={13} />
           Attached Rentals ({rentalLineItems.length})
         </span>
-        {rentalsOpen ? (
-          <ChevronDown size={14} />
-        ) : (
-          <ChevronRight size={14} />
-        )}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
+      </div>
+      <>
         {rentalLineItems.length === 0 ? (
           <p className="text-xs text-gray-400 py-4 text-center">
             No rentals attached.
           </p>
         ) : (
-          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2" data-tour="billing-detail-rental-table">
+          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2">
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
@@ -2209,25 +1718,20 @@ export default function BillingAccountSheetContent({
             </Table>
           </div>
         )}
-      </CollapsibleContent>
-    </Collapsible>
+      </>
+    </div>
   );
 
   const recentPaymentsSection = (
-    <Collapsible open={paymentsOpen} onOpenChange={setPaymentsOpen}>
-      <CollapsibleTrigger data-tour="billing-detail-payments-section" className="flex items-center justify-between w-full py-2 text-xs font-bold opacity-50 uppercase tracking-wider hover:opacity-80 transition-opacity">
+    <div>
+      <div className="flex items-center justify-between w-full py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
         <span className="flex items-center gap-1.5">
           <DollarSign size={13} />
           Payments (
           {effectivePayments.length})
         </span>
-        {paymentsOpen ? (
-          <ChevronDown size={14} />
-        ) : (
-          <ChevronRight size={14} />
-        )}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
+      </div>
+      <>
         {paymentsMissingReceiptCount > 0 && (
           <Alert className="mb-2 border-amber-200 bg-amber-50 text-amber-900 p-2.5">
             <AlertTitle className="text-xs font-semibold">Missing Receipt</AlertTitle>
@@ -2249,7 +1753,7 @@ export default function BillingAccountSheetContent({
             No payments recorded.
           </p>
         ) : (
-          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2" data-tour="billing-detail-payments-table">
+          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2">
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
@@ -2336,13 +1840,13 @@ export default function BillingAccountSheetContent({
             </Table>
           </div>
         )}
-      </CollapsibleContent>
-    </Collapsible>
+      </>
+    </div>
   );
 
   const recentStatementsSection = (
-    <Collapsible open={statementsOpen} onOpenChange={setStatementsOpen}>
-      <CollapsibleTrigger data-tour="billing-detail-statements-section" className="flex items-center justify-between w-full py-2 text-xs font-bold opacity-50 uppercase tracking-wider hover:opacity-80 transition-opacity">
+    <div>
+      <div className="flex items-center justify-between w-full py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
         <span className="flex items-center gap-1.5">
           <FileText size={13} />
           Statements (
@@ -2358,40 +1862,8 @@ export default function BillingAccountSheetContent({
             </span>
           )}
         </span>
-        {statementsOpen ? (
-          <ChevronDown size={14} />
-        ) : (
-          <ChevronRight size={14} />
-        )}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        {showStatementActionHint && (
-          <Alert className="mb-2 border-amber-200 bg-amber-50 text-amber-900 p-2.5">
-            <AlertTitle className="text-xs font-semibold">{statementHintTitle}</AlertTitle>
-            <AlertDescription className="text-xs text-amber-900">
-              {statementHintDescription}
-            </AlertDescription>
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-[11px] text-amber-800">
-                <Checkbox
-                  checked={dontRemindStatementActionHint}
-                  onCheckedChange={(checked) =>
-                    setDontRemindStatementActionHint(checked === true)
-                  }
-                />
-                Don't remind me again
-              </label>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 px-2 text-[11px]"
-                onClick={dismissStatementActionHint}
-              >
-                Got it
-              </Button>
-            </div>
-          </Alert>
-        )}
+      </div>
+      <>
         {latestStatementEmailLog && (
           <div className="mb-2 rounded-md border bg-muted/40 px-2.5 py-1.5 text-[11px] text-muted-foreground flex items-center justify-between">
             <span>
@@ -2422,10 +1894,10 @@ export default function BillingAccountSheetContent({
           </div>
         ) : typedStatements.length === 0 ? (
           <p className="text-xs text-gray-400 py-4 text-center">
-            No statements generated.
+            No statements yet. Use "Send statement" above.
           </p>
         ) : (
-          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2" data-tour="billing-detail-statements-table">
+          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2">
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
@@ -2479,7 +1951,7 @@ export default function BillingAccountSheetContent({
                             variant="outline"
                             className={`text-[10px] capitalize px-1.5 py-0 cursor-default ${statementStatusBadge[s.status] ?? ""}`}
                           >
-                            {s.status}
+                            {s.status === "finalized" ? "ready" : s.status}
                           </Badge>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="text-xs">
@@ -2500,16 +1972,8 @@ export default function BillingAccountSheetContent({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className={`h-5 px-1.5 text-[10px] text-blue-600 hover:text-blue-700 ${
-                                  highlightStatementAction === "finalize"
-                                    ? "ring-2 ring-amber-400 rounded-md bg-amber-50 animate-pulse"
-                                    : ""
-                                }`}
-                                data-statement-finalize-cta="true"
-                                onClick={() => {
-                                  clearStatementAttention();
-                                  handleFinalizeStatement(s.id);
-                                }}
+                                className={`h-5 px-1.5 text-[10px] text-blue-600 hover:text-blue-700 `}
+                                onClick={() => handleFinalizeStatement(s.id)}
                                 disabled={updateStatement.isPending}
                               >
                                 {updateStatement.isPending ? "..." : "Finalize"}
@@ -2526,16 +1990,8 @@ export default function BillingAccountSheetContent({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className={`h-5 px-1.5 text-[10px] text-green-600 hover:text-green-700 ${
-                                  highlightStatementAction === "send"
-                                    ? "ring-2 ring-amber-400 rounded-md bg-amber-50 animate-pulse"
-                                    : ""
-                                }`}
-                                data-statement-send-cta="true"
-                                onClick={() => {
-                                  clearStatementAttention();
-                                  openStatementSendDialog(s);
-                                }}
+                                className={`h-5 px-1.5 text-[10px] text-green-600 hover:text-green-700 `}
+                                onClick={() => openStatementSendDialog(s)}
                                 disabled={sendingStatementId === s.id}
                               >
                                 {sendingStatementId === s.id ? "Sending..." : "Send"}
@@ -2552,16 +2008,8 @@ export default function BillingAccountSheetContent({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className={`h-5 px-1.5 text-[10px] text-muted-foreground ${
-                                  highlightStatementAction === "send"
-                                    ? "ring-2 ring-amber-400 rounded-md bg-amber-50 animate-pulse"
-                                    : ""
-                                }`}
-                                data-statement-send-cta="true"
-                                onClick={() => {
-                                  clearStatementAttention();
-                                  openStatementSendDialog(s);
-                                }}
+                                className={`h-5 px-1.5 text-[10px] text-muted-foreground `}
+                                onClick={() => openStatementSendDialog(s)}
                                 disabled={sendingStatementId === s.id}
                               >
                                 {sendingStatementId === s.id ? "..." : "Resend"}
@@ -2600,8 +2048,8 @@ export default function BillingAccountSheetContent({
             </Table>
           </div>
         )}
-      </CollapsibleContent>
-    </Collapsible>
+      </>
+    </div>
   );
 
   // ─── Interest Logs section ───────────────────────────────────────────────
@@ -2609,25 +2057,20 @@ export default function BillingAccountSheetContent({
   const typedInterestLogs = typedInterestLogsAll;
 
   const interestLogsSection = (
-    <Collapsible open={interestLogsOpen} onOpenChange={setInterestLogsOpen}>
-      <CollapsibleTrigger data-tour="billing-detail-interest-logs" className="flex items-center justify-between w-full py-2 text-xs font-bold opacity-50 uppercase tracking-wider hover:opacity-80 transition-opacity">
+    <div>
+      <div className="flex items-center justify-between w-full py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
         <span className="flex items-center gap-1.5">
           <Percent size={13} />
           Interest History ({typedInterestLogs.length})
         </span>
-        {interestLogsOpen ? (
-          <ChevronDown size={14} />
-        ) : (
-          <ChevronRight size={14} />
-        )}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
+      </div>
+      <>
         {typedInterestLogs.length === 0 ? (
           <p className="text-xs text-gray-400 py-4 text-center">
             No interest has been applied yet.
           </p>
         ) : (
-          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2" data-tour="billing-detail-interest-table">
+          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2">
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
@@ -2662,8 +2105,8 @@ export default function BillingAccountSheetContent({
             </Table>
           </div>
         )}
-      </CollapsibleContent>
-    </Collapsible>
+      </>
+    </div>
   );
 
   // ─── Email Logs section ────────────────────────────────────────────────
@@ -2675,25 +2118,20 @@ export default function BillingAccountSheetContent({
   };
 
   const emailLogsSection = (
-    <Collapsible open={emailLogsOpen} onOpenChange={setEmailLogsOpen}>
-      <CollapsibleTrigger data-tour="billing-detail-email-logs" className="flex items-center justify-between w-full py-2 text-xs font-bold opacity-50 uppercase tracking-wider hover:opacity-80 transition-opacity">
+    <div>
+      <div className="flex items-center justify-between w-full py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
         <span className="flex items-center gap-1.5">
           <Mail size={13} />
           Email History ({typedEmailLogs.length})
         </span>
-        {emailLogsOpen ? (
-          <ChevronDown size={14} />
-        ) : (
-          <ChevronRight size={14} />
-        )}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
+      </div>
+      <>
         {typedEmailLogs.length === 0 ? (
           <p className="text-xs text-gray-400 py-4 text-center">
             No emails sent for this account.
           </p>
         ) : (
-          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2" data-tour="billing-detail-email-table">
+          <div className="border rounded-lg overflow-auto max-h-[250px] mb-2">
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
@@ -2741,17 +2179,16 @@ export default function BillingAccountSheetContent({
             </Table>
           </div>
         )}
-      </CollapsibleContent>
-    </Collapsible>
+      </>
+    </div>
   );
 
   // ─── Sub-sheet content ────────────────────────────────────────────────────
 
   const subSheetTitle: Record<string, string> = {
     payment: "Record Payment",
-    "attach-jo": "Attach Job Orders",
-    "attach-rental": "Attach Rentals",
-    statement: "Generate Statement",
+    charges: "Add Charges",
+    statement: "Send Statement",
     edit: "Edit Account",
   };
 
@@ -2764,7 +2201,7 @@ export default function BillingAccountSheetContent({
           size="sm"
           className="h-7 w-7 p-0 shrink-0"
           onClick={closeSubSheet}
-          data-tour="billing-detail-subsheet-back"
+         
         >
           <ArrowLeft size={16} />
         </Button>
@@ -2774,44 +2211,48 @@ export default function BillingAccountSheetContent({
       </div>
 
       {/* Sub-sheet body */}
-      <div className="flex-1 overflow-y-auto p-5" data-tour="billing-detail-subsheet-content">
+      <div className="flex-1 overflow-y-auto p-5">
         {activeSubSheet === "payment" && (
-          <div data-tour="billing-detail-dialog-payment">
+          <div>
             <RecordPaymentPanel
               accountId={accountId}
               onClose={closeSubSheet}
             />
           </div>
         )}
-        {activeSubSheet === "attach-jo" && (
-          <div data-tour="billing-detail-dialog-attach-jo">
-            <AttachJobOrderPanel
-              accountId={accountId}
-              clientId={clientId}
-              onClose={closeSubSheet}
-            />
-          </div>
-        )}
-        {activeSubSheet === "attach-rental" && (
-          <div data-tour="billing-detail-dialog-attach-rental">
-            <AttachRentalPanel
-              accountId={accountId}
-              clientId={clientId}
-              onClose={closeSubSheet}
-            />
-          </div>
+        {activeSubSheet === "charges" && (
+          <Tabs defaultValue="jo">
+            <TabsList className="mb-3">
+              <TabsTrigger value="jo">Job Orders</TabsTrigger>
+              <TabsTrigger value="rental">Rentals</TabsTrigger>
+            </TabsList>
+            <TabsContent value="jo">
+              <AttachJobOrderPanel
+                accountId={accountId}
+                clientId={clientId}
+                onClose={closeSubSheet}
+              />
+            </TabsContent>
+            <TabsContent value="rental">
+              <AttachRentalPanel
+                accountId={accountId}
+                clientId={clientId}
+                onClose={closeSubSheet}
+              />
+            </TabsContent>
+          </Tabs>
         )}
         {activeSubSheet === "statement" && (
-          <div data-tour="billing-detail-dialog-statement">
+          <div>
             <GenerateStatementPanel
               accountId={accountId}
               onClose={closeSubSheet}
-              onGenerated={focusStatementsForManualGeneration}
+              onGenerated={handleStatementCreated}
             />
           </div>
         )}
         {activeSubSheet === "edit" && (
-          <div data-tour="billing-detail-dialog-edit">
+          <div>
             <BillingAccountFormSheet
               accountId={accountId}
               onClose={closeSubSheet}
@@ -2846,15 +2287,31 @@ export default function BillingAccountSheetContent({
         {/* Ledger - hidden when compressed (not enough space) */}
         {!isCompressed && (
           <>
-            <Separator />
-            {ledgerSection}
-            <Separator />
-            {jobOrdersSection}
-            {rentalsSection}
-            {recentPaymentsSection}
-            {recentStatementsSection}
-            {interestLogsSection}
-            {(isDev || isAdmin) && emailLogsSection}
+            <Tabs value={historyTab} onValueChange={setHistoryTab}>
+              <TabsList className="w-full justify-start">
+                <TabsTrigger value="all">History</TabsTrigger>
+                <TabsTrigger value="charges">Charges</TabsTrigger>
+                <TabsTrigger value="payments">Payments</TabsTrigger>
+                <TabsTrigger value="statements">
+                  Statements
+                  {finalizedNotSent.length + draftStatements.length > 0 && (
+                    <span className="ml-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="more">More</TabsTrigger>
+              </TabsList>
+              <TabsContent value="all">{ledgerSection}</TabsContent>
+              <TabsContent value="charges">
+                {jobOrdersSection}
+                {rentalsSection}
+              </TabsContent>
+              <TabsContent value="payments">{recentPaymentsSection}</TabsContent>
+              <TabsContent value="statements">{recentStatementsSection}</TabsContent>
+              <TabsContent value="more">
+                {interestLogsSection}
+                {(isDev || isAdmin) && emailLogsSection}
+              </TabsContent>
+            </Tabs>
 
             {/* Account info footer */}
             {acct.notes && (
@@ -3167,7 +2624,7 @@ export default function BillingAccountSheetContent({
           setShowInterestConfirm(open);
         }}
       >
-        <AlertDialogContent data-tour="billing-detail-dialog-interest">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Apply Monthly Interest</AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -3272,6 +2729,11 @@ export default function BillingAccountSheetContent({
             isSending={Boolean(sendingStatementId)}
             error={statementEmailError}
             hasSentBefore={selectedStatementHasSentBefore}
+            attachmentName={
+              statementToEmail
+                ? `Billing-${statementToEmail.statement_number}.pdf`
+                : undefined
+            }
             onCancel={() => {
               if (sendingStatementId) return;
               setStatementEmailDialogOpen(false);
@@ -3291,7 +2753,7 @@ export default function BillingAccountSheetContent({
           setShowRemindersConfirm(open);
         }}
       >
-        <AlertDialogContent data-tour="billing-detail-dialog-reminders">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Send Billing Reminders</AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -3379,7 +2841,7 @@ export default function BillingAccountSheetContent({
           setShowGenerateSOAConfirm(open);
         }}
       >
-        <AlertDialogContent data-tour="billing-detail-dialog-soa">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Auto-Generate Statements</AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -3453,7 +2915,7 @@ export default function BillingAccountSheetContent({
                         result.status === "generated"
                     );
                     if (generatedForThisAccount) {
-                      focusStatementsForSend();
+                      setHistoryTab("statements");
                     }
                   },
                   onSettled: () => setShowGenerateSOAConfirm(false),
@@ -3485,24 +2947,6 @@ export default function BillingAccountSheetContent({
         onConfirm={async ({ mode, transactionDate }) => {
           await handleUpdateTransactionDate({ mode, transactionDate });
         }}
-      />
-      {/* Onboarding Tour */}
-      <FeatureAnnouncementModal
-        open={showDetailAnnouncement}
-        onboarding={detailOnboardingData}
-        onStartTour={startDetailTour}
-      />
-      <GuidedTour
-        featureKey="billing_account_detail"
-        active={showDetailTour}
-        onComplete={completeDetailTour}
-      />
-
-      {/* Focused SOA mini-tours triggered by the tutorial checklist */}
-      <GuidedTour
-        featureKey={activeMiniTour ?? ""}
-        active={activeMiniTour !== null}
-        onComplete={() => setActiveMiniTour(null)}
       />
     </TooltipProvider>
   );

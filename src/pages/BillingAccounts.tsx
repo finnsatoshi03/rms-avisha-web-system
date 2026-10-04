@@ -1,18 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Search, Plus, ReceiptText, Filter, Download } from "lucide-react";
-import {
-  markSoaStep,
-  requestSoaShowMe,
-  SOA_SHOW_ME_EVENT,
-} from "../lib/soa-progress";
+import { Search, Plus, Filter, Download, X } from "lucide-react";
 import toast from "react-hot-toast";
 
 import HeaderText from "../components/ui/headerText";
 import PageSkeleton from "../components/ui/page-skeleton";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Badge } from "../components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -37,7 +31,10 @@ import {
 } from "../components/ui/sheet";
 import { Separator } from "../components/ui/separator";
 
-import { useBillingAccounts } from "../components/billing/useBilling";
+import {
+  useBillingAccounts,
+  useBillingAccountTotals,
+} from "../components/billing/useBilling";
 import { useUser } from "../components/auth/useUser";
 import {
   BillingAccount,
@@ -46,27 +43,18 @@ import {
   BillingPayment,
   BillingStatement,
 } from "../lib/billing-types";
-import { Client } from "../lib/types";
 import { formatNumberWithCommas } from "../lib/helpers";
 import { getClientDisplayName } from "../lib/client-hierarchy";
 import BillingAccountFormSheet from "../components/billing/billing-account-form";
 import BillingAccountSheetContent from "../components/billing/billing-account-sheet";
 import type { BillingStatementPDFData } from "../components/billing/billing-statement-pdf";
-import { useFeatureOnboarding } from "../components/onboarding/useFeatureOnboarding";
-import FeatureAnnouncementModal from "../components/onboarding/feature-announcement-modal";
-import GuidedTour from "../components/onboarding/guided-tour";
-import TourReplayButton from "../components/onboarding/tour-replay-button";
 import { getServerNow } from "../lib/server-time";
+import { PaginationControls } from "../components/table/pagination-controls";
 
 const statusVariant: Record<BillingAccountStatus, string> = {
   active: "bg-green-100 text-green-800 border-green-200",
   suspended: "bg-yellow-100 text-yellow-800 border-yellow-200",
   closed: "bg-gray-100 text-gray-600 border-gray-200",
-};
-
-const clientTypeBadge: Record<string, string> = {
-  individual: "bg-blue-50 text-blue-700 border-blue-200",
-  company: "bg-purple-50 text-purple-700 border-purple-200",
 };
 
 export default function BillingAccounts() {
@@ -77,93 +65,15 @@ export default function BillingAccounts() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
-  const [createTourReplay, setCreateTourReplay] = useState<(() => void) | null>(null);
   const [downloadingMockPdf, setDownloadingMockPdf] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
     null
   );
 
   const canCreate = isDev || isAdmin || isManager;
-
-  const {
-    showAnnouncement,
-    showTour,
-    onboardingData,
-    startTour,
-    completeTour,
-    replayTour,
-  } = useFeatureOnboarding("billing_accounts");
-
-  // Tutorial checklist: visiting this page completes the first step.
-  useEffect(() => {
-    markSoaStep("visit_billing");
-  }, []);
-
-  // Local spotlight for the "open an account" tutorial step.
-  const [pageMiniTour, setPageMiniTour] = useState<string | null>(null);
-
-  // Mock data shown during tour when no real accounts exist
-  const mockCompanyClient: Client = {
-    id: 0,
-    name: "Sunshine Electronics Corp.",
-    contact_number: "+63 912 345 6789",
-    email: "billing@sunshine.com",
-    type: "company",
-    address: null,
-    notes: null,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-  const mockIndividualClient: Client = {
-    id: 0,
-    name: "Juan dela Cruz",
-    contact_number: "+63 917 123 4567",
-    email: "juan@email.com",
-    type: "individual",
-    address: null,
-    notes: null,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-  const MOCK_ACCOUNTS: BillingAccount[] = [
-    {
-      id: "mock-1",
-      client_id: 0,
-      account_number: "BA-01-001",
-      status: "active",
-      credit_limit: 50000,
-      interest_rate: 2,
-      billing_cutoff_day: 1,
-      billing_contact_name: "Accounting Dept",
-      billing_contact_email: "billing@sunshine.com",
-      billing_contact_phone: "+63 912 345 6789",
-      notes: null,
-      created_by: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      clients: mockCompanyClient,
-    },
-    {
-      id: "mock-2",
-      client_id: 0,
-      account_number: "BA-01-002",
-      status: "active",
-      credit_limit: 25000,
-      interest_rate: 2,
-      billing_cutoff_day: 15,
-      billing_contact_name: null,
-      billing_contact_email: "juan@email.com",
-      billing_contact_phone: "+63 917 123 4567",
-      notes: null,
-      created_by: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      clients: mockIndividualClient,
-    },
-  ];
 
   // Deep link support — open sheet if URL has :id
   useEffect(() => {
@@ -200,28 +110,30 @@ export default function BillingAccounts() {
     });
   }, [accounts, searchTerm, statusFilter]);
 
-  const showMockData = showTour && filteredAccounts.length === 0;
-  const displayAccounts = showMockData ? MOCK_ACCOUNTS : filteredAccounts;
   const allAccounts = useMemo(
     () => (accounts as BillingAccount[]) ?? [],
     [accounts]
   );
-  const selectedAccountForMockPdf =
-    (selectedAccountId
-      ? allAccounts.find((a) => a.id === selectedAccountId)
-      : null) ??
-    (selectedAccountId
-      ? MOCK_ACCOUNTS.find((a) => a.id === selectedAccountId)
-      : null);
+  const totals = useBillingAccountTotals(allAccounts.map((a) => a.id));
+
+  // Who needs attention first: most overdue, then highest balance.
+  const displayAccounts = useMemo(
+    () =>
+      [...filteredAccounts].sort(
+        (a, b) =>
+          (totals[b.id]?.overdue ?? 0) - (totals[a.id]?.overdue ?? 0) ||
+          (totals[b.id]?.balance ?? 0) - (totals[a.id]?.balance ?? 0)
+      ),
+    [filteredAccounts, totals]
+  );
+
   const mockPdfAccount =
-    selectedAccountForMockPdf ??
-    displayAccounts[0] ??
-    allAccounts[0] ??
-    MOCK_ACCOUNTS[0];
+    allAccounts.find((a) => a.id === selectedAccountId) ?? allAccounts[0];
 
   const resetFilters = () => {
     setSearchTerm("");
     setStatusFilter("all");
+    setCurrentPage(1);
   };
 
   const hasActiveFilters = searchTerm || statusFilter !== "all";
@@ -239,54 +151,6 @@ export default function BillingAccounts() {
     setSelectedAccountId(null);
     navigate("/billing", { replace: true });
   }, [navigate]);
-
-  // Tutorial "Show me" router. The point: the button must ALWAYS visibly do
-  // something. Spotlights the table for the open-account step; for steps that
-  // live inside an account, opens the first account automatically and then
-  // re-dispatches so the mounted sheet runs the walkthrough.
-  useEffect(() => {
-    const DETAIL_TOUR_KEYS = new Set([
-      "soa_add_charges",
-      "soa_generate_send",
-      "soa_record_payment",
-      "soa_interest_reminders",
-    ]);
-
-    const onShowMe = (event: Event) => {
-      const detail = (event as CustomEvent<{ featureKey: string }>).detail;
-      if (!detail) return;
-
-      if (detail.featureKey === "soa_open_account") {
-        event.preventDefault();
-        setPageMiniTour("soa_open_account");
-        return;
-      }
-
-      if (DETAIL_TOUR_KEYS.has(detail.featureKey)) {
-        // If an account sheet is already open its own listener claims the
-        // event (it registered after this one), so stay out of the way.
-        if (selectedAccountId) return;
-
-        const firstAccount = filteredAccounts[0] ?? allAccounts[0];
-        if (!firstAccount) return; // no accounts yet — widget shows its hint
-
-        event.preventDefault();
-        handleOpenAccount(firstAccount.id);
-        // Once the sheet has mounted, ask again — it will run the tour.
-        setTimeout(() => requestSoaShowMe(detail.featureKey), 900);
-      }
-    };
-
-    window.addEventListener(SOA_SHOW_ME_EVENT, onShowMe);
-    return () => window.removeEventListener(SOA_SHOW_ME_EVENT, onShowMe);
-  }, [selectedAccountId, filteredAccounts, allAccounts, handleOpenAccount]);
-
-  const handleCreateReplayReady = useCallback(
-    (replay: (() => void) | null) => {
-      setCreateTourReplay(() => replay);
-    },
-    []
-  );
 
   const handleDownloadMockStatementPDF = useCallback(async () => {
     if (downloadingMockPdf || !mockPdfAccount) return;
@@ -392,223 +256,179 @@ export default function BillingAccounts() {
 
   if (isLoading) return <PageSkeleton />;
 
+  const totalPages = Math.ceil(displayAccounts.length / itemsPerPage);
+  const pagedAccounts = displayAccounts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <HeaderText>Billing Accounts</HeaderText>
-          <TourReplayButton onClick={replayTour} label="How billing works" />
-        </div>
-        <div className="flex items-center gap-2">
-          {isDev && (
+    <div className="h-full">
+      <HeaderText>Billing Accounts</HeaderText>
+      <div className="my-4 flex sm:flex-row flex-col sm:gap-0 gap-2 justify-between">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Input
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="border-gray-400 h-fit py-1 pl-8 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all ease-in-out duration-500 relative focus-within:w-[300px]"
+              placeholder="Search client, account #, or phone"
+            />
+            <Search className="absolute left-3 top-2 opacity-60" size={14} />
+          </div>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              setStatusFilter(value);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[140px] h-fit px-2 py-1 border border-gray-400 rounded-lg text-gray-700 text-sm">
+              <Filter size={14} className="mr-1 opacity-60" />
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="suspended">Suspended</SelectItem>
+              <SelectItem value="closed">Closed</SelectItem>
+            </SelectContent>
+          </Select>
+          {hasActiveFilters && (
             <Button
-              variant="outline"
-              onClick={handleDownloadMockStatementPDF}
-              disabled={downloadingMockPdf}
-              className="gap-1.5"
-              size="sm"
+              variant="ghost"
+              className="h-fit w-fit p-0 px-3 py-1.5 gap-1 rounded-lg"
+              onClick={resetFilters}
             >
-              <Download size={14} />
-              {downloadingMockPdf ? "Generating Mock PDF..." : "Mock SOA PDF"}
+              Reset <X size={16} strokeWidth={1.5} />
             </Button>
           )}
           {canCreate && (
-            <Button
-              data-tour="billing-create"
-              onClick={() => setCreateSheetOpen(true)}
-              className="gap-1.5"
-              size="sm"
-            >
-              <Plus size={16} />
-              Create Account
-            </Button>
+            <>
+              <Separator orientation="vertical" className="mx-2 h-[1.5rem]" />
+              <button
+                className="px-4 py-1.5 text-sm bg-primaryRed hover:bg-hoveredRed text-white flex items-center rounded-lg gap-1"
+                onClick={() => setCreateSheetOpen(true)}
+              >
+                <Plus size={18} />
+                Add
+              </button>
+            </>
           )}
         </div>
-      </div>
-
-      {/* Filters */}
-      <div className="my-4 flex sm:flex-row flex-col sm:gap-3 gap-2">
-        <div className="relative" data-tour="billing-search">
-          <Input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="border-gray-400 h-fit py-1 pl-8 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all ease-in-out duration-500 relative focus-within:w-[300px]"
-            placeholder="Search.."
-          />
-          <Search className="absolute left-3 top-2 opacity-60" size={14} />
-        </div>
-
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger data-tour="billing-status-filter" className="w-[150px] h-fit px-2 py-1 border border-gray-400 rounded-lg text-gray-700 text-sm">
-            <Filter size={14} className="mr-1 opacity-60" />
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="suspended">Suspended</SelectItem>
-            <SelectItem value="closed">Closed</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {hasActiveFilters && (
+        {isDev && mockPdfAccount && (
           <Button
-            variant="ghost"
-            className="h-fit w-fit p-0 px-3 py-1.5 gap-1 rounded-lg text-sm"
-            onClick={resetFilters}
+            variant="outline"
+            onClick={handleDownloadMockStatementPDF}
+            disabled={downloadingMockPdf}
+            className="gap-1.5"
+            size="sm"
           >
-            Reset filters
+            <Download size={14} />
+            {downloadingMockPdf ? "Generating Mock PDF..." : "Mock SOA PDF"}
           </Button>
         )}
       </div>
 
-      {/* Table */}
-      {displayAccounts.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
-          <ReceiptText
-            size={48}
-            strokeWidth={1}
-            className="mb-3 opacity-40"
-          />
-          <p className="text-sm">
-            {hasActiveFilters
-              ? "No billing accounts match your filters."
-              : "No billing accounts yet."}
-          </p>
-          {!hasActiveFilters && canCreate && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 gap-1.5"
-              onClick={() => setCreateSheetOpen(true)}
-            >
-              <Plus size={14} />
-              Create your first account
-            </Button>
-          )}
+      {allAccounts.length === 0 ? (
+        <div className="w-full h-[50vh] flex flex-col gap-2 text-center items-center justify-center">
+          <p>No billing accounts yet. Click Add to create one for a client.</p>
+        </div>
+      ) : displayAccounts.length === 0 ? (
+        <div className="w-full h-[50vh] flex flex-col gap-2 text-center items-center justify-center">
+          <p>No billing accounts match your filters.</p>
+          <button
+            className="px-2 py-0.5 text-sm bg-slate-100 rounded-lg"
+            onClick={resetFilters}
+          >
+            Remove all filters
+          </button>
         </div>
       ) : (
-        <div className="flex-1 border rounded-lg overflow-auto" data-tour="billing-table">
+        <div className="h-[calc(100%-7.5rem)] flex flex-col justify-between">
           <Table>
             <TableHeader>
-              <TableRow className="bg-gray-50">
-                <TableHead className="text-xs font-semibold">
-                  Account #
-                </TableHead>
-                <TableHead className="text-xs font-semibold">Client</TableHead>
-                <TableHead className="text-xs font-semibold">Type</TableHead>
-                <TableHead className="text-xs font-semibold text-right">
-                  Credit Limit
-                </TableHead>
-                <TableHead className="text-xs font-semibold">Status</TableHead>
-                <TableHead className="text-xs font-semibold">
-                  Contact
-                </TableHead>
-                <TableHead className="text-xs font-semibold">
-                  Created
-                </TableHead>
+              <TableRow className="bg-muted border-none">
+                <TableHead className="w-[14%]">Account No.</TableHead>
+                <TableHead className="w-[36%]">Client Name</TableHead>
+                <TableHead className="w-[18%]">Owes</TableHead>
+                <TableHead className="w-[18%]">Overdue</TableHead>
+                <TableHead className="w-[14%]">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {displayAccounts.map((account) => (
-                <TableRow
-                  key={account.id}
-                  className={`cursor-pointer transition-colors ${selectedAccountId === account.id
-                      ? "bg-primary/5 hover:bg-primary/10"
-                      : "hover:bg-gray-50"
-                    }`}
-                  onClick={() => !showMockData && handleOpenAccount(account.id)}
-                >
-                  <TableCell className="font-mono text-sm">
-                    {account.account_number}
-                  </TableCell>
-                  <TableCell className="font-medium text-sm">
-                    {getClientDisplayName(account.clients)}
-                  </TableCell>
-                  <TableCell>
-                    {account.clients?.type ? (
-                      <Badge
-                        variant="outline"
-                        className={`text-xs capitalize ${clientTypeBadge[account.clients.type] || ""}`}
+              {pagedAccounts.map((account) => {
+                const { balance, overdue } = totals[account.id] ?? {};
+                return (
+                  <TableRow
+                    key={account.id}
+                    className="text-gray-500 cursor-pointer"
+                    onClick={() => handleOpenAccount(account.id)}
+                  >
+                    <TableCell>{account.account_number}</TableCell>
+                    <TableCell className="font-bold text-black">
+                      {getClientDisplayName(account.clients)}
+                    </TableCell>
+                    <TableCell className="font-bold text-black">
+                      {balance === undefined
+                        ? "…"
+                        : `₱${formatNumberWithCommas(balance)}`}
+                    </TableCell>
+                    <TableCell className={overdue ? "font-bold text-red-600" : ""}>
+                      {overdue === undefined
+                        ? "…"
+                        : overdue > 0
+                          ? `₱${formatNumberWithCommas(overdue)}`
+                          : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium border capitalize ${statusVariant[account.status] || ""}`}
                       >
-                        {account.clients.type}
-                      </Badge>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right text-sm tabular-nums">
-                    {account.credit_limit
-                      ? `₱${formatNumberWithCommas(account.credit_limit)}`
-                      : "No limit"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={`text-xs capitalize ${statusVariant[account.status] || ""}`}
-                    >
-                      {account.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-gray-600">
-                    {account.billing_contact_phone ||
-                      account.clients?.contact_number ||
-                      "—"}
-                  </TableCell>
-                  <TableCell className="text-sm text-gray-500">
-                    {account.created_at
-                      ? new Date(account.created_at).toLocaleDateString(
-                        "en-US",
-                        {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        }
-                      )
-                      : "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
+                        {account.status}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
+          <PaginationControls
+            totalItems={displayAccounts.length}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            handlePageChange={setCurrentPage}
+            itemsPerPage={itemsPerPage}
+            handleItemsPerPageChange={(items) => {
+              setItemsPerPage(items);
+              setCurrentPage(1);
+            }}
+          />
         </div>
       )}
-
-      <p className="text-xs text-gray-400 mt-3">
-        {showMockData ? "Demo data shown during tour" : `${filteredAccounts.length} account${filteredAccounts.length !== 1 ? "s" : ""}${hasActiveFilters ? " (filtered)" : ""}`}
-      </p>
 
       {/* Create Account Sheet */}
       <Sheet
         open={createSheetOpen}
         onOpenChange={(open) => {
           setCreateSheetOpen(open);
-          if (!open) setCreateTourReplay(null);
         }}
       >
         <SheetContent className="min-w-[50vw] overflow-y-auto">
           <SheetHeader>
-            <SheetTitle className="font-bold flex items-center gap-2">
-              <span>New Billing Account</span>
-              {createTourReplay && (
-                <TourReplayButton
-                  onClick={createTourReplay}
-                  label="How to create an account"
-                />
-              )}
-            </SheetTitle>
+            <SheetTitle className="font-bold">New Billing Account</SheetTitle>
             <Separator className="my-2" />
             <BillingAccountFormSheet
               onClose={() => {
                 setCreateSheetOpen(false);
-                setCreateTourReplay(null);
               }}
               onSuccess={(accountId) => {
                 setCreateSheetOpen(false);
-                setCreateTourReplay(null);
                 handleOpenAccount(accountId);
               }}
-              onReplayReady={handleCreateReplayReady}
             />
           </SheetHeader>
           <SheetDescription></SheetDescription>
@@ -636,23 +456,6 @@ export default function BillingAccounts() {
         </SheetContent>
       </Sheet>
 
-      {/* Onboarding Tour */}
-      <FeatureAnnouncementModal
-        open={showAnnouncement}
-        onboarding={onboardingData}
-        onStartTour={startTour}
-      />
-      <GuidedTour
-        featureKey="billing_accounts"
-        active={showTour}
-        onComplete={completeTour}
-      />
-      {/* Tutorial checklist spotlight (e.g. "click a row to open an account") */}
-      <GuidedTour
-        featureKey={pageMiniTour ?? ""}
-        active={pageMiniTour !== null}
-        onComplete={() => setPageMiniTour(null)}
-      />
     </div>
   );
 }

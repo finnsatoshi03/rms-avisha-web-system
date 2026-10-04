@@ -22,6 +22,7 @@ import SharedManagerBranchGateway from "../components/auth/shared-manager-branch
 import SharedManagerBranchSwitcher from "../components/auth/shared-manager-branch-switcher";
 import AccountMigrationNotice from "../components/auth/account-migration-notice";
 import ClockSkewWarning from "../components/clock-skew-warning";
+import BillingIntroGate from "../components/billing/billing-intro-gate";
 import toast from "react-hot-toast";
 
 // Breadcrumb configuration
@@ -216,7 +217,9 @@ export default function AppLayout() {
             migratedEmail={user.migrated_email!}
             onAcknowledge={() => setIsMigrationNoticeDismissed(true)}
           />
-        ) : null}
+        ) : (
+          <BillingIntroGate />
+        )}
         <AppSidebar isUser={isUser} />
         <SidebarInset className="min-w-0">
           <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 bg-background/85 backdrop-blur transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">

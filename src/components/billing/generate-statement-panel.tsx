@@ -9,16 +9,22 @@ import {
   SelectContent,
   SelectItem,
 } from "../ui/select";
-import { useGenerateBillingStatement, useBillingStatements } from "./useBilling";
-import { useBillingAccount } from "./useBilling";
+import {
+  useGenerateBillingStatement,
+  useBillingStatements,
+  useBillingAccount,
+  useBillingAccountBalance,
+} from "./useBilling";
 import { supabase } from "../../services/supabase";
 import { BillingStatement } from "../../lib/billing-types";
 import { getServerNow } from "../../lib/server-time";
+import { formatNumberWithCommas } from "../../lib/helpers";
+import { cn } from "../../lib/utils";
 
 interface GenerateStatementPanelProps {
   accountId: string;
   onClose: () => void;
-  onGenerated?: () => void;
+  onGenerated?: (statementId: string) => void;
 }
 
 function toDateStr(d: Date): string {
@@ -76,12 +82,16 @@ export default function GenerateStatementPanel({
 }: GenerateStatementPanelProps) {
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
+  const [autoPeriod, setAutoPeriod] = useState({ start: "", end: "" });
   const [branchFilter, setBranchFilter] = useState<string>("all");
   const [branches, setBranches] = useState<{ id: number; name: string }[]>([]);
 
   const generateStatement = useGenerateBillingStatement();
   const { data: account } = useBillingAccount(accountId);
   const { data: statements } = useBillingStatements(accountId);
+  const { data: balanceData } = useBillingAccountBalance(accountId);
+  const amountOwed =
+    typeof balanceData === "number" ? balanceData : (account?.current_balance ?? 0);
 
   // Auto-populate dates
   useEffect(() => {
@@ -94,6 +104,7 @@ export default function GenerateStatementPanel({
     const { start, end } = getAutoperiod(cutoffDay, lastStatement);
     setPeriodStart(start);
     setPeriodEnd(end);
+    setAutoPeriod({ start, end });
   }, [account, statements]);
 
   useEffect(() => {
@@ -120,9 +131,9 @@ export default function GenerateStatementPanel({
           branchFilter === "all" ? undefined : Number(branchFilter),
       },
       {
-        onSuccess: () => {
+        onSuccess: (statementId) => {
           onClose();
-          onGenerated?.();
+          onGenerated?.(statementId);
         },
       }
     );
@@ -136,31 +147,50 @@ export default function GenerateStatementPanel({
           Statement Period
         </h2>
         <p className="text-[11px] text-muted-foreground mb-2">
-          Dates are auto-calculated based on billing cutoff day ({account?.billing_cutoff_day || 1}) and the last generated statement.
+          Already filled in for you. Change only if you need a different period.
         </p>
-        <div className="grid md:grid-cols-2 grid-cols-1 gap-2 px-4 py-2 border rounded-xl">
-          <div className="space-y-0">
-            <p className="text-sm font-medium leading-none">Period Start *</p>
-            <Input
-              type="date"
-              required
-              className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
-              value={periodStart}
-              onChange={(e) => setPeriodStart(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="space-y-0">
-            <p className="text-sm font-medium leading-none">Period End *</p>
-            <Input
-              type="date"
-              required
-              className="border-0 p-0 h-fit focus-visible:ring-0 focus-visible:ring-offset-0"
-              value={periodEnd}
-              onChange={(e) => setPeriodEnd(e.target.value)}
-            />
-          </div>
+        <div className="grid md:grid-cols-2 grid-cols-1 gap-2">
+          {[
+            { label: "From", value: periodStart, auto: autoPeriod.start, set: setPeriodStart },
+            { label: "To", value: periodEnd, auto: autoPeriod.end, set: setPeriodEnd },
+          ].map(({ label, value, auto, set }) => {
+            const isAuto = Boolean(value) && value === auto;
+            return (
+              <div
+                key={label}
+                className={cn(
+                  "space-y-1 px-4 py-2 border rounded-xl transition-colors",
+                  isAuto && "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/40"
+                )}
+              >
+                <p className="text-sm font-medium leading-none flex items-center gap-1.5">
+                  {label} *
+                  {isAuto && (
+                    <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-900 dark:text-green-300">
+                      AUTO
+                    </span>
+                  )}
+                </p>
+                <Input
+                  type="date"
+                  required
+                  className="border-0 p-0 h-fit bg-transparent font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
+                  value={value}
+                  onChange={(e) => set(e.target.value)}
+                  autoFocus={label === "From"}
+                />
+              </div>
+            );
+          })}
         </div>
+      </div>
+
+      {/* ── Amount owed ──────────────────────────────────────── */}
+      <div className="mt-3 flex items-center justify-between rounded-xl bg-muted/60 px-4 py-3">
+        <span className="text-sm text-muted-foreground">Amount owed</span>
+        <span className="text-base font-bold">
+          ₱{formatNumberWithCommas(Math.abs(amountOwed))}
+        </span>
       </div>
 
       {/* ── Filters ──────────────────────────────────────────── */}
@@ -196,10 +226,10 @@ export default function GenerateStatementPanel({
           {generateStatement.isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating..
+              Creating..
             </>
           ) : (
-            "Generate Statement"
+            "Create & send"
           )}
         </Button>
         <Button type="button" variant="ghost" onClick={onClose}>

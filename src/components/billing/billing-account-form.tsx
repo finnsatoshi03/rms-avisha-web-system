@@ -26,9 +26,6 @@ import {
   SelectItem,
 } from "../ui/select";
 import { Label } from "../ui/label";
-import { useFeatureOnboarding } from "../onboarding/useFeatureOnboarding";
-import FeatureAnnouncementModal from "../onboarding/feature-announcement-modal";
-import GuidedTour from "../onboarding/guided-tour";
 import { getServerNow } from "../../lib/server-time";
 
 const CUTOFF_DAYS = Array.from({ length: 28 }, (_, i) => i + 1);
@@ -37,14 +34,12 @@ interface BillingAccountFormSheetProps {
   accountId?: string;
   onClose: () => void;
   onSuccess: (accountId: string) => void;
-  onReplayReady?: (replay: (() => void) | null) => void;
 }
 
 export default function BillingAccountFormSheet({
   accountId,
   onClose,
   onSuccess,
-  onReplayReady,
 }: BillingAccountFormSheetProps) {
   const isEditMode = !!accountId;
 
@@ -76,25 +71,6 @@ export default function BillingAccountFormSheet({
   const createMutation = useCreateBillingAccount();
   const updateMutation = useUpdateBillingAccount();
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
-
-  const {
-    showAnnouncement,
-    showTour,
-    onboardingData,
-    startTour,
-    completeTour,
-    replayTour,
-  } = useFeatureOnboarding("billing_account_create");
-
-  useEffect(() => {
-    if (isEditMode) {
-      onReplayReady?.(null);
-      return;
-    }
-
-    onReplayReady?.(replayTour);
-    return () => onReplayReady?.(null);
-  }, [isEditMode, replayTour, onReplayReady]);
 
   useEffect(() => {
     if (isEditMode && existingAccount) {
@@ -244,7 +220,7 @@ export default function BillingAccountFormSheet({
           )}
         </div>
       ) : (
-        <div className="mb-2" data-tour="billing-form-client">
+        <div className="mb-2">
           <ClientAutoSuggest
             selectedClient={selectedClient}
             onClientSelect={handleClientPick}
@@ -285,7 +261,7 @@ export default function BillingAccountFormSheet({
       )}
 
       {/* ── Basic Information ─ same rounded-xl box as JO ────────── */}
-      <div data-tour="billing-form-contact">
+      <div>
         <h2 className="text-xs mb-1 mt-2 font-bold opacity-40">
           Basic Information
         </h2>
@@ -321,11 +297,12 @@ export default function BillingAccountFormSheet({
         </div>
       </div>
 
-      {/* ── Account Settings ─ border-b rows, label left / value right ── */}
-      <div data-tour="billing-form-settings">
-        <h2 className="text-xs mb-1 mt-4 font-bold opacity-40">
-          Account Settings
-        </h2>
+      {/* ── Optional settings — defaults are fine for most clients ── */}
+      <details open={isEditMode} className="mt-4">
+        <summary className="text-xs font-bold opacity-60 cursor-pointer select-none">
+          More settings (credit limit, interest, statement day, notes)
+        </summary>
+      <div>
 
         <div className="border-b py-2">
           <div className="space-y-0 flex justify-between items-center w-full">
@@ -347,7 +324,7 @@ export default function BillingAccountFormSheet({
 
         <div className="border-b py-2">
           <div className="space-y-0 flex justify-between items-center w-full">
-            <p className="text-sm font-medium leading-none">Billing Cutoff Day</p>
+            <p className="text-sm font-medium leading-none">Statement Day (monthly)</p>
             <Select
               value={billingCutoffDay}
               onValueChange={setBillingCutoffDay}
@@ -401,9 +378,10 @@ export default function BillingAccountFormSheet({
           className="text-sm"
         />
       </div>
+      </details>
 
       {/* ── Actions ─ same layout as JO form ────────────────────── */}
-      <div className="flex md:flex-row flex-col md:justify-between mt-4" data-tour="billing-form-submit">
+      <div className="flex md:flex-row flex-col md:justify-between mt-4">
         <Button
           type="submit"
           disabled={
@@ -429,21 +407,6 @@ export default function BillingAccountFormSheet({
           Cancel
         </Button>
       </div>
-      {/* Onboarding Tour */}
-      {!isEditMode && (
-        <>
-          <FeatureAnnouncementModal
-            open={showAnnouncement}
-            onboarding={onboardingData}
-            onStartTour={startTour}
-          />
-          <GuidedTour
-            featureKey="billing_account_create"
-            active={showTour}
-            onComplete={completeTour}
-          />
-        </>
-      )}
     </form>
   );
 }

@@ -49,7 +49,6 @@ import { cn } from "../lib/utils";
 import { useUser } from "../components/auth/useUser";
 import { Skeleton } from "../components/ui/skeleton";
 import { SidebarSkeleton } from "../components/ui/page-skeleton";
-import SoaOnboardingChecklist from "../components/billing/soa-onboarding-checklist";
 import { useState } from "react";
 import { SettingsDialog } from "../components/settings/settings-dialog";
 import { useDevConsole } from "../components/dev-console/dev-console-context";
@@ -159,9 +158,6 @@ export default function AppSidebar({
       <SidebarHeader className="p-4">
         <img src="/RMS-Logo.png" alt="RMS Logo" className="w-3/4 h-auto" />
       </SidebarHeader>
-
-      {/* Priority billing tutorial — pinned above navigation until finished */}
-      {!isUser && !isLoading && <SoaOnboardingChecklist />}
 
       <SidebarContent>
         {isLoading && !user ? (

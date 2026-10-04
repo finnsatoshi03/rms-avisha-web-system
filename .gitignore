@@ -25,3 +25,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Training video sources (served from Supabase Storage, not the repo)
+docs/billing-video/*.mp4
+docs/billing-video/.claude/
