@@ -15,6 +15,7 @@ import {
   getBillingStatements,
   generateBillingStatement,
   updateBillingStatement,
+  deleteUnsentBillingStatement,
   transferJobOrderToBilling,
   transferRentalToBilling,
   applyAccountInterest,
@@ -335,6 +336,18 @@ export function useUpdateBillingStatement() {
     onError: (error: Error) => {
       toast.error(error.message);
     },
+  });
+}
+
+export function useDeleteBillingStatement(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteUnsentBillingStatement(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["billing_statements", accountId] });
+      toast.success("Statement deleted");
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 }
 

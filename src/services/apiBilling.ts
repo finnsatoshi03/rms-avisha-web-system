@@ -836,6 +836,21 @@ export async function updateBillingStatement(
   return data;
 }
 
+/** Delete a statement that was never sent. The status guard is enforced in the query. */
+export async function deleteUnsentBillingStatement(id: string): Promise<void> {
+  const { data, error } = await supabase
+    .from("billing_statements")
+    .delete()
+    .eq("id", id)
+    .neq("status", "sent")
+    .select("id");
+
+  if (error) throw new Error("Failed to delete statement: " + error.message);
+  if (!data || data.length === 0) {
+    throw new Error("Statement can't be deleted (already sent or no permission).");
+  }
+}
+
 // ========================
 // Interest
 // ========================

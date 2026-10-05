@@ -99,6 +99,7 @@ export async function getFeatureUsage(params: {
       `id, user_id, feature, path, action, created_at,
        user:user_id (fullname, email, role)`
     )
+    .neq("path", BILLING_INTRO_PATH)
     .order("created_at", { ascending: false })
     .limit(params.limit ?? 5000);
 
@@ -114,4 +115,65 @@ export async function getFeatureUsage(params: {
     throw new Error("Feature usage could not be loaded");
   }
   return (data ?? []) as unknown as FeatureUsageEvent[];
+}
+
+// ── Billing intro video ─────────────────────────────────────────────────────
+// Completions are logged as a usage event on a dedicated path so admins can
+// read them through the existing feature_usage_events RLS.
+export const BILLING_INTRO_PATH = "/billing-intro-video/completed";
+
+export async function logBillingIntroWatched(userId: string): Promise<void> {
+  await logFeatureVisit({
+    userId,
+    feature: "Billing Intro Video",
+    path: BILLING_INTRO_PATH,
+  });
+}
+
+export type BillingIntroViewers = {
+  watched: { userId: string; name: string; role: string; at: string }[];
+  pending: { userId: string; name: string; role: string }[];
+};
+
+/** Who has finished the billing intro, and which admins/managers haven't. */
+export async function getBillingIntroViewers(): Promise<BillingIntroViewers> {
+  const [eventsRes, usersRes] = await Promise.all([
+    supabase
+      .from("feature_usage_events")
+      .select("user_id, created_at, user:user_id (fullname, email, role)")
+      .eq("path", BILLING_INTRO_PATH)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("users")
+      .select("id, fullname, email, role")
+      .in("role", ["admin", "manager"])
+      .eq("deleted", false)
+      .is("migrated_to", null),
+  ]);
+  if (eventsRes.error) throw new Error("Video views could not be loaded");
+
+  const events = (eventsRes.data ?? []) as unknown as Pick<
+    FeatureUsageEvent,
+    "user_id" | "created_at" | "user"
+  >[];
+  const watched = new Map<string, BillingIntroViewers["watched"][number]>();
+  events.forEach((e) => {
+    if (watched.has(e.user_id)) return; // newest first, keep latest
+    watched.set(e.user_id, {
+      userId: e.user_id,
+      name: e.user?.fullname?.trim() || e.user?.email || "Unknown user",
+      role: e.user?.role ?? "—",
+      at: e.created_at,
+    });
+  });
+
+  const pending = (usersRes.data ?? [])
+    .filter((u) => !watched.has(u.id))
+    .map((u) => ({
+      userId: u.id as string,
+      name: (u.fullname as string | null)?.trim() || (u.email as string) || "Unknown user",
+      role: u.role as string,
+    }));
+
+  return { watched: Array.from(watched.values()), pending };
 }

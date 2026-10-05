@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Play, ReceiptText } from "lucide-react";
+import { Loader2, Play, ReceiptText, X } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { Button } from "../ui/button";
@@ -9,6 +9,7 @@ import { useUser } from "../auth/useUser";
 import { useFeatureFlag } from "../../hooks/useFeatureFlag";
 import { supabase } from "../../services/supabase";
 import { getUserOnboardingStatuses } from "../../services/apiOnboarding";
+import { logBillingIntroWatched } from "../../services/apiFeatureUsage";
 import { getServerNowISO } from "../../lib/server-time";
 
 // Bump the key to make everyone watch a new version of the video.
@@ -17,10 +18,21 @@ const VIDEO_URL = supabase.storage
   .from("training-videos")
   .getPublicUrl("billing-explainer.mp4").data.publicUrl;
 
-async function markWatched(userId: string) {
+const REPLAY_EVENT = "billing-intro:replay";
+
+/** Re-open the intro video (admin replay). Closable, not re-recorded. */
+export function replayBillingIntro() {
+  window.dispatchEvent(new Event(REPLAY_EVENT));
+}
+
+// user_onboarding_status.user_id references auth.users, which differs from
+// the app user id for migrated accounts — always use the auth id here.
+async function markWatched() {
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) throw new Error("Not signed in");
   const { error } = await supabase.from("user_onboarding_status").upsert(
     {
-      user_id: userId,
+      user_id: data.user.id,
       feature_key: FEATURE_KEY,
       status: "completed",
       completed_at: getServerNowISO(),
@@ -58,11 +70,26 @@ export default function BillingIntroGate() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [replaying, setReplaying] = useState(false);
+
+  useEffect(() => {
+    const onReplay = () => {
+      maxWatchedRef.current = 0;
+      setProgress(0);
+      setEnded(false);
+      setLoadFailed(false);
+      setStep("intro");
+      setReplaying(true);
+    };
+    window.addEventListener(REPLAY_EVENT, onReplay);
+    return () => window.removeEventListener(REPLAY_EVENT, onReplay);
+  }, []);
 
   const watched = statuses?.some(
     (s) => s.feature_key === FEATURE_KEY && s.status === "completed"
   );
-  if (!user || !canUseBilling || isLoading || watched || dismissed) return null;
+  const mandatory = !!user && canUseBilling && !isLoading && !watched && !dismissed;
+  if (!user || (!mandatory && !replaying)) return null;
 
   const startVideo = () => {
     setStep("video");
@@ -89,10 +116,17 @@ export default function BillingIntroGate() {
     if (video.duration) setProgress(video.currentTime / video.duration);
   };
 
+  const closeReplay = () => {
+    videoRef.current?.pause();
+    setReplaying(false);
+  };
+
   const finish = async () => {
+    if (!mandatory) return closeReplay();
     setSaving(true);
     try {
-      await markWatched(user.id);
+      await markWatched();
+      if (!isDev) void logBillingIntroWatched(user.id);
       await queryClient.invalidateQueries({ queryKey: ["user-onboarding-statuses"] });
     } catch (error) {
       console.error(error);
@@ -117,7 +151,24 @@ export default function BillingIntroGate() {
       aria-modal="true"
       aria-labelledby="billing-intro-title"
     >
-      <div className="w-full max-w-3xl rounded-xl bg-white shadow-2xl overflow-hidden">
+      {/* Intro card stays compact; the video step is large, capped by viewport
+          height so the 16:9 frame never overflows. */}
+      <div
+        className={`relative rounded-xl bg-white shadow-2xl overflow-hidden ${
+          step === "intro"
+            ? "w-full max-w-lg"
+            : "w-[min(94vw,calc((88vh-5rem)*16/9))]"
+        }`}
+      >
+        {!mandatory && (
+          <button
+            className="absolute right-3 top-3 z-10 rounded-full bg-white/90 p-1.5 shadow hover:bg-white"
+            onClick={closeReplay}
+            aria-label="Close video"
+          >
+            <X size={18} />
+          </button>
+        )}
         {step === "intro" ? (
           <div className="p-8 text-center space-y-4">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50">
@@ -189,7 +240,9 @@ export default function BillingIntroGate() {
                   ? "The video couldn't load. Check your connection."
                   : ended
                     ? "All done! You're ready to use Billing."
-                    : "Watch until the end to continue."}
+                    : mandatory
+                      ? "Watch until the end to continue."
+                      : "Replay — you can close this anytime."}
               </p>
               {loadFailed ? (
                 <Button variant="outline" onClick={continueWithoutVideo}>
@@ -198,11 +251,11 @@ export default function BillingIntroGate() {
               ) : (
                 <Button
                   onClick={finish}
-                  disabled={!ended || saving}
+                  disabled={(mandatory && !ended) || saving}
                   className="bg-primaryRed hover:bg-hoveredRed"
                 >
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Go to Billing
+                  {mandatory ? "Go to Billing" : "Close"}
                 </Button>
               )}
             </div>

@@ -76,6 +76,7 @@ import {
   useUpdateBillingAccount,
   useUpdateBillingLineItemTransactionDate,
   useUpdateBillingStatement,
+  useDeleteBillingStatement,
   useBillingInterestLogs,
   useEmailLogs,
   useTriggerSendBillingReminders,
@@ -278,6 +279,8 @@ export default function BillingAccountSheetContent({
     },
   });
   const updateStatement = useUpdateBillingStatement();
+  const deleteStatement = useDeleteBillingStatement(accountId);
+  const [statementToDelete, setStatementToDelete] = useState<BillingStatement | null>(null);
   const updateLineItemTransactionDate = useUpdateBillingLineItemTransactionDate();
   const sendReminders = useTriggerSendBillingReminders();
   const generateStatements = useTriggerGenerateStatements();
@@ -2040,6 +2043,26 @@ export default function BillingAccountSheetContent({
                             </TooltipContent>
                           </Tooltip>
                         )}
+                        {(isDev || isAdmin) &&
+                          s.status !== "sent" &&
+                          !statementSentEntityIds.has(s.id) && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-5 w-5 p-0 text-red-500 hover:text-red-600"
+                                  onClick={() => setStatementToDelete(s)}
+                                  aria-label="Delete statement"
+                                >
+                                  <Trash2 size={11} />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">
+                                Delete (not sent yet)
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -2708,13 +2731,11 @@ export default function BillingAccountSheetContent({
           }
         }}
       >
-        <AlertDialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Send Statement</AlertDialogTitle>
-            <AlertDialogDescription className="text-xs text-left">
-              Review recipients and message, then send the statement with PDF attachment.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+        <AlertDialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto border-0 bg-transparent p-0 shadow-none">
+          <AlertDialogTitle className="sr-only">Send Statement</AlertDialogTitle>
+          <AlertDialogDescription className="sr-only">
+            Email the statement with the PDF attached.
+          </AlertDialogDescription>
           <DocumentEmailComposer
             open={statementEmailDialogOpen}
             initialValues={{
@@ -2925,6 +2946,40 @@ export default function BillingAccountSheetContent({
             >
               {generateStatements.isPending ? "Generating..." : "Generate SOA"}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={statementToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteStatement.isPending) setStatementToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete statement?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {statementToDelete?.statement_number} hasn't been sent to the
+              client. Deleting it can't be undone. Charges and payments are not
+              affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteStatement.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={deleteStatement.isPending}
+              onClick={() =>
+                statementToDelete &&
+                deleteStatement.mutate(statementToDelete.id, {
+                  onSuccess: () => setStatementToDelete(null),
+                })
+              }
+            >
+              {deleteStatement.isPending ? "Deleting..." : "Delete"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Eye, EyeOff, FileText, Loader2, RotateCcw, Send } from "lucide-react";
+import { useEffect, useState } from "react";
+import { FileText, Loader2, RotateCcw, Send } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
@@ -137,7 +137,6 @@ export default function DocumentEmailComposer({
     message: initialValues?.message ?? "",
   });
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [showCopies, setShowCopies] = useState(false);
 
   useEffect(() => {
@@ -152,7 +151,6 @@ export default function DocumentEmailComposer({
       message: initialValues?.message ?? "",
     });
     setValidationError(null);
-    setPreviewOpen(false);
     setShowCopies(Boolean(initialValues?.cc || initialValues?.bcc));
   }, [
     open,
@@ -162,10 +160,6 @@ export default function DocumentEmailComposer({
     initialValues?.subject,
     initialValues?.message,
   ]);
-
-  const previewRecipients = useMemo(() => {
-    return validateComposeInputs(formValues);
-  }, [formValues]);
 
   const commitEmailTags = (group: "cc" | "bcc") => {
     const inputValue = group === "cc" ? formValues.ccInput : formValues.bccInput;
@@ -190,7 +184,7 @@ export default function DocumentEmailComposer({
 
   return (
     <form
-      className="space-y-3"
+      className="min-w-0 overflow-hidden rounded-xl bg-background shadow-xl"
       onSubmit={(event) => {
         event.preventDefault();
         const parsed = validateComposeInputs(formValues);
@@ -208,207 +202,166 @@ export default function DocumentEmailComposer({
         });
       }}
     >
-      {hasSentBefore && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          This document has already been emailed. Sending again will log a new
-          entry.
+      <div>
+        <div className="bg-foreground px-4 py-2.5 text-sm font-semibold text-background">
+          New email
         </div>
-      )}
-
-      <div
-        className={
-          previewOpen
-            ? "grid gap-4 md:grid-cols-[minmax(0,1fr)_340px]"
-            : undefined
-        }
-      >
-        <div className="min-w-0 overflow-hidden rounded-xl border">
-          <div className="bg-foreground px-4 py-2.5 text-sm font-semibold text-background">
-            New email
+        {hasSentBefore && (
+          <div className="border-b bg-amber-50 px-4 py-2 text-xs text-amber-800">
+            This was already emailed. Sending again will log a new entry.
           </div>
+        )}
 
-          <div className="flex items-center gap-3 border-b px-4 py-2">
-            <label className="w-14 shrink-0 text-sm text-muted-foreground" htmlFor="email-to">
-              To
-            </label>
-            <Input
-              id="email-to"
-              type="text"
-              value={formValues.to}
-              onChange={(event) =>
-                setFormValues((prev) => ({ ...prev, to: event.target.value }))
-              }
-              placeholder="client@email.com"
-              disabled={isSending}
-              className="h-8 rounded-full border bg-muted/50 px-3 text-sm font-semibold focus-visible:ring-1 focus-visible:ring-offset-0"
-            />
-            {!showCopies && (
-              <button
-                type="button"
-                onClick={() => setShowCopies(true)}
-                disabled={isSending}
-                className="shrink-0 text-xs font-medium text-muted-foreground hover:text-foreground"
-              >
-                Cc/Bcc
-              </button>
-            )}
-          </div>
-
-          {showCopies &&
-            (["cc", "bcc"] as const).map((group) => {
-              const inputKey = group === "cc" ? "ccInput" : "bccInput";
-              const label = group.toUpperCase();
-              return (
-                <div key={group} className="flex items-center gap-3 border-b px-4 py-1.5">
-                  <label
-                    className="w-14 shrink-0 text-sm text-muted-foreground"
-                    htmlFor={`email-${group}`}
-                  >
-                    {label}
-                  </label>
-                  <div className="flex min-h-8 flex-1 flex-wrap items-center gap-1">
-                    {formValues[group].map((email) => (
-                      <span
-                        key={email}
-                        className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700"
-                      >
-                        {email}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFormValues((prev) => ({
-                              ...prev,
-                              [group]: prev[group].filter((item) => item !== email),
-                            }))
-                          }
-                          disabled={isSending}
-                          className="text-slate-500 hover:text-slate-700 disabled:opacity-50"
-                          aria-label={`Remove ${email}`}
-                        >
-                          x
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      id={`email-${group}`}
-                      type="text"
-                      value={formValues[inputKey]}
-                      onChange={(event) =>
-                        setFormValues((prev) => ({
-                          ...prev,
-                          [inputKey]: event.target.value,
-                        }))
-                      }
-                      onInput={() => {
-                        if (validationError) {
-                          setValidationError(null);
-                        }
-                      }}
-                      onBlur={() => commitEmailTags(group)}
-                      onKeyDown={(event) => {
-                        if (
-                          event.key === "Enter" ||
-                          event.key === "Tab" ||
-                          event.key === ","
-                        ) {
-                          event.preventDefault();
-                          commitEmailTags(group);
-                          return;
-                        }
-
-                        if (event.key === "Backspace" && !formValues[inputKey]) {
-                          setFormValues((prev) => ({
-                            ...prev,
-                            [group]: prev[group].slice(0, -1),
-                          }));
-                        }
-                      }}
-                      placeholder={formValues[group].length === 0 ? `Add ${label} email` : ""}
-                      disabled={isSending}
-                      className="min-w-[140px] flex-1 border-0 bg-transparent p-1 text-sm outline-none"
-                    />
-                  </div>
-                </div>
-              );
-            })}
-
-          <div className="flex items-center gap-3 border-b px-4 py-2">
-            <label className="w-14 shrink-0 text-sm text-muted-foreground" htmlFor="email-subject">
-              Subject
-            </label>
-            <Input
-              id="email-subject"
-              value={formValues.subject}
-              onChange={(event) =>
-                setFormValues((prev) => ({ ...prev, subject: event.target.value }))
-              }
-              disabled={isSending}
-              className="h-8 border-0 px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-            />
-          </div>
-
-          <Textarea
-            id="email-message"
-            aria-label="Message"
-            value={formValues.message}
+        <div className="flex items-center gap-3 border-b px-4 py-2">
+          <label className="w-14 shrink-0 text-sm text-muted-foreground" htmlFor="email-to">
+            To
+          </label>
+          <Input
+            id="email-to"
+            type="text"
+            value={formValues.to}
             onChange={(event) =>
-              setFormValues((prev) => ({ ...prev, message: event.target.value }))
+              setFormValues((prev) => ({ ...prev, to: event.target.value }))
             }
-            rows={8}
+            placeholder="client@email.com"
             disabled={isSending}
-            className="rounded-none border-0 px-4 py-3 focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="h-8 rounded-full border bg-muted/50 px-3 text-sm font-semibold focus-visible:ring-1 focus-visible:ring-offset-0"
           />
-
-          {attachmentName && (
-            <div className="px-4 pb-3">
-              <span className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold">
-                <FileText className="h-4 w-4 text-brand" />
-                {attachmentName}
-              </span>
-            </div>
+          {!showCopies && (
+            <button
+              type="button"
+              onClick={() => setShowCopies(true)}
+              disabled={isSending}
+              className="shrink-0 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              Cc/Bcc
+            </button>
           )}
         </div>
 
-        {previewOpen && (
-          <div className="rounded-md border bg-slate-50 px-3 py-3 text-xs space-y-2 md:max-h-[470px] md:overflow-y-auto">
-            <p>
-              <strong>To:</strong>{" "}
-              {previewRecipients.to.length > 0
-                ? previewRecipients.to.join(", ")
-                : "-"}
-            </p>
-            <p>
-              <strong>CC:</strong>{" "}
-              {previewRecipients.cc.length > 0
-                ? previewRecipients.cc.join(", ")
-                : "-"}
-            </p>
-            <p>
-              <strong>BCC:</strong>{" "}
-              {previewRecipients.bcc.length > 0
-                ? previewRecipients.bcc.join(", ")
-                : "-"}
-            </p>
-            <p>
-              <strong>Subject:</strong> {formValues.subject || "-"}
-            </p>
-            <div>
-              <strong>Message:</strong>
-              <pre className="whitespace-pre-wrap font-sans mt-1 mb-0">
-                {formValues.message || "-"}
-              </pre>
-            </div>
+        {showCopies &&
+          (["cc", "bcc"] as const).map((group) => {
+            const inputKey = group === "cc" ? "ccInput" : "bccInput";
+            const label = group.toUpperCase();
+            return (
+              <div key={group} className="flex items-center gap-3 border-b px-4 py-1.5">
+                <label
+                  className="w-14 shrink-0 text-sm text-muted-foreground"
+                  htmlFor={`email-${group}`}
+                >
+                  {label}
+                </label>
+                <div className="flex min-h-8 flex-1 flex-wrap items-center gap-1">
+                  {formValues[group].map((email) => (
+                    <span
+                      key={email}
+                      className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700"
+                    >
+                      {email}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormValues((prev) => ({
+                            ...prev,
+                            [group]: prev[group].filter((item) => item !== email),
+                          }))
+                        }
+                        disabled={isSending}
+                        className="text-slate-500 hover:text-slate-700 disabled:opacity-50"
+                        aria-label={`Remove ${email}`}
+                      >
+                        x
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    id={`email-${group}`}
+                    type="text"
+                    value={formValues[inputKey]}
+                    onChange={(event) =>
+                      setFormValues((prev) => ({
+                        ...prev,
+                        [inputKey]: event.target.value,
+                      }))
+                    }
+                    onInput={() => {
+                      if (validationError) {
+                        setValidationError(null);
+                      }
+                    }}
+                    onBlur={() => commitEmailTags(group)}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "Enter" ||
+                        event.key === "Tab" ||
+                        event.key === ","
+                      ) {
+                        event.preventDefault();
+                        commitEmailTags(group);
+                        return;
+                      }
+
+                      if (event.key === "Backspace" && !formValues[inputKey]) {
+                        setFormValues((prev) => ({
+                          ...prev,
+                          [group]: prev[group].slice(0, -1),
+                        }));
+                      }
+                    }}
+                    placeholder={formValues[group].length === 0 ? `Add ${label} email` : ""}
+                    disabled={isSending}
+                    className="min-w-[140px] flex-1 border-0 bg-transparent p-1 text-sm outline-none"
+                  />
+                </div>
+              </div>
+            );
+          })}
+
+        <div className="flex items-center gap-3 border-b px-4 py-2">
+          <label className="w-14 shrink-0 text-sm text-muted-foreground" htmlFor="email-subject">
+            Subject
+          </label>
+          <Input
+            id="email-subject"
+            value={formValues.subject}
+            onChange={(event) =>
+              setFormValues((prev) => ({ ...prev, subject: event.target.value }))
+            }
+            disabled={isSending}
+            className="h-8 border-0 px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+        </div>
+
+        <Textarea
+          id="email-message"
+          aria-label="Message"
+          value={formValues.message}
+          onChange={(event) =>
+            setFormValues((prev) => ({ ...prev, message: event.target.value }))
+          }
+          rows={8}
+          disabled={isSending}
+          className="rounded-none border-0 px-4 py-3 focus-visible:ring-0 focus-visible:ring-offset-0"
+        />
+
+        {attachmentName && (
+          <div className="px-4 pb-3">
+            <span className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold">
+              <FileText className="h-4 w-4 text-brand" />
+              {attachmentName}
+            </span>
           </div>
         )}
       </div>
 
       {(validationError || error) && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+        <div className="border-t bg-red-50 px-4 py-2 text-xs text-red-700">
           {validationError || error}
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2">
+      {/* Email-client style footer: Cancel on the left, Send on the right. */}
+      <div className="flex items-center gap-2 border-t px-4 py-3">
         {showBack && onBack && (
           <Button
             type="button"
@@ -422,29 +375,12 @@ export default function DocumentEmailComposer({
         <Button
           type="button"
           variant="outline"
-          onClick={() => setPreviewOpen((current) => !current)}
-          disabled={isSending}
-        >
-          {previewOpen ? (
-            <>
-              <EyeOff className="mr-2 h-4 w-4" />
-              Hide Preview
-            </>
-          ) : (
-            <>
-              <Eye className="mr-2 h-4 w-4" />
-              Preview Email
-            </>
-          )}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
           onClick={onCancel}
           disabled={isSending}
         >
           Cancel
         </Button>
+        <div className="flex-1" />
         <Button type="submit" disabled={!canSubmit}>
           {isSending ? (
             <>

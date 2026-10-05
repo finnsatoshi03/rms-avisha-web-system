@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Search, Plus, Filter, Download, X } from "lucide-react";
+import { Search, Plus, Filter, Download, X, PlayCircle } from "lucide-react";
 import toast from "react-hot-toast";
 
 import HeaderText from "../components/ui/headerText";
@@ -47,6 +47,7 @@ import { formatNumberWithCommas } from "../lib/helpers";
 import { getClientDisplayName } from "../lib/client-hierarchy";
 import BillingAccountFormSheet from "../components/billing/billing-account-form";
 import BillingAccountSheetContent from "../components/billing/billing-account-sheet";
+import { replayBillingIntro } from "../components/billing/billing-intro-gate";
 import type { BillingStatementPDFData } from "../components/billing/billing-statement-pdf";
 import { getServerNow } from "../lib/server-time";
 import { PaginationControls } from "../components/table/pagination-controls";
@@ -264,7 +265,20 @@ export default function BillingAccounts() {
 
   return (
     <div className="h-full">
-      <HeaderText>Billing Accounts</HeaderText>
+      <div className="flex items-center gap-3">
+        <HeaderText>Billing Accounts</HeaderText>
+        {(isAdmin || isDev) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground"
+            onClick={replayBillingIntro}
+          >
+            <PlayCircle size={16} />
+            Watch intro video
+          </Button>
+        )}
+      </div>
       <div className="my-4 flex sm:flex-row flex-col sm:gap-0 gap-2 justify-between">
         <div className="flex items-center gap-3">
           <div className="relative">

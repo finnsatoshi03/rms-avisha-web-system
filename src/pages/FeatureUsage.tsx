@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow, format } from "date-fns";
-import { ChevronRight } from "lucide-react";
+import { CheckCircle2, ChevronRight, Clock, PlayCircle } from "lucide-react";
 
 import HeaderText from "../components/ui/headerText";
 import PageSkeleton from "../components/ui/page-skeleton";
@@ -12,7 +12,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "../components/ui/sheet";
-import { getFeatureUsage, FeatureUsageEvent } from "../services/apiFeatureUsage";
+import {
+  getBillingIntroViewers,
+  getFeatureUsage,
+  FeatureUsageEvent,
+} from "../services/apiFeatureUsage";
 
 type Range = { label: string; days: number | null };
 const RANGES: Range[] = [
@@ -48,6 +52,12 @@ export default function FeatureUsage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["feature_usage", range.days],
     queryFn: () => getFeatureUsage({ sinceDays: range.days }),
+    staleTime: 60 * 1000,
+  });
+
+  const { data: introViewers } = useQuery({
+    queryKey: ["billing_intro_viewers"],
+    queryFn: getBillingIntroViewers,
     staleTime: 60 * 1000,
   });
 
@@ -135,6 +145,8 @@ export default function FeatureUsage() {
           ))}
         </div>
       </div>
+
+      {introViewers && <BillingIntroCard viewers={introViewers} />}
 
       <ErrorBoundary>
         {isError ? (
@@ -380,5 +392,61 @@ function SectionLabel({
     >
       {children}
     </h3>
+  );
+}
+
+function BillingIntroCard({
+  viewers,
+}: {
+  viewers: Awaited<ReturnType<typeof getBillingIntroViewers>>;
+}) {
+  const total = viewers.watched.length + viewers.pending.length;
+  const pct = total ? Math.round((viewers.watched.length / total) * 100) : 0;
+  return (
+    <section className="mt-6 rounded-xl border p-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <PlayCircle size={18} className="text-red-600" />
+          <h3 className="text-sm font-semibold text-foreground">
+            Billing intro video
+          </h3>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          <span className="text-xl font-bold text-foreground tabular-nums">
+            {viewers.watched.length}
+          </span>{" "}
+          of {total} admins &amp; managers watched
+        </p>
+      </div>
+      <div className="h-2 rounded-full bg-muted overflow-hidden mt-3">
+        <div className="h-full rounded-full bg-brand-deep" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="grid sm:grid-cols-2 gap-x-8 gap-y-1 mt-4 text-sm">
+        {viewers.watched.map((v) => (
+          <div key={v.userId} className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 min-w-0">
+              <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+              <span className="truncate text-foreground">{v.name}</span>
+              <span className="text-[11px] text-muted-foreground capitalize">{v.role}</span>
+            </span>
+            <span
+              className="text-[11px] text-muted-foreground shrink-0"
+              title={format(new Date(v.at), "PPpp")}
+            >
+              {formatDistanceToNow(new Date(v.at), { addSuffix: true })}
+            </span>
+          </div>
+        ))}
+        {viewers.pending.map((v) => (
+          <div key={v.userId} className="flex items-center gap-1.5 min-w-0">
+            <Clock size={14} className="text-amber-500 shrink-0" />
+            <span className="truncate text-muted-foreground">{v.name}</span>
+            <span className="text-[11px] text-muted-foreground capitalize">
+              {v.role} · not yet
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
