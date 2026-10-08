@@ -1,5 +1,5 @@
-import React, { ChangeEvent, useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { AlertTriangle, Info, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -7,18 +7,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../ui/alert-dialog";
 import { formatNumberWithCommas } from "../../lib/helpers";
+import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import ReceiptAttachmentField from "../billing/receipt-attachment-field";
-import ReceiptMissingConfirmDialog from "../billing/receipt-missing-confirm-dialog";
 import { useTransactionHandler } from "../../hooks/useTransactionHandler";
 import { amountsMatch } from "../../lib/transaction-totals";
 
@@ -31,6 +24,8 @@ const paymentMethods = [
   { label: "GrabPay", value: "grabpay" },
 ];
 
+const RECEIPT_INPUT_ID = "job-order-receipt-upload";
+
 interface PaymentDialogProps {
   open: boolean;
   onClose: () => void;
@@ -42,6 +37,8 @@ interface PaymentDialogProps {
   isBillingLinked?: boolean;
 }
 
+// Single-screen payment flow: method, receipt and billing notice are all inline,
+// so there are no stacked confirmation dialogs.
 export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   open,
   onClose,
@@ -49,118 +46,74 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   totalAmount,
   isBillingLinked = false,
 }) => {
-  const [payments, setPayments] = useState<Record<string, number>>({});
+  const [splitPayments, setSplitPayments] = useState(false);
   const [selectedMethods, setSelectedMethods] = useState<string[]>([]);
-  const [totalEntered, setTotalEntered] = useState<number>(0);
-  const [splitPayments, setSplitPayments] = useState<boolean>(false);
-  const [showConfirm, setShowConfirm] = useState<boolean>(false);
-  const [showBillingConfirm, setShowBillingConfirm] = useState<boolean>(false);
-  const [showMissingReceiptConfirm, setShowMissingReceiptConfirm] =
-    useState<boolean>(false);
-  const [pendingPayments, setPendingPayments] = useState<
-    Record<string, number> | null
-  >(null);
+  const [payments, setPayments] = useState<Record<string, number>>({});
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [confirmMethod, setConfirmMethod] = useState<string>("");
-  const [isSubmitDisabled, setIsSubmitDisabled] = useState<boolean>(true);
+  const [receiptWarned, setReceiptWarned] = useState(false);
   const transaction = useTransactionHandler();
 
   const isProcessing = transaction.isLoading;
-  const disableInteraction = isProcessing;
-
-  useEffect(() => {
-    const total = Object.values(payments).reduce(
-      (sum, value) => sum + Number(value),
-      0
-    );
-    setTotalEntered(total);
-
-    if (splitPayments) {
-      setIsSubmitDisabled(
-        selectedMethods.length === 0 || !amountsMatch(total, totalAmount)
-      );
-    } else {
-      setIsSubmitDisabled(!splitPayments);
-    }
-  }, [payments, selectedMethods, splitPayments, totalAmount]);
+  const totalEntered = selectedMethods.reduce(
+    (sum, method) => sum + (payments[method] || 0),
+    0
+  );
+  const remaining = totalAmount - totalEntered;
+  const canSubmit = splitPayments
+    ? selectedMethods.length > 0 && amountsMatch(totalEntered, totalAmount)
+    : selectedMethods.length === 1;
+  const singleMethodLabel = paymentMethods.find(
+    (m) => m.value === selectedMethods[0]
+  )?.label;
 
   useEffect(() => {
     if (!open && !isProcessing) {
-      resetFormState();
+      setSplitPayments(false);
+      setSelectedMethods([]);
+      setPayments({});
+      setReceiptFile(null);
+      setReceiptWarned(false);
       transaction.reset();
     }
   }, [open, isProcessing, transaction.reset]);
 
-  function resetFormState() {
-    setPayments({});
-    setSelectedMethods([]);
-    setTotalEntered(0);
-    setSplitPayments(false);
-    setShowConfirm(false);
-    setShowBillingConfirm(false);
-    setShowMissingReceiptConfirm(false);
-    setPendingPayments(null);
-    setReceiptFile(null);
-    setConfirmMethod("");
-    setIsSubmitDisabled(true);
-  }
-
-  function handleMainDialogChange(nextOpen: boolean) {
-    if (nextOpen) return;
-    if (isProcessing) return;
-    onClose();
-  }
-
-  const handlePaymentChange = (method: string, value: string) => {
-    if (disableInteraction) return;
-    setPayments({ ...payments, [method]: Number(value) });
-  };
-
   const handleMethodSelect = (method: string) => {
-    if (disableInteraction) return;
-
+    if (isProcessing) return;
     if (!splitPayments) {
-      setConfirmMethod(method);
-      setShowConfirm(true);
-      transaction.setConfirming();
+      setSelectedMethods([method]);
       return;
     }
-
     if (selectedMethods.includes(method)) {
       setSelectedMethods(selectedMethods.filter((m) => m !== method));
       setPayments((prev) => {
-        const updatedPayments = { ...prev };
-        delete updatedPayments[method];
-        return updatedPayments;
+        const next = { ...prev };
+        delete next[method];
+        return next;
       });
       return;
     }
-
     setSelectedMethods([...selectedMethods, method]);
   };
 
-  const resolvePaymentsToSubmit = () => {
-    if (!splitPayments) {
-      if (!confirmMethod) return null;
-      return { [confirmMethod]: totalAmount };
-    }
-
-    if (!amountsMatch(totalEntered, totalAmount)) {
-      alert(
-        `Total entered (${totalEntered}) does not match the order total (${totalAmount}).`
-      );
-      return null;
-    }
-
-    return payments;
+  const toggleSplitPayments = () => {
+    if (isProcessing) return;
+    setSplitPayments(!splitPayments);
+    setSelectedMethods([]);
+    setPayments({});
   };
 
-  const runSubmission = async (payload: Record<string, number>) => {
-    if (disableInteraction) return;
+  const handleSubmit = async () => {
+    if (isProcessing || !canSubmit) return;
 
-    setShowConfirm(false);
-    setShowBillingConfirm(false);
-    setShowMissingReceiptConfirm(false);
+    // First click without a receipt only surfaces the inline warning.
+    if (!receiptFile && !receiptWarned) {
+      setReceiptWarned(true);
+      return;
+    }
+
+    const payload = splitPayments
+      ? Object.fromEntries(selectedMethods.map((m) => [m, payments[m] || 0]))
+      : { [selectedMethods[0]]: totalAmount };
 
     const success = await transaction.run(
       async () => {
@@ -174,310 +127,192 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
     );
 
     if (!success) return;
-
     transaction.reset();
     onClose();
   };
 
-  const maybeConfirmMissingReceipt = (payload: Record<string, number>) => {
-    if (!receiptFile) {
-      setPendingPayments(payload);
-      setShowMissingReceiptConfirm(true);
-      transaction.setConfirming();
-      return;
-    }
-    void runSubmission(payload);
-  };
-
-  const handleConfirmPayment = () => {
-    if (disableInteraction) return;
-
-    const payload = resolvePaymentsToSubmit();
-    if (!payload) return;
-
-    if (isBillingLinked) {
-      setPendingPayments(payload);
-      setShowBillingConfirm(true);
-      setShowConfirm(false);
-      transaction.setConfirming();
-      return;
-    }
-
-    maybeConfirmMissingReceipt(payload);
-  };
-
-  const handleBillingConfirm = () => {
-    if (disableInteraction || !pendingPayments) return;
-    setShowBillingConfirm(false);
-    maybeConfirmMissingReceipt(pendingPayments);
-  };
-
-  const toggleSplitPayments = () => {
-    if (disableInteraction) return;
-
-    if (splitPayments) {
-      setPayments({});
-      setSelectedMethods([]);
-    }
-    setSplitPayments(!splitPayments);
-  };
+  const submitLabel = isProcessing
+    ? "Processing..."
+    : !receiptFile && receiptWarned
+    ? "Submit without receipt"
+    : splitPayments
+    ? "Confirm split payment"
+    : singleMethodLabel
+    ? `Confirm ${singleMethodLabel} payment`
+    : "Select a payment method";
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={handleMainDialogChange}>
-        <DialogContent
-          closeDisabled={disableInteraction}
-          onEscapeKeyDown={(event) => {
-            if (disableInteraction) {
-              event.preventDefault();
-            }
-          }}
-          onInteractOutside={(event) => {
-            if (disableInteraction) {
-              event.preventDefault();
-            }
-          }}
-        >
-          <DialogHeader>
-            <DialogDescription className="opacity-60 text-xs md:text-sm">
-              Total Amount to Pay
-            </DialogDescription>
-            <DialogTitle className="text-3xl font-bold md:text-5xl">
-              <span className="opacity-60">₱</span>
-              {formatNumberWithCommas(totalAmount)}
-            </DialogTitle>
-          </DialogHeader>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !isProcessing) onClose();
+      }}
+    >
+      <DialogContent
+        closeDisabled={isProcessing}
+        className="max-h-[90vh] overflow-y-auto"
+        onEscapeKeyDown={(event) => {
+          if (isProcessing) event.preventDefault();
+        }}
+        onInteractOutside={(event) => {
+          if (isProcessing) event.preventDefault();
+        }}
+      >
+        <DialogHeader>
+          <DialogDescription className="opacity-60 text-xs md:text-sm">
+            Total Amount to Pay
+          </DialogDescription>
+          <DialogTitle className="text-3xl font-bold md:text-5xl">
+            <span className="opacity-60">₱</span>
+            {formatNumberWithCommas(totalAmount)}
+          </DialogTitle>
+        </DialogHeader>
 
-          {!splitPayments && (
-            <>
-              <p className="text-xs md:text-sm">Payment Method:</p>
-              <div className="grid grid-cols-2 gap-2">
-                {paymentMethods.map((method) => (
-                  <Button
-                    key={method.value}
-                    className={`hover:bg-green-500 hover:text-white ${
-                      selectedMethods.includes(method.value) ? "selected" : ""
-                    }`}
-                    variant="outline"
-                    onClick={() => handleMethodSelect(method.value)}
-                    disabled={disableInteraction}
-                  >
-                    {method.label}
-                  </Button>
-                ))}
-              </div>
-            </>
-          )}
+        {isBillingLinked && (
+          <div className="flex gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+            <Info size={14} className="mt-0.5 shrink-0" />
+            <span>
+              This job order is linked to billing. This payment will update the
+              billing statement and remaining balance.
+            </span>
+          </div>
+        )}
 
-          {splitPayments && (
-            <>
-              <p>Select payment methods and split amounts:</p>
-              {paymentMethods.map((method) => (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs md:text-sm font-medium">
+              {splitPayments ? "Payment methods" : "Payment method"}
+            </p>
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-xs"
+              onClick={toggleSplitPayments}
+              disabled={isProcessing}
+            >
+              {splitPayments ? "Use a single method" : "Split across methods"}
+            </Button>
+          </div>
+
+          <div
+            className={cn(
+              "grid gap-2",
+              splitPayments ? "grid-cols-1" : "grid-cols-2"
+            )}
+          >
+            {paymentMethods.map((method) => {
+              const selected = selectedMethods.includes(method.value);
+              return (
                 <div
                   key={method.value}
-                  className="grid grid-cols-[0.5fr_1fr] gap-2"
+                  className={cn(
+                    splitPayments && "grid grid-cols-[0.6fr_1fr] gap-2"
+                  )}
                 >
                   <Button
-                    className={`payment-method-button ${
-                      selectedMethods.includes(method.value) ? "selected" : ""
-                    }`}
+                    type="button"
+                    variant="outline"
+                    aria-pressed={selected}
+                    className={cn(
+                      "w-full",
+                      selected &&
+                        "border-green-600 bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700"
+                    )}
                     onClick={() => handleMethodSelect(method.value)}
-                    disabled={disableInteraction}
+                    disabled={isProcessing}
                   >
                     {method.label}
                   </Button>
-                  {selectedMethods.includes(method.value) && (
+                  {splitPayments && selected && (
                     <Input
                       type="number"
                       min="0"
-                      placeholder={`Enter amount for ${method.label}`}
-                      pattern="[0-9]*"
-                      inputMode="numeric"
-                      disabled={disableInteraction}
-                      onKeyPress={(e) => {
-                        if (!/[0-9]/.test(e.key)) {
-                          e.preventDefault();
-                        }
-                      }}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                        const value = e.target.value;
-                        if (/^\d*$/.test(value)) {
-                          handlePaymentChange(method.value, value);
-                        }
-                      }}
+                      step="0.01"
+                      inputMode="decimal"
+                      placeholder="Amount"
+                      autoFocus
+                      disabled={isProcessing}
+                      value={payments[method.value] ?? ""}
+                      onChange={(e) =>
+                        setPayments((prev) => ({
+                          ...prev,
+                          [method.value]: Math.max(0, Number(e.target.value)),
+                        }))
+                      }
                     />
                   )}
                 </div>
-              ))}
-            </>
-          )}
-
-          {splitPayments && <p>Total entered: {totalEntered}</p>}
-          <Button
-            className={`${
-              splitPayments
-                ? "bg-red-500 hover:bg-red-600"
-                : "hover:bg-green-500 hover:text-white"
-            }`}
-            variant={splitPayments ? "default" : "outline"}
-            onClick={toggleSplitPayments}
-            disabled={disableInteraction}
-          >
-            {splitPayments ? "Cancel Split Payments" : "Split Payments"}
-          </Button>
-
-          {isProcessing && (
-            <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm">
-              <div className="flex items-center gap-2 font-medium">
-                <Loader2 size={16} className="animate-spin" />
-                <span>Processing Payment...</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Please wait.</p>
-            </div>
-          )}
-
-          {transaction.isSuccess && transaction.successMessage && (
-            <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-              {transaction.successMessage}
-            </div>
-          )}
-
-          {transaction.isError && transaction.error && (
-            <p className="text-sm text-destructive">{transaction.error}</p>
-          )}
-
-          <div className="grid grid-cols-[0.5fr_1fr] gap-2 mt-4">
-            <Button
-              variant="secondary"
-              onClick={onClose}
-              disabled={disableInteraction}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirmPayment}
-              disabled={isSubmitDisabled || disableInteraction}
-            >
-              {isProcessing ? "Processing..." : "Submit Payment"}
-            </Button>
+              );
+            })}
           </div>
-          <ReceiptAttachmentField
-            file={receiptFile}
-            onFileChange={setReceiptFile}
-            inputId="job-order-receipt-upload"
-            disabled={disableInteraction}
-          />
-        </DialogContent>
-      </Dialog>
 
-      {showConfirm && (
-        <AlertDialog
-          open={showConfirm}
-          onOpenChange={(nextOpen) => {
-            if (disableInteraction) return;
-            setShowConfirm(nextOpen);
-            if (!nextOpen) {
-              transaction.setIdle();
-            }
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to process full payment with{" "}
-                {confirmMethod.toUpperCase()} for ₱
-                {formatNumberWithCommas(totalAmount)}?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <Button
-              variant="default"
-              onClick={handleConfirmPayment}
-              className="bg-green-500 hover:bg-green-600"
-              disabled={disableInteraction}
+          {splitPayments && (
+            <p
+              className={cn(
+                "text-xs",
+                amountsMatch(totalEntered, totalAmount)
+                  ? "text-green-700"
+                  : "text-muted-foreground"
+              )}
             >
-              {isProcessing ? "Processing..." : "Yes, Confirm"}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                if (disableInteraction) return;
-                setShowConfirm(false);
-                transaction.setIdle();
-              }}
-              disabled={disableInteraction}
-            >
-              Cancel
-            </Button>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-      <ReceiptMissingConfirmDialog
-        open={showMissingReceiptConfirm}
-        onOpenChange={(nextOpen) => {
-          if (disableInteraction) return;
-          setShowMissingReceiptConfirm(nextOpen);
-          if (!nextOpen) {
-            transaction.setIdle();
-          }
-        }}
-        onAttachNow={() => {
-          if (disableInteraction) return;
-          setShowMissingReceiptConfirm(false);
-          transaction.setIdle();
-        }}
-        onContinueWithoutReceipt={() => {
-          if (!pendingPayments || disableInteraction) return;
-          void runSubmission(pendingPayments);
-        }}
-        disabled={disableInteraction}
-      />
-      {showBillingConfirm && (
-        <AlertDialog
-          open={showBillingConfirm}
-          onOpenChange={(nextOpen) => {
-            if (disableInteraction) return;
-            setShowBillingConfirm(nextOpen);
-            if (!nextOpen) {
-              setPendingPayments(null);
-              transaction.setIdle();
-            }
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                This payment will reflect in Billing Statement
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                This job order is linked or transferred to billing. Confirming
-                this payment will update the billing statement and remaining
-                balance.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <Button
-              variant="default"
-              onClick={handleBillingConfirm}
-              className="bg-green-500 hover:bg-green-600"
-              disabled={disableInteraction}
-            >
-              Confirm & Update Billing
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                if (disableInteraction) return;
-                setShowBillingConfirm(false);
-                setPendingPayments(null);
-                transaction.setIdle();
-              }}
-              disabled={disableInteraction}
-            >
-              Cancel
-            </Button>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-    </>
+              ₱{formatNumberWithCommas(totalEntered)} of ₱
+              {formatNumberWithCommas(totalAmount)}
+              {!amountsMatch(totalEntered, totalAmount) &&
+                (remaining > 0
+                  ? ` — ₱${formatNumberWithCommas(remaining)} remaining`
+                  : ` — ₱${formatNumberWithCommas(-remaining)} over`)}
+            </p>
+          )}
+        </div>
+
+        <ReceiptAttachmentField
+          file={receiptFile}
+          onFileChange={setReceiptFile}
+          inputId={RECEIPT_INPUT_ID}
+          disabled={isProcessing}
+        />
+
+        {!receiptFile && receiptWarned && (
+          <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>
+              No receipt attached.{" "}
+              <label
+                htmlFor={RECEIPT_INPUT_ID}
+                className="cursor-pointer font-medium underline"
+              >
+                Attach one
+              </label>{" "}
+              or submit without proof of payment.
+            </span>
+          </div>
+        )}
+
+        {transaction.isSuccess && transaction.successMessage && (
+          <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+            {transaction.successMessage}
+          </div>
+        )}
+
+        {transaction.isError && transaction.error && (
+          <p className="text-sm text-destructive">{transaction.error}</p>
+        )}
+
+        <div className="grid grid-cols-[0.5fr_1fr] gap-2">
+          <Button variant="secondary" onClick={onClose} disabled={isProcessing}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={!canSubmit || isProcessing}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            {isProcessing && <Loader2 size={16} className="mr-2 animate-spin" />}
+            {submitLabel}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
