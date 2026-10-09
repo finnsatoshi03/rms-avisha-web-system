@@ -16,6 +16,20 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../ui/collapsible";
+import { TooltipProvider } from "../ui/tooltip";
+import { cn } from "../../lib/utils";
+import {
+  DensityToggle,
+  TruncatedText,
+  dataTableClass,
+  dataTableHeaderRowClass,
+  dataTableRowClass,
+  numericCellClass,
+  pin,
+  rowAccentClass,
+  useDataTableRef,
+  useDensity,
+} from "../table/data-table-kit";
 import { PaginationControls } from "../table/pagination-controls";
 import { Checkbox } from "../ui/checkbox";
 import { MaterialStocks } from "../../lib/types";
@@ -53,6 +67,10 @@ export default function MaterialsTable({
   currentSort: { key: string; direction: "asc" | "desc" }[];
 }) {
   const [materials, setMaterials] = useState(data);
+  const [density, changeDensity] = useDensity("materials-table-density");
+  const tableRef = useDataTableRef();
+  // Name sits right after the checkbox when the SKU column is hidden.
+  const namePin = visibleColumns.includes("sku") ? pin.name : pin.nameAfterCheckbox;
   const [sortStates, setSortStates] = useState<{
     [key: string]: "asc" | "desc" | null;
   }>({
@@ -201,17 +219,18 @@ export default function MaterialsTable({
         </div>
       )}
       <div className="h-[calc(100%-4rem)] flex flex-col justify-between">
-        <TableUI>
+        <TooltipProvider delayDuration={300}>
+        <TableUI ref={tableRef} className={cn(dataTableClass, "min-w-[960px]")}>
           <TableHeader>
-            <TableRow className="bg-slate-100 border-none">
-              <TableHead className="w-[3%]">
+            <TableRow className={dataTableHeaderRowClass}>
+              <TableHead className={pin.checkbox}>
                 <Checkbox
                   checked={areAllRowsSelected}
                   onCheckedChange={handleSelectAllRows}
                 />
               </TableHead>
               {visibleColumns.includes("sku") && (
-                <TableHead className="w-[10%]">
+                <TableHead className={pin.id}>
                   <SortableHeader
                     column="sku"
                     sortStates={sortStates}
@@ -220,7 +239,7 @@ export default function MaterialsTable({
                   />
                 </TableHead>
               )}
-              <TableHead className="w-[20%]">Name</TableHead>
+              <TableHead className={namePin}>Name</TableHead>
               {visibleColumns.includes("category") && (
                 <TableHead className="w-[15%]">
                   <SortableHeader
@@ -231,15 +250,17 @@ export default function MaterialsTable({
                   />
                 </TableHead>
               )}
-              <TableHead className="w-[10%]">
+              <TableHead className="w-[10%] text-right">
                 <SortableHeader
+                  className="ml-auto"
                   column="price"
                   sortStates={sortStates}
                   handleSort={handleSort}
                 />
               </TableHead>
-              <TableHead className="w-[10%]">
+              <TableHead className="w-[10%] text-right">
                 <SortableHeader
+                  className="ml-auto"
                   column="stocks"
                   sortStates={sortStates}
                   handleSort={handleSort}
@@ -255,7 +276,9 @@ export default function MaterialsTable({
                   />
                 </TableHead>
               )}
-              <TableHead className="w-[3%]"></TableHead>
+              <TableHead className="w-10">
+                <span className="sr-only">Expand</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -274,11 +297,12 @@ export default function MaterialsTable({
                     <CollapsibleTrigger asChild>
                       <TableRow
                         key={material.id}
-                        className={`cursor-pointer ${
-                          isOpen ? "border-b-0 border-x border-t" : ""
-                        }`}
+                        className={cn(
+                          dataTableRowClass(density),
+                          isOpen && "border-b-0 border-x border-t"
+                        )}
                       >
-                        <TableCell>
+                        <TableCell className={cn(pin.checkbox, rowAccentClass)}>
                           <Checkbox
                             checked={isRowSelected(material.id)}
                             onCheckedChange={() =>
@@ -288,21 +312,31 @@ export default function MaterialsTable({
                           />
                         </TableCell>
                         {visibleColumns.includes("sku") && (
-                          <TableCell className="font-bold text-black">
-                            {material.sku}
+                          <TableCell className={cn(pin.id, "font-bold text-black")}>
+                            <TruncatedText text={material.sku || "—"} />
                           </TableCell>
                         )}
-                        <TableCell className="font-bold flex gap-2 items-center text-black py-4">
-                          {material.material_name}
+                        <TableCell className={cn(namePin, "font-bold text-black")}>
+                          <TruncatedText text={material.material_name || "—"} />
                         </TableCell>
                         {visibleColumns.includes("category") && (
-                          <TableCell>{material.category}</TableCell>
+                          <TableCell>
+                            <TruncatedText
+                              text={material.category || "—"}
+                              className="max-w-[12rem]"
+                            />
+                          </TableCell>
                         )}
 
-                        <TableCell>
+                        <TableCell className={numericCellClass}>
                           ₱{formatNumberWithCommas(material.price)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell
+                          className={cn(
+                            numericCellClass,
+                            material.stocks <= 0 && "font-medium text-red-600"
+                          )}
+                        >
                           {material.stocks > 0
                             ? material.stocks
                             : "Out of Stock"}
@@ -342,7 +376,9 @@ export default function MaterialsTable({
             })}
           </TableBody>
         </TableUI>
+        </TooltipProvider>
         <PaginationControls
+          extra={<DensityToggle value={density} onChange={changeDensity} />}
           totalItems={totalItems}
           currentPage={currentPage}
           totalPages={totalPages}

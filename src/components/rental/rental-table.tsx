@@ -21,6 +21,20 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import { TooltipProvider } from "../ui/tooltip";
+import { cn } from "../../lib/utils";
+import {
+  DensityToggle,
+  TruncatedText,
+  dataTableClass,
+  dataTableHeaderRowClass,
+  dataTableRowClass,
+  numericCellClass,
+  pin,
+  rowAccentClass,
+  useDataTableRef,
+  useDensity,
+} from "../table/data-table-kit";
 
 interface RentalTableProps {
   rentals: RentalData[];
@@ -72,6 +86,8 @@ export default function RentalTable({
   "data-tour": dataTour,
 }: RentalTableProps) {
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
+  const [density, changeDensity] = useDensity("rentals-table-density");
+  const tableRef = useDataTableRef();
 
   const toggleAll = () => {
     if (selectedIds.length === rentals.length) {
@@ -156,10 +172,11 @@ export default function RentalTable({
         )}
       </SelectionBar>
 
-      <TableUI>
+      <TooltipProvider delayDuration={300}>
+      <TableUI ref={tableRef} className={cn(dataTableClass, "min-w-[1100px]")}>
         <TableHeader>
-          <TableRow className="bg-slate-100 border-none">
-            <TableHead className="w-[3%]">
+          <TableRow className={dataTableHeaderRowClass}>
+            <TableHead className={pin.checkbox}>
               <Checkbox
                 checked={
                   rentals.length > 0 && selectedIds.length === rentals.length
@@ -167,39 +184,40 @@ export default function RentalTable({
                 onCheckedChange={toggleAll}
               />
             </TableHead>
-            <TableHead className="w-[10%]">
+            <TableHead className={pin.id}>
               <SortableHeader
                 column="rental_no"
                 sortStates={sortStates}
                 handleSort={onSort}
               />
             </TableHead>
-            <TableHead className="w-[18%]">Client Name</TableHead>
-            <TableHead className="w-[13%]">Printer</TableHead>
-            <TableHead className="w-[10%]">
+            <TableHead className={pin.name}>Client Name</TableHead>
+            <TableHead>Printer</TableHead>
+            <TableHead>
               <SortableHeader
                 column="status"
                 sortStates={sortStates}
                 handleSort={onSort}
               />
             </TableHead>
-            <TableHead className="w-[12%]">
+            <TableHead>
               <SortableHeader
                 column="start_date"
                 sortStates={sortStates}
                 handleSort={onSort}
               />
             </TableHead>
-            <TableHead className="w-[12%]">
+            <TableHead>
               <SortableHeader
                 column="due_date"
                 sortStates={sortStates}
                 handleSort={onSort}
               />
             </TableHead>
-            <TableHead className="w-[12%]">Technician</TableHead>
-            <TableHead className="w-[10%]">
+            <TableHead>Technician</TableHead>
+            <TableHead className="text-right">
               <SortableHeader
+                className="ml-auto"
                 column="grand_total"
                 sortStates={sortStates}
                 handleSort={onSort}
@@ -220,31 +238,37 @@ export default function RentalTable({
           ) : (
             rentals.map((rental) => {
               const isOverdue = rental.is_overdue;
+              const technicianName =
+                (rental.users as any)?.fullname || (rental.users as any)?.email;
+              const printer = [
+                rental.rental_assets?.unit_name,
+                rental.rental_assets?.model,
+              ]
+                .filter(Boolean)
+                .join(" · ");
               return (
                 <TableRow
                   key={rental.id}
-                  className={`text-gray-500 cursor-pointer ${
-                    isOverdue ? "bg-red-100" : ""
-                  }`}
+                  className={dataTableRowClass(density, isOverdue)}
                   onClick={() => onRowClick(rental)}
                 >
-                  <TableCell onClick={(e) => e.stopPropagation()}>
+                  <TableCell
+                    className={cn(pin.checkbox, rowAccentClass)}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Checkbox
                       checked={selectedIds.includes(rental.id)}
                       onCheckedChange={() => toggleOne(rental.id)}
                     />
                   </TableCell>
-                  <TableCell>{rental.rental_no}</TableCell>
-                  <TableCell className="font-bold text-black">
-                    {rental.clients?.name || "—"}
+                  <TableCell className={cn(pin.id, "tabular-nums")}>
+                    {rental.rental_no}
+                  </TableCell>
+                  <TableCell className={cn(pin.name, "font-bold text-black")}>
+                    <TruncatedText text={rental.clients?.name || "—"} />
                   </TableCell>
                   <TableCell>
-                    <p className="text-sm">
-                      {rental.rental_assets?.unit_name || "—"}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {rental.rental_assets?.model || ""}
-                    </p>
+                    <TruncatedText text={printer || "—"} className="max-w-[14rem]" />
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
@@ -253,8 +277,8 @@ export default function RentalTable({
                         statusList={rentalStatuses}
                       />
                       {isOverdue && (
-                        <span className="text-red-600 flex items-center gap-0.5 text-[10px]">
-                          <AlertTriangle size={10} />
+                        <span title="Overdue" aria-label="Overdue" className="text-red-600">
+                          <AlertTriangle size={12} />
                         </span>
                       )}
                     </div>
@@ -266,18 +290,14 @@ export default function RentalTable({
                     {formatDate(rental.due_date)}
                   </TableCell>
                   <TableCell
-                    className={
-                      !(rental.users as any)?.fullname &&
-                      !(rental.users as any)?.email
-                        ? "text-red-600 font-bold"
-                        : ""
-                    }
+                    className={technicianName ? "" : "text-red-600 font-bold"}
                   >
-                    {(rental.users as any)?.fullname ||
-                      (rental.users as any)?.email ||
-                      "Not Assigned"}
+                    <TruncatedText
+                      text={technicianName || "Not Assigned"}
+                      className="max-w-[12rem]"
+                    />
                   </TableCell>
-                  <TableCell className="font-bold text-black">
+                  <TableCell className={cn(numericCellClass, "font-bold text-black")}>
                     ₱{formatNumberWithCommas(Number(rental.grand_total))}
                   </TableCell>
                 </TableRow>
@@ -286,9 +306,11 @@ export default function RentalTable({
           )}
         </TableBody>
       </TableUI>
+      </TooltipProvider>
 
       <div className="mt-auto">
         <PaginationControls
+          extra={<DensityToggle value={density} onChange={changeDensity} />}
           totalItems={totalCount}
           currentPage={currentPage}
           totalPages={totalPages}

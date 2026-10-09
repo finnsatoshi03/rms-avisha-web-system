@@ -1,4 +1,6 @@
 import React from "react";
+import { buttonVariants } from "./ui/button";
+import { cn } from "../lib/utils";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -22,11 +24,8 @@ const ColumnVisibilityDropdown: React.FC<ColumnVisibilityDropdownProps> = ({
 }) => {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        className="cursor-pointer flex gap-1 items-center border text-gray-400
-        border-gray-400 w-fit px-2 py-1 rounded-lg space-x-1 text-sm"
-      >
-        <SlidersHorizontal size={18} strokeWidth={1.5} />
+      <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8 gap-1.5 px-3 text-sm font-normal text-slate-700")}>
+        <SlidersHorizontal size={15} strokeWidth={1.75} />
         View
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="text-sm">

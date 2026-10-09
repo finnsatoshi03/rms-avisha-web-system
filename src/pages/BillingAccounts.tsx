@@ -50,12 +50,30 @@ import BillingAccountSheetContent from "../components/billing/billing-account-sh
 import { replayBillingIntro } from "../components/billing/billing-intro-gate";
 import type { BillingStatementPDFData } from "../components/billing/billing-statement-pdf";
 import { getServerNow } from "../lib/server-time";
+import { TooltipProvider } from "../components/ui/tooltip";
+import { cn } from "../lib/utils";
+import {
+  DensityToggle,
+  TruncatedText,
+  dataTableClass,
+  dataTableHeaderRowClass,
+  dataTableRowClass,
+  numericCellClass,
+  rowAccentClass,
+  useDataTableRef,
+  useDensity,
+} from "../components/table/data-table-kit";
 import { PaginationControls } from "../components/table/pagination-controls";
 
+// Billing has no checkbox column: account no. pins at the left edge, name next to it.
+const accountPin = "sticky left-0 z-[1] bg-inherit w-36 min-w-36 max-w-36";
+const namePin =
+  "sticky left-36 z-[1] bg-inherit w-72 min-w-72 max-w-72 transition-shadow group-data-[scrolled=true]/table:shadow-[inset_-1px_0_0_hsl(var(--border)),6px_0_8px_-6px_rgb(0_0_0/0.15)]";
+
 const statusVariant: Record<BillingAccountStatus, string> = {
-  active: "bg-green-100 text-green-800 border-green-200",
-  suspended: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  closed: "bg-gray-100 text-gray-600 border-gray-200",
+  active: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  suspended: "bg-amber-50 text-amber-800 border-amber-200",
+  closed: "bg-stone-100 text-stone-600 border-stone-200",
 };
 
 export default function BillingAccounts() {
@@ -68,6 +86,8 @@ export default function BillingAccounts() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [density, changeDensity] = useDensity("billing-accounts-table-density");
+  const tableRef = useDataTableRef();
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [downloadingMockPdf, setDownloadingMockPdf] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
@@ -363,13 +383,14 @@ export default function BillingAccounts() {
         </div>
       ) : (
         <div className="h-[calc(100%-7.5rem)] flex flex-col justify-between">
-          <Table>
+          <TooltipProvider delayDuration={300}>
+          <Table ref={tableRef} className={cn(dataTableClass, "min-w-[760px]")}>
             <TableHeader>
-              <TableRow className="bg-muted border-none">
-                <TableHead className="w-[14%]">Account No.</TableHead>
-                <TableHead className="w-[36%]">Client Name</TableHead>
-                <TableHead className="w-[18%]">Owes</TableHead>
-                <TableHead className="w-[18%]">Overdue</TableHead>
+              <TableRow className={dataTableHeaderRowClass}>
+                <TableHead className={accountPin}>Account No.</TableHead>
+                <TableHead className={namePin}>Client Name</TableHead>
+                <TableHead className="w-[18%] text-right">Owes</TableHead>
+                <TableHead className="w-[18%] text-right">Overdue</TableHead>
                 <TableHead className="w-[14%]">Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -379,19 +400,23 @@ export default function BillingAccounts() {
                 return (
                   <TableRow
                     key={account.id}
-                    className="text-gray-500 cursor-pointer"
+                    className={dataTableRowClass(density)}
                     onClick={() => handleOpenAccount(account.id)}
                   >
-                    <TableCell>{account.account_number}</TableCell>
-                    <TableCell className="font-bold text-black">
-                      {getClientDisplayName(account.clients)}
+                    <TableCell className={cn(accountPin, rowAccentClass, "font-mono")}>
+                      {account.account_number}
                     </TableCell>
-                    <TableCell className="font-bold text-black">
+                    <TableCell className={cn(namePin, "font-bold text-black")}>
+                      <TruncatedText text={getClientDisplayName(account.clients) || "—"} />
+                    </TableCell>
+                    <TableCell className={cn(numericCellClass, "font-bold text-black")}>
                       {balance === undefined
                         ? "…"
                         : `₱${formatNumberWithCommas(balance)}`}
                     </TableCell>
-                    <TableCell className={overdue ? "font-bold text-red-600" : ""}>
+                    <TableCell
+                      className={cn(numericCellClass, overdue && "font-bold text-red-600")}
+                    >
                       {overdue === undefined
                         ? "…"
                         : overdue > 0
@@ -410,7 +435,9 @@ export default function BillingAccounts() {
               })}
             </TableBody>
           </Table>
+          </TooltipProvider>
           <PaginationControls
+            extra={<DensityToggle value={density} onChange={changeDensity} />}
             totalItems={displayAccounts.length}
             currentPage={currentPage}
             totalPages={totalPages}

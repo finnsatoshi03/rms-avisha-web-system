@@ -24,6 +24,20 @@ import GuidedTour from "../components/onboarding/guided-tour";
 import TourReplayButton from "../components/onboarding/tour-replay-button";
 import { RentalAsset, RentalData } from "../lib/types";
 import { SortableHeader } from "../components/table/sort-table-header";
+import { TooltipProvider } from "../components/ui/tooltip";
+import { cn } from "../lib/utils";
+import {
+  DensityToggle,
+  TruncatedText,
+  dataTableClass,
+  dataTableHeaderRowClass,
+  dataTableRowClass,
+  numericCellClass,
+  pin,
+  rowAccentClass,
+  useDataTableRef,
+  useDensity,
+} from "../components/table/data-table-kit";
 import { PaginationControls } from "../components/table/pagination-controls";
 import { SelectionBar } from "../components/table/selection-bar";
 import { StatusBadge, rentalAssetStatuses } from "../components/table/status-popover";
@@ -82,6 +96,8 @@ export default function RentalAssets() {
   );
   const [editAsset, setEditAsset] = useState<RentalAsset | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [density, changeDensity] = useDensity("rental-assets-table-density");
+  const tableRef = useDataTableRef();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [sortStates, setSortStates] = useState<{
     [key: string]: "asc" | "desc" | null;
@@ -248,10 +264,15 @@ export default function RentalAssets() {
           <PageSkeleton />
         ) : (
           <div className="flex flex-col flex-1">
-            <TableUI data-tour="rental-assets-table">
+            <TooltipProvider delayDuration={300}>
+            <TableUI
+              ref={tableRef}
+              data-tour="rental-assets-table"
+              className={cn(dataTableClass, "min-w-[1000px]")}
+            >
               <TableHeader>
-                <TableRow className="bg-slate-100 border-none">
-                  <TableHead className="w-[3%]">
+                <TableRow className={dataTableHeaderRowClass}>
+                  <TableHead className={pin.checkbox}>
                     <Checkbox
                       checked={
                         paginated.length > 0 &&
@@ -260,7 +281,7 @@ export default function RentalAssets() {
                       onCheckedChange={toggleAll}
                     />
                   </TableHead>
-                  <TableHead className="w-[20%]">
+                  <TableHead className={pin.nameAfterCheckbox}>
                     <SortableHeader
                       column="unit_name"
                       sortStates={sortStates}
@@ -283,18 +304,20 @@ export default function RentalAssets() {
                   </TableHead>
                   <TableHead className="w-[10%]" data-tour="rental-assets-status">Status</TableHead>
                   <TableHead className="w-[10%]">Branch</TableHead>
-                  <TableHead className="w-[12%]" data-tour="rental-assets-rates">
+                  <TableHead className="w-[12%] text-right" data-tour="rental-assets-rates">
                     <div className="flex">
                       <SortableHeader
+                        className="ml-auto"
                         column="daily_rate"
                         sortStates={sortStates}
                         handleSort={handleSort}
                       />
                     </div>
                   </TableHead>
-                  <TableHead className="w-[12%]">
+                  <TableHead className="w-[12%] text-right">
                     <div className="flex">
                       <SortableHeader
+                        className="ml-auto"
                         column="monthly_rate"
                         sortStates={sortStates}
                         handleSort={handleSort}
@@ -317,20 +340,32 @@ export default function RentalAssets() {
                   paginated.map((asset) => (
                     <TableRow
                       key={asset.id}
-                      className="text-gray-500 cursor-pointer"
+                      className={dataTableRowClass(density)}
                       onClick={() => handleRowClick(asset)}
                     >
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell
+                        className={cn(pin.checkbox, rowAccentClass)}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <Checkbox
                           checked={selectedIds.includes(asset.id)}
                           onCheckedChange={() => toggleOne(asset.id)}
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-gray-800">
-                        {asset.unit_name}
+                      <TableCell
+                        className={cn(pin.nameAfterCheckbox, "font-medium text-gray-800")}
+                      >
+                        <TruncatedText text={asset.unit_name || "—"} />
                       </TableCell>
-                      <TableCell>{asset.model || "—"}</TableCell>
-                      <TableCell>{asset.serial_number || "—"}</TableCell>
+                      <TableCell>
+                        <TruncatedText text={asset.model || "—"} className="max-w-[12rem]" />
+                      </TableCell>
+                      <TableCell>
+                        <TruncatedText
+                          text={asset.serial_number || "—"}
+                          className="max-w-[12rem]"
+                        />
+                      </TableCell>
                       <TableCell>
                         <StatusBadge
                           status={asset.status}
@@ -343,12 +378,15 @@ export default function RentalAssets() {
                         />
                       </TableCell>
                       <TableCell>
-                        {asset.branches?.name || "—"}
+                        <TruncatedText
+                          text={asset.branches?.name || "—"}
+                          className="max-w-[10rem]"
+                        />
                       </TableCell>
-                      <TableCell className="font-bold text-black">
+                      <TableCell className={cn(numericCellClass, "font-bold text-black")}>
                         ₱{formatNumberWithCommas(Number(asset.daily_rate))}
                       </TableCell>
-                      <TableCell className="font-bold text-black">
+                      <TableCell className={cn(numericCellClass, "font-bold text-black")}>
                         ₱{formatNumberWithCommas(Number(asset.monthly_rate))}
                       </TableCell>
                     </TableRow>
@@ -356,9 +394,11 @@ export default function RentalAssets() {
                 )}
               </TableBody>
             </TableUI>
+            </TooltipProvider>
 
             <div className="mt-auto">
               <PaginationControls
+                extra={<DensityToggle value={density} onChange={changeDensity} />}
                 totalItems={totalCount}
                 currentPage={currentPage}
                 totalPages={totalPages}

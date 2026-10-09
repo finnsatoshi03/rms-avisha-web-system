@@ -424,8 +424,11 @@ export default function JobOrderForm({
     useState<CreateQuotationData | null>(null);
   const [isCreatingQuotation, setIsCreatingQuotation] = useState(false);
   const [isSavingEditedOrder, setIsSavingEditedOrder] = useState(false);
-  const [quotationSaveError, setQuotationSaveError] = useState<string | null>(null);
-  const [pendingQuotationDownpayment, setPendingQuotationDownpayment] = useState<number | null>(null);
+  const [quotationSaveError, setQuotationSaveError] = useState<string | null>(
+    null,
+  );
+  const [pendingQuotationDownpayment, setPendingQuotationDownpayment] =
+    useState<number | null>(null);
   const [printSelectionDialogOpen, setPrintSelectionDialogOpen] =
     useState(false);
   const [quotationPrintDialogOpen, setQuotationPrintDialogOpen] =
@@ -673,7 +676,8 @@ export default function JobOrderForm({
     editValues.downpayment,
   ]);
 
-  const isPending = isCreating || isEditing || isSavingEditedOrder || materialStocksLoading;
+  const isPending =
+    isCreating || isEditing || isSavingEditedOrder || materialStocksLoading;
 
   // Focus the first editable field once the sheet's open animation settles.
   const formElementRef = useRef<HTMLFormElement>(null);
@@ -1729,7 +1733,7 @@ export default function JobOrderForm({
             amount: normalizedTotals.amount,
             service_fee: normalizedTotals.service_fee,
             total_quote: normalizedTotals.total_quote,
-            status: quotationData.status ?? "approved" as const,
+            status: quotationData.status ?? ("approved" as const),
             is_final: quotationData.is_final ?? true,
             is_active: quotationData.is_active ?? true,
           };
@@ -1772,14 +1776,22 @@ export default function JobOrderForm({
         setIsSavingEditedOrder(true);
         setQuotationSaveError(null);
         try {
-          await submitEditedJobOrder(submittedValues, { closeAfterSuccess: false });
+          await submitEditedJobOrder(submittedValues, {
+            closeAfterSuccess: false,
+          });
           const createdQuotation = await syncQuotationForEditedJobOrder();
           setIsCreatingQuotation(false);
           setIsFormChanged(false);
           setInitialFormValues(form.getValues());
           await queryClient.invalidateQueries({ queryKey: ["quotations"] });
-          await queryClient.invalidateQueries({ queryKey: ["jobOrderQuotations"] });
-          toast.success(isCreatingQuotation ? "Job order and quotation saved." : "Job order saved.");
+          await queryClient.invalidateQueries({
+            queryKey: ["jobOrderQuotations"],
+          });
+          toast.success(
+            isCreatingQuotation
+              ? "Job order and quotation saved."
+              : "Job order saved.",
+          );
           if (closeAfterSuccess && !createdQuotation) onClose?.();
         } finally {
           setIsSavingEditedOrder(false);
@@ -1795,7 +1807,11 @@ export default function JobOrderForm({
         );
       } else {
         void runEditFlow(true).catch((error) => {
-          toast.error(error instanceof Error ? error.message : "Changes could not be saved. Please try again.");
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Changes could not be saved. Please try again.",
+          );
         });
       }
     } else {
@@ -1940,7 +1956,11 @@ export default function JobOrderForm({
   // Quotation handlers
   const handleCreateQuotation = () => {
     // Reopening prepared changes must not reload stale persisted items.
-    if (!isCreatingQuotation && existingQuotations && existingQuotations.length > 0) {
+    if (
+      !isCreatingQuotation &&
+      existingQuotations &&
+      existingQuotations.length > 0
+    ) {
       const quotation = existingQuotations[0];
       const laborRate = Number(quotation.labor_rate || 0);
       const serviceFee = Number(quotation.service_fee || 0);
@@ -2014,7 +2034,7 @@ export default function JobOrderForm({
       amount: normalizedTotals.amount,
       service_fee: normalizedTotals.service_fee,
       total_quote: normalizedTotals.total_quote,
-      status: quotationData?.status ?? "approved" as const,
+      status: quotationData?.status ?? ("approved" as const),
       is_final: quotationData?.is_final ?? true,
       is_active: quotationData?.is_active ?? true,
     };
@@ -2142,9 +2162,13 @@ export default function JobOrderForm({
       quantity: Number(material.quantity || 0),
       unitPrice: Number(material.unitPrice || 0),
       material_id: String(material.material_id || ""),
-      used: form.getValues("materials")?.find(
-        (existing) => String(existing.material_id) === String(material.material_id),
-      )?.used ?? false,
+      used:
+        form
+          .getValues("materials")
+          ?.find(
+            (existing) =>
+              String(existing.material_id) === String(material.material_id),
+          )?.used ?? false,
     }));
 
     replace(normalizedMaterials);
@@ -2386,7 +2410,9 @@ export default function JobOrderForm({
     </Button>
   );
   const showPaymentReceiptCard =
-    editSession && !isTechnician && (isBillingLinked || canManageSourceReceipt || hasMissingReceipt);
+    editSession &&
+    !isTechnician &&
+    (isBillingLinked || canManageSourceReceipt || hasMissingReceipt);
   const paymentReceiptCard = showPaymentReceiptCard && (
     <div className="rounded-lg border p-3 space-y-2 text-sm">
       <h3 className="text-xs font-bold opacity-40">Payment & Receipt</h3>
@@ -2521,15 +2547,17 @@ export default function JobOrderForm({
             )}
           </div>
           {isFormReadonly ? (
-            <div className="text-3xl font-bold mb-2">
-              {getClientDisplayName(selectedClient, "") ||
-                form.getValues("name") ||
-                "—"}
+            <div className="mb-2">
               {selectedClient?.type === "company" && (
-                <span className="ml-2 align-middle inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-normal text-blue-700">
-                  company
-                </span>
+                <p className="mt-0.5 flex items-center gap-1.5 text-xs font-bold opacity-40">
+                  Company client
+                </p>
               )}
+              <h3 className="text-3xl font-bold leading-tight">
+                {getClientDisplayName(selectedClient, "") ||
+                  form.getValues("name") ||
+                  "—"}
+              </h3>
             </div>
           ) : (
             <FormField
@@ -2975,7 +3003,7 @@ export default function JobOrderForm({
                   name="rate"
                   render={({ field }) => (
                     <FormItem className="border-b py-2">
-                      <div className="space-y-0 flex justify-between items-center w-full">
+                      <div className="space-y-0 flex justify-between items-start w-full">
                         <FormLabel required>Rate</FormLabel>
                         <div className="flex flex-col items-end gap-2">
                           <div
@@ -3175,7 +3203,11 @@ export default function JobOrderForm({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">
-                            Quote #{isCreatingQuotation ? quotationData?.quote_no || existingQuotations[0].quote_no : existingQuotations[0].quote_no}
+                            Quote #
+                            {isCreatingQuotation
+                              ? quotationData?.quote_no ||
+                                existingQuotations[0].quote_no
+                              : existingQuotations[0].quote_no}
                           </span>
                           {/* Manual items indicator */}
                           {existingQuotations[0].quotation_items?.some(
@@ -3225,7 +3257,12 @@ export default function JobOrderForm({
                       <div className="text-xs text-gray-600">
                         <span>
                           Valid until:{" "}
-                          {formatReadableDate(isCreatingQuotation ? quotationData?.end_date || existingQuotations[0].end_date : existingQuotations[0].end_date)}
+                          {formatReadableDate(
+                            isCreatingQuotation
+                              ? quotationData?.end_date ||
+                                  existingQuotations[0].end_date
+                              : existingQuotations[0].end_date,
+                          )}
                         </span>
                       </div>
                       {canSendQuotationEmail &&
@@ -3237,7 +3274,11 @@ export default function JobOrderForm({
                               size="sm"
                               variant="outline"
                               onClick={openQuotationEmailDialog}
-                              disabled={isSendingQuotationEmail || isPending || isCreatingQuotation}
+                              disabled={
+                                isSendingQuotationEmail ||
+                                isPending ||
+                                isCreatingQuotation
+                              }
                               className="text-xs h-7"
                             >
                               {isSendingQuotationEmail ? (
@@ -3260,15 +3301,36 @@ export default function JobOrderForm({
                   )}
 
                   {isCreatingQuotation && (
-                    <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm" role="status">
-                      <p className="font-medium">Quotation changes ready to save</p>
-                      <p className="mt-1 text-xs">Review your changes, then save the job order and quotation together.</p>
-                      <Button type="submit" size="sm" className="mt-2" disabled={isPending}>
-                        {isPending ? "Saving…" : editSession ? "Save Job Order & Quotation" : "Create Job Order & Quotation"}
+                    <div
+                      className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"
+                      role="status"
+                    >
+                      <p className="font-medium">
+                        Quotation changes ready to save
+                      </p>
+                      <p className="mt-1 text-xs">
+                        Review your changes, then save the job order and
+                        quotation together.
+                      </p>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="mt-2"
+                        disabled={isPending}
+                      >
+                        {isPending
+                          ? "Saving…"
+                          : editSession
+                            ? "Save Job Order & Quotation"
+                            : "Create Job Order & Quotation"}
                       </Button>
                     </div>
                   )}
-                  {quotationSaveError && <p role="alert" className="mb-3 text-sm text-red-600">{quotationSaveError} Your edits are still available here.</p>}
+                  {quotationSaveError && (
+                    <p role="alert" className="mb-3 text-sm text-red-600">
+                      {quotationSaveError} Your edits are still available here.
+                    </p>
+                  )}
                   <div className="flex flex-col gap-2">
                     {(!isFormReadonly || quotationData) && (
                       <TooltipProvider delayDuration={100}>
@@ -3749,9 +3811,11 @@ export default function JobOrderForm({
                       )}
                   </div>
                 </div>
-                {editSession && editValuesWithClient.status === "Completed" && !isTechnician && (
-                  <CompletedPaymentDetails jobOrder={jobOrderToEdit} />
-                )}
+                {editSession &&
+                  editValuesWithClient.status === "Completed" &&
+                  !isTechnician && (
+                    <CompletedPaymentDetails jobOrder={jobOrderToEdit} />
+                  )}
               </div>
               {paymentReceiptCard}
               {isFormReadonly && editSession && jobOrderToEdit && (
@@ -3761,14 +3825,22 @@ export default function JobOrderForm({
           </div>
           {!isFormReadonly && (
             <div className="sticky bottom-0 z-10 mt-4 flex justify-end border-t bg-background/95 py-3 backdrop-blur">
-              <Button type="submit" className="min-w-40" disabled={isPending || (!isFormChanged && !isCreatingQuotation)}>
+              <Button
+                type="submit"
+                className="min-w-40"
+                disabled={isPending || (!isFormChanged && !isCreatingQuotation)}
+              >
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     {editSession ? "Updating.." : "Creating.."}
                   </>
                 ) : editSession ? (
-                  isCreatingQuotation ? "Save Job Order & Quotation" : "Update Job Order"
+                  isCreatingQuotation ? (
+                    "Save Job Order & Quotation"
+                  ) : (
+                    "Update Job Order"
+                  )
                 ) : (
                   "Create Job Order"
                 )}

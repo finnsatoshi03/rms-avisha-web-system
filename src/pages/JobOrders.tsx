@@ -425,10 +425,10 @@ export default function JobOrders() {
               ref={searchInputRef}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="border-gray-400 h-fit py-1 pl-8 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all ease-in-out duration-500 relative focus-within:w-[300px]"
+              className="h-8 py-1 pl-8 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all ease-in-out duration-500 relative focus-within:w-[300px]"
               placeholder="Search brand model, machine type, status, etc."
             />
-            <div className="absolute left-3 top-2 opacity-60">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 opacity-60">
               {isSearching || isFetching ? (
                 <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-500 border-t-transparent" />
               ) : (
@@ -456,8 +456,8 @@ export default function JobOrders() {
           <Separator orientation="vertical" className="mx-2 h-[1.5rem]" />
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
-              <button className="px-4 py-1.5 text-sm bg-primaryRed hover:bg-hoveredRed text-white flex items-center rounded-lg gap-1">
-                <Plus size={18} />
+              <button className="h-8 px-3 text-sm font-medium bg-primaryRed hover:bg-hoveredRed text-white inline-flex items-center rounded-md gap-1.5 transition-colors">
+                <Plus size={16} />
                 Add
               </button>
             </SheetTrigger>

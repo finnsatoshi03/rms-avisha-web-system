@@ -174,102 +174,123 @@ td:last-of-type {
   border-radius: 0 15px 15px 0;
 }
 
+/* Status badges: same recipe for every status (tint background, 1px ring,
+   deep text) so no single hue shouts. Hues are grouped by stage: warm = intake,
+   cool = in progress, green/teal/rose = ready & billing, stone/brand red = closed. */
 .status-pending {
-  background-color: #ffc1073f;
-  color: #5e4703;
-}
-.status-quotation {
-  background-color: #17a2b83f;
-  color: #0c5460;
+  background-color: #fffbeb;
+  color: #92400e;
+  box-shadow: inset 0 0 0 1px #fde68a;
 }
 .status-for-quotation {
-  background-color: #06b6d43f;
-  color: #155e75;
-}
-.status-quotation-in-progress {
-  background-color: #6366f13f;
-  color: #3730a3;
-}
-.status-for-pullout {
-  background-color: #f973163f;
+  background-color: #fff7ed;
   color: #9a3412;
-}
-.status-repairing {
-  background-color: #007bff4b;
-  color: #002144;
-}
-.status-ready-for-pickup {
-  background-color: #4caf4f3f;
-  color: #1c411d;
-}
-.status-completed {
-  background-color: #9e9e9e2c;
-  color: #414040;
-}
-.status-canceled {
-  background-color: #f4433643;
-  color: #41120f;
+  box-shadow: inset 0 0 0 1px #fed7aa;
 }
 .status-for-approval {
-  background-color: #ffa5003f;
-  color: #5c3c00;
+  background-color: #fefce8;
+  color: #854d0e;
+  box-shadow: inset 0 0 0 1px #fde047;
+}
+.status-quotation {
+  background-color: #ecfeff;
+  color: #155e75;
+  box-shadow: inset 0 0 0 1px #a5f3fc;
+}
+.status-quotation-in-progress {
+  background-color: #eef2ff;
+  color: #4338ca;
+  box-shadow: inset 0 0 0 1px #c7d2fe;
+}
+.status-repairing {
+  background-color: #f0f9ff;
+  color: #075985;
+  box-shadow: inset 0 0 0 1px #bae6fd;
 }
 .status-waiting-parts {
-  background-color: #8000803f;
-  color: #490149;
+  background-color: #f5f3ff;
+  color: #6d28d9;
+  box-shadow: inset 0 0 0 1px #ddd6fe;
 }
 .status-on-hold {
-  background-color: #64748b3f;
-  color: #334155;
+  background-color: #f8fafc;
+  color: #475569;
+  box-shadow: inset 0 0 0 1px #cbd5e1;
 }
-.status-pull-out {
-  background-color: #ff57223f;
-  color: #b23c17;
+.status-ready-for-pickup {
+  background-color: #ecfdf5;
+  color: #065f46;
+  box-shadow: inset 0 0 0 1px #a7f3d0;
+}
+.status-for-pullout {
+  background-color: #fff4f1;
+  color: #b4321a;
+  box-shadow: inset 0 0 0 1px #fbc8bb;
 }
 .status-for-collection {
-  background-color: #1e3a8a3f;
-  color: #1e3a8a;
+  background-color: #f0fdfa;
+  color: #115e59;
+  box-shadow: inset 0 0 0 1px #99f6e4;
 }
-
 .status-for-billing {
-  background-color: #8318433f;
-  color: #831843;
+  background-color: #fff1f2;
+  color: #9f1239;
+  box-shadow: inset 0 0 0 1px #fecdd3;
 }
-
-/* Rental asset statuses */
+.status-completed {
+  background-color: #f5f5f4;
+  color: #57534e;
+  box-shadow: inset 0 0 0 1px #e7e5e4;
+}
+.status-pull-out {
+  background-color: #fbeae6;
+  color: #8f2a16;
+  box-shadow: inset 0 0 0 1px #f3b9ab;
+}
+.status-canceled {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  box-shadow: inset 0 0 0 1px #fecaca;
+}
 .status-available {
-  background-color: #4caf4f3f;
-  color: #1c411d;
+  background-color: #ecfdf5;
+  color: #065f46;
+  box-shadow: inset 0 0 0 1px #a7f3d0;
 }
 .status-rented {
-  background-color: #007bff4b;
-  color: #002144;
+  background-color: #f0f9ff;
+  color: #075985;
+  box-shadow: inset 0 0 0 1px #bae6fd;
 }
 .status-maintenance {
-  background-color: #ffa5003f;
-  color: #5c3c00;
+  background-color: #fffbeb;
+  color: #92400e;
+  box-shadow: inset 0 0 0 1px #fde68a;
 }
-
-/* Rental statuses */
 .status-created {
-  background-color: #ffc1073f;
-  color: #5e4703;
+  background-color: #fffbeb;
+  color: #92400e;
+  box-shadow: inset 0 0 0 1px #fde68a;
 }
 .status-released {
-  background-color: #007bff4b;
-  color: #002144;
+  background-color: #f0f9ff;
+  color: #075985;
+  box-shadow: inset 0 0 0 1px #bae6fd;
 }
 .status-ongoing {
-  background-color: #17a2b83f;
-  color: #0c5460;
+  background-color: #f0fdfa;
+  color: #115e59;
+  box-shadow: inset 0 0 0 1px #99f6e4;
 }
 .status-returned {
-  background-color: #ffa5003f;
-  color: #5c3c00;
+  background-color: #f5f5f4;
+  color: #57534e;
+  box-shadow: inset 0 0 0 1px #e7e5e4;
 }
 .status-cancelled {
-  background-color: #f4433643;
-  color: #41120f;
+  background-color: #fef2f2;
+  color: #b91c1c;
+  box-shadow: inset 0 0 0 1px #fecaca;
 }
 
 @keyframes slideUp {

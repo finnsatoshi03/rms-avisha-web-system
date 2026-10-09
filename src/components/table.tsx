@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 import {
   Table as TableUI,
@@ -47,6 +47,19 @@ import {
 } from "lucide-react";
 import PaymentMethodIcon from "./payment-method-icon";
 import { cn } from "../lib/utils";
+import {
+  DensityToggle,
+  TruncatedText,
+  dataTableClass,
+  dataTableHeaderRowClass,
+  dataTableRowClass,
+  numericCellClass,
+  pin,
+  rowAccentClass,
+  rowActionsClass,
+  useDataTableRef,
+  useDensity,
+} from "./table/data-table-kit";
 import {
   directPaymentEntries,
   paymentMethodLabel,
@@ -134,59 +147,8 @@ export default function Table({
 }) {
   const queryClient = useQueryClient();
   const { isUser, isAdmin, isManager } = useUser();
-  const [density, setDensity] = useState<Density>(() => {
-    try {
-      const saved = localStorage.getItem(DENSITY_STORAGE_KEY);
-      return saved && saved in DENSITY_ROW_CLASS ? (saved as Density) : "default";
-    } catch {
-      return "default";
-    }
-  });
-  // DOM-only table behaviors (no re-render): mark when scrolled sideways so the pinned
-  // edge shows its divider, and flag the header of the hovered column for its sort hint.
-  const tableBehaviorsCleanup = useRef<(() => void) | null>(null);
-  const tableRef = useCallback((table: HTMLTableElement | null) => {
-    tableBehaviorsCleanup.current?.();
-    tableBehaviorsCleanup.current = null;
-    const scroller = table?.parentElement;
-    if (!table || !scroller) return;
-
-    const onScroll = () => {
-      table.dataset.scrolled = String(scroller.scrollLeft > 0);
-    };
-    let hoveredHeader: HTMLElement | null = null;
-    const setHoveredHeader = (th: HTMLElement | null) => {
-      if (th === hoveredHeader) return;
-      hoveredHeader?.removeAttribute("data-col-hover");
-      th?.setAttribute("data-col-hover", "");
-      hoveredHeader = th;
-    };
-    const onOver = (event: MouseEvent) => {
-      const cell = (event.target as HTMLElement).closest("td");
-      setHoveredHeader(
-        cell ? table.tHead?.rows[0]?.cells[cell.cellIndex] ?? null : null
-      );
-    };
-    const onLeave = () => setHoveredHeader(null);
-
-    onScroll();
-    scroller.addEventListener("scroll", onScroll, { passive: true });
-    table.addEventListener("mouseover", onOver);
-    table.addEventListener("mouseleave", onLeave);
-    tableBehaviorsCleanup.current = () => {
-      scroller.removeEventListener("scroll", onScroll);
-      table.removeEventListener("mouseover", onOver);
-      table.removeEventListener("mouseleave", onLeave);
-    };
-  }, []);
-  const changeDensity = (next: Density) => {
-    setDensity(next);
-    try {
-      localStorage.setItem(DENSITY_STORAGE_KEY, next);
-    } catch {
-      // Preference only; ignore storage failures.
-    }
-  };
+  const [density, changeDensity] = useDensity("job-orders-table-density");
+  const tableRef = useDataTableRef();
   const allowManagerLinkedDeletion = false;
   const canDeleteBillingLinkedRecords =
     isAdmin || (allowManagerLinkedDeletion && isManager);
@@ -1139,19 +1101,19 @@ export default function Table({
           )}
           <div className="h-[calc(100%-7.5rem)] flex flex-col justify-between">
             <TooltipProvider delayDuration={300}>
-            <TableUI ref={tableRef} className="group/table min-w-[1100px]">
+            <TableUI ref={tableRef} className={cn(dataTableClass, "min-w-[1100px]")}>
               <TableHeader>
-                <TableRow className="bg-muted border-none [&>th]:whitespace-nowrap">
-                  <TableHead className={cn(PIN_CHECKBOX, "bg-inherit")}>
+                <TableRow className={dataTableHeaderRowClass}>
+                  <TableHead className={pin.checkbox}>
                     <Checkbox
                       checked={areAllRowsSelected}
                       onCheckedChange={handleSelectAllRows}
                     />
                   </TableHead>
-                  <TableHead className={cn(PIN_ORDER_NO, "bg-inherit")}>
+                  <TableHead className={pin.id}>
                     Order No.
                   </TableHead>
-                  <TableHead className={cn(PIN_CLIENT, "bg-inherit")}>
+                  <TableHead className={pin.name}>
                     Client Name
                   </TableHead>
                   {visibleColumns.includes("created_at") && (
@@ -1274,32 +1236,23 @@ export default function Table({
                   return (
                     <TableRow
                       key={order.id}
-                      className={cn(
-                        "group text-gray-500 cursor-pointer [&>td]:py-0 [&>td]:whitespace-nowrap [&>td]:rounded-none",
-                        DENSITY_ROW_CLASS[density],
-                        highlight
-                          ? "bg-red-50 hover:bg-red-100"
-                          : "bg-background hover:bg-slate-100"
-                      )}
+                      className={dataTableRowClass(density, highlight)}
                       onClick={() => handleRowClick(order)}
                     >
                       <TableCellWithHover
-                        className={cn(
-                          PIN_CHECKBOX,
-                          "bg-inherit group-hover:shadow-[inset_3px_0_0_hsl(var(--primary))]"
-                        )}
+                        className={cn(pin.checkbox, rowAccentClass)}
                         highlight={highlight}
                         isRowSelected={isRowSelected(order.id)}
                         handleRowSelection={() => handleRowSelection(order.id)}
                         // orderId={order.id}
                       />
                       <TableCell
-                        className={cn(PIN_ORDER_NO, "bg-inherit tabular-nums")}
+                        className={cn(pin.id, "tabular-nums")}
                       >
                         {order.order_no}
                       </TableCell>
                       <TableCell
-                        className={cn(PIN_CLIENT, "bg-inherit font-bold text-black")}
+                        className={cn(pin.name, "font-bold text-black")}
                       >
                         <TruncatedText
                           text={
@@ -1361,7 +1314,7 @@ export default function Table({
                           />
                         </TableCell>
                       )}
-                      <TableCell className="text-right font-bold text-black tabular-nums">
+                      <TableCell className={cn(numericCellClass, "font-bold text-black")}>
                         ₱{formatNumberWithCommas(Number(order.grand_total))}
                       </TableCell>
                       <TableCell>
@@ -1387,7 +1340,7 @@ export default function Table({
                       )}
                       <TableCell className="text-right">
                         {/* Revealed on row hover/focus; always shown on touch screens. */}
-                        <div className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 has-[[data-state=open]]:opacity-100 [@media(hover:none)]:opacity-100">
+                        <div className={rowActionsClass}>
                         <EllipsisDropdown
                           onViewClick={() => handleRowClick(order)}
                           onEditClick={() => handleEditClick(order.id)}
@@ -1767,82 +1720,5 @@ function PaymentCell({
         />
       )}
     </div>
-  );
-}
-
-// Row density: compact 40px / default 48px / comfortable 56px.
-type Density = "compact" | "default" | "comfortable";
-const DENSITY_STORAGE_KEY = "job-orders-table-density";
-const DENSITY_ROW_CLASS: Record<Density, string> = {
-  compact: "h-10",
-  default: "h-12",
-  comfortable: "h-14",
-};
-
-// Identity columns stay pinned on horizontal scroll. Offsets = widths of the columns before.
-const PIN_CHECKBOX = "sticky left-0 z-[1] w-11 min-w-11 max-w-11";
-const PIN_ORDER_NO = "sticky left-11 z-[1] w-28 min-w-28 max-w-28";
-// The edge divider only appears once the table is scrolled sideways (data-scrolled).
-const PIN_CLIENT =
-  "sticky left-[9.75rem] z-[1] w-56 min-w-56 max-w-56 transition-shadow group-data-[scrolled=true]/table:shadow-[inset_-1px_0_0_hsl(var(--border)),6px_0_8px_-6px_rgb(0_0_0/0.15)]";
-
-function DensityToggle({
-  value,
-  onChange,
-}: {
-  value: Density;
-  onChange: (density: Density) => void;
-}) {
-  const options: { value: Density; label: string }[] = [
-    { value: "compact", label: "Compact" },
-    { value: "default", label: "Default" },
-    { value: "comfortable", label: "Comfortable" },
-  ];
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Row density"
-      className="hidden sm:inline-flex rounded-md border p-0.5 text-xs"
-    >
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={value === option.value}
-          onClick={() => onChange(option.value)}
-          className={cn(
-            "rounded px-2 py-1 transition-colors",
-            value === option.value
-              ? "bg-slate-800 text-white"
-              : "text-muted-foreground hover:bg-slate-100"
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// One-line cell text; the tooltip only opens when the text is actually cut off.
-function TruncatedText({ text, className }: { text: string; className?: string }) {
-  const ref = useRef<HTMLSpanElement | null>(null);
-  const [open, setOpen] = useState(false);
-  return (
-    <Tooltip
-      open={open}
-      onOpenChange={(next) => {
-        const el = ref.current;
-        setOpen(next && !!el && el.scrollWidth > el.clientWidth);
-      }}
-    >
-      <TooltipTrigger asChild>
-        <span ref={ref} className={cn("block truncate", className)}>
-          {text}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs text-xs">{text}</TooltipContent>
-    </Tooltip>
   );
 }

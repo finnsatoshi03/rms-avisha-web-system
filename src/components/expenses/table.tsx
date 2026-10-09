@@ -16,6 +16,21 @@ import {
 } from "./../ui/table";
 import { Checkbox } from "../ui/checkbox";
 import { SortableHeader } from "../table/sort-table-header";
+import { TooltipProvider } from "../ui/tooltip";
+import { cn } from "../../lib/utils";
+import {
+  DensityToggle,
+  TruncatedText,
+  dataTableClass,
+  dataTableHeaderRowClass,
+  dataTableRowClass,
+  numericCellClass,
+  pin,
+  rowAccentClass,
+  rowActionsClass,
+  useDataTableRef,
+  useDensity,
+} from "../table/data-table-kit";
 import { PaginationControls } from "../table/pagination-controls";
 import { EllipsisDropdown } from "../table/ellipsis-dropdown";
 import { ConfirmDialog } from "../table/alert-dialog";
@@ -78,6 +93,8 @@ export default function Table({
     });
 
   const [expenses, setExpenses] = useState(data);
+  const [density, changeDensity] = useDensity("expenses-table-density");
+  const tableRef = useDataTableRef();
   const [sortStates, setSortStates] = useState<{
     [key: string]: "asc" | "desc" | null;
   }>({
@@ -217,10 +234,11 @@ export default function Table({
         </div>
       )}
       <div className="h-[calc(100%-6.5rem)] flex flex-col justify-between">
-        <TableUI>
+        <TooltipProvider delayDuration={300}>
+        <TableUI ref={tableRef} className={cn(dataTableClass, "min-w-[640px]")}>
           <TableHeader>
-            <TableRow className="bg-slate-100 border-none">
-              <TableHead className="w-[3%]">
+            <TableRow className={dataTableHeaderRowClass}>
+              <TableHead className={pin.checkbox}>
                 <Checkbox
                   checked={areAllRowsSelected}
                   onCheckedChange={handleSelectAllRows}
@@ -240,14 +258,17 @@ export default function Table({
                   handleSort={handleSort}
                 />
               </TableHead>
-              <TableHead className="w-[10%]">
+              <TableHead className="w-[10%] text-right">
                 <SortableHeader
+                  className="ml-auto"
                   column="amount"
                   sortStates={sortStates}
                   handleSort={handleSort}
                 />
               </TableHead>
-              <TableHead className="w-[3%]"></TableHead>
+              <TableHead className="w-10">
+                <span className="sr-only">Actions</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -255,10 +276,9 @@ export default function Table({
               return (
                 <TableRow
                   key={expense.id}
-                  className="text-gray-500 cursor-pointer"
-                  //   onClick={() => handleRowClick(order)}
+                  className={dataTableRowClass(density)}
                 >
-                  <TableCell>
+                  <TableCell className={cn(pin.checkbox, rowAccentClass)}>
                     <Checkbox
                       checked={isRowSelected(expense.id)}
                       onCheckedChange={() => handleRowSelection(expense.id)}
@@ -268,16 +288,22 @@ export default function Table({
                   <TableCell>
                     {new Date(expense.created_at).toLocaleDateString("en-US", {
                       year: "numeric",
-                      month: "long",
+                      month: "short",
                       day: "numeric",
                       timeZone: "Asia/Singapore",
                     })}
                   </TableCell>
-                  <TableCell>{expense.bill_name}</TableCell>
-                  <TableCell className="text-red-500 font-semibold">
+                  <TableCell>
+                    <TruncatedText
+                      text={expense.bill_name || "—"}
+                      className="max-w-[24rem]"
+                    />
+                  </TableCell>
+                  <TableCell className={cn(numericCellClass, "text-red-600 font-semibold")}>
                     -₱{formatNumberWithCommas(expense.amount)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
+                    <div className={rowActionsClass}>
                     <EllipsisDropdown
                       // onViewClick={() => handleRowClick(expense)}
                       onEditClick={() => handleEditClick(expense.id)}
@@ -286,13 +312,16 @@ export default function Table({
                       isDuplicating={isDuplicating}
                       isDeleting={isDeleting}
                     />
-                  </TableCell>{" "}
+                    </div>
+                  </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </TableUI>
+        </TooltipProvider>
         <PaginationControls
+          extra={<DensityToggle value={density} onChange={changeDensity} />}
           totalItems={totalItems}
           currentPage={currentPage}
           totalPages={totalPages}

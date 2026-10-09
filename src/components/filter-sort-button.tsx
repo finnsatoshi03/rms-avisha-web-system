@@ -1,3 +1,5 @@
+import { buttonVariants } from "./ui/button";
+import { cn } from "../lib/utils";
 import { ChevronDown } from "lucide-react";
 
 export const FilterSortButton = ({
@@ -14,15 +16,16 @@ export const FilterSortButton = ({
   count?: boolean;
 }) => (
   <div
-    className={`cursor-pointer flex gap-1 items-center border ${
-      isActive ? "text-gray-700" : "text-gray-400"
-    }
-    border-gray-400 w-fit px-2 py-1 rounded-lg`}
+    className={cn(
+      buttonVariants({ variant: "outline", size: "sm" }),
+      "h-8 cursor-pointer gap-1.5 px-3 text-sm font-normal text-slate-700",
+      isActive && "bg-accent"
+    )}
     onClick={onToggle}
   >
     {icon}
     <p
-      className={`mr-2 text-sm ${
+      className={`text-sm ${
         count ? (isActive ? "text-gray-700" : "text-primaryRed") : ""
       }`}
     >

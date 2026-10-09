@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { buttonVariants } from "../ui/button";
+import { cn } from "../../lib/utils";
 import { Download } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -126,8 +128,8 @@ const ExportDialog = ({
   return (
     <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
       <DialogTrigger asChild>
-        <button className="cursor-pointer flex gap-1 items-center border text-gray-400 hover:text-gray-700 text-sm border-gray-400 w-fit px-2 py-1 rounded-lg">
-          <Download size={16} />
+        <button className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8 gap-1.5 px-3 text-sm font-normal text-slate-700")}>
+          <Download size={15} strokeWidth={1.75} />
           Export CSV
         </button>
       </DialogTrigger>

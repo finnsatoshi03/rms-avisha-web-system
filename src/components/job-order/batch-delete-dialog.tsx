@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { buttonVariants } from "../ui/button";
+import { cn } from "../../lib/utils";
 import { Trash2, AlertTriangle, Lock } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -153,8 +155,8 @@ const BatchDeleteDialog = ({
     <>
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogTrigger asChild>
-          <button className="cursor-pointer flex gap-1 items-center border text-red-400 hover:text-red-600 border-red-300 hover:border-red-400 text-sm w-fit px-2 py-1 rounded-lg transition-colors">
-            <Trash2 size={16} />
+          <button className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8 gap-1.5 px-3 text-sm font-normal text-slate-700", "hover:border-red-200 hover:bg-red-50 hover:text-red-700")}>
+            <Trash2 size={15} strokeWidth={1.75} />
             Batch Archive
           </button>
         </DialogTrigger>

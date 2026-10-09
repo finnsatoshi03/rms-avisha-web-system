@@ -12,6 +12,21 @@ import {
 import { Client } from "../../lib/types";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import { differenceInDays } from "date-fns";
+import { TooltipProvider } from "../ui/tooltip";
+import { cn } from "../../lib/utils";
+import {
+  DensityToggle,
+  TruncatedText,
+  dataTableClass,
+  dataTableHeaderRowClass,
+  dataTableRowClass,
+  numericCellClass,
+  pin,
+  rowAccentClass,
+  rowActionsClass,
+  useDataTableRef,
+  useDensity,
+} from "../table/data-table-kit";
 import { PaginationControls } from "../table/pagination-controls";
 import {
   Collapsible,
@@ -57,6 +72,15 @@ const getClientStatus = (client: Client): string[] => {
   return statuses.length > 0 ? statuses : ["No Orders"];
 };
 
+// Same tint/ring/deep-text recipe as the job order statuses.
+const CLIENT_STATUS_CLASS: Record<string, string> = {
+  Returning: "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200",
+  New: "bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200",
+  Active: "bg-sky-50 text-sky-800 ring-1 ring-inset ring-sky-200",
+  Old: "bg-stone-100 text-stone-600 ring-1 ring-inset ring-stone-200",
+  default: "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200",
+};
+
 export default function ClientsTable({
   data,
   // resetFilters,
@@ -87,6 +111,8 @@ export default function ClientsTable({
   lastOrder: (client: Client) => string | null;
 }) {
   const [clients, setClients] = useState(data);
+  const [density, changeDensity] = useDensity("clients-table-density");
+  const tableRef = useDataTableRef();
   const [sortStates, setSortStates] = useState<{
     [key: string]: "asc" | "desc" | null;
   }>({
@@ -134,18 +160,20 @@ export default function ClientsTable({
 
   return (
     <div className="h-[calc(100%-6.5rem)] flex flex-col justify-between">
-      <TableUI>
+      <TooltipProvider delayDuration={300}>
+      <TableUI ref={tableRef} className={cn(dataTableClass, "min-w-[1000px]")}>
         <TableHeader>
-          <TableRow className="bg-slate-100 border-none">
-            <TableHead className="w-[3%]">#</TableHead>
-            <TableHead className="w-[25%]">Name</TableHead>
+          <TableRow className={dataTableHeaderRowClass}>
+            <TableHead className={pin.checkbox}>#</TableHead>
+            <TableHead className={pin.nameAfterCheckbox}>Name</TableHead>
             {visibleColumns.includes("type") && (
               <TableHead className="w-[8%]">Type</TableHead>
             )}
-            <TableHead className="w-[10%]">Orders</TableHead>
+            <TableHead className="w-[8%] text-right">Orders</TableHead>
             {visibleColumns.includes("total_spent") && (
-              <TableHead className="w-[10%]">
+              <TableHead className="w-[10%] text-right">
                 <SortableHeader
+                  className="ml-auto"
                   column="total_spent"
                   sortStates={sortStates}
                   handleSort={handleSort}
@@ -183,7 +211,9 @@ export default function ClientsTable({
                 />
               </TableHead>
             )}
-            <TableHead className="w-[3%]"></TableHead>
+            <TableHead className="w-20">
+              <span className="sr-only">Actions</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -203,52 +233,50 @@ export default function ClientsTable({
                   <CollapsibleTrigger asChild>
                     <TableRow
                       key={client.id}
-                      className={`cursor-pointer ${
-                        isOpen ? "border-b-0 border-x border-t" : ""
-                      }`}
+                      className={cn(
+                        dataTableRowClass(density),
+                        isOpen && "border-b-0 border-x border-t"
+                      )}
                     >
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell className="font-bold flex gap-2 items-center text-black py-4">
-                        {client.name}
-                        {statuses.map((status, index) => (
-                          <span
-                            key={index}
-                            className={`${
-                              status === "Returning"
-                                ? "bg-[#ffc1078e]"
-                                : status === "New"
-                                ? "bg-[#91ed9483]"
-                                : status === "Active"
-                                ? "bg-[#64afff8f]"
-                                : status === "Old"
-                                ? "bg-[#9e9e9e72]"
-                                : "bg-[#f4433685]"
-                            } text-xs px-2 py-[1px] rounded-full w-fit`}
-                          >
-                            {status.toLowerCase()}
-                          </span>
-                        ))}
+                      <TableCell
+                        className={cn(pin.checkbox, rowAccentClass, "tabular-nums")}
+                      >
+                        {index + 1}
+                      </TableCell>
+                      <TableCell
+                        className={cn(pin.nameAfterCheckbox, "font-bold text-black")}
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <TruncatedText text={client.name || "—"} className="min-w-0" />
+                          {statuses.map((status) => (
+                            <span
+                              key={status}
+                              className={cn(
+                                "shrink-0 rounded-full px-2 py-px text-[11px] font-medium",
+                                CLIENT_STATUS_CLASS[status] ?? CLIENT_STATUS_CLASS.default
+                              )}
+                            >
+                              {status.toLowerCase()}
+                            </span>
+                          ))}
+                        </div>
                       </TableCell>
                       {visibleColumns.includes("type") && (
                         <TableCell>
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full ${
-                              client.type === "company"
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-gray-100 text-gray-600"
-                            }`}
+                            className="text-xs text-muted-foreground capitalize"
                           >
                             {client.type || "individual"}
                           </span>
                         </TableCell>
                       )}
-                      <TableCell>
+                      <TableCell className={numericCellClass}>
                         {client.joborders
                           ? Object.keys(client.joborders).length
                           : 0}
                       </TableCell>
                       {visibleColumns.includes("total_spent") && (
-                        <TableCell className="font-bold text-black">{`₱${formatNumberWithCommas(
+                        <TableCell className={cn(numericCellClass, "font-bold text-black")}>{`₱${formatNumberWithCommas(
                           totalSpent(client)
                         )}`}</TableCell>
                       )}
@@ -256,18 +284,26 @@ export default function ClientsTable({
                         <TableCell>{lastOrder(client)}</TableCell>
                       )}
                       {visibleColumns.includes("contact_no") && (
-                        <TableCell>{client.contact_number}</TableCell>
+                        <TableCell>{client.contact_number || "—"}</TableCell>
                       )}
                       {visibleColumns.includes("email") && (
-                        <TableCell>{client.email || "None"}</TableCell>
+                        <TableCell>
+                          <TruncatedText
+                            text={client.email || "—"}
+                            className="max-w-[14rem]"
+                          />
+                        </TableCell>
                       )}
                       <TableCell>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center justify-end gap-1">
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            className={cn(
+                              "h-7 w-7 text-muted-foreground hover:text-foreground",
+                              rowActionsClass
+                            )}
                             title="Edit client"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -298,7 +334,9 @@ export default function ClientsTable({
           })}
         </TableBody>
       </TableUI>
+      </TooltipProvider>
       <PaginationControls
+        extra={<DensityToggle value={density} onChange={changeDensity} />}
         totalItems={totalItems}
         currentPage={currentPage}
         totalPages={totalPages}
