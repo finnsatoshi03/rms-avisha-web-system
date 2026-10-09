@@ -2,12 +2,15 @@ import { useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { TableCell } from "../ui/table";
 import { Checkbox } from "../ui/checkbox";
+import { cn } from "../../lib/utils";
 
 export function TableCellWithHover({
   highlight,
   isRowSelected,
   handleRowSelection,
+  className,
 }: {
+  className?: string;
   highlight: boolean;
   isRowSelected: boolean;
   handleRowSelection: () => void;
@@ -18,7 +21,7 @@ export function TableCellWithHover({
     <TableCell
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="relative"
+      className={cn("relative", className)}
     >
       {highlight && !isRowSelected ? (
         <>
@@ -33,7 +36,7 @@ export function TableCellWithHover({
             onClick={(e) => e.stopPropagation()}
             className={`${
               isHovered ? "opacity-100" : "opacity-0"
-            } absolute top-0 translate-y-full transition-opacity duration-200`}
+            } absolute left-4 top-1/2 -translate-y-1/2 transition-opacity duration-200`}
           />
         </>
       ) : (

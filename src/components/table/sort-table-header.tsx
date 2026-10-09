@@ -6,13 +6,16 @@ import {
 } from "../ui/dropdown-menu";
 import { ArrowDown, ArrowUp, ChevronsUpDownIcon, CircleX } from "lucide-react";
 import { Button } from "../ui/button";
+import { cn } from "../../lib/utils";
 
 export const SortableHeader = ({
   column,
   sortStates,
   handleSort,
   handleColumnVisibilityChange,
+  className,
 }: {
+  className?: string;
   column: string;
   sortStates: { [key: string]: "asc" | "desc" | null };
   handleSort: (column: string, direction: "asc" | "desc") => void;
@@ -49,14 +52,26 @@ export const SortableHeader = ({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="rounded-lg opacity-70 py-1 px-3 -mx-3 hover:bg-slate-200 flex items-center gap-1">
+      <DropdownMenuTrigger
+        className={cn(
+          "group/sort rounded-lg py-1 px-3 -mx-3 hover:bg-slate-200 flex items-center gap-1 whitespace-nowrap",
+          sortStates[column] ? "text-foreground" : "opacity-70",
+          className
+        )}
+      >
         {columnDisplayNames[column] ?? column}
+        {/* Arrow only on the active sort column; others hint on hover/focus,
+            or when a cell in that column is hovered (th[data-col-hover], set by the table). */}
         {sortStates[column] === "asc" ? (
           <ArrowUp size={12} strokeWidth={1.5} />
         ) : sortStates[column] === "desc" ? (
           <ArrowDown size={12} strokeWidth={1.5} />
         ) : (
-          <ChevronsUpDownIcon size={12} strokeWidth={1.5} />
+          <ChevronsUpDownIcon
+            size={12}
+            strokeWidth={1.5}
+            className="opacity-0 transition-opacity group-hover/sort:opacity-100 group-focus-visible/sort:opacity-100 group-data-[state=open]/sort:opacity-100 [th[data-col-hover]_&]:opacity-100"
+          />
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent

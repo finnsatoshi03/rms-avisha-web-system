@@ -1,3 +1,4 @@
+import type React from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -20,7 +21,9 @@ export const PaginationControls = ({
   handlePageChange,
   itemsPerPage,
   handleItemsPerPageChange,
+  extra,
 }: {
+  extra?: React.ReactNode;
   totalItems: number;
   currentPage: number;
   totalPages: number;
@@ -34,11 +37,14 @@ export const PaginationControls = ({
 
   return (
     <div className="flex sm:flex-row flex-col sm:gap-0 gap-2 sm:mb-0 mb-4 justify-between w-full items-center mt-4">
-      <p className="w-fit text-sm">
-        Showing <span className="font-bold">{startIndex}</span> to{" "}
-        <span className="font-bold">{endIndex}</span> of{" "}
-        <span className="font-bold">{totalItems}</span> items
-      </p>
+      <div className="flex items-center gap-4">
+        <p className="w-fit text-sm">
+          Showing <span className="font-bold">{startIndex}</span> to{" "}
+          <span className="font-bold">{endIndex}</span> of{" "}
+          <span className="font-bold">{totalItems}</span> items
+        </p>
+        {extra}
+      </div>
       <div className="grid sm:grid-cols-[auto_auto] gird-cols-1 items-center gap-2 w-fit">
         <div className="flex items-center gap-2 w-fit justify-end">
           <p className="text-sm font-bold">Rows per page:</p>
