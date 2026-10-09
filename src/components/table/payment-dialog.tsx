@@ -11,6 +11,7 @@ import { formatNumberWithCommas } from "../../lib/helpers";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import PaymentMethodIcon from "../payment-method-icon";
 import ReceiptAttachmentField from "../billing/receipt-attachment-field";
 import { useTransactionHandler } from "../../hooks/useTransactionHandler";
 import { amountsMatch } from "../../lib/transaction-totals";
@@ -215,13 +216,19 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
                     variant="outline"
                     aria-pressed={selected}
                     className={cn(
-                      "w-full",
+                      "w-full justify-start",
                       selected &&
                         "border-green-600 bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700"
                     )}
                     onClick={() => handleMethodSelect(method.value)}
                     disabled={isProcessing}
                   >
+                    <PaymentMethodIcon
+                      method={method.value}
+                      size={18}
+                      className="mr-2"
+                      tooltip={null}
+                    />
                     {method.label}
                   </Button>
                   {splitPayments && selected && (

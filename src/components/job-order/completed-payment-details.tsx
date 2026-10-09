@@ -5,6 +5,7 @@ import { formatNumberWithCommas } from "../../lib/helpers";
 import { formatDateLabel } from "../../lib/transaction-date";
 import { useBillingPayments } from "../billing/useBilling";
 import { Button } from "../ui/button";
+import PaymentMethodIcon from "../payment-method-icon";
 
 const peso = (value: number) => `₱${formatNumberWithCommas(value)}`;
 
@@ -23,7 +24,7 @@ export default function CompletedPaymentDetails({ jobOrder }: { jobOrder: JobOrd
   const rows = linked ? payments.map((payment) => (
     <div key={payment.id}>
       <div className="flex justify-between gap-4">
-        <p className="opacity-60">{paymentMethodLabel(payment.payment_method)}</p>
+        <p className="flex items-center gap-1.5"><PaymentMethodIcon method={payment.payment_method || "billing"} size={16} tooltip={null} /><span className="opacity-60">{paymentMethodLabel(payment.payment_method)}</span></p>
         <p>{peso(payment.allocatedAmount)}</p>
       </div>
       <p
@@ -36,7 +37,7 @@ export default function CompletedPaymentDetails({ jobOrder }: { jobOrder: JobOrd
     </div>
   )) : direct.map(({ method, amount }) => (
     <div key={method} className="flex justify-between gap-4">
-      <p className="opacity-60">{paymentMethodLabel(method)}</p>
+      <p className="flex items-center gap-1.5"><PaymentMethodIcon method={method} size={16} tooltip={null} /><span className="opacity-60">{paymentMethodLabel(method)}</span></p>
       <p>{peso(amount)}</p>
     </div>
   ));

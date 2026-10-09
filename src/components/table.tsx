@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 import {
   Table as TableUI,
@@ -36,7 +36,20 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 
-import { Inbox, Loader2, PenLine, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Inbox,
+  Loader2,
+  Paperclip,
+  PenLine,
+  Trash2,
+  X,
+} from "lucide-react";
+import PaymentMethodIcon from "./payment-method-icon";
+import {
+  directPaymentEntries,
+  paymentMethodLabel,
+} from "../lib/job-order-payments";
 
 import {
   formatMachineType,
@@ -55,9 +68,17 @@ import {
 import {
   applySourcePayment,
   deleteReceiptFile,
+  getSignedReceiptUrl,
   recalculateLinkedSourceBilling,
+  updateSourceReceipt,
   uploadReceiptFile,
 } from "../services/apiBilling";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 import {
   deleteQuotationsByJobOrderIds,
   getQuotationsByJobOrder,
@@ -1144,6 +1165,7 @@ export default function Table({
                       }
                     />
                   </TableHead>
+                  <TableHead className="w-[8%]">Payment</TableHead>
                   {visibleColumns.includes("completed_at") && (
                     <TableHead className="w-[13%]">
                       <SortableHeader
@@ -1253,6 +1275,12 @@ export default function Table({
                       )}
                       <TableCell className="font-bold text-black">
                         ₱{formatNumberWithCommas(Number(order.grand_total))}
+                      </TableCell>
+                      <TableCell>
+                        <PaymentCell
+                          order={order}
+                          billingLinked={isOrderBillingLinked(order)}
+                        />
                       </TableCell>
                       {visibleColumns.includes("completed_at") && (
                         <TableCell>
@@ -1503,5 +1531,146 @@ export default function Table({
         </SheetContent>
       </Sheet>
     </>
+  );
+}
+
+// Method icons + receipt state. Billing-linked orders are paid through billing,
+// so their methods and receipts live on billing payments, not the order row.
+function PaymentCell({
+  order,
+  billingLinked,
+}: {
+  order: JobOrderData;
+  billingLinked: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const { isTechnician } = useUser();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const entries = billingLinked
+    ? [{ method: "billing", amount: 0 }]
+    : directPaymentEntries(order.payment_details);
+  if (entries.length === 0) return <span className="text-xs">—</span>;
+
+  const missingReceipt =
+    !billingLinked && order.status === "Completed" && !order.receipt_url;
+  const canUpload = missingReceipt && !isTechnician;
+
+  const openReceipt = async () => {
+    if (!order.receipt_url || busy) return;
+    setBusy(true);
+    try {
+      const url = await getSignedReceiptUrl(order.receipt_url);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to open receipt."
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const uploadReceipt = async (file: File | null) => {
+    if (!file) return;
+    let path: string | null = null;
+    setBusy(true);
+    try {
+      path = await uploadReceiptFile({
+        sourceType: "job_order",
+        sourceId: order.id,
+        file,
+      });
+      await updateSourceReceipt("job_order", order.id, path);
+      toast.success(`Receipt attached to #${order.order_no}.`);
+      queryClient.invalidateQueries({ queryKey: ["job_order"] });
+    } catch (error) {
+      if (path) await deleteReceiptFile(path).catch(console.error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to upload receipt."
+      );
+    } finally {
+      setBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const receiptButton = (
+    label: string,
+    icon: React.ReactNode,
+    onClick: () => void,
+    className: string
+  ) => (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={label}
+            disabled={busy}
+            className={`rounded p-1 transition-colors disabled:opacity-50 ${className}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onClick();
+            }}
+          >
+            {busy ? <Loader2 size={14} className="animate-spin" /> : icon}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="text-xs">{label}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+
+  return (
+    <div className="flex items-center gap-1">
+      <div className="flex -space-x-1">
+        {entries.map(({ method, amount }) => (
+          <PaymentMethodIcon
+            key={method}
+            method={method}
+            className="ring-2 ring-background"
+            tooltip={
+              billingLinked
+                ? "Paid via Billing"
+                : `${paymentMethodLabel(method)} · ₱${formatNumberWithCommas(amount)}`
+            }
+          />
+        ))}
+      </div>
+      {order.receipt_url &&
+        receiptButton(
+          "View receipt",
+          <Paperclip size={14} />,
+          openReceipt,
+          "text-emerald-600 hover:bg-emerald-50"
+        )}
+      {missingReceipt &&
+        (canUpload ? (
+          receiptButton(
+            "Missing receipt — click to upload",
+            <AlertTriangle size={14} />,
+            () => fileInputRef.current?.click(),
+            "text-amber-500 hover:bg-amber-50"
+          )
+        ) : (
+          <span title="Missing receipt" aria-label="Missing receipt" className="p-1">
+            <AlertTriangle size={14} className="text-amber-500" />
+          </span>
+        ))}
+      {canUpload && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,application/pdf"
+          className="hidden"
+          onClick={(event) => event.stopPropagation()}
+          onChange={(event) =>
+            void uploadReceipt(event.target.files?.[0] || null)
+          }
+        />
+      )}
+    </div>
   );
 }

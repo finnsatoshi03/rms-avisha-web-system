@@ -7,6 +7,7 @@ import { saveAs } from "file-saver";
 import toast from "react-hot-toast";
 import { format } from "date-fns";
 import {
+  AlertTriangle,
   Check,
   ChevronRight,
   ChevronsUpDown,
@@ -16,7 +17,9 @@ import {
   Link2,
   Loader2,
   Mail,
+  Paperclip,
   Plus,
+  ShieldCheck,
   Trash,
   X,
 } from "lucide-react";
@@ -2366,6 +2369,74 @@ export default function JobOrderForm({
     "RMS Avisha",
   ].join("\n");
 
+  const receiptAction = canManageSourceReceipt && (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="h-7 text-xs"
+      onClick={() => sourceReceiptInputRef.current?.click()}
+      disabled={isUploadingSourceReceipt}
+    >
+      {isUploadingSourceReceipt
+        ? "Uploading..."
+        : effectiveReceiptUrl
+          ? "Replace"
+          : "Upload"}
+    </Button>
+  );
+  const showPaymentReceiptCard =
+    editSession && !isTechnician && (isBillingLinked || canManageSourceReceipt || hasMissingReceipt);
+  const paymentReceiptCard = showPaymentReceiptCard && (
+    <div className="rounded-lg border p-3 space-y-2 text-sm">
+      <h3 className="text-xs font-bold opacity-40">Payment & Receipt</h3>
+      {isBillingLinked && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1.5 text-blue-800">
+            <Link2 size={14} strokeWidth={1.5} />
+            Billing · {billingStatusLabel}
+          </span>
+          {canOpenBillingAccount && (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-xs"
+              onClick={() =>
+                navigate(`/billing/${jobOrderToEdit.billing_account_id}`)
+              }
+            >
+              Open account
+            </Button>
+          )}
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-2">
+        {effectiveReceiptUrl ? (
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-emerald-700"
+            onClick={handleOpenReceipt}
+            disabled={openingReceipt}
+          >
+            <Paperclip size={14} className="mr-1.5" />
+            {openingReceipt ? "Opening..." : "View receipt"}
+          </Button>
+        ) : hasMissingReceipt ? (
+          <span className="flex items-center gap-1.5 text-amber-700">
+            <AlertTriangle size={14} />
+            Missing receipt
+          </span>
+        ) : (
+          <span className="text-muted-foreground">No receipt attached</span>
+        )}
+        {receiptAction}
+      </div>
+    </div>
+  );
+
   return (
     <>
       {/* Feature onboarding */}
@@ -2392,7 +2463,7 @@ export default function JobOrderForm({
           }
         >
           <div className="flex flex-wrap gap-2 mb-2 items-center">
-            <div className="px-3 py-1 bg-gray-200 rounded-full text-gray-600 text-xs w-fit flex items-center gap-1">
+            <div className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs bg-muted/60 text-muted-foreground">
               <Clock size={12} strokeWidth={1.5} />
               {editSession ? formatReadableDate(editValues.created_at) : date}
             </div>
@@ -2403,12 +2474,13 @@ export default function JobOrderForm({
               />
             )}
             {(editSession || readonly) && (
-              <div className="px-3 py-1 bg-red-200 rounded-full text-red-600 text-xs w-fit flex items-center gap-1">
+              <div className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs bg-background font-mono font-medium text-foreground">
                 #{editSession ? editValuesWithClient.order_no : ""}
               </div>
             )}
             {editValuesWithClient.warranty && (
-              <div className="px-3 py-1 bg-green-200 rounded-full text-green-600 text-xs w-fit flex items-center gap-1">
+              <div className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs border-emerald-200 bg-emerald-50 text-emerald-700">
+                <ShieldCheck size={12} strokeWidth={1.5} />
                 {editSession || readonly
                   ? `Warranty: ${renderWarrantyInfo(
                       editValuesWithClient.warranty,
@@ -2416,91 +2488,7 @@ export default function JobOrderForm({
                   : ""}
               </div>
             )}
-            {isBillingLinked && (
-              <div className="px-3 py-1 bg-blue-100 rounded-full text-blue-800 text-xs w-fit flex items-center gap-2">
-                <Link2 size={12} strokeWidth={1.5} />
-                <span>Linked to Billing Account</span>
-                <span className="opacity-80">Status: {billingStatusLabel}</span>
-                {canOpenBillingAccount && (
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0 text-xs text-blue-800"
-                    onClick={() =>
-                      navigate(`/billing/${jobOrderToEdit.billing_account_id}`)
-                    }
-                  >
-                    Open
-                  </Button>
-                )}
-              </div>
-            )}
-            {effectiveReceiptUrl && (
-              <div className="px-3 py-1 bg-emerald-100 rounded-full text-emerald-800 text-xs w-fit flex items-center gap-2">
-                <span>Receipt attached</span>
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  className="h-auto p-0 text-xs text-emerald-800"
-                  onClick={handleOpenReceipt}
-                  disabled={openingReceipt}
-                >
-                  {openingReceipt ? "Opening..." : "View Attachment"}
-                </Button>
-                {canManageSourceReceipt && (
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0 text-xs text-emerald-800"
-                    onClick={() => sourceReceiptInputRef.current?.click()}
-                    disabled={isUploadingSourceReceipt}
-                  >
-                    {isUploadingSourceReceipt ? "Uploading..." : "Replace"}
-                  </Button>
-                )}
-              </div>
-            )}
-            {!effectiveReceiptUrl && hasMissingReceipt && (
-              <div className="px-3 py-1 bg-amber-100 rounded-full text-amber-800 text-xs w-fit flex items-center gap-2">
-                <span>⚠ Missing Receipt</span>
-                {canManageSourceReceipt && (
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0 text-xs text-amber-800"
-                    onClick={() => sourceReceiptInputRef.current?.click()}
-                    disabled={isUploadingSourceReceipt}
-                  >
-                    {isUploadingSourceReceipt
-                      ? "Uploading..."
-                      : "Upload Receipt"}
-                  </Button>
-                )}
-              </div>
-            )}
-            {!effectiveReceiptUrl &&
-              !hasMissingReceipt &&
-              canManageSourceReceipt && (
-                <div className="px-3 py-1 bg-slate-100 rounded-full text-slate-700 text-xs w-fit flex items-center gap-2">
-                  <span>No Receipt Attached</span>
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0 text-xs text-slate-700"
-                    onClick={() => sourceReceiptInputRef.current?.click()}
-                    disabled={isUploadingSourceReceipt}
-                  >
-                    {isUploadingSourceReceipt
-                      ? "Uploading..."
-                      : "Upload Receipt"}
-                  </Button>
-                </div>
-              )}
+            <div className="ml-auto" />
             {readonly && !isEditMode && (
               <Button
                 type="button"
@@ -2515,7 +2503,7 @@ export default function JobOrderForm({
             )}
             {readonly && isEditMode && (
               <>
-                <div className="px-3 py-1 bg-blue-200 rounded-full text-blue-600 text-xs w-fit flex items-center gap-1">
+                <div className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs border-blue-200 bg-blue-50 text-blue-700">
                   <Edit size={12} strokeWidth={1.5} />
                   Edit Mode
                 </div>
@@ -2538,7 +2526,7 @@ export default function JobOrderForm({
                 form.getValues("name") ||
                 "—"}
               {selectedClient?.type === "company" && (
-                <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full align-middle">
+                <span className="ml-2 align-middle inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-normal text-blue-700">
                   company
                 </span>
               )}
@@ -3340,72 +3328,39 @@ export default function JobOrderForm({
               </h2>
             </div>
 
-            {/* Read-only Materials Display (All Items: Inventory + Manual Quotation) */}
-            {quotationData?.quotation_items &&
-              quotationData.quotation_items.length > 0 && (
-                <div className="mb-4 px-4 py-3 bg-gray-50 border rounded-xl">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-semibold text-gray-700">
-                      All Materials (Read-only)
-                    </h3>
-                    <span className="text-xs text-gray-500">
-                      Updated via Quotation
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-[0.15fr_1fr_0.3fr_0.5fr_0.5fr] gap-4 text-xs">
-                    <h4 className="font-medium text-gray-600">Type</h4>
-                    <h4 className="font-medium text-gray-600">Material</h4>
-                    <h4 className="font-medium text-gray-600">Quantity</h4>
-                    <h4 className="font-medium text-gray-600">Unit Price</h4>
-                    <h4 className="font-medium text-gray-600">Amount</h4>
-
-                    {/* Inventory items from job order */}
-                    {materials?.map((material, index) => (
-                      <React.Fragment key={`inv-${index}`}>
-                        <div className="flex items-center">
-                          <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[10px]">
-                            Inventory
-                          </span>
-                        </div>
-                        <div className="text-gray-700">{material.material}</div>
-                        <div className="text-gray-700">{material.quantity}</div>
+            {/* Quotation-only items: not in inventory, so they don't appear in the editable list below */}
+            {quotationData?.quotation_items?.some((item) => item.is_manual) && (
+              <div className="mb-3 px-4 py-3 bg-blue-50/50 border border-blue-100 rounded-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-semibold text-gray-700">
+                    Quotation-only items
+                  </h3>
+                  <span className="text-[11px] text-gray-500">
+                    Edit via Quotation
+                  </span>
+                </div>
+                <div className="grid grid-cols-[1fr_0.3fr_0.5fr_0.5fr] gap-x-4 gap-y-1 text-xs">
+                  <h4 className="font-medium text-gray-600">Item</h4>
+                  <h4 className="font-medium text-gray-600">Qty</h4>
+                  <h4 className="font-medium text-gray-600">Unit Price</h4>
+                  <h4 className="font-medium text-gray-600">Amount</h4>
+                  {quotationData.quotation_items
+                    .filter((item) => item.is_manual)
+                    .map((item, index) => (
+                      <React.Fragment key={`manual-${index}`}>
+                        <div className="text-gray-700">{item.description}</div>
+                        <div className="text-gray-700">{item.qty}</div>
                         <div className="text-gray-700">
-                          ₱{material.unitPrice?.toFixed(2)}
+                          ₱{item.unit_price.toFixed(2)}
                         </div>
                         <div className="text-gray-700 font-medium">
-                          ₱
-                          {(
-                            (material.quantity || 0) * (material.unitPrice || 0)
-                          ).toFixed(2)}
+                          ₱{item.amount.toFixed(2)}
                         </div>
                       </React.Fragment>
                     ))}
-
-                    {/* Manual items from quotation */}
-                    {quotationData.quotation_items
-                      .filter((item) => item.is_manual)
-                      .map((item, index) => (
-                        <React.Fragment key={`manual-${index}`}>
-                          <div className="flex items-center">
-                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px]">
-                              Manual
-                            </span>
-                          </div>
-                          <div className="text-gray-700">
-                            {item.description}
-                          </div>
-                          <div className="text-gray-700">{item.qty}</div>
-                          <div className="text-gray-700">
-                            ₱{item.unit_price.toFixed(2)}
-                          </div>
-                          <div className="text-gray-700 font-medium">
-                            ₱{item.amount.toFixed(2)}
-                          </div>
-                        </React.Fragment>
-                      ))}
-                  </div>
                 </div>
-              )}
+              </div>
+            )}
 
             {/* Editable Inventory Materials Section */}
             <div className="grid grid-cols-[0.2fr_1fr_0.3fr_0.5fr_0.5fr_0.2fr] gap-4 px-4 py-3 border rounded-xl">
@@ -3644,33 +3599,169 @@ export default function JobOrderForm({
               />
             </div>
           </div>
-          {editSession && (
-            <>
-              <Separator className="mt-4" />
-              <FormField
-                control={form.control}
-                name="technical_report"
-                render={({ field }) => (
-                  <FormItem className="space-y-0 w-full mt-2 mb-3">
-                    <FormLabel>Technical Report</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Describe the issues diagnosed and actions taken on the unit"
-                        disabled={isFormReadonly}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+          <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_minmax(300px,360px)] items-start">
+            <div className="space-y-4 min-w-0">
+              {editSession && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="technical_report"
+                    render={({ field }) => (
+                      <FormItem className="space-y-0 w-full">
+                        <FormLabel>Technical Report</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Describe the issues diagnosed and actions taken on the unit"
+                            disabled={isFormReadonly}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Separator className="mt-4" />
+                  <JobOrderTimeline jobOrderId={editId as number} />
+                </>
+              )}
+            </div>
+            <aside className="space-y-3">
+              <div className="w-full px-5 py-3 bg-slate-100 rounded-lg flex flex-col text-sm">
+                <h2 className="mb-2 uppercase font-bold font-mono text-base">
+                  Job Order Summary
+                </h2>
+                <div className="py-3 mb-3 border-dashed border-y-2 border-gray-300">
+                  <p>Subtotal</p>
+                  <div className="flex justify-between">
+                    <p className="opacity-60">Labor</p>
+                    <p>
+                      {laborTotal > 0
+                        ? `₱${formatNumberWithCommas(laborTotal)}`
+                        : "---"}
+                    </p>
+                  </div>
+                  <div className="flex justify-between">
+                    <p className="opacity-60">Material</p>
+                    <p>
+                      {totalMaterialsPrice && totalMaterialsPrice > 0
+                        ? `₱${formatNumberWithCommas(totalMaterialsPrice)}`
+                        : "---"}
+                    </p>
+                  </div>
+                  <div className="flex justify-between gap-8">
+                    <p className="opacity-60">Discount</p>
+                    {selectedDiscount ? (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          className="h-fit w-fit p-[1px] rounded-full"
+                          size={"icon"}
+                          variant={"destructive"}
+                          onClick={() => setSelectedDiscount(null)}
+                          disabled={isFormReadonly || isPending}
+                        >
+                          <X size={10} />
+                        </Button>
+                        <Button
+                          className="h-fit w-fit p-0"
+                          variant={"link"}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setDiscountDialogOpen(true);
+                          }}
+                          disabled={isFormReadonly || isPending || !grandTotal}
+                        >
+                          ₱{formatNumberWithCommas(selectedDiscount)}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        className="h-fit w-fit p-0"
+                        variant={"link"}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setDiscountDialogOpen(true);
+                        }}
+                        disabled={isFormReadonly || isPending || !grandTotal}
+                      >
+                        Select a discount
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex justify-between items-start gap-4">
+                    <p className="opacity-60 gap-1">Downpayment</p>
+                    {downpaymentValue || downpaymentInputVisible ? (
+                      <div className="flex-col items-end justify-end w-[115px]">
+                        {readonly ? (
+                          <p className="text-right">
+                            ₱
+                            {downpaymentValue !== null
+                              ? formatNumberWithCommas(downpaymentValue)
+                              : editValues.downpayment
+                                ? formatNumberWithCommas(editValues.downpayment)
+                                : "0"}
+                          </p>
+                        ) : (
+                          <input
+                            type="number"
+                            value={downpaymentValue ?? ""}
+                            onChange={handleDownpaymentChange}
+                            className="w-full text-right placeholder:right bg-transparent focus:outline-none"
+                            placeholder="Enter amount"
+                            min="0"
+                            disabled={isFormReadonly || isPending}
+                          />
+                        )}
+                        {downpaymentError && !readonly && (
+                          <p className="text-red-500 text-xs mt-1 text-right">
+                            {downpaymentError}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <Button
+                        className="h-fit w-fit p-0"
+                        variant={"link"}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleAddDownpayment();
+                        }}
+                        disabled={isFormReadonly || isPending || !grandTotal}
+                      >
+                        Add downpayment
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <p className="font-black">Grand Total</p>
+                  <div>
+                    <p>
+                      {adjustedGrandTotal > 0
+                        ? `₱${formatNumberWithCommas(adjustedGrandTotal)}`
+                        : "---"}
+                    </p>
+                    {selectedDiscount !== null &&
+                      selectedDiscount !== undefined &&
+                      selectedDiscount !== 0 && (
+                        <p className="line-through text-xs text-right text-slate-500">
+                          ₱{formatNumberWithCommas(grandTotal)}
+                        </p>
+                      )}
+                  </div>
+                </div>
+                {editSession && editValuesWithClient.status === "Completed" && !isTechnician && (
+                  <CompletedPaymentDetails jobOrder={jobOrderToEdit} />
                 )}
-              />
-              <Separator className="mt-4" />
-              <JobOrderTimeline jobOrderId={editId as number} />
-            </>
-          )}
-          <div className="flex md:flex-row flex-col md:justify-between mt-2">
-            {!isFormReadonly && (
-              <Button type="submit" disabled={isPending || (!isFormChanged && !isCreatingQuotation)}>
+              </div>
+              {paymentReceiptCard}
+              {isFormReadonly && editSession && jobOrderToEdit && (
+                <JoBillingSection jobOrder={jobOrderToEdit} />
+              )}
+            </aside>
+          </div>
+          {!isFormReadonly && (
+            <div className="sticky bottom-0 z-10 mt-4 flex justify-end border-t bg-background/95 py-3 backdrop-blur">
+              <Button type="submit" className="min-w-40" disabled={isPending || (!isFormChanged && !isCreatingQuotation)}>
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -3682,139 +3773,7 @@ export default function JobOrderForm({
                   "Create Job Order"
                 )}
               </Button>
-            )}
-            <div className="w-fit px-5 py-3 bg-slate-100 rounded-lg flex flex-col mb-3 text-sm">
-              <h2 className="mb-2 uppercase font-bold font-mono text-base">
-                Job Order Summary
-              </h2>
-              <div className="py-3 mb-3 border-dashed border-y-2 border-gray-300">
-                <p>Subtotal</p>
-                <div className="flex justify-between">
-                  <p className="opacity-60">Labor</p>
-                  <p>
-                    {laborTotal > 0
-                      ? `₱${formatNumberWithCommas(laborTotal)}`
-                      : "---"}
-                  </p>
-                </div>
-                <div className="flex justify-between">
-                  <p className="opacity-60">Material</p>
-                  <p>
-                    {totalMaterialsPrice && totalMaterialsPrice > 0
-                      ? `₱${formatNumberWithCommas(totalMaterialsPrice)}`
-                      : "---"}
-                  </p>
-                </div>
-                <div className="flex justify-between gap-8">
-                  <p className="opacity-60">Discount</p>
-                  {selectedDiscount ? (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        className="h-fit w-fit p-[1px] rounded-full"
-                        size={"icon"}
-                        variant={"destructive"}
-                        onClick={() => setSelectedDiscount(null)}
-                        disabled={isFormReadonly || isPending}
-                      >
-                        <X size={10} />
-                      </Button>
-                      <Button
-                        className="h-fit w-fit p-0"
-                        variant={"link"}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setDiscountDialogOpen(true);
-                        }}
-                        disabled={isFormReadonly || isPending || !grandTotal}
-                      >
-                        ₱{formatNumberWithCommas(selectedDiscount)}
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      className="h-fit w-fit p-0"
-                      variant={"link"}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setDiscountDialogOpen(true);
-                      }}
-                      disabled={isFormReadonly || isPending || !grandTotal}
-                    >
-                      Select a discount
-                    </Button>
-                  )}
-                </div>
-                <div className="flex justify-between items-start gap-4">
-                  <p className="opacity-60 gap-1">Downpayment</p>
-                  {downpaymentValue || downpaymentInputVisible ? (
-                    <div className="flex-col items-end justify-end w-[115px]">
-                      {readonly ? (
-                        <p className="text-right">
-                          ₱
-                          {downpaymentValue !== null
-                            ? formatNumberWithCommas(downpaymentValue)
-                            : editValues.downpayment
-                              ? formatNumberWithCommas(editValues.downpayment)
-                              : "0"}
-                        </p>
-                      ) : (
-                        <input
-                          type="number"
-                          value={downpaymentValue ?? ""}
-                          onChange={handleDownpaymentChange}
-                          className="w-full text-right placeholder:right bg-transparent focus:outline-none"
-                          placeholder="Enter amount"
-                          min="0"
-                          disabled={isFormReadonly || isPending}
-                        />
-                      )}
-                      {downpaymentError && !readonly && (
-                        <p className="text-red-500 text-xs mt-1 text-right">
-                          {downpaymentError}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <Button
-                      className="h-fit w-fit p-0"
-                      variant={"link"}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleAddDownpayment();
-                      }}
-                      disabled={isFormReadonly || isPending || !grandTotal}
-                    >
-                      Add downpayment
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="flex justify-between gap-4">
-                <p className="font-black">Grand Total</p>
-                <div>
-                  <p>
-                    {adjustedGrandTotal > 0
-                      ? `₱${formatNumberWithCommas(adjustedGrandTotal)}`
-                      : "---"}
-                  </p>
-                  {selectedDiscount !== null &&
-                    selectedDiscount !== undefined &&
-                    selectedDiscount !== 0 && (
-                      <p className="line-through text-xs text-right text-slate-500">
-                        ₱{formatNumberWithCommas(grandTotal)}
-                      </p>
-                    )}
-                </div>
-              </div>
-              {editSession && editValuesWithClient.status === "Completed" && !isTechnician && (
-                <CompletedPaymentDetails jobOrder={jobOrderToEdit} />
-              )}
             </div>
-          </div>
-
-          {/* Billing Section - visible in readonly mode for non-technicians */}
-          {isFormReadonly && editSession && jobOrderToEdit && (
-            <JoBillingSection jobOrder={jobOrderToEdit} />
           )}
         </form>
       </Form>
