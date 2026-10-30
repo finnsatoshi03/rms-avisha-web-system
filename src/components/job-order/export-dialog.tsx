@@ -9,6 +9,7 @@ import { useMutation } from "@tanstack/react-query";
 import { getJobOrdersFiltered } from "../../services/apiJobOrders";
 import { JobOrderData } from "../../lib/types";
 import toast from "react-hot-toast";
+import { jobOrderPrice } from "../../lib/job-order-price";
 
 interface ExportDialogProps {
   branchId: number | null;
@@ -86,7 +87,7 @@ const ExportDialog = ({
       jobOrder.warranty || "",
       jobOrder.users?.fullname || "",
       jobOrder.branches?.location || "",
-      jobOrder.grand_total ? jobOrder.grand_total.toLocaleString() : "0",
+      jobOrderPrice(jobOrder).toLocaleString(),
       jobOrder.completed_at
         ? new Date(jobOrder.completed_at).toLocaleDateString()
         : "",

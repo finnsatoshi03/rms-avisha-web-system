@@ -7,6 +7,7 @@ import { supabase } from "./supabase";
 import { buildClientSearchFilter } from "../lib/client-search";
 import { buildSoftDeleteUpdate } from "./softDelete";
 import { expandClientIdsWithChildren } from "./apiClients";
+import { jobOrderTransitionError } from "../lib/job-order-validation";
 
 function normalizeJobOrderUsers<T extends { users?: unknown; order_received_user?: unknown }>(
   joborders: T[] | null | undefined
@@ -552,13 +553,19 @@ export async function updateJobOrderStatus(ids: number[], status: string) {
   // Fetch current status and billing linkage so we can handle rollback behavior safely.
   const { data: jobOrders, error: fetchError } = await supabase
     .from("joborders")
-    .select("id, warranty_months, status, transferred_to_billing, rate")
+    .select("id, order_no, warranty_months, status, transferred_to_billing, rate, labor_description, technical_report")
     .in("id", ids)
     .is("deleted_at", null);
 
   if (fetchError) {
     console.error("Error fetching job orders:", fetchError);
     throw new Error("Could not fetch job orders");
+  }
+
+  // Validate the entire selection before writing any rows.
+  for (const order of jobOrders) {
+    const message = jobOrderTransitionError(order, status);
+    if (message) throw new Error(`Job Order ${order.order_no || order.id}: ${message}`);
   }
 
   // Warranty windows are measured from server time, never the local clock.

@@ -12,6 +12,7 @@ let aging;
 let api;
 let agingApi;
 let quotationsApi;
+let price;
 let orders = [];
 let writes = [];
 let queries = [];
@@ -82,6 +83,7 @@ before(async () => {
   api = await server.ssrLoadModule("/src/services/apiJobOrders.ts");
   agingApi = await server.ssrLoadModule("/src/services/apiJobOrderEvents.ts");
   quotationsApi = await server.ssrLoadModule("/src/services/apiQuotations.ts");
+  price = await server.ssrLoadModule("/src/lib/job-order-price.ts");
 });
 
 after(async () => {
@@ -181,4 +183,31 @@ test("reopening into For Pullout preserves billing-linked payments but resets co
   assert.equal(writes[0].payload.receipt_url, null);
   assert.equal(Object.hasOwn(writes[1].payload, "payment_details"), false);
   assert.equal(Object.hasOwn(writes[1].payload, "receipt_url"), false);
+});
+
+for (const [status, field] of [["Repairing", "labor_description"], ["Ready for Pickup", "technical_report"], ["Ready to Pickup", "technical_report"]]) {
+  test(`${status} rejects missing and whitespace-only ${field} before any bulk writes`, async () => {
+    for (const value of [null, "", " \n\t "]) {
+      orders = [{ id: 1, status: "Pending", [field]: "Valid work details" },
+        { id: 2, status: "Pending", [field]: value }];
+      await assert.rejects(api.updateJobOrderStatus([1, 2], status), /Fill in/);
+      assert.equal(writes.length, 0);
+    }
+  });
+  test(`${status} accepts saved ${field}`, async () => {
+    orders = [{ id: 1, status: "Pending", [field]: "Valid work details" }];
+    await api.updateJobOrderStatus([1], status);
+    assert.equal(writes[0].payload.status, status);
+  });
+}
+
+test("completed price includes downpayment once for current and legacy totals", () => {
+  const order = { status: "Completed", grand_total: 1350, sub_total: 3850,
+    labor_total: 2500, material_total: 1350, discount: 0, downpayment: 2500 };
+  assert.equal(price.jobOrderPrice(order), 3850);
+  assert.equal(price.jobOrderPrice({ ...order, grand_total: 3850 }), 3850);
+  assert.equal(price.jobOrderPrice({ ...order, discount: 350, grand_total: 1000 }), 3500);
+  assert.equal(price.jobOrderPrice({ ...order, downpayment: 3850, grand_total: 0 }), 3850);
+  assert.equal(price.jobOrderPrice({ ...order, downpayment: 0, grand_total: 3850 }), 3850);
+  assert.equal(price.jobOrderPrice({ ...order, status: "Repairing" }), 1350);
 });

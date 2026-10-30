@@ -36,7 +36,6 @@ import {
 } from "../components/job-order/aging-config";
 import { formatMachineType } from "../lib/helpers";
 import {
-  getServerNow,
   getServerNowEpochMs,
   getServerNowISO,
 } from "../lib/server-time";
@@ -225,7 +224,7 @@ export default function JobOrderAging() {
     },
     onError: (_err, _vars, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(agingKey, ctx.previous);
-      toast.error("Could not update status");
+      toast.error(_err.message || "Could not update status");
     },
     onSuccess: () => toast.success("Status updated"),
     onSettled: () => {
@@ -295,18 +294,6 @@ export default function JobOrderAging() {
     setDragOverStatus(null);
     if (!row || row.status === targetStatus) return;
 
-    // Same guard the Job Orders table enforces: a job order pending more than
-    // two days with no technical report cannot leave Pending.
-    if (row.status === "Pending" && !row.hasReport) {
-      const twoDaysAgo = getServerNow();
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      if (new Date(row.created_at) < twoDaysAgo) {
-        toast.error(
-          "Can't move this: it has been Pending over two days with no technical report."
-        );
-        return;
-      }
-    }
     statusMutation.mutate({ id, status: targetStatus });
   };
 

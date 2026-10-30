@@ -2989,7 +2989,7 @@ export default function JobOrderForm({
                       <FormLabel>Labor Description</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="Describe the work performed"
+                          placeholder="Required before changing status to Repairing"
                           disabled={isFormReadonly}
                           {...field}
                         />
@@ -3673,7 +3673,7 @@ export default function JobOrderForm({
                         <FormLabel>Technical Report</FormLabel>
                         <FormControl>
                           <Textarea
-                            placeholder="Describe the issues diagnosed and actions taken on the unit"
+                            placeholder="Required before Ready for Pickup: describe the issues diagnosed and actions taken"
                             disabled={isFormReadonly}
                             {...field}
                           />

@@ -112,6 +112,8 @@ import {
   isBillingLinkedSource,
 } from "../lib/billing-sync";
 import { computeStoredAmountDue } from "../lib/transaction-totals";
+import { jobOrderPrice } from "../lib/job-order-price";
+import { jobOrderTransitionError } from "../lib/job-order-validation";
 import { getServerNow } from "../lib/server-time";
 
 export default function Table({
@@ -199,7 +201,7 @@ export default function Table({
       for (const [key, snapshot] of context?.previous ?? []) {
         queryClient.setQueryData(key, snapshot);
       }
-      toastErrorWithRetry("Status change failed — reverted.", () =>
+      toastErrorWithRetry(_error.message || "Status change failed — reverted.", () =>
         updateStatusMutate(variables)
       );
     },
@@ -481,7 +483,7 @@ export default function Table({
           queryClient.invalidateQueries({ queryKey: ["job_order"] });
         },
         onError: (error) => {
-          toast.error("An error occurred while updating the Job Order status");
+          toast.error(error.message || "Could not update the Job Order status");
           console.error(error);
         },
       }
@@ -585,7 +587,7 @@ export default function Table({
           queryClient.invalidateQueries({ queryKey: ["billing_accounts"] });
         },
         onError: (error) => {
-          toast.error("An error occurred while updating the Job Order status");
+          toast.error(error.message || "Could not update the Job Order status");
           console.error(error);
         },
       }
@@ -654,7 +656,7 @@ export default function Table({
           queryClient.invalidateQueries({ queryKey: ["job_order"] });
         },
         onError: (error) => {
-          toast.error("An error occurred while updating the Job Order status");
+          toast.error(error.message || "Could not update the Job Order status");
           console.error(error);
         },
       }
@@ -665,19 +667,9 @@ export default function Table({
     const orderToUpdate = orders.find((order) => order.order_no === order_no);
 
     if (orderToUpdate) {
-      const createdDate = new Date(orderToUpdate.created_at);
-      const twoDaysAgo = getServerNow();
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      const isPendingTooLong =
-        orderToUpdate.status === "Pending" && createdDate < twoDaysAgo;
-      const isTechnicalReportEmpty =
-        !orderToUpdate.technical_report ||
-        orderToUpdate.technical_report.trim() === "";
-
-      if (isPendingTooLong && isTechnicalReportEmpty) {
-        toast.error(
-          "Status cannot be changed. The job order has been pending for more than two days, and the technical report is missing."
-        );
+      const transitionError = jobOrderTransitionError(orderToUpdate, status.label);
+      if (transitionError) {
+        toast.error(transitionError);
         return;
       }
 
@@ -778,23 +770,12 @@ export default function Table({
       selectedRows.includes(order.id)
     );
 
-    const problematicOrders = ordersToUpdate.filter((order) => {
-      const createdDate = new Date(order.created_at);
-      const twoDaysAgo = getServerNow();
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      const isPendingTooLong =
-        order.status === "Pending" && createdDate < twoDaysAgo;
-      const isTechnicalReportEmpty =
-        !order.technical_report || order.technical_report.trim() === "";
-
-      return isPendingTooLong && isTechnicalReportEmpty;
-    });
-
-    if (problematicOrders.length > 0) {
-      toast.error(
-        `Status change blocked for ${problematicOrders.length} job order(s). Ensure technical reports are provided for job orders pending for more than two days.`
-      );
-      return;
+    for (const order of ordersToUpdate) {
+      const transitionError = jobOrderTransitionError(order, status.label);
+      if (transitionError) {
+        toast.error('Job Order ' + order.order_no + ': ' + transitionError);
+        return;
+      }
     }
 
     if (status.label === "Completed") {
@@ -875,7 +856,7 @@ export default function Table({
             },
             onError: (error) => {
               toast.error(
-                "An error occurred while updating the Job Orders status"
+                error.message || "Could not update the Job Orders status"
               );
               console.error(error);
             },
@@ -1315,7 +1296,7 @@ export default function Table({
                         </TableCell>
                       )}
                       <TableCell className={cn(numericCellClass, "font-bold text-black")}>
-                        ₱{formatNumberWithCommas(Number(order.grand_total))}
+                        ₱{formatNumberWithCommas(jobOrderPrice(order))}
                       </TableCell>
                       <TableCell>
                         <PaymentCell
