@@ -10,7 +10,7 @@ import {
   Cell,
 } from "recharts";
 import CustomToolTip from "./custom-tooltip";
-import { AggregatedData, JobOrderData } from "../../lib/types";
+import { AggregatedData, DashboardJobOrderData } from "../../lib/types";
 import { allMonths, calculateMetrics } from "../../lib/helpers";
 import {
   Select,
@@ -27,7 +27,7 @@ export default function BarChartSection({
   orders,
 }: {
   data: AggregatedData[];
-  orders: JobOrderData[];
+  orders: DashboardJobOrderData[];
 }) {
   const currentMonth = getServerNow().getMonth();
   const currentYear = getServerNow().getFullYear();
@@ -44,7 +44,7 @@ export default function BarChartSection({
 
   useEffect(() => {
     if (selectedYear) {
-      const filteredOrders = orders.filter((order: JobOrderData) => {
+      const filteredOrders = orders.filter((order: DashboardJobOrderData) => {
         const orderYear =
           order.status === "Completed" ||
           order.status.toLowerCase() === "pull out"

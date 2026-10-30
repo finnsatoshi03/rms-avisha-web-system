@@ -1,4 +1,4 @@
-import { GrossAndNetData, JobOrderData, Expenses } from "../../lib/types";
+import { GrossAndNetData, DashboardJobOrderData, Expenses } from "../../lib/types";
 import {
   ChartConfig,
   ChartContainer,
@@ -12,7 +12,7 @@ import { DateRange } from "react-day-picker";
 
 interface SalesReportLineChartProps {
   grossAndNetData: GrossAndNetData[];
-  filteredOrders: JobOrderData[];
+  filteredOrders: DashboardJobOrderData[];
   expenses: Expenses[];
   dateRange?: DateRange;
 }

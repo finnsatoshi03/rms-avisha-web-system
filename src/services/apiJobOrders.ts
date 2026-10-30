@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { SupabaseClient } from "@supabase/supabase-js";
-import { CreateJobOrderData, MaterialItem } from "../lib/types";
+import { CreateJobOrderData, DashboardJobOrderData, MaterialItem } from "../lib/types";
 import { withEffectiveUserEmail } from "../lib/effective-user-email";
 import { getServerNow } from "../lib/server-time";
 import { supabase } from "./supabase";
@@ -21,34 +21,43 @@ function normalizeJobOrderUsers<T extends { users?: unknown; order_received_user
   }));
 }
 
-export async function getJobOrders() {
-  // Dashboard-only query: nested selects are limited to the fields the
-  // dashboard components actually read (clients.name, users.fullname/email,
-  // branches.location) — full nested records tripled the payload.
-  const { data: joborders, error } = await supabase.from("joborders").select(`
-      *,
+export const DASHBOARD_JOB_ORDER_SELECT = `
+      id, order_no, created_at, completed_at, status, branch_id, machine_type,
+      rate, grand_total, net_sales, downpayment,
       clients:client_id (id, name),
       branches:branch_id (id, location),
-      materials (
-        id,
-        material_description,
-        quantity,
-        unit_price,
-        total_amount,
-        job_order_id,
-        material_id,
-        used
-        ),
-        users:technician_id (id, fullname, email, migrated_email)
-    `)
-    .is("deleted_at", null);
+      materials (material_description, quantity, unit_price, used),
+      users:technician_id (id, fullname, email, migrated_email)
+    `;
 
-  if (error) {
-    console.log(error);
-    throw new Error("Job Orders could not be fetched");
+export async function getJobOrders(
+  branchId: number | null = null,
+  signal?: AbortSignal,
+): Promise<DashboardJobOrderData[]> {
+  const orders: DashboardJobOrderData[] = [];
+  let lastId: number | null = null;
+
+  // Keyset pagination handles the API's row cap without truncating all-time
+  // totals. Continue even if the server returns fewer than the requested 500.
+  for (;;) {
+    signal?.throwIfAborted();
+    let query = supabase.from("joborders")
+      .select(DASHBOARD_JOB_ORDER_SELECT)
+      .is("deleted_at", null)
+      .order("id", { ascending: true })
+      .limit(500);
+    if (branchId !== null) query = query.eq("branch_id", branchId);
+    if (lastId !== null) query = query.gt("id", lastId);
+    if (signal) query = query.abortSignal(signal);
+    const { data, error } = await query.returns<DashboardJobOrderData[]>();
+
+    if (error || !data) throw new Error("Job Orders could not be fetched");
+    if (data.length === 0) break;
+    orders.push(...normalizeJobOrderUsers(data));
+    lastId = data[data.length - 1].id;
   }
 
-  return normalizeJobOrderUsers(joborders);
+  return orders;
 }
 
 export async function getJobOrdersFiltered({

@@ -184,50 +184,6 @@ export default function JobOrders() {
     placeholderData: (previousData) => previousData,
   });
 
-  // Prefetch the next page in the background so pagination feels instant.
-  useEffect(() => {
-    const totalCount = data?.meta?.totalCount ?? 0;
-    if (!totalCount || currentPage * itemsPerPage >= totalCount) return;
-
-    queryClient.prefetchQuery({
-      queryKey: [
-        "job_order",
-        currentPage + 1,
-        itemsPerPage,
-        debouncedSearchTerm,
-        isManager,
-        currentBranchId,
-        isUser,
-        user?.id,
-        selectedStatusFilters,
-        showWarningsOnly,
-      ],
-      queryFn: () =>
-        getJobOrdersFiltered({
-          page: currentPage + 1,
-          limit: itemsPerPage,
-          searchTerm: debouncedSearchTerm,
-          branchId: getBranchId(),
-          technicianId: isUser ? user?.id : undefined,
-          statusFilters: selectedStatusFilters,
-          showWarningsOnly: showWarningsOnly,
-        }),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    data,
-    currentPage,
-    itemsPerPage,
-    debouncedSearchTerm,
-    isManager,
-    currentBranchId,
-    isUser,
-    user?.id,
-    selectedStatusFilters,
-    showWarningsOnly,
-    queryClient,
-  ]);
-
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);

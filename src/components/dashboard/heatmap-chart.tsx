@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { Tooltip } from "react-tooltip";
 
-import { JobOrderData } from "../../lib/types";
+import { DashboardJobOrderData } from "../../lib/types";
 import CalendarHeatmapComponent from "../calendar-heatmap";
 import { formatNumberWithCommas } from "../../lib/helpers";
 import { Flame, Crown } from "lucide-react";
@@ -14,7 +14,7 @@ import {
 } from "../ui/tooltip";
 
 interface Props {
-  completedOrders: JobOrderData[];
+  completedOrders: DashboardJobOrderData[];
   selectedYear: number;
   setSelectedYear: (year: number) => void;
   uniqueYears: number[];

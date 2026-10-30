@@ -187,6 +187,19 @@ export type User = {
   created_at?: string | Date;
 };
 
+// The dashboard deliberately receives no contact details, reports, or receipts.
+export type DashboardJobOrderData = Pick<JobOrderData,
+  "id" | "order_no" | "created_at" | "completed_at" | "status" | "branch_id" |
+  "machine_type" | "rate" | "grand_total" | "net_sales" | "downpayment"
+> & {
+  adjustedGrandTotal?: number | null;
+  clients: Pick<Client, "id" | "name">;
+  branches: Pick<Branch, "id" | "location">;
+  users: Pick<User, "id" | "fullname" | "email" | "migrated_email">;
+  order_received_user?: Pick<User, "id" | "fullname" | "email" | "migrated_email">;
+  materials: Pick<MaterialItem, "material_description" | "quantity" | "unit_price" | "used">[];
+};
+
 export type JobOrderData = {
   accessories: null | string[];
   additional_comments: null | string;

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogTrigger } from "../ui/dialog";
-import { JobOrderData, MaterialItem, Expenses } from "../../lib/types";
+import { DashboardJobOrderData, Expenses } from "../../lib/types";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Separator } from "../ui/separator";
@@ -28,7 +28,7 @@ import {
 import { cn } from "../../lib/utils";
 
 interface DeductionsDialogProps {
-  orders: JobOrderData[];
+  orders: DashboardJobOrderData[];
   expenses: Expenses[];
   dateRange?: { from: Date; to: Date };
 }
@@ -419,8 +419,8 @@ export default function DeductionsDialog({
       .filter((order) => order.materials && order.materials.length > 0)
       .flatMap((order) => {
         return (order.materials || [])
-          .filter((material: MaterialItem) => material.used)
-          .map((material: MaterialItem) => ({
+          .filter((material) => material.used)
+          .map((material) => ({
             jobOrderNo: order.order_no,
             description: material.material_description,
             amount: material.quantity * material.unit_price,

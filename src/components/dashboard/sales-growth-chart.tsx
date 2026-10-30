@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { aggregateByMonth, aggregateByWeek } from "../../lib/helpers";
 import CustomToolTip from "./custom-tooltip";
-import { JobOrderData, Metrics } from "../../lib/types";
+import { DashboardJobOrderData, Metrics } from "../../lib/types";
 import {
   Tooltip as TipTool,
   TooltipContent,
@@ -26,7 +26,7 @@ import { format, subDays } from "date-fns";
 import { getServerNow } from "../../lib/server-time";
 
 interface SalesGrowthChartProps {
-  data: JobOrderData[];
+  data: DashboardJobOrderData[];
   metrics: Metrics;
 }
 
@@ -56,7 +56,7 @@ const SalesGrowthChart: React.FC<SalesGrowthChartProps> = ({
     month: true,
   });
 
-  const aggregateByDay = (data: JobOrderData[]) => {
+  const aggregateByDay = (data: DashboardJobOrderData[]) => {
     const result: { [key: string]: number } = {};
 
     data.forEach((order) => {

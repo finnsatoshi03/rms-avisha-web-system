@@ -16,12 +16,12 @@ import {
 } from "../ui/tooltip";
 import { MapPinned, TrendingDown, TrendingUp } from "lucide-react";
 import { formatNumberWithCommas } from "../../lib/helpers";
-import { JobOrderData, Metrics } from "../../lib/types";
+import { DashboardJobOrderData, Metrics } from "../../lib/types";
 import CustomToolTip from "./custom-tooltip";
 import { Separator } from "../ui/separator";
 
 interface SalesByBranchProps {
-  data: JobOrderData[];
+  data: DashboardJobOrderData[];
   metrics: Metrics;
 }
 

@@ -7,7 +7,7 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip";
 import { MonitorCheck } from "lucide-react";
-import { JobOrderData, Metrics } from "../../lib/types";
+import { DashboardJobOrderData, Metrics } from "../../lib/types";
 import {
   formatMachineType,
   formatNumberWithCommas,
@@ -16,7 +16,7 @@ import {
 import CustomToolTip from "./custom-tooltip";
 
 interface PieChartComponentProps {
-  data: JobOrderData[];
+  data: DashboardJobOrderData[];
   metrics: Metrics;
 }
 

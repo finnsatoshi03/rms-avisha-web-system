@@ -4,7 +4,7 @@ import {
   AggregatedData,
   FinancialChartProps,
   GrossAndNetData,
-  JobOrderData,
+  DashboardJobOrderData,
   Metrics,
   OverviewData,
   Expenses as ExpensesType,
@@ -61,7 +61,8 @@ import { useNavigate } from "react-router-dom";
 import { getServerNow } from "../lib/server-time";
 
 export default function Dashboard() {
-  const { isManager, branchId: currentBranchId, isUser } = useUser();
+  const { isManager, branchId: currentBranchId, isUser, user,
+    isLoading: isUserLoading, requiresBranchSelection } = useUser();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,10 +74,11 @@ export default function Dashboard() {
     }
   }, [isManager, navigate]);
 
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ["job_orders"],
-    queryFn: async () => {
-      const jobOrders = await getJobOrders();
+  const { data: orders, isLoading, isError } = useQuery({
+    queryKey: ["job_orders", user?.id, isManager ? currentBranchId : null],
+    enabled: Boolean(user?.id) && !requiresBranchSelection,
+    queryFn: async ({ signal }) => {
+      const jobOrders = await getJobOrders(isManager ? currentBranchId : null, signal);
       return jobOrders.map((job) => ({
         ...job,
         created_at: job.created_at.split("T")[0],
@@ -88,7 +90,7 @@ export default function Dashboard() {
     if (!orders) return [];
     if (isManager && currentBranchId !== null) {
       return orders.filter(
-        (order: JobOrderData) => order.branch_id === currentBranchId
+        (order: DashboardJobOrderData) => order.branch_id === currentBranchId
       );
     }
 
@@ -234,7 +236,7 @@ export default function Dashboard() {
   }, [currentTab, job_orders, expenses]);
 
   useEffect(() => {
-    if (job_orders && job_orders.length > 0) {
+    if (job_orders) {
       const metrics = calculateMetrics(job_orders, expenses);
 
       setOverviewData([
@@ -283,9 +285,9 @@ export default function Dashboard() {
   }, [job_orders, expenses]);
 
   useEffect(() => {
-    if (job_orders && job_orders.length > 0) {
+    if (job_orders) {
       // Filter job orders by date range
-      const filteredOrders = job_orders.filter((order: JobOrderData) => {
+      const filteredOrders = job_orders.filter((order: DashboardJobOrderData) => {
         const orderDate =
           order.status === "Completed" ||
             order.status.toLowerCase() === "pull out"
@@ -400,12 +402,12 @@ export default function Dashboard() {
     return job_orders
       ? job_orders
         .filter(
-          (order: JobOrderData) =>
+          (order: DashboardJobOrderData) =>
             order.status === "Completed" ||
             order.status.toLowerCase() === "pull out" ||
             (order.downpayment && order.downpayment > 0)
         )
-        .map((order: JobOrderData) => {
+        .map((order: DashboardJobOrderData) => {
           let adjustedGrandTotal = order.grand_total ?? 0;
 
           if (order.materials) {
@@ -435,7 +437,7 @@ export default function Dashboard() {
   const filteredOrders = useMemo(() => {
     return job_orders
       ? job_orders
-        .filter((order: JobOrderData) => {
+        .filter((order: DashboardJobOrderData) => {
           const orderDate =
             order.status === "Completed" ||
               order.status.toLowerCase() === "pull out"
@@ -451,7 +453,7 @@ export default function Dashboard() {
             (!dateRange?.to || orderDate <= dateRange.to)
           );
         })
-        .map((order: JobOrderData) => {
+        .map((order: DashboardJobOrderData) => {
           let adjustedGrandTotal = order.grand_total ?? 0;
 
           if (order.materials) {
@@ -478,15 +480,12 @@ export default function Dashboard() {
   }, [job_orders, dateRange]);
 
   useEffect(() => {
-    if (filteredOrders.length > 0) {
-      const filteredMetrics = calculateMetrics(filteredOrders);
-      setFilteredMetrics(filteredMetrics);
-    }
+    setFilteredMetrics(calculateMetrics(filteredOrders));
   }, [filteredOrders]);
 
   const dataWithMonthNames = useMemo(
     () =>
-      completedOrders.map((order: JobOrderData) => {
+      completedOrders.map((order: DashboardJobOrderData) => {
         const date = new Date(order.completed_at!);
         const monthName = date.toLocaleString("default", { month: "short" });
         return { ...order, monthName };
@@ -528,7 +527,7 @@ export default function Dashboard() {
       job_orders
         ? Array.from(
           new Set(
-            job_orders.map((order: JobOrderData) =>
+            job_orders.map((order: DashboardJobOrderData) =>
               getYear(new Date(order.created_at))
             )
           )
@@ -574,7 +573,8 @@ export default function Dashboard() {
     </>
   );
 
-  if (isLoading || isExpensesLoading) return <DashboardSkeleton />;
+  if (isUserLoading || isLoading || isExpensesLoading) return <DashboardSkeleton />;
+  if (isError) return <p role="alert">Dashboard could not be loaded. Please refresh to try again.</p>;
 
   return (
     <Suspense fallback={<DashboardSkeleton />}>

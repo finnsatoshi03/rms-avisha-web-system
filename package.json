@@ -11,6 +11,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test:job-order-statuses": "node --test tests/job-order-statuses.test.mjs",
+    "test:dashboard-egress": "node --test tests/dashboard-egress.test.mjs",
     "test:quotation-edit": "node --test tests/quotation-edit.test.mjs",
     "preview": "vite preview"
   },

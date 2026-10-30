@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { JobOrderData } from "../../lib/types";
+import { DashboardJobOrderData } from "../../lib/types";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { getServerNow } from "../../lib/server-time";
@@ -7,7 +7,7 @@ import { getServerNow } from "../../lib/server-time";
 export default function RecentSalesSection({
   completedOrders,
 }: {
-  completedOrders: JobOrderData[];
+  completedOrders: DashboardJobOrderData[];
 }) {
   const currentDate = getServerNow();
   const currentMonth = currentDate.getMonth();
@@ -68,7 +68,7 @@ export default function RecentSalesSection({
       </div>
       <div className="py-4 px-5">
         {completedThisMonth.length > 0 ? (
-          completedThisMonth.map((order: JobOrderData) => {
+          completedThisMonth.map((order: DashboardJobOrderData) => {
             // Determine the amount to display and payment status
             const isFullyPaid = order.status === "Completed";
             const isPullout = order.status.toLowerCase() === "pull out";

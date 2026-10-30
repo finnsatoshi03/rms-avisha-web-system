@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { JobOrderData } from "../../lib/types";
+import { DashboardJobOrderData } from "../../lib/types";
 import {
   Tooltip as Hint,
   TooltipContent,
@@ -316,7 +316,7 @@ export default function RevenuePerTechnicianLeaderboard({
   orders,
   isAnalytics,
 }: {
-  orders: JobOrderData[];
+  orders: DashboardJobOrderData[];
   isAnalytics?: boolean;
 }) {
   const [selectedFilter, setSelectedFilter] = useState("All Time");
@@ -333,7 +333,7 @@ export default function RevenuePerTechnicianLeaderboard({
   const startOfYear = new Date(now.getFullYear(), 0, 1);
 
   function aggregateRevenueByTechnician(
-    orders: JobOrderData[]
+    orders: DashboardJobOrderData[]
   ): TechnicianData[] {
     const revenueByTechnician: {
       [key: string]: { revenue: number; jobCount: number };
@@ -373,7 +373,7 @@ export default function RevenuePerTechnicianLeaderboard({
       .sort((a, b) => b.value - a.value);
   }
 
-  function filterOrders(orders: JobOrderData[]) {
+  function filterOrders(orders: DashboardJobOrderData[]) {
     let filteredOrders = orders;
 
     switch (selectedFilter) {

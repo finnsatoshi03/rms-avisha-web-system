@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { format, startOfMonth, startOfWeek } from "date-fns";
-import { Expenses, JobOrderData } from "./types";
+import { Expenses, DashboardJobOrderData } from "./types";
 import { DateRange } from "react-day-picker";
 import { getClientRollupKey } from "./client-hierarchy";
 import { getServerNow, getServerNowEpochMs } from "./server-time";
@@ -39,7 +39,7 @@ export function formatNumberWithCommas(value: number): string {
 }
 
 export function calculateMetrics(
-  orders: JobOrderData[],
+  orders: DashboardJobOrderData[],
   expenses: Expenses[] = [],
   dateRange?: DateRange
 ) {
@@ -262,7 +262,7 @@ export function calculateMetrics(
   const getMonthlyMetrics = (
     month: number,
     year: number,
-    // allOrders: JobOrderData[],
+    // allOrders: DashboardJobOrderData[],
     allExpenses: Expenses[]
   ) => {
     const monthlyCompletedOrders = completedOrders.filter((order) => {
@@ -523,8 +523,8 @@ export function generateMonochromaticColors(
   return colors;
 }
 
-export const aggregateByWeek = (orders: JobOrderData[]) => {
-  const aggregatedData = orders.reduce((acc: any, order: JobOrderData) => {
+export const aggregateByWeek = (orders: DashboardJobOrderData[]) => {
+  const aggregatedData = orders.reduce((acc: any, order: DashboardJobOrderData) => {
     // Use completed_at for the week start if status is "Completed"
     const dateToUse =
       order.status === "Completed" || order.status.toLowerCase() === "pull out"
@@ -553,8 +553,8 @@ export const aggregateByWeek = (orders: JobOrderData[]) => {
   );
 };
 
-export const aggregateByMonth = (orders: JobOrderData[]) => {
-  const aggregatedData = orders.reduce((acc: any, order: JobOrderData) => {
+export const aggregateByMonth = (orders: DashboardJobOrderData[]) => {
+  const aggregatedData = orders.reduce((acc: any, order: DashboardJobOrderData) => {
     const monthStart =
       order.status === "Completed" || order.status.toLowerCase() === "pull out"
         ? format(startOfMonth(new Date(order.completed_at!)), "yyyy-MM-dd")
@@ -669,7 +669,7 @@ export const formatTimeAgo = (date: Date) => {
   }
 };
 
-export const countJobOrdersByStatus = (jobOrders: JobOrderData[]) => {
+export const countJobOrdersByStatus = (jobOrders: DashboardJobOrderData[]) => {
   const statusCounts: Record<string, number> = Object.fromEntries([
     ...ALL_JOB_ORDER_STATUSES.map((status) => [status.label, 0]),
     ["Ready to Pickup", 0],
